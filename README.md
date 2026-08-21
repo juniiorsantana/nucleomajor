@@ -3,7 +3,7 @@
 Aplicação Node.js que serve a página pública de convite e a API de convites no
 mesmo domínio:
 
-- `https://nucleomajor.com/` — acesso do portal;
+- `https://nucleomajor.com/` — página pública do Núcleo Major;
 - `https://nucleomajor.com/convite` — cadastro/aceite de convite;
 - `https://nucleomajor.com/api` — operações autenticadas para a extensão.
 

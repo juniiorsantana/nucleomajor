@@ -9,7 +9,7 @@ async function runningServer(apiHandler) {
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
-test("publica configuração e a página de convite", async (t) => {
+test("publica configuração, a página SaaS e a página de convite", async (t) => {
   const { server, origin } = await runningServer();
   t.after(() => server.close());
 
@@ -18,6 +18,10 @@ test("publica configuração e a página de convite", async (t) => {
   assert.equal(configResponse.headers.get("cache-control"), "no-store");
   const config = await configResponse.json();
   assert.equal(config.publicOrigin, "https://nucleomajor.com");
+
+  const landingResponse = await fetch(`${origin}/`);
+  assert.equal(landingResponse.status, 200);
+  assert.match(await landingResponse.text(), /Núcleo Major|Onde a sua equipe atende/i);
 
   const pageResponse = await fetch(`${origin}/convite`);
   assert.equal(pageResponse.status, 200);

@@ -54,7 +54,7 @@ function securityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'self'");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'");
 }
 
 function bearer(req) {
@@ -232,11 +232,28 @@ async function api(req, res, url) {
   throw new HttpError(405, "Método não permitido.", "method-not-allowed");
 }
 
-const contentTypes = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8" };
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
 
 async function staticFile(req, res, url) {
   const pathname = decodeURIComponent(url.pathname);
-  const relative = pathname === "/" || pathname === "/convite" ? "index.html" : pathname.replace(/^\//, "");
+  const relative = pathname === "/"
+    ? "index.html"
+    : pathname === "/convite" || pathname === "/convite/"
+      ? "convite/index.html"
+      : pathname.replace(/^\//, "");
   const filePath = resolve(PUBLIC_DIR, relative);
   const publicPrefix = `${PUBLIC_DIR}${process.platform === "win32" ? "\\" : "/"}`;
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(publicPrefix)) throw new HttpError(404, "Página não encontrada.", "not-found");
