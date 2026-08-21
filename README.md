@@ -33,8 +33,9 @@ ative HTTPS e cadastre as variáveis do `.env` no painel. A caixa
 
 No painel Node.js da Hostinger, use `portal` como diretório da aplicação,
 `npm install` como instalação e `npm start` como comando de inicialização. Se o
-painel pedir uma porta, use a variável `PORT` fornecida pela Hostinger; o
-servidor escuta nessa porta e o proxy da Hostinger publica o HTTPS.
+painel pedir um arquivo de entrada, use `src/start.mjs`. Se pedir uma porta,
+use a variável `PORT` fornecida pela Hostinger; o servidor escuta nessa porta e
+o proxy da Hostinger publica o HTTPS.
 
 Variáveis mínimas de produção:
 

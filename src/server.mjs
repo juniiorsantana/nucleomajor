@@ -8,8 +8,6 @@ import { createMailer, sendInviteEmail } from "./email.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
-const PORT = Number(process.env.PORT || 3000);
-const HOST = String(process.env.HOST || "0.0.0.0");
 const PUBLIC_ORIGIN = String(process.env.PUBLIC_ORIGIN || "https://nucleomajor.com").replace(/\/$/, "");
 const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_PUBLISHABLE_KEY = String(process.env.SUPABASE_PUBLISHABLE_KEY || "");
@@ -268,12 +266,5 @@ export function createServer({ apiHandler = api } = {}) {
       if (status >= 500 && status !== 502) console.error("portal request failed", error?.code || "unknown");
       json(res, status, { error: error?.message || "Não foi possível concluir a operação.", code: error?.code || "portal-error" });
     }
-  });
-}
-
-const isEntryPoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isEntryPoint) {
-  createServer().listen(PORT, HOST, () => {
-    console.log(`Núcleo Major portal listening on ${HOST}:${PORT}`);
   });
 }
