@@ -285,3 +285,14 @@ export function createServer({ apiHandler = api } = {}) {
     }
   });
 }
+
+// Compatibilidade com a configuração inicial da Hostinger, que pode ainda
+// estar usando `src/server.mjs` como arquivo de entrada. Quando este módulo é
+// importado pelo `src/start.mjs`, o bloco não é executado.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const port = Number(process.env.PORT || 3000);
+  const host = String(process.env.HOST || "0.0.0.0");
+  createServer().listen(port, host, () => {
+    console.log(`Núcleo Major portal listening on ${host}:${port}`);
+  });
+}
