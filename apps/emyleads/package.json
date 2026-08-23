@@ -1,0 +1,35 @@
+{
+  "name": "@nucleomajor/emyleads",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Aplicação web e conector opcional do EmyLeads",
+  "scripts": {
+    "build": "npm run build:web",
+    "build:web": "vite build --config vite.web.config.js",
+    "build:extension": "vite build && vite build --config vite.sw.config.js && vite build --config vite.content.config.js",
+    "watch": "vite build --config vite.content.config.js --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "update-wa-js": "curl -sL --create-dirs -o vendor/wa-js.js https://github.com/wppconnect-team/wa-js/releases/download/nightly/wppconnect-wa.js",
+    "dev": "vite",
+    "dev:web": "vite --config vite.web.config.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "@wppconnect/wa-js": "^4.3.1",
+    "@xyflow/react": "^12.9.3",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.8.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "fake-indexeddb": "^6.0.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

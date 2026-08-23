@@ -9,7 +9,7 @@ async function runningServer(apiHandler) {
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
-test("publica configuração, a página SaaS e a página de convite", async (t) => {
+test("publica configuração, a página SaaS, o app e a página de convite", async (t) => {
   const { server, origin } = await runningServer();
   t.after(() => server.close());
 
@@ -19,6 +19,11 @@ test("publica configuração, a página SaaS e a página de convite", async (t) 
   const config = await configResponse.json();
   assert.equal(config.publicOrigin, "https://nucleomajor.com");
 
+  const runtimeConfigResponse = await fetch(`${origin}/api/config.js`);
+  assert.equal(runtimeConfigResponse.status, 200);
+  assert.match(runtimeConfigResponse.headers.get("content-type"), /javascript/);
+  assert.match(await runtimeConfigResponse.text(), /__NUCLEO_CONFIG__/);
+
   const landingResponse = await fetch(`${origin}/`);
   assert.equal(landingResponse.status, 200);
   assert.match(await landingResponse.text(), /Núcleo Major|Onde a sua equipe atende/i);
@@ -27,6 +32,16 @@ test("publica configuração, a página SaaS e a página de convite", async (t) 
   assert.equal(pageResponse.status, 200);
   assert.match(await pageResponse.text(), /EmyLeads/i);
   assert.equal(pageResponse.headers.get("x-frame-options"), "DENY");
+
+  const appResponse = await fetch(`${origin}/app`);
+  assert.equal(appResponse.status, 200);
+  assert.match(await appResponse.text(), /EmyLeads · Núcleo Major/i);
+
+  for (const route of ["assistente", "contatos", "agenda", "conhecimento", "chatbots", "conexoes", "equipe", "configuracoes"]) {
+    const nestedAppResponse = await fetch(`${origin}/app/${route}`);
+    assert.equal(nestedAppResponse.status, 200);
+    assert.match(await nestedAppResponse.text(), /id="raiz"/);
+  }
 });
 
 test("aceita as rotas de reenvio e cancelamento com id UUID", async (t) => {

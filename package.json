@@ -3,13 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/emyleads"
+  ],
   "scripts": {
+    "prestart": "npm run build:web",
     "start": "node src/start.mjs",
-    "test": "node --test test/*.test.mjs",
-    "check": "node --check src/server.mjs && node --check src/start.mjs && node --check src/invite.mjs && node --check src/email.mjs && node --check public/app.js"
+    "dev:web": "npm run dev:web --workspace @nucleomajor/emyleads",
+    "build": "npm run build:web",
+    "build:web": "npm run build:web --workspace @nucleomajor/emyleads",
+    "build:extension": "npm run build:extension --workspace @nucleomajor/emyleads",
+    "pretest": "npm run build:web",
+    "test": "npm run test:server && npm run test:app",
+    "test:server": "node --test test/*.test.mjs",
+    "test:app": "npm test --workspace @nucleomajor/emyleads",
+    "check": "node --check src/server.mjs && node --check src/start.mjs && node --check src/invite.mjs && node --check src/email.mjs && npm run build:web"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

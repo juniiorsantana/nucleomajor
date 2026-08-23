@@ -1,5 +1,12 @@
 node_modules/
+apps/*/dist/
+public/app/
+.playwright-venv/
+test-artifacts/
+**/__pycache__/
+*.pyc
 .env
 .env.*
 !.env.example
+!apps/emyleads/.env.test
 npm-debug.log*

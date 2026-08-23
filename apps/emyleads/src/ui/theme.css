@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+/**
+ * Tokens do EmyLeads — provisórios até o brandbook.
+ *
+ * Ficam como custom properties e só depois entram no @theme. Assim o tema
+ * escuro é uma troca de valores num bloco só, em vez de uma auditoria em cada
+ * componente — que é o preço de deixar cor solta pelo código.
+ *
+ * NOTA: `prefers-color-scheme` segue o sistema operacional, não o tema do
+ * WhatsApp, que é uma preferência interna dele. Sincronizar com o tema real do
+ * WhatsApp fica para a Etapa 3, lendo a classe que ele põe no <html>.
+ *
+ * Densidade é de software de produtividade: corpo em 13px, metadado em 11-12px,
+ * nada acima de 20px. Hierarquia vem de peso, espaço e contraste — não de
+ * borda, sombra ou cartão.
+ */
+
+/* `:root, :host` e não só `:root`.
+   O painel monta dentro de um Shadow DOM, e ali `:root` não casa com nada —
+   o shadow root não é o elemento raiz do documento. Declarando só em `:root`,
+   todas as variáveis ficavam indefinidas dentro do painel, `var()` resolvia
+   para vazio e o fundo saía TRANSPARENTE por cima do WhatsApp. */
+:root,
+:host {
+  /* `bg` é o CARTÃO (branco) e `surface` é o FUNDO do painel (cinza claro).
+     A hierarquia vem daí: bloco de conteúdo flutua sobre a base, em vez de ser
+     separado por régua. */
+  --el-bg: #ffffff;
+  --el-surface: #f5f6f8;
+  --el-surface-hover: #eef0f3;
+  --el-line: #e6e9ed;
+  --el-line-strong: #d3d8de;
+  /* Amostrado do "Emy" da marca. */
+  --el-fg: #121730;
+  --el-sub: #667085;
+  --el-faint: #98a2b3;
+  /* Roxo é a MARCA; verde é SUCESSO. Separar os dois é o que impede o produto
+     de virar extensão visual do WhatsApp.
+
+     Os valores saem da logo, não de uma paleta pronta: `accent` é o roxo do
+     símbolo e `accent-forte` é o roxo do "Leads" — que já é mais escuro
+     justamente porque ali ele é TEXTO, e precisa de contraste. */
+  --el-accent: #4f3cfc;
+  --el-accent-forte: #3d29db;
+  --el-accent-soft: #eeebff;
+  --el-success: #16a34a;
+  --el-success-soft: #dcfce7;
+  --el-warning: #b45309;
+  --el-danger: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :host {
+    --el-bg: #171c24;
+    --el-surface: #11151b;
+    --el-surface-hover: #1e242e;
+    --el-line: #262d38;
+    --el-line-strong: #333c4a;
+    --el-fg: #e8ecf1;
+    --el-sub: #9aa5b4;
+    --el-faint: #6b7686;
+    --el-accent: #8b7cff;
+    --el-accent-forte: #a99dff;
+    --el-accent-soft: #1d1940;
+    --el-success: #3ecf8e;
+    --el-success-soft: #10291d;
+    --el-warning: #d99341;
+    --el-danger: #e8776c;
+  }
+}
+
+@theme {
+  --color-bg: var(--el-bg);
+  --color-surface: var(--el-surface);
+  --color-surface-hover: var(--el-surface-hover);
+  --color-line: var(--el-line);
+  --color-line-strong: var(--el-line-strong);
+  --color-fg: var(--el-fg);
+  --color-sub: var(--el-sub);
+  --color-faint: var(--el-faint);
+  --color-accent: var(--el-accent);
+  --color-accent-forte: var(--el-accent-forte);
+  --color-accent-soft: var(--el-accent-soft);
+  --color-success: var(--el-success);
+  --color-success-soft: var(--el-success-soft);
+  --color-warning: var(--el-warning);
+  --color-danger: var(--el-danger);
+
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-el: 6px;
+  --radius-el-lg: 8px;
+}
+
+@layer utilities {
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--el-accent);
+    outline-offset: 2px;
+  }
+
+  .scrollbar-fina::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-fina::-webkit-scrollbar-thumb {
+    background: var(--el-line-strong);
+    border-radius: 999px;
+  }
+  .scrollbar-fina::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
