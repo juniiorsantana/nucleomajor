@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { adicionarDias, intervaloDaVisao, segmentosDoDia, somarPorCategoria } from "./agendaUtils";
+import {
+  adicionarDias,
+  corDaPessoa,
+  corDoEvento,
+  densidadeDoBloco,
+  faixasPorPessoa,
+  iniciaisDoNome,
+  intervaloDaVisao,
+  passoParaAltura,
+  segmentosDoDia,
+  somarPorCategoria,
+  somarPorPessoa,
+} from "./agendaUtils";
 
 const evento = (id, inicio, fim, extras = {}) => ({
   id,
@@ -52,5 +64,136 @@ describe("matemática da régua da agenda", () => {
       expect.objectContaining({ nome: "Reunião", minutos: 90 }),
       expect.objectContaining({ nome: "Indisponível", minutos: 60 }),
     ]));
+  });
+});
+
+describe("faixas por pessoa na visão de equipe", () => {
+  const dia = new Date(2026, 7, 21);
+  const as = (hora, minuto = 0) => new Date(2026, 7, 21, hora, minuto).toISOString();
+  const membros = [
+    { id: "ana", name: "Ana Prado" },
+    { id: "bruno", name: "Bruno Lima" },
+    { id: "caio", name: "Caio Souza" },
+  ];
+
+  it("dá a cada profissional a largura inteira da própria faixa", () => {
+    // O bug que isto guarda: sem faixas, três pessoas reunidas às 10h
+    // disputavam a mesma coluna do dia e viravam três tiras de 33%.
+    const faixas = faixasPorPessoa([
+      evento("ana-1", as(10), as(11), { ownerId: "ana" }),
+      evento("bruno-1", as(10), as(11), { ownerId: "bruno" }),
+      evento("caio-1", as(10), as(11), { ownerId: "caio" }),
+    ], dia, membros);
+
+    expect(faixas.map((faixa) => faixa.id)).toEqual(["ana", "bruno", "caio"]);
+    for (const faixa of faixas) {
+      expect(faixa.segmentos).toHaveLength(1);
+      expect(faixa.segmentos[0].colunas).toBe(1);
+    }
+  });
+
+  it("resolve sobreposição dentro da faixa de quem é dona dela", () => {
+    const faixas = faixasPorPessoa([
+      evento("ana-1", as(9), as(11), { ownerId: "ana" }),
+      evento("ana-2", as(10), as(12), { ownerId: "ana" }),
+      evento("bruno-1", as(10), as(11), { ownerId: "bruno" }),
+    ], dia, membros);
+
+    const ana = faixas.find((faixa) => faixa.id === "ana");
+    const bruno = faixas.find((faixa) => faixa.id === "bruno");
+    expect(ana.segmentos.map((item) => item.colunas)).toEqual([2, 2]);
+    expect(bruno.segmentos[0].colunas).toBe(1);
+  });
+
+  it("mantém a faixa vazia, porque horário livre é a informação procurada", () => {
+    const faixas = faixasPorPessoa([
+      evento("ana-1", as(9), as(10), { ownerId: "ana" }),
+    ], dia, membros);
+    expect(faixas).toHaveLength(3);
+    expect(faixas.find((faixa) => faixa.id === "caio").segmentos).toEqual([]);
+  });
+
+  it("omite faixa vazia quando o chamador pede densidade", () => {
+    const faixas = faixasPorPessoa([
+      evento("ana-1", as(9), as(10), { ownerId: "ana" }),
+    ], dia, membros, { incluirVazias: false });
+    expect(faixas.map((faixa) => faixa.id)).toEqual(["ana"]);
+  });
+
+  it("não engole quem tem evento mas saiu da lista de membros", () => {
+    const faixas = faixasPorPessoa([
+      evento("ex-1", as(9), as(10), { ownerId: "ex-membro", ownerName: "Dani Alves" }),
+    ], dia, membros);
+    const extra = faixas.find((faixa) => faixa.id === "ex-membro");
+    expect(extra).toBeDefined();
+    expect(extra.nome).toBe("Dani Alves");
+  });
+
+  it("soma o ocupado de cada profissional", () => {
+    const totais = somarPorPessoa([
+      evento("ana-1", as(9), as(10, 30), { ownerId: "ana", ownerName: "Ana Prado" }),
+      evento("ana-2", as(14), as(15), { ownerId: "ana", ownerName: "Ana Prado" }),
+      evento("bruno-1", as(10), as(11), { ownerId: "bruno", ownerName: "Bruno Lima" }),
+    ]);
+    expect(totais[0]).toEqual(expect.objectContaining({ id: "ana", minutos: 150 }));
+    expect(totais[1]).toEqual(expect.objectContaining({ id: "bruno", minutos: 60 }));
+  });
+});
+
+describe("identidade visual do bloco", () => {
+  it("mantém a cor da pessoa estável e independente da posição na lista", () => {
+    const antes = corDaPessoa("ana");
+    const depois = corDaPessoa("ana");
+    expect(antes).toBe(depois);
+    expect(antes).toMatch(/^#[0-9A-F]{6}$/i);
+  });
+
+  it("troca a dimensão pintada conforme o modo escolhido", () => {
+    const item = evento("x", new Date().toISOString(), new Date().toISOString(), {
+      ownerId: "ana",
+      categoryColor: "#FB923C",
+    });
+    expect(corDoEvento(item, "categoria")).toBe("#FB923C");
+    expect(corDoEvento(item, "pessoa")).toBe(corDaPessoa("ana"));
+  });
+
+  it("deixa indisponibilidade cinza nos dois modos", () => {
+    const bloqueio = evento("x", new Date().toISOString(), new Date().toISOString(), {
+      titulo: "Indisponível",
+      ownerId: "ana",
+    });
+    expect(corDoEvento(bloqueio, "categoria")).toBe("#CBD5E1");
+    expect(corDoEvento(bloqueio, "pessoa")).toBe("#CBD5E1");
+  });
+
+  it("extrai iniciais de nome simples e composto", () => {
+    expect(iniciaisDoNome("Ana Prado")).toBe("AP");
+    expect(iniciaisDoNome("Ana Maria Prado")).toBe("AP");
+    expect(iniciaisDoNome("Ana")).toBe("AN");
+    expect(iniciaisDoNome("")).toBe("?");
+  });
+});
+
+describe("densidade e passo em função do zoom", () => {
+  it("degrada o conteúdo do bloco conforme a altura disponível", () => {
+    expect(densidadeDoBloco(80)).toBe("completa");
+    expect(densidadeDoBloco(40)).toBe("media");
+    expect(densidadeDoBloco(18)).toBe("minima");
+  });
+
+  it("libera ajuste fino só quando o zoom dá resolução para isso", () => {
+    expect(passoParaAltura(32)).toBe(30);
+    expect(passoParaAltura(64)).toBe(30);
+    expect(passoParaAltura(96)).toBe(15);
+    expect(passoParaAltura(144)).toBe(5);
+  });
+
+  it("mantém o título de uma reunião de 30 minutos visível já no zoom padrão", () => {
+    // O corte antigo era 38px: com 64px/hora, meia hora dá 32px e o título
+    // sumia justamente no evento mais comum da agenda. "media" existe para
+    // cobrir essa faixa mostrando hora e título; só o responsável fica de fora.
+    expect(densidadeDoBloco(64 / 2)).toBe("media");
+    expect(densidadeDoBloco(96 / 2)).toBe("media");
+    expect(densidadeDoBloco(144 / 2)).toBe("completa");
   });
 });

@@ -6,18 +6,25 @@ import {
   ChevronRight,
   ContactRound,
   ListFilter,
+  Minus,
   PanelRightClose,
   Plus,
+  Rows3,
   Settings2,
   SquareCheckBig,
+  Undo2,
+  UserRound,
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
 import { BotaoPrimario, CabecalhoTela, CampoBusca } from "../ui";
 import DialogoEvento from "./agenda/DialogoEvento";
 import GradeAgenda from "./agenda/GradeAgenda";
+import VisaoLista from "./agenda/VisaoLista";
 import VisaoMes from "./agenda/VisaoMes";
 import {
+  NIVEIS_ZOOM,
+  ZOOM_PADRAO,
   adicionarDias,
   chaveDia,
   dataLocal,
@@ -34,12 +41,13 @@ import {
   navegarReferencia,
   rotuloPeriodo,
   somarPorCategoria,
+  somarPorPessoa,
 } from "./agenda/agendaUtils";
 
 const VISUALIZACOES = [
-  { id: "day", rotulo: "Dia" },
-  { id: "week", rotulo: "Semana" },
-  { id: "month", rotulo: "Mês" },
+  { id: "day", rotulo: "Dia", tecla: "d" },
+  { id: "week", rotulo: "Semana", tecla: "s" },
+  { id: "month", rotulo: "Mês", tecla: "m" },
 ];
 const PAINEIS = {
   tasks: { titulo: "Tarefas", icone: SquareCheckBig },
@@ -47,6 +55,21 @@ const PAINEIS = {
   notifications: { titulo: "Notificações", icone: Bell },
   settings: { titulo: "Preferências", icone: Settings2 },
 };
+const SEGUNDOS_DESFAZER = 9000;
+
+function lerLocal(chave, padrao) {
+  // O painel também roda dentro da extensão, onde localStorage pode estar
+  // indisponível por política da página. Preferência visual nunca pode ser
+  // motivo de tela branca.
+  try {
+    const bruto = window.localStorage.getItem(chave);
+    return bruto === null ? padrao : JSON.parse(bruto);
+  } catch { return padrao; }
+}
+
+function gravarLocal(chave, valor) {
+  try { window.localStorage.setItem(chave, JSON.stringify(valor)); } catch { /* preferência é opcional */ }
+}
 
 function dataComMinutos(dia, minutos) {
   return new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), Math.floor(minutos / 60), minutos % 60, 0, 0);
@@ -99,14 +122,151 @@ function DetalheEvento({ evento, aoFechar }) {
   );
 }
 
-function ResumoHoras({ totais }) {
+/**
+ * Aviso flutuante junto da ação.
+ *
+ * Existe porque o erro de arraste vivia numa faixa no topo da grade: quem
+ * movia um evento das 17h recebia a explicação fora da área visível. Também é
+ * onde mora o Desfazer - arrastar é o gesto mais fácil de errar da agenda, e
+ * era o único sem volta.
+ */
+function Aviso({ aviso, aoFechar }) {
+  useEffect(() => {
+    if (!aviso) return undefined;
+    const relogio = setTimeout(aoFechar, aviso.acao ? SEGUNDOS_DESFAZER : 5000);
+    return () => clearTimeout(relogio);
+  }, [aviso, aoFechar]);
+  if (!aviso) return null;
+  const erro = aviso.tom === "erro";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center px-4">
+      <div
+        role="status"
+        aria-live="polite"
+        className={`pointer-events-auto flex max-w-[min(560px,100%)] items-center gap-3 rounded-[11px] border px-3.5 py-2.5 shadow-lg ${erro ? "border-danger/30 bg-danger/10 text-danger" : "border-line-strong bg-fg text-bg"}`}
+      >
+        <span className="min-w-0 flex-1 text-[12px] font-medium">{aviso.texto}</span>
+        {aviso.acao && (
+          <button
+            type="button"
+            onClick={() => { aviso.acao.executar(); aoFechar(); }}
+            className={`flex flex-none cursor-pointer items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-bold ${erro ? "hover:bg-danger/15" : "bg-bg/15 hover:bg-bg/25"}`}
+          >
+            <Undo2 size={13} />{aviso.acao.rotulo}
+          </button>
+        )}
+        <button type="button" aria-label="Fechar aviso" onClick={aoFechar} className="flex-none cursor-pointer rounded-[6px] p-1 opacity-60 hover:opacity-100">
+          <X size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Confirmação no lugar do `confirm()` nativo.
+ *
+ * O nativo bloqueia a thread, ignora o tema e, dentro da extensão, aparece
+ * ancorado no topo do navegador - longe do evento que se está apagando.
+ */
+function DialogoConfirmar({ pedido, aoFechar }) {
+  const botaoRef = useRef(null);
+  useEffect(() => {
+    if (!pedido) return undefined;
+    botaoRef.current?.focus();
+    const teclado = (e) => { if (e.key === "Escape") aoFechar(); };
+    window.addEventListener("keydown", teclado);
+    return () => window.removeEventListener("keydown", teclado);
+  }, [aoFechar, pedido]);
+  if (!pedido) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
+      <section role="alertdialog" aria-modal="true" aria-labelledby="agenda-confirmar-titulo" className="w-full max-w-sm rounded-[15px] border border-line bg-bg p-5 shadow-2xl">
+        <h2 id="agenda-confirmar-titulo" className="text-[15px] font-semibold text-fg">{pedido.titulo}</h2>
+        <p className="mt-2 text-[12px] text-sub">{pedido.descricao}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg">
+            Cancelar
+          </button>
+          <button
+            ref={botaoRef}
+            type="button"
+            onClick={() => { pedido.confirmar(); aoFechar(); }}
+            className="cursor-pointer rounded-[9px] bg-danger px-3.5 py-2 text-[12px] font-semibold text-white hover:brightness-95"
+          >
+            {pedido.rotulo || "Confirmar"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Esqueleto no lugar de "Carregando agenda…".
+ *
+ * Trocar de semana apagava a tela inteira e devolvia uma frase centralizada:
+ * a cada navegação o layout piscava do zero. O esqueleto preserva a forma da
+ * grade, então a mudança de período parece atualização, não recarga.
+ */
+function EsqueletoAgenda() {
+  return (
+    <div className="min-h-0 flex-1 animate-pulse overflow-hidden rounded-[14px] border border-line bg-bg" aria-hidden="true">
+      <div className="grid border-b border-line" style={{ gridTemplateColumns: "58px repeat(5, minmax(0, 1fr))" }}>
+        <div className="border-r border-line py-3" />
+        {[0, 1, 2, 3, 4].map((coluna) => (
+          <div key={coluna} className="border-r border-line px-3 py-3 last:border-r-0">
+            <div className="h-2.5 w-14 rounded-full bg-surface-hover" />
+            <div className="mt-1.5 h-2 w-10 rounded-full bg-surface" />
+          </div>
+        ))}
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "58px repeat(5, minmax(0, 1fr))" }}>
+        <div className="border-r border-line" />
+        {[0, 1, 2, 3, 4].map((coluna) => (
+          <div key={coluna} className="space-y-2 border-r border-line p-2 last:border-r-0">
+            {[0, 1, 2].map((linha) => (
+              <div
+                key={linha}
+                className="rounded-[7px] bg-surface-hover"
+                style={{ height: 34 + ((coluna + linha) % 3) * 26, marginTop: linha === 0 ? (coluna % 3) * 22 : 0 }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResumoHoras({ totais, modoCor }) {
+  const [expandido, setExpandido] = useState(false);
   const total = totais.reduce((soma, item) => soma + item.minutos, 0);
+  const visiveis = expandido ? totais : totais.slice(0, 6);
+  const ocultos = totais.length - visiveis.length;
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-2 border-y border-line bg-bg px-4 py-2 text-[10.5px]">
-      {totais.length ? totais.slice(0, 6).map((item) => (
-        <span key={item.nome} className="flex items-center gap-1.5 text-sub"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.cor }} />{item.nome} <strong className="text-fg">{formatarDuracao(item.minutos)}</strong></span>
+      {totais.length ? visiveis.map((item) => (
+        <span key={item.id || item.nome} className="flex items-center gap-1.5 text-sub">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.cor }} />
+          {item.nome} <strong className="text-fg">{formatarDuracao(item.minutos)}</strong>
+        </span>
       )) : <span className="text-faint">Nenhum horário ocupado neste período.</span>}
-      <span className="ml-auto font-semibold text-sub">{formatarDuracao(total)} agendado</span>
+      {/* Antes o excedente era cortado em silêncio com um slice(0, 6): quem
+          tinha sete categorias nunca soube que faltava uma na conta. */}
+      {ocultos > 0 && (
+        <button type="button" onClick={() => setExpandido(true)} className="cursor-pointer font-semibold text-accent-forte hover:underline">
+          +{ocultos} {ocultos === 1 ? "outro" : "outros"}
+        </button>
+      )}
+      {expandido && totais.length > 6 && (
+        <button type="button" onClick={() => setExpandido(false)} className="cursor-pointer text-faint hover:text-fg">
+          recolher
+        </button>
+      )}
+      <span className="ml-auto font-semibold text-sub">
+        {formatarDuracao(total)} agendado{modoCor === "pessoa" ? " · por pessoa" : ""}
+      </span>
     </div>
   );
 }
@@ -301,11 +461,47 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   const [detalhe, setDetalhe] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState("");
+  // Erro de carga (faixa fixa no topo, some só quando a carga der certo) e erro
+  // do formulário são coisas diferentes. Compartilhar um estado só fazia uma
+  // falha de arraste reaparecer dentro do diálogo na vez seguinte que ele abria.
+  const [erroCarga, setErroCarga] = useState("");
+  const [erroDialogo, setErroDialogo] = useState("");
+  const [aviso, setAviso] = useState(null);
+  const [confirmacao, setConfirmacao] = useState(null);
+  const [ajustes, setAjustes] = useState({});
+  const [zoom, setZoom] = useState(() => lerLocal("agenda:zoom", ZOOM_PADRAO));
+  const [modoCor, setModoCor] = useState(() => lerLocal("agenda:modoCor", "categoria"));
+  const [agruparEquipe, setAgruparEquipe] = useState(() => lerLocal("agenda:agruparEquipe", true));
+  const [estreito, setEstreito] = useState(false);
   const inicializado = useRef(false);
 
+  const alturaHora = NIVEIS_ZOOM[zoom] ?? NIVEIS_ZOOM[ZOOM_PADRAO];
   const intervalo = useMemo(() => intervaloDaVisao(visualizacao, referencia), [referencia, visualizacao]);
   const dias = useMemo(() => diasDoIntervalo(intervalo.de, intervalo.ate), [intervalo]);
+
+  useEffect(() => { gravarLocal("agenda:zoom", zoom); }, [zoom]);
+  useEffect(() => { gravarLocal("agenda:modoCor", modoCor); }, [modoCor]);
+  useEffect(() => { gravarLocal("agenda:agruparEquipe", agruparEquipe); }, [agruparEquipe]);
+
+  // A grade precisa de 680px para não virar rolagem horizontal, e no toque a
+  // rolagem horizontal briga com o arraste de criar. Abaixo disso a lista assume.
+  //
+  // `change` de matchMedia é o caminho certo e cobre o caso normal. O `resize`
+  // vem junto como rede: o painel também roda embutido no WhatsApp Web, onde
+  // quem mexe na largura é o layout hospedeiro, e nem toda WebView entrega o
+  // `change` nessa situação. Ler a consulta nos dois custa uma linha.
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const consulta = window.matchMedia("(max-width: 767px)");
+    const aplicar = () => setEstreito(consulta.matches);
+    aplicar();
+    consulta.addEventListener("change", aplicar);
+    window.addEventListener("resize", aplicar);
+    return () => {
+      consulta.removeEventListener("change", aplicar);
+      window.removeEventListener("resize", aplicar);
+    };
+  }, []);
 
   const carregar = useCallback(async ({ silencioso = false } = {}) => {
     if (!silencioso) setCarregando(true);
@@ -322,10 +518,10 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
         setVisualizacao(proximoContexto?.preference?.defaultView || "week");
         inicializado.current = true;
       }
-      setErro("");
+      setErroCarga("");
     } catch (falha) {
       const mensagem = falha?.message || String(falha);
-      setErro(/calendar_context|calendar_categories|calendar_events_list/i.test(mensagem)
+      setErroCarga(/calendar_context|calendar_categories|calendar_events_list/i.test(mensagem)
         ? "A migration da Fase D ainda não foi aplicada no Supabase. Aplique-a e recarregue a extensão."
         : mensagem);
     } finally { setCarregando(false); }
@@ -339,92 +535,357 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   const papel = contexto?.papel || "member";
   const contatos = dados.contatos || [];
   const tarefas = dados.tarefas || [];
+
+  /**
+   * Eventos com o ajuste otimista já aplicado por cima do que veio do servidor.
+   *
+   * Sem isto o bloco arrastado voltava para a posição antiga e só pulava para a
+   * nova depois do round-trip - em rede lenta, um piscar que dava a impressão
+   * de que o arraste não pegou.
+   */
+  const eventosVisiveis = useMemo(
+    () => eventos.map((evento) => (ajustes[evento.id] ? { ...evento, ...ajustes[evento.id] } : evento)),
+    [ajustes, eventos],
+  );
+
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    return eventos.filter((evento) => {
+    return eventosVisiveis.filter((evento) => {
       if (!eventoVisivelNoFiltro(evento, filtroProfissional, usuarioId)) return false;
       if (filtroCategoria && evento.categoryId !== filtroCategoria && evento.sourceType !== "task") return false;
       if (filtroContato && evento.contactId !== filtroContato) return false;
       return !termo || `${evento.titulo} ${evento.descricao} ${evento.ownerName} ${evento.categoryName}`.toLowerCase().includes(termo);
     });
-  }, [busca, eventos, filtroCategoria, filtroContato, filtroProfissional, usuarioId]);
+  }, [busca, eventosVisiveis, filtroCategoria, filtroContato, filtroProfissional, usuarioId]);
 
-  const totais = useMemo(() => somarPorCategoria(filtrados), [filtrados]);
+  // A legenda acompanha o que está pintado: colorindo por pessoa, somar por
+  // categoria daria uma legenda que não explica nenhuma cor da tela.
+  const totais = useMemo(
+    () => (modoCor === "pessoa" ? somarPorPessoa(filtrados) : somarPorCategoria(filtrados)),
+    [filtrados, modoCor],
+  );
   const naoLidas = notificacoes.filter((item) => !item.lidaEm && item.status === "sent").length;
   const inicioMinuto = minutosDoHorario(String(contexto?.preference?.dayStart || contexto?.calendar?.dayStart || "05:00").slice(0, 5));
   const fimMinuto = minutosDoHorario(String(contexto?.preference?.dayEnd || contexto?.calendar?.dayEnd || "23:59").slice(0, 5));
+  const contatoFiltrado = contatos.find((item) => item.id === filtroContato);
+  const emEquipe = filtroProfissional === "team";
+  const porPessoa = emEquipe && agruparEquipe && visualizacao === "day" && !estreito;
 
-  const abrirNovo = (dia = new Date(), inicio = 9 * 60, fim = 10 * 60) => {
+  const mostrarAviso = useCallback((proximo) => setAviso({ ...proximo, chave: Date.now() }), []);
+
+  const ajustarZoom = useCallback((direcao) => {
+    const alvo = Math.min(NIVEIS_ZOOM.length - 1, Math.max(0, zoom + direcao));
+    setZoom(alvo);
+    return NIVEIS_ZOOM[alvo];
+  }, [zoom]);
+
+  const limparAjuste = useCallback((id) => setAjustes((atual) => {
+    if (!(id in atual)) return atual;
+    const proximo = { ...atual };
+    delete proximo[id];
+    return proximo;
+  }), []);
+
+  const abrirNovo = (dia = new Date(), inicio = 9 * 60, fim = 10 * 60, opcoes = {}) => {
+    // O backend fixa owner_id no usuário da sessão (ver agendaProvider.criar):
+    // criar arrastando na faixa de outra pessoa geraria um evento na agenda
+    // errada, em silêncio. Melhor recusar e dizer por quê.
+    if (opcoes.ownerId && usuarioId && opcoes.ownerId !== usuarioId) {
+      const dono = membros.find((membro) => membro.id === opcoes.ownerId);
+      mostrarAviso({
+        tom: "erro",
+        texto: `Só dá para criar eventos na sua própria agenda. Peça para ${dono?.name || "o profissional"} criar, ou marque na sua faixa.`,
+      });
+      return;
+    }
     const comeco = dataComMinutos(dia, inicio);
     const termino = dataComMinutos(dia, fim);
+    setErroDialogo("");
     setDialogo({ evento: null, abertura: { inicio: comeco.toISOString(), fim: termino.toISOString(), categoryId: categorias[0]?.id, lembretes: contexto?.preference?.defaultReminderMinutes || [30] } });
   };
+
   const abrirEvento = (evento) => {
     if (evento.sourceType === "task") {
       const tarefa = tarefas.find((item) => item.id === (evento.taskId || evento.id));
       if (tarefa) aoAbrirTarefa(tarefa); else setDetalhe(evento);
       return;
     }
+    setErroDialogo("");
     if (eventoEditavel(evento, usuarioId, papel)) setDialogo({ evento, abertura: null }); else setDetalhe(evento);
   };
+
   const salvarEvento = async (payload) => {
-    setSalvando(true); setErro("");
+    setSalvando(true); setErroDialogo("");
     try {
-      if (dialogo?.evento?.id) await api.agenda.atualizar({ id: dialogo.evento.id, patch: payload }); else await api.agenda.criar(payload);
-      setDialogo(null); await carregar({ silencioso: true });
-    } catch (falha) { setErro(falha?.message || String(falha)); }
+      if (dialogo?.evento?.id) await api.agenda.atualizar({ id: dialogo.evento.id, patch: payload });
+      else await api.agenda.criar(payload);
+      setDialogo(null);
+      await carregar({ silencioso: true });
+      mostrarAviso({ texto: dialogo?.evento?.id ? "Evento atualizado." : "Evento criado." });
+    } catch (falha) { setErroDialogo(falha?.message || String(falha)); }
     finally { setSalvando(false); }
   };
-  const excluirEvento = async () => {
-    if (!dialogo?.evento?.id || !confirm("Excluir este evento da agenda?")) return;
-    setSalvando(true);
-    try { await api.agenda.remover({ id: dialogo.evento.id }); setDialogo(null); await carregar({ silencioso: true }); }
-    catch (falha) { setErro(falha?.message || String(falha)); }
-    finally { setSalvando(false); }
+
+  const excluirEvento = () => {
+    const alvo = dialogo?.evento;
+    if (!alvo?.id) return;
+    setConfirmacao({
+      titulo: "Excluir este evento?",
+      descricao: `"${alvo.titulo}" sai da agenda de quem participa. Não dá para desfazer.`,
+      rotulo: "Excluir",
+      confirmar: async () => {
+        setSalvando(true);
+        try {
+          await api.agenda.remover({ id: alvo.id });
+          setDialogo(null);
+          await carregar({ silencioso: true });
+          mostrarAviso({ texto: "Evento excluído." });
+        } catch (falha) { setErroDialogo(falha?.message || String(falha)); }
+        finally { setSalvando(false); }
+      },
+    });
   };
-  const mover = async (payload, dia, minutos) => {
+
+  /**
+   * Reposiciona um evento no tempo, aplicando primeiro e confirmando depois.
+   *
+   * `anterior` viaja junto para alimentar o Desfazer: sem ele, um arraste de
+   * meio centímetro para o horário errado só se corrigia arrastando de volta
+   * na mão, e nem sempre a pessoa lembra de onde veio.
+   */
+  const aplicarIntervalo = useCallback(async (payload, inicio, fim, { anterior, rotulo }) => {
+    setAjustes((atual) => ({ ...atual, [payload.id]: { inicio, fim } }));
+    try {
+      if (payload.sourceType === "task") {
+        await api.agenda.reagendarTarefa({ id: payload.id, inicio });
+        await aoRecarregarDados();
+      } else {
+        await api.agenda.atualizar({ id: payload.id, patch: { inicio, fim } });
+      }
+      await carregar({ silencioso: true });
+      limparAjuste(payload.id);
+      mostrarAviso({
+        texto: rotulo,
+        acao: anterior && {
+          rotulo: "Desfazer",
+          executar: () => aplicarIntervalo(payload, anterior.inicio, anterior.fim, { rotulo: "Alteração desfeita." }),
+        },
+      });
+    } catch (falha) {
+      limparAjuste(payload.id);
+      mostrarAviso({ tom: "erro", texto: falha?.message || String(falha) });
+      await carregar({ silencioso: true });
+    }
+  }, [aoRecarregarDados, carregar, limparAjuste, mostrarAviso]);
+
+  const mover = (payload, dia, minutos) => {
     const inicio = dataComMinutos(dia, minutos);
     const duracao = new Date(payload.fim) - new Date(payload.inicio);
-    try {
-      if (payload.sourceType === "task") { await api.agenda.reagendarTarefa({ id: payload.id, inicio: inicio.toISOString() }); await aoRecarregarDados(); }
-      else await api.agenda.atualizar({ id: payload.id, patch: { inicio: inicio.toISOString(), fim: new Date(inicio.getTime() + duracao).toISOString() } });
-      await carregar({ silencioso: true });
-    } catch (falha) { setErro(falha?.message || String(falha)); await carregar({ silencioso: true }); }
+    return aplicarIntervalo(
+      payload,
+      inicio.toISOString(),
+      new Date(inicio.getTime() + duracao).toISOString(),
+      { anterior: { inicio: payload.inicio, fim: payload.fim }, rotulo: "Evento movido." },
+    );
   };
-  const redimensionar = async (evento, duracao) => {
-    try { await api.agenda.atualizar({ id: evento.id, patch: { inicio: evento.inicio, fim: new Date(new Date(evento.inicio).getTime() + duracao * 60000).toISOString() } }); await carregar({ silencioso: true }); }
-    catch (falha) { setErro(falha?.message || String(falha)); await carregar({ silencioso: true }); }
-  };
+
+  const redimensionar = (evento, duracao) => aplicarIntervalo(
+    evento,
+    evento.inicio,
+    new Date(new Date(evento.inicio).getTime() + duracao * 60000).toISOString(),
+    { anterior: { inicio: evento.inicio, fim: evento.fim }, rotulo: `Duração alterada para ${formatarDuracao(duracao)}.` },
+  );
+
   const marcarLida = async (item) => { if (!item.lidaEm) await api.agenda.notificacaoLida({ id: item.id }); await carregar({ silencioso: true }); };
   const alternarPainel = (tipo) => setPainel((atual) => atual === tipo ? null : tipo);
 
+  /**
+   * Atalhos de teclado.
+   *
+   * Numa ferramenta que se abre de manhã e fica aberta o dia inteiro, trocar de
+   * semana pelo mouse é o gesto mais repetido do dia.
+   */
+  useEffect(() => {
+    const teclado = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target;
+      if (alvo?.isContentEditable) return;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(alvo?.tagName)) return;
+      if (dialogo || detalhe || confirmacao) return;
+
+      const tecla = e.key.toLowerCase();
+      const visao = VISUALIZACOES.find((item) => item.tecla === tecla);
+      if (visao) { e.preventDefault(); setVisualizacao(visao.id); return; }
+      if (tecla === "t" || tecla === "h") { e.preventDefault(); setReferencia(new Date()); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); setReferencia((atual) => navegarReferencia(visualizacao, atual, -1)); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); setReferencia((atual) => navegarReferencia(visualizacao, atual, 1)); return; }
+      if (tecla === "n") { e.preventDefault(); abrirNovo(); return; }
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); ajustarZoom(1); return; }
+      if (e.key === "-" || e.key === "_") { e.preventDefault(); ajustarZoom(-1); }
+    };
+    window.addEventListener("keydown", teclado);
+    return () => window.removeEventListener("keydown", teclado);
+  });
+
+  const botaoBarra = "cursor-pointer rounded-[8px] border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg";
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <CabecalhoTela titulo="Agenda" busca={<CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar na agenda..." />} acao={<div className="flex items-center gap-2"><button type="button" aria-label="Notificações" onClick={() => alternarPainel("notifications")} className="relative cursor-pointer rounded-[9px] border border-line p-2.5 text-sub hover:border-line-strong hover:text-fg"><Bell size={17} />{naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[8px] font-bold text-white">{naoLidas}</span>}</button><BotaoPrimario onClick={() => abrirNovo()}><Plus size={17} />Novo evento</BotaoPrimario></div>} />
+      <CabecalhoTela
+        titulo="Agenda"
+        busca={<CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar na agenda..." />}
+        acao={(
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label="Notificações" onClick={() => alternarPainel("notifications")} className="relative cursor-pointer rounded-[9px] border border-line p-2.5 text-sub hover:border-line-strong hover:text-fg">
+              <Bell size={17} />
+              {naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[8px] font-bold text-white">{naoLidas}</span>}
+            </button>
+            <BotaoPrimario onClick={() => abrirNovo()} title="Novo evento (N)"><Plus size={17} />Novo evento</BotaoPrimario>
+          </div>
+        )}
+      />
+
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bg px-3 py-3 md:px-5">
-        <button type="button" onClick={() => setReferencia(new Date())} className="cursor-pointer rounded-[8px] border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg">Hoje</button>
-        <div className="flex overflow-hidden rounded-[8px] border border-line"><button type="button" aria-label="Período anterior" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, -1))} className="cursor-pointer border-r border-line p-2 text-sub hover:bg-surface-hover"><ChevronLeft size={15} /></button><button type="button" aria-label="Próximo período" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, 1))} className="cursor-pointer p-2 text-sub hover:bg-surface-hover"><ChevronRight size={15} /></button></div>
+        <button type="button" onClick={() => setReferencia(new Date())} className={botaoBarra} title="Ir para hoje (T)">Hoje</button>
+        <div className="flex overflow-hidden rounded-[8px] border border-line">
+          <button type="button" aria-label="Período anterior" title="Período anterior (←)" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, -1))} className="cursor-pointer border-r border-line p-2 text-sub hover:bg-surface-hover"><ChevronLeft size={15} /></button>
+          <button type="button" aria-label="Próximo período" title="Próximo período (→)" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, 1))} className="cursor-pointer p-2 text-sub hover:bg-surface-hover"><ChevronRight size={15} /></button>
+        </div>
         <span className="min-w-[185px] text-[13px] font-semibold capitalize text-fg">{rotuloPeriodo(visualizacao, referencia)}</span>
-        <div className="flex rounded-[8px] bg-surface p-1">{VISUALIZACOES.map((item) => <button key={item.id} type="button" onClick={() => setVisualizacao(item.id)} className={`cursor-pointer rounded-[6px] px-3 py-1.5 text-[10.5px] font-semibold ${visualizacao === item.id ? "bg-bg text-fg shadow-sm" : "text-sub hover:text-fg"}`}>{item.rotulo}</button>)}</div>
+
+        <div className="flex rounded-[8px] bg-surface p-1">
+          {VISUALIZACOES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              title={`${item.rotulo} (${item.tecla.toUpperCase()})`}
+              onClick={() => setVisualizacao(item.id)}
+              className={`cursor-pointer rounded-[6px] px-3 py-1.5 text-[10.5px] font-semibold ${visualizacao === item.id ? "bg-bg text-fg shadow-sm" : "text-sub hover:text-fg"}`}
+            >
+              {item.rotulo}
+            </button>
+          ))}
+        </div>
+
         <span className="mx-1 h-5 border-l border-line" />
-        <select value={filtroProfissional} onChange={(e) => setFiltroProfissional(e.target.value)} className="cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[11px] text-sub"><option value="mine">Minha agenda</option><option value="team">Toda a equipe</option>{membros.filter((membro) => membro.id !== usuarioId).map((membro) => <option key={membro.id} value={membro.id}>{membro.name}</option>)}</select>
-        <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[11px] text-sub"><option value="">Todas as categorias</option>{categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.name}</option>)}</select>
-        {(filtroCategoria || filtroContato || filtroProfissional !== "mine") && <button type="button" onClick={() => { setFiltroCategoria(""); setFiltroContato(""); setFiltroProfissional("mine"); }} className="cursor-pointer rounded-[7px] p-2 text-faint hover:bg-surface-hover hover:text-fg" title="Limpar filtros"><X size={14} /></button>}
-        <div className="ml-auto flex items-center gap-1"><button type="button" onClick={() => alternarPainel("tasks")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "tasks" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Tarefas"><SquareCheckBig size={16} /></button><button type="button" onClick={() => alternarPainel("contacts")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "contacts" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Contatos"><ContactRound size={16} /></button><button type="button" onClick={() => alternarPainel("settings")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "settings" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Preferências"><Settings2 size={16} /></button></div>
+
+        <select value={filtroProfissional} onChange={(e) => setFiltroProfissional(e.target.value)} className="cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[11px] text-sub">
+          <option value="mine">Minha agenda</option>
+          <option value="team">Toda a equipe</option>
+          {membros.filter((membro) => membro.id !== usuarioId).map((membro) => <option key={membro.id} value={membro.id}>{membro.name}</option>)}
+        </select>
+        <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} className="cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[11px] text-sub">
+          <option value="">Todas as categorias</option>
+          {categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.name}</option>)}
+        </select>
+
+        {/* O filtro de contato só se anunciava por um X de limpar: dava para
+            ficar com a agenda recortada sem saber por quem. */}
+        {contatoFiltrado && (
+          <span className="flex items-center gap-1.5 rounded-[8px] border border-accent/30 bg-accent-soft px-2.5 py-1.5 text-[11px] font-medium text-accent-forte">
+            <ContactRound size={13} />
+            {nomeContato(contatoFiltrado)}
+            <button type="button" aria-label="Remover filtro de contato" onClick={() => setFiltroContato("")} className="cursor-pointer opacity-70 hover:opacity-100"><X size={12} /></button>
+          </span>
+        )}
+        {(filtroCategoria || filtroContato || filtroProfissional !== "mine") && (
+          <button type="button" onClick={() => { setFiltroCategoria(""); setFiltroContato(""); setFiltroProfissional("mine"); }} className="cursor-pointer rounded-[7px] p-2 text-faint hover:bg-surface-hover hover:text-fg" title="Limpar filtros"><X size={14} /></button>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          {emEquipe && visualizacao === "day" && !estreito && (
+            <button
+              type="button"
+              onClick={() => setAgruparEquipe((atual) => !atual)}
+              title={agruparEquipe ? "Voltar para uma coluna só" : "Uma faixa por profissional"}
+              className={`cursor-pointer rounded-[8px] p-2 ${agruparEquipe ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`}
+            >
+              <Rows3 size={16} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setModoCor((atual) => (atual === "pessoa" ? "categoria" : "pessoa"))}
+            title={modoCor === "pessoa" ? "Colorindo por pessoa" : "Colorindo por categoria"}
+            className={`cursor-pointer rounded-[8px] p-2 ${modoCor === "pessoa" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`}
+          >
+            <UserRound size={16} />
+          </button>
+
+          {visualizacao !== "month" && !estreito && (
+            <div className="flex items-center overflow-hidden rounded-[8px] border border-line" title="Zoom da régua (+ / −, ou Ctrl + roda)">
+              <button type="button" aria-label="Diminuir zoom" disabled={zoom === 0} onClick={() => ajustarZoom(-1)} className="cursor-pointer border-r border-line p-2 text-sub hover:bg-surface-hover disabled:opacity-30"><Minus size={14} /></button>
+              <span className="px-2 text-[10px] font-semibold tabular-nums text-faint">{alturaHora}px</span>
+              <button type="button" aria-label="Aumentar zoom" disabled={zoom === NIVEIS_ZOOM.length - 1} onClick={() => ajustarZoom(1)} className="cursor-pointer border-l border-line p-2 text-sub hover:bg-surface-hover disabled:opacity-30"><Plus size={14} /></button>
+            </div>
+          )}
+
+          <span className="mx-0.5 h-5 border-l border-line" />
+          <button type="button" onClick={() => alternarPainel("tasks")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "tasks" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Tarefas"><SquareCheckBig size={16} /></button>
+          <button type="button" onClick={() => alternarPainel("contacts")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "contacts" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Contatos"><ContactRound size={16} /></button>
+          <button type="button" onClick={() => alternarPainel("settings")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "settings" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Preferências"><Settings2 size={16} /></button>
+        </div>
       </div>
-      <ResumoHoras totais={totais} />
+
+      <ResumoHoras totais={totais} modoCor={modoCor} />
+
       <div className="flex min-h-0 flex-1 flex-col bg-surface p-2 md:p-4">
-        {erro && <div className="mb-3 flex items-start gap-2 rounded-[9px] border border-danger/25 bg-danger/10 px-3 py-2 text-[11.5px] text-danger"><ListFilter size={14} className="mt-0.5 flex-none" />{erro}</div>}
-        {carregando ? <div className="flex flex-1 items-center justify-center text-[12px] text-sub">Carregando agenda…</div> : visualizacao === "month" ? <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} /> : <GradeAgenda dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)} eventos={filtrados} inicioMinuto={inicioMinuto} fimMinuto={fimMinuto} podeMover={(evento) => evento.sourceType === "task" ? evento.ownerId === usuarioId : eventoEditavel(evento, usuarioId, papel)} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoMover={mover} aoRedimensionar={redimensionar} />}
+        {erroCarga && (
+          <div className="mb-3 flex items-start gap-2 rounded-[9px] border border-danger/25 bg-danger/10 px-3 py-2 text-[11.5px] text-danger">
+            <ListFilter size={14} className="mt-0.5 flex-none" />{erroCarga}
+          </div>
+        )}
+        {carregando ? (
+          <EsqueletoAgenda />
+        ) : estreito && visualizacao !== "month" ? (
+          <VisaoLista dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)} eventos={filtrados} modoCor={modoCor} aoAbrir={abrirEvento} aoCriar={abrirNovo} />
+        ) : visualizacao === "month" ? (
+          <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} />
+        ) : (
+          <GradeAgenda
+            dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)}
+            eventos={filtrados}
+            inicioMinuto={inicioMinuto}
+            fimMinuto={fimMinuto}
+            alturaHora={alturaHora}
+            modoCor={modoCor}
+            agruparPorPessoa={porPessoa}
+            membros={membros}
+            podeMover={(evento) => evento.sourceType === "task" ? evento.ownerId === usuarioId : eventoEditavel(evento, usuarioId, papel)}
+            aoAbrir={abrirEvento}
+            aoCriar={abrirNovo}
+            aoMover={mover}
+            aoRedimensionar={redimensionar}
+            aoAjustarZoom={ajustarZoom}
+          />
+        )}
       </div>
+
+      <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+
       <PainelLateral tipo={painel} aoFechar={() => setPainel(null)}>
         {painel === "tasks" && <PainelTarefas tarefas={tarefas} contatos={contatos} aoAbrir={(tarefa) => { setPainel(null); aoAbrirTarefa(tarefa); }} />}
         {painel === "contacts" && <PainelContatos contatos={contatos} selecionado={filtroContato} aoFiltrar={(id) => { setFiltroContato(id); setPainel(null); }} aoAbrir={aoAbrirContato} />}
         {painel === "notifications" && <PainelNotificacoes contexto={contexto} notificacoes={notificacoes} aoAtualizar={async () => carregar({ silencioso: true })} aoMarcarLida={marcarLida} />}
         {painel === "settings" && <PainelPreferencias contexto={contexto} visualizacao={visualizacao} aoSalvar={async (form) => { await api.agenda.preferenciasAtualizar(form); await carregar({ silencioso: true }); }} aoSalvarCategoria={async (categoria) => { await api.agenda.categoriaSalvar(categoria); await carregar({ silencioso: true }); }} />}
       </PainelLateral>
-      <DialogoEvento aberto={Boolean(dialogo)} evento={dialogo?.evento} abertura={dialogo?.abertura} categorias={categorias} contatos={contatos} papel={papel} lembretesPadrao={contexto?.preference?.defaultReminderMinutes || [30]} salvando={salvando} erro={erro} aoFechar={() => { setDialogo(null); setErro(""); }} aoSalvar={salvarEvento} aoExcluir={excluirEvento} />
+
+      <DialogoEvento
+        aberto={Boolean(dialogo)}
+        evento={dialogo?.evento}
+        abertura={dialogo?.abertura}
+        categorias={categorias}
+        contatos={contatos}
+        papel={papel}
+        lembretesPadrao={contexto?.preference?.defaultReminderMinutes || [30]}
+        salvando={salvando}
+        erro={erroDialogo}
+        aoFechar={() => { setDialogo(null); setErroDialogo(""); }}
+        aoSalvar={salvarEvento}
+        aoExcluir={excluirEvento}
+      />
       <DetalheEvento evento={detalhe} aoFechar={() => setDetalhe(null)} />
+      <DialogoConfirmar pedido={confirmacao} aoFechar={() => setConfirmacao(null)} />
     </div>
   );
 }
