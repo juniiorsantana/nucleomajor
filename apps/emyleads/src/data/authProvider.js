@@ -178,9 +178,32 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       return atual?.organizacoes || [];
     },
 
-    "organizacoes.criar": async ({ nome }) => {
+    "plataforma.estado": async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return { administrador: false };
+      const { data, error } = await supabase
+        .from("platform_admins")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (error) throw erroDaResposta(error, "plataforma-estado-falhou");
+      return { administrador: Boolean(data) };
+    },
+
+    "plataforma.emitirAcesso": async ({ email, plano = "full", dias = 7 }) => {
+      const { data, error } = await supabase.rpc("issue_onboarding_access", {
+        target_email: email?.trim(),
+        target_plan: plano,
+        valid_days: dias,
+      });
+      if (error) throw erroDaResposta(error, "plataforma-acesso-falhou");
+      return Array.isArray(data) ? data[0] : data;
+    },
+
+    "organizacoes.criar": async ({ nome, codigo }) => {
       const { data, error } = await supabase.rpc("create_organization", {
         organization_name: nome?.trim(),
+        access_code: codigo?.trim(),
       });
       if (error) throw erroDaResposta(error, "organizacao-criacao-falhou");
       await area.set({ [CHAVE_WORKSPACE]: data });

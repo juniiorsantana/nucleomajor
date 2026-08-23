@@ -101,20 +101,20 @@ function Acesso({ aoAutenticar }) {
  * vazia e ficava presa nela, sem sinal de que tinha errado o caminho.
  */
 function SemOrganizacao({ aoEntrar }) {
-  const [aba, setAba] = useState("criar");
+  const [aba, setAba] = useState("ativar");
 
   return (
     <Moldura
-      titulo={aba === "criar" ? "Crie seu espaço de trabalho" : "Entrar com um convite"}
+      titulo={aba === "ativar" ? "Ative sua empresa" : "Entrar com um convite"}
       descricao={
-        aba === "criar"
-          ? "Contatos, funil e tarefas ficarão separados por empresa."
+        aba === "ativar"
+          ? "Use a liberação recebida para ativar o plano da sua organização."
           : "Cole o código que a pessoa que administra a empresa enviou para você."
       }
     >
       <div className="mt-5 flex gap-1 rounded-[9px] bg-surface p-1">
         {[
-          { id: "criar", rotulo: "Criar empresa", icone: Building2 },
+          { id: "ativar", rotulo: "Ativar empresa", icone: Building2 },
           { id: "convite", rotulo: "Tenho um convite", icone: Ticket },
         ].map(({ id, rotulo, icone: Icone }) => (
           <button
@@ -131,13 +131,14 @@ function SemOrganizacao({ aoEntrar }) {
         ))}
       </div>
 
-      {aba === "criar" ? <FormCriarEmpresa aoCriar={aoEntrar} /> : <FormConvite aoAceitar={aoEntrar} />}
+      {aba === "ativar" ? <FormCriarEmpresa aoCriar={aoEntrar} /> : <FormConvite aoAceitar={aoEntrar} />}
     </Moldura>
   );
 }
 
 function FormCriarEmpresa({ aoCriar }) {
   const [nome, setNome] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -146,9 +147,16 @@ function FormCriarEmpresa({ aoCriar }) {
     setEnviando(true);
     setErro("");
     try {
-      await aoCriar(await api.organizacoes.criar({ nome }));
+      await aoCriar(await api.organizacoes.criar({ nome, codigo }));
     } catch (e) {
-      setErro(e?.message || "Não foi possível criar a empresa.");
+      const mensagem = e?.message || "";
+      if (/invalid or expired/i.test(mensagem)) {
+        setErro("Código de ativação inválido ou vencido. Solicite uma nova liberação.");
+      } else if (/another email/i.test(mensagem)) {
+        setErro("Esse código foi emitido para outro e-mail.");
+      } else {
+        setErro(mensagem || "Não foi possível ativar a empresa.");
+      }
     } finally {
       setEnviando(false);
     }
@@ -158,10 +166,25 @@ function FormCriarEmpresa({ aoCriar }) {
     <form onSubmit={enviar} className="mt-4 space-y-3.5">
       <Campo rotulo="Nome da empresa" autoFocus required minLength={2} value={nome}
         placeholder="Ex.: Núcleo Major" onChange={(e) => setNome(e.target.value)} />
+      <Campo rotulo="Código de ativação" required minLength={8} value={codigo}
+        placeholder="NM12-3456-7890-AB" spellCheck={false} autoCapitalize="characters"
+        onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
+      <div className="rounded-[9px] border border-line bg-surface px-3.5 py-3">
+        <div className="flex items-center justify-between gap-3 text-[12.5px]">
+          <span className="font-semibold text-fg">Plano Full</span>
+          <span className="rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent-forte">Liberação necessária</span>
+        </div>
+        <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
+          CRM, agenda, assistente, conhecimento, equipe, chatbots e conexões.
+        </p>
+      </div>
       {erro && <div role="alert" className="rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
-      <BotaoPrimario type="submit" disabled={enviando} className="w-full justify-center !py-2.5">
-        {enviando ? "Criando…" : "Criar empresa"}
+      <BotaoPrimario type="submit" disabled={enviando || !codigo.trim()} className="w-full justify-center !py-2.5">
+        {enviando ? "Ativando…" : "Ativar plano Full"}
       </BotaoPrimario>
+      <p className="text-center text-[11.5px] leading-4 text-faint">
+        Ainda não tem uma liberação? Fale com a equipe do Núcleo Major.
+      </p>
     </form>
   );
 }

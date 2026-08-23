@@ -1,9 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
+  Copy,
   Download,
   Plus,
+  ShieldCheck,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -54,6 +57,88 @@ function Bloco({ titulo, descricao, children, acao }) {
 
 const entrada =
   "rounded-[8px] border border-line bg-bg px-3 py-1.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent";
+
+/* ------------------------------------------------------------------ */
+
+function AdministracaoPlataforma() {
+  const [administrador, setAdministrador] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [email, setEmail] = useState("");
+  const [emitindo, setEmitindo] = useState(false);
+  const [liberacao, setLiberacao] = useState(null);
+  const [erro, setErro] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    api.plataforma.estado()
+      .then((estado) => ativo && setAdministrador(Boolean(estado?.administrador)))
+      .catch(() => ativo && setAdministrador(false))
+      .finally(() => ativo && setCarregando(false));
+    return () => { ativo = false; };
+  }, []);
+
+  if (carregando || !administrador) return null;
+
+  const emitir = async (evento) => {
+    evento.preventDefault();
+    setEmitindo(true);
+    setErro("");
+    setLiberacao(null);
+    setCopiado(false);
+    try {
+      setLiberacao(await api.plataforma.emitirAcesso({ email, plano: "full", dias: 7 }));
+    } catch (e) {
+      setErro(/pending access/i.test(e?.message || "")
+        ? "Esse e-mail já possui uma liberação pendente. Revogue-a antes de emitir outra."
+        : e?.message || "Não foi possível emitir a liberação.");
+    } finally {
+      setEmitindo(false);
+    }
+  };
+
+  const copiar = async () => {
+    if (!liberacao?.access_code) return;
+    await navigator.clipboard.writeText(liberacao.access_code);
+    setCopiado(true);
+  };
+
+  return (
+    <Bloco
+      titulo="Administração do Núcleo Major"
+      descricao="Emita uma liberação comercial vinculada ao e-mail do novo cliente. O código aparece uma única vez e ativa uma organização no plano Full."
+      acao={<span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte"><ShieldCheck size={14} /> Plataforma</span>}
+    >
+      <form onSubmit={emitir} className="flex flex-wrap items-end gap-3 px-5 py-4">
+        <label className="min-w-[260px] flex-1">
+          <span className="mb-1.5 block text-[12px] font-medium text-sub">E-mail autorizado</span>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="cliente@empresa.com.br" className={`${entrada} w-full !py-2.5`} />
+        </label>
+        <label>
+          <span className="mb-1.5 block text-[12px] font-medium text-sub">Plano</span>
+          <input value="Full" disabled className={`${entrada} w-28 !py-2.5 disabled:bg-surface`} />
+        </label>
+        <BotaoPrimario type="submit" disabled={emitindo} className="!py-2.5">
+          {emitindo ? "Emitindo…" : "Gerar liberação"}
+        </BotaoPrimario>
+      </form>
+      {erro && <p role="alert" className="border-t border-line bg-danger/5 px-5 py-3 text-[12.5px] text-danger">{erro}</p>}
+      {liberacao && (
+        <div className="border-t border-line bg-success-soft/40 px-5 py-4">
+          <p className="text-[12.5px] text-sub">Envie este código somente para <strong className="text-fg">{liberacao.email}</strong>:</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="rounded-[8px] border border-success/20 bg-bg px-3 py-2 text-[15px] font-semibold tracking-wide text-fg">{liberacao.access_code}</code>
+            <button type="button" onClick={copiar} className="inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line bg-bg px-3 py-2 text-[12.5px] font-medium text-sub hover:text-fg">
+              {copiado ? <Check size={15} /> : <Copy size={15} />}{copiado ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] text-sub">Uso único · vinculado ao e-mail · validade de 7 dias.</p>
+        </div>
+      )}
+    </Bloco>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 
@@ -459,6 +544,7 @@ export default function Configuracoes({ dados, recarregar }) {
       <CabecalhoTela titulo="Configurações" busca={<span />} acao={<span />} />
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-8 py-6">
         <div className="flex max-w-4xl flex-col gap-6">
+          {PLATAFORMA_WEB && <AdministracaoPlataforma />}
           <Estagios estagios={dados.estagios} recarregar={recarregar} />
           <Tags tags={dados.tags} recarregar={recarregar} />
           <Dados recarregar={recarregar} />

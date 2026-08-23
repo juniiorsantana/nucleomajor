@@ -7,6 +7,7 @@ function dependencias({ sessao = null, membros = [] } = {}) {
     select: vi.fn(() => consulta),
     eq: vi.fn(() => consulta),
     order: vi.fn(() => consulta),
+    maybeSingle: vi.fn(async () => ({ data: membros[0] || null, error: null })),
     then(resolve) {
       return Promise.resolve({ data: membros, error: null }).then(resolve);
     },
@@ -102,6 +103,42 @@ describe("operações de autenticação", () => {
     await expect(
       operacoes["organizacoes.selecionar"]({ id: "outra" })
     ).rejects.toMatchObject({ codigo: "organizacao-sem-acesso" });
+  });
+
+  it("exige a liberação comercial ao criar uma organização", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({ sessao, membros: [] });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await operacoes["organizacoes.criar"]({ nome: "Acme", codigo: "NM12-3456-7890-AB" });
+
+    expect(deps.supabase.rpc).toHaveBeenCalledWith("create_organization", {
+      organization_name: "Acme",
+      access_code: "NM12-3456-7890-AB",
+    });
+  });
+
+  it("somente expõe a administração da plataforma para um administrador cadastrado", async () => {
+    const sessao = { user: { id: "user-1", email: "admin@nucleomajor.com", user_metadata: {} } };
+    const deps = dependencias({ sessao, membros: [{ user_id: "user-1" }] });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await expect(operacoes["plataforma.estado"]()).resolves.toEqual({ administrador: true });
+  });
+
+  it("emite uma liberação Full vinculada ao e-mail informado", async () => {
+    const sessao = { user: { id: "user-1", email: "admin@nucleomajor.com", user_metadata: {} } };
+    const deps = dependencias({ sessao });
+    const liberacao = { access_code: "NM12-3456-7890-AB", email: "cliente@empresa.com" };
+    deps.supabase.rpc.mockResolvedValueOnce({ data: [liberacao], error: null });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await expect(operacoes["plataforma.emitirAcesso"]({ email: " cliente@empresa.com " })).resolves.toEqual(liberacao);
+    expect(deps.supabase.rpc).toHaveBeenCalledWith("issue_onboarding_access", {
+      target_email: "cliente@empresa.com",
+      target_plan: "full",
+      valid_days: 7,
+    });
   });
 
   it("salva a responsabilidade no escopo da organização atual", async () => {
