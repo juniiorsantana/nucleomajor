@@ -348,6 +348,14 @@ export function criarOperacoesGateway() {
   return {
     "gateway.conexoes": conexoes,
 
+    "gateway.prontidao": async ({ organizationId, connectionId } = {}) => {
+      const organizacao = exigirOrganizacao(organizationId);
+      const resposta = await comCredencial(organizacao, connectionId, (token) =>
+        requisitar(`/connections/${connectionId}/readiness`, { token })
+      );
+      return resposta.readiness || null;
+    },
+
     // Realtime acelera a interface; o polling das telas continua sendo o
     // fallback para navegador suspenso, rede instável ou canal indisponível.
     "gateway.ativarRealtime": async ({ organizationId } = {}) =>

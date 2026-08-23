@@ -259,6 +259,7 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
 function CartaoConexao({
   conexao,
   robo,
+  prontidao,
   podeGerenciar,
   qr,
   sessaoWeb,
@@ -281,6 +282,11 @@ function CartaoConexao({
   const rotuloSessao = runtimeOnline
     ? ROTULOS[estado.status] || "Sem sessão do WhatsApp"
     : "Não consultada";
+  const mcpAtivo = robo?.status === "active" && prontidao?.mcp === "configured";
+  const agenda = prontidao?.agenda;
+  const rotuloAgenda = agenda === "available"
+    ? prontidao?.agendaWrite ? "Leitura e escrita disponíveis" : "Somente leitura"
+    : agenda === "unavailable" ? "Indisponível no último teste" : "Ainda não testada por um operador";
 
   const selo = divergente ? (
     <SeloEstado tom="erro">
@@ -331,12 +337,12 @@ function CartaoConexao({
       <div className="grid md:grid-cols-[1fr_310px]">
         <div className="border-b border-line md:border-b-0 md:border-r">
           <EstadoLinha
-            rotulo="Runtime"
+            rotulo="Bridge"
             valor={ROTULOS_RUNTIME[conexao.runtime] || "Runtime parado"}
             tom={runtimeOnline ? "sucesso" : "erro"}
           />
           <EstadoLinha
-            rotulo="Sessão do bridge"
+            rotulo="WhatsApp"
             valor={rotuloSessao}
             tom={conectado ? "sucesso" : divergente || estado.status === "error" ? "erro" : "neutro"}
           />
@@ -372,11 +378,15 @@ function CartaoConexao({
           )}
 
           <div className="flex min-h-11 items-center gap-3 border-b border-line px-5">
-            <span className="text-[13px] text-sub">IA no Núcleo Major</span>
-            <span className={`ml-auto text-right text-[13px] font-medium ${robo?.status === "active" ? "text-success" : "text-fg"}`}>
-              {robo?.status === "active"
-                ? `Leitura ativa${robo.last_used_at ? ` · usada ${fmtRelativo(robo.last_used_at)}` : ""}`
-                : robo?.status === "revoked" ? "Revogada" : "Não provisionada"}
+            <span className="text-[13px] text-sub">MCP do Núcleo</span>
+            <span className={`ml-auto text-right text-[13px] font-medium ${mcpAtivo ? "text-success" : "text-fg"}`}>
+              {robo?.status === "revoked"
+                ? "Credencial revogada"
+                : robo?.status !== "active"
+                  ? "Credencial não provisionada"
+                  : prontidao?.mcp === "configured"
+                    ? `Configurado${robo.last_used_at ? ` · usado ${fmtRelativo(robo.last_used_at)}` : ""}`
+                    : prontidao ? "Configuração ausente" : "Não foi possível consultar"}
             </span>
             {podeGerenciar && robo?.status === "active" && (
               <button
@@ -393,6 +403,11 @@ function CartaoConexao({
               </button>
             )}
           </div>
+          <EstadoLinha
+            rotulo="Agenda"
+            valor={rotuloAgenda}
+            tom={agenda === "available" ? "sucesso" : agenda === "unavailable" ? "erro" : "neutro"}
+          />
 
           <BlocoAtendimento
             resumo={resumo}
@@ -485,6 +500,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
   const [qrs, setQrs] = useState({});
   const [resumos, setResumos] = useState({});
   const [robos, setRobos] = useState({});
+  const [prontidoes, setProntidoes] = useState({});
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
   const [erro, setErro] = useState("");
@@ -546,6 +562,20 @@ export default function Conexoes({ organizacao, usuario = null }) {
           })
         );
         setResumos(Object.fromEntries(atendimentos));
+
+        const estadosDoAssistente = await Promise.all(
+          (proximo.conexoes || []).map(async (c) => {
+            try {
+              return [
+                c.connectionId,
+                await api.gateway.prontidao({ organizationId, connectionId: c.connectionId }),
+              ];
+            } catch {
+              return [c.connectionId, null];
+            }
+          })
+        );
+        setProntidoes(Object.fromEntries(estadosDoAssistente));
       } catch (e) {
         setErro(e?.message || "Não foi possível consultar as conexões.");
       }
@@ -560,6 +590,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
     setQrs({});
     setResumos({});
     setRobos({});
+    setProntidoes({});
     setErro("");
     if (!organizationId) return undefined;
 
@@ -779,6 +810,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
                   key={conexao.connectionId}
                   conexao={conexao}
                   robo={robos[conexao.connectionId] || null}
+                  prontidao={prontidoes[conexao.connectionId] || null}
                   podeGerenciar={["owner", "admin"].includes(organizacao?.papel)}
                   qr={qrs[conexao.connectionId]}
                   sessaoWeb={sessaoWeb}
