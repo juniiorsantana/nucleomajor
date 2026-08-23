@@ -32,6 +32,7 @@ import {
   eventoEditavel,
   eventoParaFormulario,
   eventoVisivelNoFiltro,
+  faixaVisivel,
   formatarDuracao,
   horaLocal,
   inicioDaSemana,
@@ -565,8 +566,17 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
     [filtrados, modoCor],
   );
   const naoLidas = notificacoes.filter((item) => !item.lidaEm && item.status === "sent").length;
-  const inicioMinuto = minutosDoHorario(String(contexto?.preference?.dayStart || contexto?.calendar?.dayStart || "05:00").slice(0, 5));
-  const fimMinuto = minutosDoHorario(String(contexto?.preference?.dayEnd || contexto?.calendar?.dayEnd || "23:59").slice(0, 5));
+  const inicioExpediente = minutosDoHorario(String(contexto?.preference?.dayStart || contexto?.calendar?.dayStart || "05:00").slice(0, 5));
+  const fimExpediente = minutosDoHorario(String(contexto?.preference?.dayEnd || contexto?.calendar?.dayEnd || "23:59").slice(0, 5));
+  // O expediente diz onde a atenção mora; a faixa desenhada precisa caber todo
+  // evento do período. Enquanto os dois eram a mesma coisa, um compromisso
+  // depois do fim do expediente sumia da grade e continuava contado no resumo.
+  const faixa = useMemo(
+    () => faixaVisivel(filtrados, inicioExpediente, fimExpediente),
+    [fimExpediente, filtrados, inicioExpediente],
+  );
+  const inicioMinuto = faixa.inicio;
+  const fimMinuto = faixa.fim;
   const contatoFiltrado = contatos.find((item) => item.id === filtroContato);
   const emEquipe = filtroProfissional === "team";
   const porPessoa = emEquipe && agruparEquipe && visualizacao === "day" && !estreito;
@@ -847,6 +857,8 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
             eventos={filtrados}
             inicioMinuto={inicioMinuto}
             fimMinuto={fimMinuto}
+            inicioExpediente={inicioExpediente}
+            fimExpediente={fimExpediente}
             alturaHora={alturaHora}
             modoCor={modoCor}
             agruparPorPessoa={porPessoa}

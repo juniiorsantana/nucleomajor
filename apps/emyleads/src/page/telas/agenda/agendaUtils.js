@@ -255,6 +255,49 @@ export function segmentosDoDia(eventos, dia) {
   return empacotarEmColunas(recortarSegmentosDoDia(eventos, dia));
 }
 
+/**
+ * Faixa de horas que a grade precisa desenhar.
+ *
+ * O expediente (`dayStart`/`dayEnd`) diz onde a atenção mora, não o que existe.
+ * Enquanto ele definia os limites da grade, um jantar às 19h30 com expediente
+ * até as 18h era descartado pelo filtro de segmentos e sumia da tela - embora
+ * o resumo continuasse somando as horas dele. A agenda dizia "2h30 agendado" e
+ * não mostrava nada.
+ *
+ * Por isso a faixa parte do expediente e se estica até caber todo evento do
+ * período, arredondando para a hora cheia. Nada some; o expediente vira apenas
+ * a região destacada, sombreando o resto.
+ */
+export function faixaVisivel(eventos, inicioExpediente, fimExpediente) {
+  const limite = 24 * 60;
+  let inicio = Math.max(0, Math.min(inicioExpediente, fimExpediente));
+  let fim = Math.min(limite, Math.max(inicioExpediente, fimExpediente));
+
+  for (const evento of eventos || []) {
+    if (!evento || evento.diaInteiro) continue;
+    const de = new Date(evento.inicio);
+    const ate = new Date(evento.fim);
+    if (Number.isNaN(de.getTime()) || Number.isNaN(ate.getTime())) continue;
+
+    const minutoInicio = de.getHours() * 60 + de.getMinutes();
+    const viraODia = ate.getFullYear() !== de.getFullYear()
+      || ate.getMonth() !== de.getMonth()
+      || ate.getDate() !== de.getDate();
+    // Quem atravessa a meia-noite ocupa o fim de um dia E o começo do outro:
+    // a faixa precisa alcançar as duas pontas, senão o recorte por dia esconde
+    // metade do evento.
+    const minutoFim = viraODia ? limite : ate.getHours() * 60 + ate.getMinutes();
+
+    inicio = Math.min(inicio, Math.floor(minutoInicio / 60) * 60);
+    if (viraODia) inicio = 0;
+    fim = Math.max(fim, Math.min(limite, Math.ceil(minutoFim / 60) * 60));
+  }
+
+  // Uma hora de altura mínima evita grade de altura zero quando o expediente
+  // foi salvo invertido ou vazio.
+  return { inicio, fim: Math.max(fim, Math.min(limite, inicio + 60)) };
+}
+
 export function idDoResponsavel(evento) {
   return evento?.ownerId || evento?.owner_id || "";
 }

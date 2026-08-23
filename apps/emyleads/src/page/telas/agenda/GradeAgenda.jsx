@@ -158,6 +158,8 @@ export default function GradeAgenda({
   eventos,
   inicioMinuto,
   fimMinuto,
+  inicioExpediente,
+  fimExpediente,
   alturaHora,
   modoCor = "categoria",
   agruparPorPessoa = false,
@@ -213,9 +215,31 @@ export default function GradeAgenda({
   const horas = useMemo(() => {
     const lista = [];
     const primeiro = Math.ceil(inicioMinuto / intervaloRotulo) * intervaloRotulo;
-    for (let minuto = primeiro; minuto <= fimMinuto; minuto += intervaloRotulo) lista.push(minuto);
+    // `< 24 * 60` e não `<=`: quando a faixa se estica até a meia-noite por
+    // causa de um evento tarde, o último rótulo sairia como "24:00".
+    for (let minuto = primeiro; minuto <= fimMinuto && minuto < 24 * 60; minuto += intervaloRotulo) lista.push(minuto);
     return lista;
   }, [fimMinuto, inicioMinuto, intervaloRotulo]);
+
+  /**
+   * Sombra sobre o que está fora do expediente.
+   *
+   * A faixa agora se estica para caber qualquer evento, então o expediente
+   * perdeu o papel de limite. Ele volta como leitura visual: o miolo claro é o
+   * horário de trabalho, as bordas escuras são o que veio de fora dele.
+   */
+  const forasDoExpediente = useMemo(() => {
+    if (inicioExpediente == null || fimExpediente == null) return [];
+    const faixas = [];
+    if (inicioExpediente > inicioMinuto) {
+      faixas.push({ chave: "antes", topo: 0, altura: (Math.min(inicioExpediente, fimMinuto) - inicioMinuto) * alturaPorMinuto });
+    }
+    if (fimExpediente < fimMinuto) {
+      const de = Math.max(fimExpediente, inicioMinuto);
+      faixas.push({ chave: "depois", topo: (de - inicioMinuto) * alturaPorMinuto, altura: (fimMinuto - de) * alturaPorMinuto });
+    }
+    return faixas.filter((faixa) => faixa.altura > 0);
+  }, [alturaPorMinuto, fimExpediente, fimMinuto, inicioExpediente, inicioMinuto]);
 
   /**
    * Leva a rolagem para o horário que interessa.
@@ -445,6 +469,14 @@ export default function GradeAgenda({
                   } catch { /* arraste externo não pertence à agenda */ }
                 }}
               >
+                {forasDoExpediente.map((faixa) => (
+                  <div
+                    key={faixa.chave}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 z-[1] bg-surface/55"
+                    style={{ top: faixa.topo, height: faixa.altura }}
+                  />
+                ))}
                 {selecionando && (
                   <div
                     className="pointer-events-none absolute inset-x-1 z-[3] rounded-[7px] border border-accent bg-accent-soft/80"

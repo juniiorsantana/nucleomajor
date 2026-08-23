@@ -4,6 +4,7 @@ import {
   corDaPessoa,
   corDoEvento,
   densidadeDoBloco,
+  faixaVisivel,
   faixasPorPessoa,
   iniciaisDoNome,
   intervaloDaVisao,
@@ -171,6 +172,58 @@ describe("identidade visual do bloco", () => {
     expect(iniciaisDoNome("Ana Maria Prado")).toBe("AP");
     expect(iniciaisDoNome("Ana")).toBe("AN");
     expect(iniciaisDoNome("")).toBe("?");
+  });
+});
+
+describe("faixa desenhada versus expediente", () => {
+  const as = (hora, minuto = 0) => new Date(2026, 7, 21, hora, minuto).toISOString();
+  const EXPEDIENTE = [8 * 60, 18 * 60];
+
+  it("não deixa evento fora do expediente sumir da grade", () => {
+    // O bug: com expediente até as 18h, um jantar às 19h30 era descartado pelo
+    // filtro de segmentos e a tela ficava vazia - enquanto o resumo continuava
+    // somando as horas dele.
+    const faixa = faixaVisivel([evento("jantar", as(19, 30), as(21))], ...EXPEDIENTE);
+    expect(faixa.fim).toBe(21 * 60);
+    expect(faixa.inicio).toBe(8 * 60);
+  });
+
+  it("estica para trás quando o evento começa antes do expediente", () => {
+    const faixa = faixaVisivel([evento("voo", as(5, 40), as(7))], ...EXPEDIENTE);
+    expect(faixa.inicio).toBe(5 * 60);
+    expect(faixa.fim).toBe(18 * 60);
+  });
+
+  it("mantém o expediente quando tudo cabe dentro dele", () => {
+    const faixa = faixaVisivel([evento("reunião", as(10), as(11))], ...EXPEDIENTE);
+    expect(faixa).toEqual({ inicio: 8 * 60, fim: 18 * 60 });
+  });
+
+  it("abre o dia inteiro para evento que atravessa a meia-noite", () => {
+    const faixa = faixaVisivel([
+      evento("virada", as(23), new Date(2026, 7, 22, 1).toISOString()),
+    ], ...EXPEDIENTE);
+    expect(faixa.inicio).toBe(0);
+    expect(faixa.fim).toBe(24 * 60);
+  });
+
+  it("ignora evento de dia inteiro, que mora na faixa própria", () => {
+    const faixa = faixaVisivel([
+      evento("feriado", as(0), as(23, 59), { diaInteiro: true }),
+    ], ...EXPEDIENTE);
+    expect(faixa).toEqual({ inicio: 8 * 60, fim: 18 * 60 });
+  });
+
+  it("sobrevive a data inválida e a expediente invertido", () => {
+    expect(faixaVisivel([evento("quebrado", "não é data", "nem isso")], ...EXPEDIENTE))
+      .toEqual({ inicio: 8 * 60, fim: 18 * 60 });
+    const invertido = faixaVisivel([], 18 * 60, 8 * 60);
+    expect(invertido.fim).toBeGreaterThan(invertido.inicio);
+  });
+
+  it("nunca passa da meia-noite", () => {
+    const faixa = faixaVisivel([evento("tarde", as(23, 30), as(23, 59))], ...EXPEDIENTE);
+    expect(faixa.fim).toBe(24 * 60);
   });
 });
 

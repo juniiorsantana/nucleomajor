@@ -168,6 +168,30 @@ const agendaDev = [
     lembretes: [],
   },
   {
+    // Evento fora do expediente de propósito: a grade recortava em `dayEnd` e
+    // sumia com quem estava do lado de fora, sem aviso. Sem um caso noturno na
+    // bancada, esse buraco não aparecia em teste nenhum.
+    id: "dev-evento-noturno",
+    sourceType: "event",
+    organizationId: "dev-org",
+    ownerId: "dev-user",
+    ownerName: "Usuário de desenvolvimento",
+    titulo: "Jantar com cliente",
+    descricao: "",
+    inicio: (() => { const d = new Date(); d.setHours(19, 30, 0, 0); return d.toISOString(); })(),
+    fim: (() => { const d = new Date(); d.setHours(21, 0, 0, 0); return d.toISOString(); })(),
+    diaInteiro: false,
+    tipo: "appointment",
+    visibilidade: "personal",
+    status: "scheduled",
+    categoryId: "dev-categoria-atendimento",
+    categoryName: "Atendimento",
+    categoryColor: "#22C55E",
+    local: "Restaurante",
+    tags: [],
+    lembretes: [30],
+  },
+  {
     id: "dev-tarefa-agenda",
     sourceType: "task",
     taskId: "dev-tarefa-agenda",
