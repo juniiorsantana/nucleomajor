@@ -96,6 +96,24 @@ CORS_ALLOWED_ORIGINS=https://nucleomajor.com,chrome-extension://<id-publicado>
 Não configure `service_role` no frontend ou neste servidor. O backend usa a
 sessão do próprio usuário e deixa o Supabase aplicar RLS.
 
+## Desenvolvendo skills oficiais
+
+As skills oficiais da Central de Inteligência são editáveis em
+`packages/intelligence/skills`. Cada pasta possui regras estruturadas,
+instruções em Markdown e casos de teste.
+
+```bash
+npm run intelligence:validate
+npm run intelligence:publish
+npm run intelligence:publish -- --apply
+```
+
+`intelligence:publish` é uma simulação por padrão. A opção `--apply` exige
+`SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no terminal local, publica apenas
+alterações e deixa o Supabase criar uma nova versão. Essa credencial nunca deve
+ser configurada no frontend ou na Hostinger. Veja o fluxo completo em
+`packages/intelligence/README.md`.
+
 No Supabase Auth, permita:
 
 ```text

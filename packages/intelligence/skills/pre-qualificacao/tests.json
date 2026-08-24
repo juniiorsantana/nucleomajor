@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "interesse-inicial",
+      "input": "Tenho interesse e gostaria de entender como funciona.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "necessidade-aberta",
+      "input": "Preciso de ajuda para organizar o atendimento da empresa.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "agendamento-direto",
+      "input": "Quero agendar uma reunião amanhã às 10h.",
+      "expected": { "shouldActivate": false }
+    }
+  ]
+}
+

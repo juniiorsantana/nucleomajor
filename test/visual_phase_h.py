@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -20,9 +21,11 @@ ORIGIN_NETLOC = urlparse(ORIGIN).netloc
 def run() -> None:
     ARTIFACTS.mkdir(exist_ok=True)
     browser_errors: list[str] = []
+    assistant_updates: list[dict] = []
     internal_profile = "10000000-0000-4000-8000-000000000001"
     customer_profile = "10000000-0000-4000-8000-000000000002"
     sales_skill = "20000000-0000-4000-8000-000000000001"
+    agenda_skill = "20000000-0000-4000-8000-000000000002"
     internal_collection = "30000000-0000-4000-8000-000000000001"
     external_collection = "30000000-0000-4000-8000-000000000002"
 
@@ -64,16 +67,17 @@ def run() -> None:
                 {"id": "t2", "audience": "customer", "name": "Assistente de atendimento"},
             ],
             "/rest/v1/assistant_profiles": [
-                {"id": internal_profile, "audience": "internal", "display_name": "Assistente da equipe", "tone": "claro e objetivo", "active": True, "brand_config": {}, "process_config": {}},
+                {"id": internal_profile, "audience": "internal", "display_name": "Assistente da equipe", "tone": "claro e objetivo", "active": True, "brand_config": {"brandName": "Núcleo Major", "greeting": "Olá! O que vamos organizar?"}, "process_config": {}},
                 {"id": customer_profile, "audience": "customer", "display_name": "Assistente Major", "tone": "cordial e consultivo", "active": True, "brand_config": {"brandName": "Major"}, "process_config": {}},
             ],
             "/rest/v1/skill_definitions": [
                 {"id": sales_skill, "owner_type": "platform", "slug": "vendas", "name": "Vendas consultivas", "description": "Conduz descoberta e próximos passos.", "audience": "customer", "status": "published", "current_version": 2, "spec": {"activation": {"keywords": ["preço", "contratar"]}}},
-                {"id": "20000000-0000-4000-8000-000000000002", "owner_type": "platform", "slug": "agenda", "name": "Agenda", "description": "Consulta e agenda com confirmação.", "audience": "both", "status": "published", "current_version": 1, "spec": {"activation": {"keywords": ["reunião"]}}},
+                {"id": agenda_skill, "owner_type": "platform", "slug": "agenda", "name": "Agenda", "description": "Consulta e agenda com confirmação.", "audience": "both", "status": "published", "current_version": 1, "spec": {"activation": {"keywords": ["reunião"]}}},
             ],
             "/rest/v1/skill_versions": [],
             "/rest/v1/assistant_profile_skills": [
                 {"organization_id": ORG_ID, "profile_id": customer_profile, "skill_id": sales_skill, "enabled": True, "priority": 10, "configuration": {}},
+                {"organization_id": ORG_ID, "profile_id": internal_profile, "skill_id": agenda_skill, "enabled": True, "priority": 10, "configuration": {}},
             ],
             "/rest/v1/knowledge_collections": [
                 {"id": internal_collection, "organization_id": ORG_ID, "name": "Conhecimento interno", "audience": "internal", "scope_type": "organization", "status": "active"},
@@ -97,6 +101,15 @@ def run() -> None:
                 "skillsPermitidos": [{"id": sales_skill, "nome": "Vendas consultivas", "versao": 2}],
                 "colecoesPermitidas": [{"id": external_collection, "nome": "Catálogo publicado"}],
             })
+        if path == "/rest/v1/assistant_profiles" and request.method == "PATCH":
+            update = json.loads(request.post_data or "{}")
+            assistant_updates.append(update)
+            return fulfill(route, [{
+                "id": customer_profile, "audience": "customer",
+                "display_name": "Assistente Major", "tone": "cordial e consultivo",
+                "active": True, "brand_config": {"brandName": "Major"},
+                "process_config": {}, **update,
+            }])
         if path in tables:
             return fulfill(route, tables[path])
         return fulfill(route, [])
@@ -110,13 +123,33 @@ def run() -> None:
         page.on("pageerror", lambda error: browser_errors.append(str(error)))
         page.goto(f"{ORIGIN}/app/conhecimento")
         page.wait_for_load_state("networkidle")
+        if page.get_by_label("E-mail").count() == 0:
+            page.screenshot(path=str(ARTIFACTS / "fase-h-inspecao-inicial.png"), full_page=True)
+            raise AssertionError(f"login não renderizado; url={page.url}; texto={page.locator('body').inner_text()[:1000]!r}; erros={browser_errors}")
         page.get_by_label("E-mail").fill("junior@major.com")
         page.get_by_label("Senha").fill("senha-segura")
         page.get_by_role("button", name="Entrar", exact=True).click()
         expect(page.get_by_role("heading", name="Central de Inteligência")).to_be_visible(timeout=10000)
         expect(page.get_by_text("Identidade da Major", exact=True)).to_be_visible()
         page.get_by_role("button", name="Assistentes", exact=True).click()
-        expect(page.locator('input[value="Assistente Major"]')).to_be_visible()
+        expect(page.get_by_role("heading", name="Quem o assistente atende?")).to_be_visible()
+        expect(page.get_by_text("Prévia da conversa", exact=True)).to_be_visible()
+        displayed_name = page.get_by_label("Nome exibido")
+        expect(displayed_name).to_have_value("Núcleo Major")
+        displayed_name.fill("Núcleo Major Preview")
+        expect(page.get_by_text("Alterações não salvas", exact=True)).to_be_visible()
+        expect(page.get_by_text("Núcleo Major Preview", exact=True).last).to_be_visible()
+        page.get_by_role("button", name="Descartar", exact=True).click()
+        expect(displayed_name).to_have_value("Núcleo Major")
+        customer_card = page.get_by_role("button", name=re.compile("Atendimento a clientes"))
+        customer_card.click()
+        expect(page.get_by_role("heading", name="Assistente de atendimento")).to_be_visible()
+        expect(page.get_by_label("Nome exibido")).to_have_value("Major")
+        page.get_by_label("Saudação inicial").fill("Olá! Sou o Assistente Major. Como posso ajudar?")
+        page.get_by_role("button", name="Salvar mudanças", exact=True).click()
+        expect(page.get_by_text("Alterações salvas", exact=True)).to_be_visible()
+        assert assistant_updates and assistant_updates[-1]["brand_config"]["greeting"].startswith("Olá! Sou o Assistente Major")
+        page.screenshot(path=str(ARTIFACTS / "fase-h-assistentes-desktop.png"), full_page=True)
         page.get_by_role("button", name="Skills", exact=True).click()
         expect(page.get_by_text("Vendas consultivas", exact=True)).to_be_visible()
         page.get_by_role("button", name="Campanhas", exact=True).click()
@@ -136,7 +169,10 @@ def run() -> None:
         mobile_page.goto(f"{ORIGIN}/app/conhecimento")
         mobile_page.wait_for_load_state("networkidle")
         expect(mobile_page.get_by_role("heading", name="Central de Inteligência")).to_be_visible()
-        mobile_page.screenshot(path=str(ARTIFACTS / "fase-h-inteligencia-mobile.png"), full_page=True)
+        mobile_page.get_by_role("button", name="Assistentes", exact=True).click()
+        expect(mobile_page.get_by_role("heading", name="Quem o assistente atende?")).to_be_visible()
+        expect(mobile_page.get_by_text("Prévia da conversa", exact=True)).to_be_visible()
+        mobile_page.screenshot(path=str(ARTIFACTS / "fase-h-assistentes-mobile.png"), full_page=True)
         assert mobile_page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), "a Central vazou horizontalmente no celular"
         assert not browser_errors, f"erros no navegador: {browser_errors}"
         mobile.close()

@@ -1,0 +1,19 @@
+{
+  "$schema": "../skill.schema.json",
+  "schemaVersion": "1.0",
+  "slug": "suporte",
+  "name": "Suporte",
+  "description": "Orienta com base no conteúdo publicado e transfere casos não resolvidos.",
+  "audience": "customer",
+  "status": "published",
+  "objective": "Resolver dúvidas e incidentes usando conhecimento autorizado, com transferência segura quando necessário.",
+  "activation": {
+    "keywords": ["ajuda", "erro", "problema", "suporte", "não funciona", "falha", "dificuldade", "travou"]
+  },
+  "requiredFields": ["issue"],
+  "questions": ["O que aconteceu e o que você esperava?", "Apareceu alguma mensagem de erro?"],
+  "allowedTools": ["knowledge.search", "crm.contact.read", "conversation.handoff"],
+  "guardrails": ["published_knowledge_only", "no_secret_disclosure", "no_invented_diagnosis"],
+  "handoff": ["sensitive_topic", "two_failed_clarifications", "tool_unavailable", "requested_human"]
+}
+

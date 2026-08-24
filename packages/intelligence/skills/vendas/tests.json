@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "pedido-de-preco",
+      "input": "Quero saber o preço e os planos disponíveis.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "solicitar-proposta",
+      "input": "Vocês conseguem enviar uma proposta para minha empresa?",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "problema-tecnico",
+      "input": "O sistema não funciona e aparece um erro ao entrar.",
+      "expected": { "shouldActivate": false }
+    }
+  ]
+}
+

@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "consultar-disponibilidade",
+      "input": "Você pode consultar minha disponibilidade amanhã?",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "agendar-reuniao",
+      "input": "Agenda uma reunião com a Adriane às 14h.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "duvida-de-preco",
+      "input": "Qual é o preço do plano completo?",
+      "expected": { "shouldActivate": false }
+    }
+  ]
+}
+

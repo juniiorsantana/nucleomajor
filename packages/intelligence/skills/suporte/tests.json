@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "erro-de-acesso",
+      "input": "Preciso de ajuda, aparece um erro quando tento entrar.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "funcionalidade-travou",
+      "input": "O envio travou e não funciona desde ontem.",
+      "expected": { "shouldActivate": true }
+    },
+    {
+      "id": "pedido-comercial",
+      "input": "Quero contratar o plano mais completo.",
+      "expected": { "shouldActivate": false }
+    }
+  ]
+}
+

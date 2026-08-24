@@ -1,0 +1,19 @@
+{
+  "$schema": "../skill.schema.json",
+  "schemaVersion": "1.0",
+  "slug": "vendas",
+  "name": "Vendas",
+  "description": "Entende o interesse, apresenta a oferta autorizada e conduz o próximo passo.",
+  "audience": "customer",
+  "status": "published",
+  "objective": "Conduzir oportunidades comerciais com clareza, sem inventar condições ou pressionar o cliente.",
+  "activation": {
+    "keywords": ["preço", "valor", "comprar", "contratar", "proposta", "plano", "desconto", "orçamento"]
+  },
+  "requiredFields": ["need"],
+  "questions": ["O que você precisa resolver?", "Qual resultado você espera alcançar?"],
+  "allowedTools": ["crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"],
+  "guardrails": ["published_offer_only", "no_discount_without_rule", "no_false_urgency"],
+  "handoff": ["commercial_exception", "requested_human", "low_confidence"]
+}
+

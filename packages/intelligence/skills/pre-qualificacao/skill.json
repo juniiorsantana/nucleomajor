@@ -1,0 +1,19 @@
+{
+  "$schema": "../skill.schema.json",
+  "schemaVersion": "1.0",
+  "slug": "pre-qualificacao",
+  "name": "Pré-qualificação",
+  "description": "Coleta dados essenciais e registra a qualificação no CRM.",
+  "audience": "customer",
+  "status": "published",
+  "objective": "Entender perfil, necessidade, momento e próximo passo usando o mínimo necessário de dados.",
+  "activation": {
+    "keywords": ["interesse", "quero saber", "informações", "como funciona", "conhecer", "preciso de", "gostaria de"]
+  },
+  "requiredFields": ["name", "need", "timing"],
+  "questions": ["Qual é a sua principal necessidade?", "Para quando você precisa?"],
+  "allowedTools": ["crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"],
+  "guardrails": ["minimal_data", "purpose_limitation", "one_question_at_a_time"],
+  "handoff": ["requested_human", "low_confidence", "sensitive_topic"]
+}
+

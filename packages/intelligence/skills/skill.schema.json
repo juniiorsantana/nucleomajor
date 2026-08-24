@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nucleomajor.com/schemas/intelligence-skill-v1.json",
+  "title": "Núcleo Major official skill",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "slug",
+    "name",
+    "description",
+    "audience",
+    "status",
+    "objective",
+    "activation",
+    "allowedTools",
+    "guardrails",
+    "handoff"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 1200 },
+    "audience": { "enum": ["internal", "customer", "both"] },
+    "status": { "enum": ["draft", "published", "archived"] },
+    "objective": { "type": "string", "minLength": 10 },
+    "activation": {
+      "type": "object",
+      "required": ["keywords"],
+      "properties": {
+        "keywords": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "requiredFields": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "questions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "allowedTools": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "guardrails": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "handoff": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true }
+  },
+  "additionalProperties": false
+}
+
