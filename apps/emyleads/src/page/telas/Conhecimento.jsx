@@ -8,9 +8,9 @@ const scopes = [
   { id: "personal", label: "Meu espaço", note: "Referências privadas", icon: UserRound },
 ];
 
-const emptyDraft = (scope = "organization") => ({ id: null, escopo: scope, titulo: "", caminho: "", conteudo: "", versao: 1 });
+const emptyDraft = (scope = "organization") => ({ id: null, escopo: scope, titulo: "", caminho: "", conteudo: "", versao: 1, audiencia: "internal", colecoesIds: [] });
 
-export default function Conhecimento({ sessao }) {
+export default function Conhecimento({ sessao, inteligencia = null, embedded = false }) {
   const [documents, setDocuments] = useState([]);
   const [scope, setScope] = useState("organization");
   const [search, setSearch] = useState("");
@@ -19,7 +19,9 @@ export default function Conhecimento({ sessao }) {
   const [versions, setVersions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [localIntelligence, setLocalIntelligence] = useState(null);
   const [error, setError] = useState("");
+  const intelligenceData = inteligencia || localIntelligence;
   const role = sessao?.organizacaoAtual?.papel;
   const canWrite = scope === "personal" || ["owner", "admin"].includes(role);
 
@@ -31,6 +33,9 @@ export default function Conhecimento({ sessao }) {
 
   useEffect(() => { load().catch((e) => setError(e.message)).finally(() => setLoading(false)); }, []);
   useEffect(() => {
+    if (!inteligencia) api.inteligencia.carregar().then(setLocalIntelligence).catch(() => {});
+  }, [inteligencia]);
+  useEffect(() => {
     setSelected(null); setDraft(null); setVersions(null);
   }, [scope]);
 
@@ -41,7 +46,12 @@ export default function Conhecimento({ sessao }) {
 
   const counts = useMemo(() => Object.fromEntries(scopes.map((item) => [item.id, documents.filter((doc) => doc.escopo === item.id).length])), [documents]);
 
-  const open = (document) => { setSelected(document); setDraft({ ...document }); setVersions(null); setError(""); };
+  const open = (document) => {
+    const colecoesIds = Array.isArray(document.colecoesIds)
+      ? document.colecoesIds
+      : (intelligenceData?.documentCollections || []).filter((item) => item.document_id === document.id).map((item) => item.collection_id);
+    setSelected(document); setDraft({ ...document, colecoesIds }); setVersions(null); setError("");
+  };
   const create = () => { setSelected(null); setDraft(emptyDraft(scope)); setVersions(null); setError(""); };
 
   const save = async () => {
@@ -49,8 +59,12 @@ export default function Conhecimento({ sessao }) {
     const path = draft.caminho.trim().endsWith(".md") ? draft.caminho.trim() : `${draft.caminho.trim()}.md`;
     setSaving(true); setError("");
     try {
-      const saved = await api.conhecimento.salvar({ id: draft.id, escopo: draft.escopo, caminho: path, titulo: draft.titulo, conteudo: draft.conteudo });
-      await load(); open(saved);
+      const saved = await api.conhecimento.salvar({
+        id: draft.id, escopo: draft.escopo, caminho: path, titulo: draft.titulo,
+        conteudo: draft.conteudo, audiencia: draft.escopo === "personal" ? "internal" : draft.audiencia,
+        colecoesIds: draft.colecoesIds,
+      });
+      await load(); open({ ...saved, colecoesIds: draft.colecoesIds });
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -68,17 +82,21 @@ export default function Conhecimento({ sessao }) {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-surface">
-      <header className="flex flex-none flex-wrap items-center gap-4 border-b border-line bg-bg px-4 py-3 md:px-8 md:py-4">
+    <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden bg-surface">
+      {!embedded && <header className="flex flex-none flex-wrap items-center gap-4 border-b border-line bg-bg px-4 py-3 md:px-8 md:py-4">
         <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Biblioteca viva</p><h1 className="text-[22px] font-semibold tracking-tight text-fg">Núcleo de Conhecimento</h1></div>
         <label className="order-3 flex h-10 w-full items-center gap-2 rounded-[10px] border border-line px-3 text-sub focus-within:border-accent md:order-none md:ml-auto md:w-80"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar títulos, caminhos e conteúdo" className="min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-faint" /></label>
         <button type="button" onClick={create} disabled={!canWrite} className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-semibold text-white disabled:opacity-35"><Plus size={16} /> Novo documento</button>
-      </header>
+      </header>}
+      {embedded && <div className="flex flex-none flex-wrap items-center gap-3 border-b border-line bg-bg px-4 py-3 md:px-7">
+        <label className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-[9px] border border-line px-3 text-sub focus-within:border-accent md:max-w-md"><Search size={15} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar conhecimento" className="min-w-0 flex-1 bg-transparent text-[12px] text-fg outline-none placeholder:text-faint" /></label>
+        <button type="button" onClick={create} disabled={!canWrite} className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-accent px-3.5 text-[11.5px] font-semibold text-white disabled:opacity-35"><Plus size={15} />Novo documento</button>
+      </div>}
 
       {error && <div role="alert" className="mx-4 mt-4 rounded-[9px] bg-danger/10 px-4 py-3 text-[12.5px] text-danger md:mx-8">{error}</div>}
 
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[230px_320px_minmax(0,1fr)]">
-        <aside className="border-b border-line bg-bg p-4 lg:border-b-0 lg:border-r lg:p-5">
+      <div className="grid min-h-0 min-w-0 w-full flex-1 lg:grid-cols-[230px_320px_minmax(0,1fr)]">
+        <aside className="min-w-0 border-b border-line bg-bg p-4 lg:border-b-0 lg:border-r lg:p-5">
           <p className="mb-4 text-[10px] font-bold uppercase tracking-[.13em] text-faint">De onde vem</p>
           <div className="relative flex gap-2 overflow-x-auto lg:flex-col lg:gap-1.5">
             <div aria-hidden="true" className="absolute bottom-7 left-[19px] top-7 hidden w-px bg-gradient-to-b from-accent via-[#0f9f8f] to-[#e1a12d] lg:block" />
@@ -93,7 +111,7 @@ export default function Conhecimento({ sessao }) {
           <div className="mt-5 rounded-[11px] border border-line bg-surface p-3 text-[11px] leading-5 text-sub"><strong className="text-fg">Herança segura</strong><p className="mt-1">O assistente combina empresa, equipe e seu espaço sem mostrar documentos pessoais de colegas.</p></div>
         </aside>
 
-        <section className="min-h-0 border-b border-line bg-bg lg:border-b-0 lg:border-r">
+        <section className="min-h-0 min-w-0 border-b border-line bg-bg lg:border-b-0 lg:border-r">
           <div className="flex h-12 items-center border-b border-line px-4"><h2 className="text-[12.5px] font-semibold text-fg">{scopes.find((item) => item.id === scope)?.label}</h2><span className="ml-auto text-[10.5px] text-faint">{filtered.length} documento(s)</span></div>
           <div className="scrollbar-fina max-h-64 overflow-y-auto lg:max-h-none lg:h-[calc(100vh-121px)]">
             {loading ? <p className="p-5 text-[12px] text-sub">Carregando…</p> : filtered.length === 0 ? <div className="p-8 text-center"><BookOpen size={28} className="mx-auto text-faint" /><p className="mt-3 text-[12.5px] font-medium text-fg">Nenhum documento neste espaço</p><p className="mt-1 text-[11px] text-sub">{canWrite ? "Crie o primeiro documento para orientar a equipe e o assistente." : "Somente administradores podem publicar aqui."}</p></div> : filtered.map((document) => (
@@ -102,12 +120,16 @@ export default function Conhecimento({ sessao }) {
           </div>
         </section>
 
-        <main className="scrollbar-fina min-h-0 overflow-y-auto p-4 md:p-6">
+        <main className="scrollbar-fina min-h-0 min-w-0 overflow-y-auto p-4 md:p-6">
           {!draft ? <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><BookOpen size={38} strokeWidth={1.4} className="text-faint" /><h2 className="mt-4 text-[16px] font-semibold text-fg">Selecione um documento</h2><p className="mt-1 max-w-sm text-[12.5px] leading-5 text-sub">Leia, edite e acompanhe versões sem sair do contexto da organização.</p></div> : (
             <div className="mx-auto max-w-4xl">
               <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10.5px] font-semibold text-accent-forte">{scopes.find((item) => item.id === draft.escopo)?.label}</span><span className="text-[10.5px] text-faint">Versão {draft.versao || 1}</span><div className="ml-auto flex gap-1">{draft.id && <button type="button" onClick={history} className="rounded-[8px] p-2 text-sub hover:bg-bg hover:text-fg" title="Histórico"><Clock3 size={16} /></button>}{draft.id && canWrite && <button type="button" onClick={archive} className="rounded-[8px] p-2 text-sub hover:bg-danger/10 hover:text-danger" title="Arquivar"><Archive size={16} /></button>}</div></div>
               <input value={draft.titulo} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, titulo: e.target.value })} placeholder="Título do documento" className="mt-4 w-full bg-transparent text-[24px] font-semibold tracking-tight text-fg outline-none placeholder:text-faint" />
               <input value={draft.caminho} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, caminho: e.target.value })} placeholder="processos/comercial.md" className="mt-2 w-full rounded-[8px] border border-line bg-bg px-3 py-2 font-mono text-[11.5px] text-sub outline-none focus:border-accent" />
+              {draft.escopo !== "personal" && intelligenceData && <div className="mt-4 grid gap-3 rounded-[11px] border border-line bg-bg p-3 md:grid-cols-2">
+                <label><span className="mb-1 block text-[10.5px] font-semibold text-sub">Quem pode usar</span><select disabled={!canWrite} value={draft.audiencia || "internal"} onChange={(e) => setDraft({ ...draft, audiencia: e.target.value, colecoesIds: [] })} className="w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[12px]"><option value="internal">Somente equipe</option><option value="external">Atendimento a clientes</option></select></label>
+                <div><span className="mb-1 block text-[10.5px] font-semibold text-sub">Coleções</span><div className="flex flex-wrap gap-1.5">{(intelligenceData.collections || []).filter((item) => item.audience === (draft.audiencia === "external" ? "external" : "internal") && item.scope_type !== "personal").map((collection) => <label key={collection.id} className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[10.5px] text-sub"><input type="checkbox" disabled={!canWrite} checked={(draft.colecoesIds || []).includes(collection.id)} onChange={(e) => setDraft({ ...draft, colecoesIds: e.target.checked ? [...(draft.colecoesIds || []), collection.id] : (draft.colecoesIds || []).filter((id) => id !== collection.id) })} />{collection.name}</label>)}</div></div>
+              </div>}
               <textarea value={draft.conteudo} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, conteudo: e.target.value })} placeholder="# Comece a documentar aqui…" className="mt-4 min-h-[430px] w-full resize-y rounded-[12px] border border-line bg-bg p-4 font-mono text-[12.5px] leading-6 text-fg outline-none focus:border-accent" />
               {canWrite && <div className="mt-3 flex justify-end"><button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12.5px] font-semibold text-white disabled:opacity-40"><Save size={15} /> {saving ? "Salvando…" : "Salvar documento"}</button></div>}
             </div>

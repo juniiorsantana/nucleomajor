@@ -5,6 +5,7 @@ import { criarOperacoesDadosWeb } from "./dataProvider.js";
 import { criarOperacoesGateway } from "./gatewayProvider.js";
 import { criarOperacoesConhecimento } from "./knowledgeProvider.js";
 import { criarOperacoesAssistente } from "./assistantProvider.js";
+import { criarOperacoesInteligencia } from "./intelligenceProvider.js";
 import { webArea } from "./storage.js";
 
 let operacoes;
@@ -18,6 +19,7 @@ export function obterOperacoesWeb() {
     ...criarOperacoesAgenda({ supabase, area: webArea }),
     ...criarOperacoesConhecimento({ supabase, area: webArea }),
     ...criarOperacoesAssistente({ supabase, area: webArea }),
+    ...criarOperacoesInteligencia({ supabase, area: webArea }),
     ...criarOperacoesGateway(),
   };
   return operacoes;

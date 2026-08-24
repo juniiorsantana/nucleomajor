@@ -9,7 +9,7 @@ import { BotaoPrimario, CabecalhoTela, Marca, Rail } from "./ui";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Assistente = lazy(() => import("./telas/Assistente"));
-const Conhecimento = lazy(() => import("./telas/Conhecimento"));
+const Inteligencia = lazy(() => import("./telas/Inteligencia"));
 const Chatbots = lazy(() => import("./telas/Chatbots"));
 const ChatbotEditor = lazy(() => import("./telas/ChatbotEditor"));
 const Conexoes = lazy(() => import("./telas/Conexoes"));
@@ -24,7 +24,7 @@ const TELAS = [
   { id: "funil", rotulo: "Funil", icone: Filter },
   { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig },
   { id: "agenda", rotulo: "Agenda", icone: CalendarDays },
-  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Conhecimento", icone: LibraryBig }] : []),
+  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Inteligência", icone: LibraryBig }] : []),
   { id: "chatbots", rotulo: "Chatbots", icone: Bot },
   { id: "conexoes", rotulo: "Conexões", icone: Cable },
   { id: "equipe", rotulo: "Equipe", icone: UsersRound },
@@ -392,7 +392,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           </Suspense>
         ) : tela === "conhecimento" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conhecimento…</div>}>
-            <Conhecimento sessao={sessao} />
+            <Inteligencia sessao={sessao} />
           </Suspense>
         ) : tela === "chatbots" && chatbotEditando !== undefined ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando editor…</div>}>

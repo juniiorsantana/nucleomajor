@@ -10,6 +10,8 @@ const mapDocument = (row) => ({
   titulo: row.title,
   conteudo: row.content_markdown || "",
   status: row.status,
+  audiencia: row.audience || "internal",
+  publicadoEm: row.published_at || null,
   versao: Number(row.version || 1),
   criadoEm: row.created_at,
   atualizadoEm: row.updated_at,
@@ -29,15 +31,16 @@ export function criarOperacoesConhecimento({ supabase = obterSupabaseWeb(), area
     "conhecimento.listar": async () => {
       const ctx = await contexto();
       const { data, error } = await supabase.from("knowledge_documents")
-        .select("id,organization_id,scope_type,scope_user_id,path,title,content_markdown,status,version,created_at,updated_at")
+        .select("id,organization_id,scope_type,scope_user_id,path,title,content_markdown,status,audience,published_at,version,created_at,updated_at")
         .eq("organization_id", ctx.organizationId).is("deleted_at", null)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return (data || []).map(mapDocument);
     },
 
-    "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "" }) => {
+    "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "", audiencia = "internal", colecoesIds = null }) => {
       const ctx = await contexto();
+      const external = audiencia === "external";
       const payload = {
         scope_type: escopo,
         scope_user_id: escopo === "personal" ? ctx.userId : null,
@@ -45,6 +48,9 @@ export function criarOperacoesConhecimento({ supabase = obterSupabaseWeb(), area
         title: String(titulo || "").trim(),
         content_markdown: String(conteudo || ""),
         status: "active",
+        audience: external ? "external" : "internal",
+        published_at: external ? new Date().toISOString() : null,
+        published_by: external ? ctx.userId : null,
         updated_by: ctx.userId,
       };
       const query = id
@@ -55,13 +61,27 @@ export function criarOperacoesConhecimento({ supabase = obterSupabaseWeb(), area
         });
       const { data, error } = await query.select("*").single();
       if (error) throw error;
+      if (Array.isArray(colecoesIds)) {
+        const { error: clearError } = await supabase.from("knowledge_document_collections")
+          .delete().eq("organization_id", ctx.organizationId).eq("document_id", data.id);
+        if (clearError) throw clearError;
+        if (colecoesIds.length) {
+          const { error: bindError } = await supabase.from("knowledge_document_collections").insert(
+            [...new Set(colecoesIds)].map((collectionId) => ({
+              organization_id: ctx.organizationId, collection_id: collectionId,
+              document_id: data.id, added_by: ctx.userId,
+            })),
+          );
+          if (bindError) throw bindError;
+        }
+      }
       return mapDocument(data);
     },
 
     "conhecimento.versoes": async ({ id }) => {
       const ctx = await contexto();
       const { data, error } = await supabase.from("knowledge_document_versions")
-        .select("id,document_id,version,path,title,content_markdown,status,changed_by,created_at")
+        .select("id,document_id,version,path,title,content_markdown,status,audience,published_at,changed_by,created_at")
         .eq("organization_id", ctx.organizationId).eq("document_id", id)
         .order("version", { ascending: false });
       if (error) throw error;

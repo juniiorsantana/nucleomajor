@@ -226,3 +226,20 @@ Fase A, porque a validação pendente é no projeto hospedado.
 Consequência prática: migrations e testes SQL deste diretório são escritos e
 revisados, mas não podem ser executados localmente; qualquer afirmação de que
 uma migration "passa" aqui seria apenas sobre leitura, não sobre execução.
+
+## Fase H — Central de Inteligência
+
+A migration `20260823120000_fase_h_inteligencia_contextual.sql` adiciona, sem
+remover os contratos da Fase G:
+
+- assistentes interno e de atendimento separados por organização;
+- catálogo versionado de skills globais e privados, com rollback dos privados;
+- coleções internas/externas e publicação explícita de conhecimento;
+- campanhas, sinais de origem e contexto persistente por conversa;
+- simulador sem efeitos em CRM ou agenda;
+- qualificação de clientes e transferência humana derivadas do remetente real;
+- RPCs do runtime que derivam organização e conexão da credencial do robô.
+
+Aplicar esta migration antes de publicar o portal ou reiniciar o runtime da
+Fase H. Depois, validar primeiro no simulador e somente então com contatos de
+teste no WhatsApp principal.
