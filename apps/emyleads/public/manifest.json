@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EmyLeads",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Central de atendimento e CRM dentro do WhatsApp Web: funil, tarefas e notas ao lado da conversa.",
   "permissions": ["storage", "unlimitedStorage"],
   "host_permissions": [

@@ -3,6 +3,7 @@ apps/*/dist/
 public/app/
 .playwright-venv/
 test-artifacts/
+artifacts/
 **/__pycache__/
 *.pyc
 .env
