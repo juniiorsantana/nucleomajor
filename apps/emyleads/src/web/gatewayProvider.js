@@ -23,6 +23,7 @@ const GATEWAY_BASE = `${GATEWAY_ORIGIN}/api/v1`;
 const CHAVE_CREDENCIAIS = "emyleads.gateway.credenciais";
 const CHAVE_INSTALACAO = "emyleads.gateway.instalacao";
 const TIMEOUT_MS = 4000;
+const HEARTBEAT_TTL_MS = 90_000;
 
 /** Escopo de organização: vale para todas as conexões daquele workspace. */
 const ORGANIZACAO_INTEIRA = "*";
@@ -238,27 +239,74 @@ export function criarOperacoesGateway() {
     return { ativo: true, organizationId: organizacao };
   };
 
+  const runtimeRemoto = async (organizationId) => {
+    const supabase = obterSupabaseWeb();
+    const { data, error } = await supabase.from("connection_runtime_status")
+      .select("connection_id,instance_id,runtime_kind,host_label,runtime_version,bridge_status,whatsapp_status,assistant_status,mcp_status,agenda_status,agenda_read,agenda_write,chatbot_status,automation_enabled,default_owner,open_bot,open_ai,open_human,contract_version,started_at,heartbeat_at")
+      .eq("organization_id", organizationId);
+    // Compatibilidade durante a janela entre publicar o frontend e aplicar a
+    // migration: a conexão continua visível, apenas sem telemetria da VPS.
+    if (error) return [];
+    return data || [];
+  };
+
   const conexoesRemotas = async (organizationId) => {
     const supabase = obterSupabaseWeb();
-    const { data, error } = await supabase.from("whatsapp_connections")
-      .select("id,name,status,automation_status,expected_phone_last4,verified_phone_last4,last_activity_at,updated_at")
-      .eq("organization_id", organizationId).neq("status", "revoked")
-      .order("created_at", { ascending: true });
+    const [{ data, error }, runtimes] = await Promise.all([
+      supabase.from("whatsapp_connections")
+        .select("id,name,status,automation_status,expected_phone_last4,verified_phone_last4,last_activity_at,updated_at")
+        .eq("organization_id", organizationId).neq("status", "revoked")
+        .order("created_at", { ascending: true }),
+      runtimeRemoto(organizationId),
+    ]);
     if (error) throw erroGateway(error.message, "conexoes-remotas-falharam");
-    return (data || []).map((item) => ({
-      connectionId: item.id,
-      name: item.name,
-      runtime: "remote",
-      host: "Conector opcional",
-      expectedPhoneMasked: item.expected_phone_last4 ? `•••• ${item.expected_phone_last4}` : null,
-      connection: {
-        status: item.status,
-        automationStatus: item.automation_status,
+    const porConexao = new Map(runtimes.map((item) => [item.connection_id, item]));
+    const agora = Date.now();
+    return (data || []).map((item) => {
+      const control = porConexao.get(item.id) || null;
+      const heartbeatAt = control?.heartbeat_at ? new Date(control.heartbeat_at).getTime() : 0;
+      const heartbeatFresh = heartbeatAt > 0 && agora - heartbeatAt <= HEARTBEAT_TTL_MS;
+      const runtimeOnline = heartbeatFresh
+        && control?.bridge_status === "online"
+        && control?.assistant_status === "online";
+      return {
+        connectionId: item.id,
+        name: item.name,
+        runtime: runtimeOnline ? "online" : "runtime_offline",
+        host: control?.host_label || "Runtime não identificado",
+        controlPlane: control ? { ...control, fresh: heartbeatFresh } : null,
+        remoteManaged: Boolean(control),
         expectedPhoneMasked: item.expected_phone_last4 ? `•••• ${item.expected_phone_last4}` : null,
-        phoneMasked: item.verified_phone_last4 ? `•••• ${item.verified_phone_last4}` : null,
-        updatedAt: item.last_activity_at || item.updated_at,
-      },
-    }));
+        readiness: control ? {
+          assistant: heartbeatFresh ? control.assistant_status : "offline",
+          mcp: heartbeatFresh ? control.mcp_status : "unavailable",
+          agenda: heartbeatFresh ? control.agenda_status : "not_checked",
+          agendaRead: heartbeatFresh ? control.agenda_read : null,
+          agendaWrite: heartbeatFresh ? control.agenda_write : null,
+          chatbot: heartbeatFresh ? control.chatbot_status : "not_configured",
+          checkedAt: control.heartbeat_at,
+          contractVersion: control.contract_version,
+        } : null,
+        attendance: control ? {
+          iaAtiva: Boolean(control.automation_enabled),
+          donoPadrao: control.default_owner || "bot",
+          abertas: {
+            bot: Number(control.open_bot || 0),
+            ia: Number(control.open_ai || 0),
+            humano: Number(control.open_human || 0),
+          },
+          conversations: [],
+          remoteSummary: true,
+        } : null,
+        connection: {
+          status: heartbeatFresh ? control.whatsapp_status : item.status,
+          automationStatus: item.automation_status,
+          expectedPhoneMasked: item.expected_phone_last4 ? `•••• ${item.expected_phone_last4}` : null,
+          phoneMasked: item.verified_phone_last4 ? `•••• ${item.verified_phone_last4}` : null,
+          updatedAt: heartbeatFresh ? control.heartbeat_at : item.last_activity_at || item.updated_at,
+        },
+      };
+    });
   };
 
   /**
@@ -288,37 +336,54 @@ export function criarOperacoesGateway() {
 
   const conexoes = async ({ organizationId } = {}) => {
     const organizacao = exigirOrganizacao(organizationId);
+    const remotas = await conexoesRemotas(organizacao);
     const token = await credencialDaOrganizacao(organizacao);
     if (!token) {
-      const remotas = await conexoesRemotas(organizacao);
+      const online = remotas.some((item) => item.runtime === "online");
       return {
         organizationId: organizacao,
         vinculado: remotas.length > 0,
-        gateway: remotas.length ? "remote" : "nao-vinculado",
+        gateway: online ? "cloud" : remotas.length ? "remote" : "nao-vinculado",
         conexoes: remotas,
       };
     }
 
     try {
       const resposta = await requisitar("/connections", { token });
+      const remotoPorId = new Map(remotas.map((item) => [item.connectionId, item]));
       return {
         organizationId: organizacao,
         vinculado: true,
         gateway: "online",
-        conexoes: resposta.connections || [],
+        conexoes: (resposta.connections || []).map((item) => ({
+          ...(remotoPorId.get(item.connectionId) || {}),
+          ...item,
+          controlPlane: remotoPorId.get(item.connectionId)?.controlPlane || null,
+          readiness: remotoPorId.get(item.connectionId)?.readiness || null,
+          attendance: remotoPorId.get(item.connectionId)?.attendance || null,
+        })),
       };
     } catch (erro) {
       if (erro.codigo === "gateway-nao-autorizado") {
         const instalacao = await instalacaoAtual();
         await esquecerCredenciais((k) => k.startsWith(`${organizacao}:`) && k.endsWith(`:${instalacao}`));
-        return { organizationId: organizacao, vinculado: false, gateway: "nao-autorizado", conexoes: [] };
+        const online = remotas.some((item) => item.runtime === "online");
+        return {
+          organizationId: organizacao,
+          vinculado: remotas.length > 0,
+          gateway: online ? "cloud" : remotas.length ? "remote" : "nao-autorizado",
+          localGateway: "nao-autorizado",
+          conexoes: remotas,
+        };
       }
       if (erro.codigo === "gateway-offline" || erro.codigo === "gateway-timeout") {
+        const online = remotas.some((item) => item.runtime === "online");
         return {
           organizationId: organizacao,
           vinculado: true,
-          gateway: "offline",
-          conexoes: [],
+          gateway: online ? "cloud" : "offline",
+          localGateway: "offline",
+          conexoes: remotas,
           erro: erro.message,
         };
       }
@@ -350,10 +415,15 @@ export function criarOperacoesGateway() {
 
     "gateway.prontidao": async ({ organizationId, connectionId } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
-      const resposta = await comCredencial(organizacao, connectionId, (token) =>
-        requisitar(`/connections/${connectionId}/readiness`, { token })
-      );
-      return resposta.readiness || null;
+      try {
+        const resposta = await comCredencial(organizacao, connectionId, (token) =>
+          requisitar(`/connections/${connectionId}/readiness`, { token })
+        );
+        return resposta.readiness || null;
+      } catch (error) {
+        if (!["gateway-nao-vinculado", "gateway-offline", "gateway-timeout", "gateway-nao-autorizado"].includes(error?.codigo)) throw error;
+        return (await conexoesRemotas(organizacao)).find((item) => item.connectionId === connectionId)?.readiness || null;
+      }
     },
 
     // Realtime acelera a interface; o polling das telas continua sendo o
@@ -490,7 +560,7 @@ export function criarOperacoesGateway() {
      * acontece precisa aparecer no diário: o pior caso é o cliente ser avisado
      * de que alguém vai atender e o robô seguir respondendo.
      */
-    "gateway.transferirConversa": async ({ organizationId, conexaoLast4, contato, destino, motivo, atendente = null, agente = null } = {}) => {
+    "gateway.transferirConversa": async ({ organizationId, conexaoLast4, contato, destino, motivo, atendente = null, agente = null, routingContext = null } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
       const numero = digitos(contato);
       if (!numero) throw erroGateway("Contato sem telefone para transferir.", "transferencia-sem-contato");
@@ -505,6 +575,7 @@ export function criarOperacoesGateway() {
             reason: motivo || "",
             ...identidade(atendente),
             ...(agente?.id ? { agentId: agente.id, agentName: agente.nome || "" } : {}),
+            ...(destino === "ia" && routingContext ? { routingContext } : {}),
           },
           token,
         })
@@ -535,7 +606,12 @@ export function criarOperacoesGateway() {
     "gateway.resumoAtendimento": async ({ organizationId, connectionId, abertas = true } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
       const caminho = `/connections/${connectionId}/conversations${abertas ? "" : "?closed=1"}`;
-      return comCredencial(organizacao, connectionId, (token) => requisitar(caminho, { token }));
+      try {
+        return await comCredencial(organizacao, connectionId, (token) => requisitar(caminho, { token }));
+      } catch (error) {
+        if (!["gateway-nao-vinculado", "gateway-offline", "gateway-timeout", "gateway-nao-autorizado"].includes(error?.codigo)) throw error;
+        return (await conexoesRemotas(organizacao)).find((item) => item.connectionId === connectionId)?.attendance || null;
+      }
     },
 
     "gateway.definirDonoConversa": async ({ organizationId, connectionId, contato, dono, motivo, atendente = null } = {}) => {

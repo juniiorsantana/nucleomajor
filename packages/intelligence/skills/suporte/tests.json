@@ -1,20 +1,14 @@
 {
   "cases": [
-    {
-      "id": "erro-de-acesso",
-      "input": "Preciso de ajuda, aparece um erro quando tento entrar.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "funcionalidade-travou",
-      "input": "O envio travou e não funciona desde ontem.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "pedido-comercial",
-      "input": "Quero contratar o plano mais completo.",
-      "expected": { "shouldActivate": false }
-    }
+    { "id": "erro-de-acesso", "input": "Preciso de ajuda, aparece um erro quando tento entrar.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "funcionalidade-travou", "input": "O envio travou e não funciona desde ontem.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "problema", "input": "Estou com um problema no painel.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "suporte", "input": "Preciso falar com o suporte.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "falha", "input": "A integração apresentou uma falha.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "dificuldade", "input": "Estou com dificuldade para acessar.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "nao-consigo", "input": "Não consigo concluir o cadastro.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "bug", "input": "Encontrei um bug na tela.", "expected": { "shouldActivate": true, "stage": "diagnosticar" } },
+    { "id": "pedido-comercial", "input": "Quero contratar o plano mais completo.", "expected": { "shouldActivate": false, "stage": "diagnosticar" } },
+    { "id": "negativo-comercial", "input": "Preciso de ajuda para comprar um plano.", "expected": { "shouldActivate": false, "stage": "diagnosticar" } }
   ]
 }
-

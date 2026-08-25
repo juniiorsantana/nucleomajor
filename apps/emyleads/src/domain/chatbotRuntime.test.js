@@ -9,7 +9,7 @@ const contato = (tags = []) => ({ id: "c1", tags });
 
 const msg = (id, texto = "Olá") => ({ id, tipo: "enviar_mensagem", texto });
 const tag = (id, adicionar = [], remover = []) => ({ id, tipo: "editar_etiquetas", adicionar, remover });
-const transferir = (id, destino = "ia", motivo = "") => ({ id, tipo: "transferir", destino, motivo });
+const transferir = (id, destino = "ia", motivo = "", extra = {}) => ({ id, tipo: "transferir", destino, motivo, ...extra });
 
 describe("plano de execução", () => {
   it("para na primeira mensagem e guarda o resto", () => {
@@ -41,13 +41,23 @@ describe("plano de execução", () => {
     // rodaria — e o bot ficaria mudo para sempre depois da saudação.
     const plano = planoDosPassos(bot([msg("m1"), transferir("x", "ia", "quer orçamento")]), contato());
     expect(plano.mensagem).toBe("Olá");
-    expect(plano.transferencia).toEqual({ destino: "ia", motivo: "quer orçamento" });
+    expect(plano.transferencia).toMatchObject({ destino: "ia", motivo: "quer orçamento", targetMode: "reception" });
   });
 
   it("transferência antes da mensagem encerra o plano sem falar nada", () => {
     const plano = planoDosPassos(bot([transferir("x", "humano"), msg("m1")]), contato());
     expect(plano.mensagem).toBeNull();
-    expect(plano.transferencia).toEqual({ destino: "humano", motivo: "" });
+    expect(plano.transferencia).toMatchObject({ destino: "humano", motivo: "" });
+  });
+
+  it("preserva o destino confiável da IA para o runtime contextual", () => {
+    const plano = planoDosPassos(bot([msg("m1"), transferir("x", "ia", "campanha", {
+      alvoIa: "skill", skillId: "skill-vendas", retornoPassoId: "retorno", falhaPassoId: "falha",
+    })]), contato());
+    expect(plano.transferencia).toMatchObject({
+      targetMode: "skill", targetSkillId: "skill-vendas", transferNodeId: "x",
+      returnNodeId: "retorno", failureNodeId: "falha",
+    });
   });
 
   it("vale a PRIMEIRA transferência do caminho, não a última", () => {

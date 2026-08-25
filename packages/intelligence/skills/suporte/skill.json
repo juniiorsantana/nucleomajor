@@ -1,6 +1,6 @@
 {
   "$schema": "../skill.schema.json",
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "slug": "suporte",
   "name": "Suporte",
   "description": "Orienta com base no conteúdo publicado e transfere casos não resolvidos.",
@@ -8,7 +8,19 @@
   "status": "published",
   "objective": "Resolver dúvidas e incidentes usando conhecimento autorizado, com transferência segura quando necessário.",
   "activation": {
-    "keywords": ["ajuda", "erro", "problema", "suporte", "não funciona", "falha", "dificuldade", "travou"]
+    "keywords": ["ajuda", "erro", "problema", "suporte", "não funciona", "falha", "dificuldade", "travou", "não consigo", "bug"],
+    "negativeKeywords": ["ajuda para comprar", "problema que quero resolver comprando"]
+  },
+  "routing": { "intent": "support", "priority": 20, "fallback": false },
+  "workflow": {
+    "initialStage": "diagnosticar",
+    "stages": [
+      { "id": "diagnosticar", "objective": "Entender o problema, o resultado esperado e as evidências disponíveis.", "requiredFields": ["issue"], "allowedTools": ["crm.contact.read"], "completion": "O problema foi descrito sem diagnóstico inventado." },
+      { "id": "consultar", "objective": "Buscar somente conhecimento externo publicado e relacionado ao problema.", "requiredFields": ["issue"], "allowedTools": ["knowledge.search", "crm.contact.read"], "completion": "Há uma orientação publicada ou foi confirmada a ausência dela." },
+      { "id": "orientar", "objective": "Fornecer uma tentativa curta, verificável e pedir o resultado antes de continuar.", "requiredFields": ["issue"], "allowedTools": ["knowledge.search"], "completion": "O cliente informou se a tentativa resolveu." },
+      { "id": "resolver", "objective": "Encerrar quando resolvido ou transferir com um resumo após o limite seguro.", "requiredFields": ["outcome"], "allowedTools": ["conversation.handoff"], "completion": "O caso foi resolvido ou transferido para uma pessoa." }
+    ],
+    "delegatesTo": []
   },
   "requiredFields": ["issue"],
   "questions": ["O que aconteceu e o que você esperava?", "Apareceu alguma mensagem de erro?"],
@@ -16,4 +28,3 @@
   "guardrails": ["published_knowledge_only", "no_secret_disclosure", "no_invented_diagnosis"],
   "handoff": ["sensitive_topic", "two_failed_clarifications", "tool_unavailable", "requested_human"]
 }
-

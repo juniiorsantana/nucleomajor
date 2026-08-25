@@ -213,7 +213,7 @@ describe("LocalProvider", () => {
       const preparo = await operacoes["chatbots.preparar"]({ contactId: contato.id, chatbotId: bot.id });
 
       expect(preparo.mensagem).toBe("Oi!");
-      expect(preparo.transferencia).toEqual({ destino: "ia", motivo: "quer orçamento" });
+      expect(preparo.transferencia).toMatchObject({ destino: "ia", motivo: "quer orçamento", targetMode: "reception" });
     });
 
     it("transferência ANTES da mensagem encerra o plano sem enviar nada", async () => {
@@ -226,7 +226,7 @@ describe("LocalProvider", () => {
       const preparo = await operacoes["chatbots.preparar"]({ contactId: contato.id, chatbotId: bot.id });
 
       expect(preparo.mensagem).toBeNull();
-      expect(preparo.transferencia).toEqual({ destino: "humano", motivo: "" });
+      expect(preparo.transferencia).toMatchObject({ destino: "humano", motivo: "" });
     });
 
     it("obedece à primeira transferência, não à última", async () => {
@@ -242,7 +242,7 @@ describe("LocalProvider", () => {
 
       const preparo = await operacoes["chatbots.preparar"]({ contactId: contato.id, chatbotId: bot.id });
 
-      expect(preparo.transferencia).toEqual({ destino: "ia", motivo: "primeira" });
+      expect(preparo.transferencia).toMatchObject({ destino: "ia", motivo: "primeira" });
     });
 
     it("fluxo sem transferência continua sem transferência", async () => {

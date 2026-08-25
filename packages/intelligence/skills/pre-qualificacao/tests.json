@@ -1,20 +1,14 @@
 {
   "cases": [
-    {
-      "id": "interesse-inicial",
-      "input": "Tenho interesse e gostaria de entender como funciona.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "necessidade-aberta",
-      "input": "Preciso de ajuda para organizar o atendimento da empresa.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "agendamento-direto",
-      "input": "Quero agendar uma reunião amanhã às 10h.",
-      "expected": { "shouldActivate": false }
-    }
+    { "id": "interesse-inicial", "input": "Tenho interesse e gostaria de entender como funciona.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "necessidade-aberta", "input": "Preciso de ajuda para organizar o atendimento da empresa.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "quero-saber", "input": "Quero saber mais sobre isso.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "informacoes", "input": "Gostaria de informações para minha empresa.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "conhecer", "input": "Quero conhecer melhor a solução.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "preciso", "input": "Preciso de uma solução para minha equipe.", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "empresa", "input": "Isso funciona para minha empresa?", "expected": { "shouldActivate": true, "stage": "necessidade" } },
+    { "id": "agendamento-direto", "input": "Quero agendar uma reunião amanhã às 10h.", "expected": { "shouldActivate": false, "stage": "necessidade" } },
+    { "id": "cliente-com-erro", "input": "Já sou cliente e aparece erro ao entrar.", "expected": { "shouldActivate": false, "stage": "necessidade" } },
+    { "id": "preco-direto", "input": "Quanto custa o plano completo?", "expected": { "shouldActivate": false, "stage": "necessidade" } }
   ]
 }
-

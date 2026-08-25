@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
@@ -26,7 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "../../data/client";
-import { DESTINOS_TRANSFERENCIA, TIPOS_PASSO } from "../../domain/chatbots";
+import { ALVOS_IA, DESTINOS_TRANSFERENCIA, TIPOS_PASSO } from "../../domain/chatbots";
 import { TIPOS_CONDICAO } from "../../domain/regras";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
@@ -68,7 +68,7 @@ function passoVazio(tipo) {
   // Padrão humano de propósito: transferir para uma pessoa é sempre seguro.
   // Passar para a IA é que precisa ser uma escolha.
   if (tipo === TIPOS_PASSO.transferir)
-    return { id: novoId(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "" };
+    return { id: novoId(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, retornoPassoId: null, falhaPassoId: null };
   return { id: novoId(), tipo, adicionar: [], remover: [] };
 }
 
@@ -213,7 +213,7 @@ function Paleta({ aoAdicionar }) {
   );
 }
 
-function Inspetor({ selecionado, form, setForm, passos, setPassos, tags, estagios, aoRemover }) {
+function Inspetor({ selecionado, form, setForm, passos, setPassos, tags, estagios, inteligencia, aoRemover }) {
   const passo = passos.find((item) => item.id === selecionado);
   const atualizarPasso = (proximo) => setPassos((atuais) => atuais.map((item) => item.id === proximo.id ? proximo : item));
 
@@ -309,8 +309,44 @@ function Inspetor({ selecionado, form, setForm, passos, setPassos, tags, estagio
                   />
                   <p className="mt-1.5 text-[10.5px] text-faint">Aparece na lista de atendimentos, para quem for assumir.</p>
                 </CampoFormulario>
+                {passo.destino === DESTINOS_TRANSFERENCIA.ia && <>
+                  <CampoFormulario rotulo="Como a IA deve entrar">
+                    <select value={passo.alvoIa || ALVOS_IA.recepcao} onChange={(event) => atualizarPasso({ ...passo, alvoIa: event.target.value, skillId: null, campanhaId: null })} className={entrada}>
+                      <option value={ALVOS_IA.recepcao}>Recepção — entender a necessidade</option>
+                      <option value={ALVOS_IA.skill}>Uma habilidade específica</option>
+                      <option value={ALVOS_IA.campanha}>Uma campanha específica</option>
+                    </select>
+                  </CampoFormulario>
+                  {(passo.alvoIa || ALVOS_IA.recepcao) === ALVOS_IA.skill && <CampoFormulario rotulo="Habilidade">
+                    <select value={passo.skillId || ""} onChange={(event) => atualizarPasso({ ...passo, skillId: event.target.value || null })} className={entrada}>
+                      <option value="">Escolha uma habilidade</option>
+                      {(inteligencia.skills || []).filter((skill) => skill.status === "published" && ["customer", "both"].includes(skill.audience)).map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}
+                    </select>
+                  </CampoFormulario>}
+                  {(passo.alvoIa || ALVOS_IA.recepcao) === ALVOS_IA.campanha && <CampoFormulario rotulo="Campanha">
+                    <select value={passo.campanhaId || ""} onChange={(event) => atualizarPasso({ ...passo, campanhaId: event.target.value || null })} className={entrada}>
+                      <option value="">Escolha uma campanha ativa ou de teste</option>
+                      {(inteligencia.campaigns || []).filter((campaign) => ["active", "test"].includes(campaign.status)).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+                    </select>
+                  </CampoFormulario>}
+                  <div className="grid gap-3 rounded-[10px] border border-line bg-surface p-3">
+                    <p className="text-[10.5px] font-semibold text-fg">Depois que a IA terminar</p>
+                    <label className="text-[10px] text-sub">Em sucesso
+                      <select value={passo.retornoPassoId || ""} onChange={(event) => atualizarPasso({ ...passo, retornoPassoId: event.target.value || null })} className={`${entrada} mt-1`}>
+                        <option value="">Encerrar o fluxo</option>
+                        {passos.filter((item) => item.id !== passo.id).map((item) => <option key={item.id} value={item.id}>{TITULOS_PASSO[item.tipo]} · {item.id}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-[10px] text-sub">Em falha
+                      <select value={passo.falhaPassoId || ""} onChange={(event) => atualizarPasso({ ...passo, falhaPassoId: event.target.value || null })} className={`${entrada} mt-1`}>
+                        <option value="">Encerrar e registrar a falha</option>
+                        {passos.filter((item) => item.id !== passo.id).map((item) => <option key={item.id} value={item.id}>{TITULOS_PASSO[item.tipo]} · {item.id}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </>}
                 <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
-                  A transferência acontece <strong>depois</strong> do envio da mensagem, e só se ele der certo. O fluxo termina aqui: quem continua a conversa é o novo dono.
+                  A transferência acontece <strong>depois</strong> do envio confirmado. Para uma pessoa, o fluxo termina. Para a IA, você pode definir o ponto exato de retorno ou falha.
                 </div>
               </div>
             ) : (
@@ -336,6 +372,10 @@ function Inspetor({ selecionado, form, setForm, passos, setPassos, tags, estagio
 }
 
 export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar }) {
+  const [inteligencia, setInteligencia] = useState({ skills: [], campaigns: [] });
+  useEffect(() => {
+    api.inteligencia.carregar().then((dados) => setInteligencia({ skills: dados.skills || [], campaigns: dados.campaigns || [] })).catch(() => {});
+  }, []);
   const novo = !chatbot;
   const iniciais = useMemo(() => {
     const passos = clonarPassos(chatbot?.passos || []);
@@ -589,6 +629,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
           setPassos={setPassos}
           tags={tags}
           estagios={estagios}
+          inteligencia={inteligencia}
           aoRemover={removerPasso}
         />
       </div>

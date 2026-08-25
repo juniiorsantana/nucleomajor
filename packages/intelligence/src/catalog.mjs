@@ -8,10 +8,24 @@ export const DEFAULT_SKILLS_DIR = path.resolve(HERE, "../skills");
 
 const AUDIENCES = new Set(["internal", "customer", "both"]);
 const STATUSES = new Set(["draft", "published", "archived"]);
+export const RUNTIME_TOOLS = new Set([
+  "knowledge.search",
+  "crm.contact.read",
+  "crm.contact.upsert",
+  "crm.tag.apply",
+  "crm.deal.qualify",
+  "conversation.handoff",
+  "calendar.read",
+  "calendar.availability",
+  "calendar.prepare",
+  "calendar.confirm",
+]);
+const SCHEMA_VERSIONS = new Set(["1.0", "1.1"]);
+const STAGE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ALLOWED_FIELDS = new Set([
   "$schema", "schemaVersion", "slug", "name", "description", "audience", "status",
-  "objective", "activation", "requiredFields", "questions", "allowedTools", "guardrails", "handoff",
+  "objective", "activation", "routing", "workflow", "requiredFields", "questions", "allowedTools", "guardrails", "handoff",
 ]);
 
 function isObject(value) {
@@ -40,13 +54,78 @@ export function normalizeTriggerText(value) {
     .toLocaleLowerCase("pt-BR");
 }
 
+export function evaluateSkillActivation(skill, input) {
+  const normalized = normalizeTriggerText(input);
+  const keywords = (skill?.activation?.keywords || []).map(normalizeTriggerText);
+  const negativeKeywords = (skill?.activation?.negativeKeywords || []).map(normalizeTriggerText);
+  const blocked = negativeKeywords.some((keyword) => keyword && normalized.includes(keyword));
+  const matches = keywords.filter((keyword) => keyword && normalized.includes(keyword));
+  return {
+    shouldActivate: !blocked && matches.length > 0,
+    fallback: Boolean(skill?.routing?.fallback),
+    score: blocked ? -1 : matches.length,
+    matches,
+  };
+}
+
+function validateWorkflow(skill, errors) {
+  if (skill.schemaVersion === "1.0") return;
+  if (!isObject(skill.routing)) errors.push("routing deve ser um objeto no schema 1.1");
+  else {
+    for (const field of Object.keys(skill.routing)) {
+      if (!new Set(["intent", "priority", "fallback"]).has(field)) errors.push(`campo não reconhecido em routing: ${field}`);
+    }
+    requireText(skill.routing.intent, "routing.intent", errors, { min: 2, max: 100 });
+    if (!Number.isInteger(skill.routing.priority) || skill.routing.priority < 0 || skill.routing.priority > 1000) {
+      errors.push("routing.priority deve ser um inteiro entre 0 e 1000");
+    }
+    if (typeof skill.routing.fallback !== "boolean") errors.push("routing.fallback deve ser booleano");
+  }
+  if (!isObject(skill.workflow)) errors.push("workflow deve ser um objeto no schema 1.1");
+  else {
+    for (const field of Object.keys(skill.workflow)) {
+      if (!new Set(["initialStage", "stages", "delegatesTo"]).has(field)) errors.push(`campo não reconhecido em workflow: ${field}`);
+    }
+    if (typeof skill.workflow.initialStage !== "string" || !STAGE_PATTERN.test(skill.workflow.initialStage)) {
+      errors.push("workflow.initialStage possui formato inválido");
+    }
+    requireStringArray(skill.workflow.delegatesTo ?? [], "workflow.delegatesTo", errors);
+    if (!Array.isArray(skill.workflow.stages) || !skill.workflow.stages.length) {
+      errors.push("workflow.stages deve conter pelo menos uma etapa");
+    } else {
+      const ids = new Set();
+      for (const [index, stage] of skill.workflow.stages.entries()) {
+        const prefix = `workflow.stages[${index}]`;
+        if (!isObject(stage)) { errors.push(`${prefix} deve ser um objeto`); continue; }
+        for (const field of Object.keys(stage)) {
+          if (!new Set(["id", "objective", "requiredFields", "allowedTools", "completion"]).has(field)) errors.push(`campo não reconhecido em ${prefix}: ${field}`);
+        }
+        if (typeof stage.id !== "string" || !STAGE_PATTERN.test(stage.id)) errors.push(`${prefix}.id possui formato inválido`);
+        if (ids.has(stage.id)) errors.push(`${prefix}.id está duplicado`);
+        ids.add(stage.id);
+        requireText(stage.objective, `${prefix}.objective`, errors, { min: 10, max: 500 });
+        requireStringArray(stage.requiredFields ?? [], `${prefix}.requiredFields`, errors);
+        requireStringArray(stage.allowedTools ?? [], `${prefix}.allowedTools`, errors);
+        if (Array.isArray(stage.allowedTools)) {
+          for (const tool of stage.allowedTools) {
+            if (!RUNTIME_TOOLS.has(tool)) errors.push(`${prefix}.allowedTools contém ferramenta desconhecida: ${tool}`);
+            if (Array.isArray(skill.allowedTools) && !skill.allowedTools.includes(tool)) errors.push(`${prefix}.allowedTools amplia as ferramentas da skill: ${tool}`);
+          }
+        }
+        requireText(stage.completion, `${prefix}.completion`, errors, { min: 3, max: 300 });
+      }
+      if (!ids.has(skill.workflow.initialStage)) errors.push("workflow.initialStage não existe em workflow.stages");
+    }
+  }
+}
+
 export function validateSkillPackage(skill, instructions, tests) {
   const errors = [];
   if (!isObject(skill)) return ["skill.json deve conter um objeto JSON"];
   for (const field of Object.keys(skill)) {
     if (!ALLOWED_FIELDS.has(field)) errors.push(`campo não reconhecido em skill.json: ${field}`);
   }
-  if (skill.schemaVersion !== "1.0") errors.push("schemaVersion deve ser 1.0");
+  if (!SCHEMA_VERSIONS.has(skill.schemaVersion)) errors.push("schemaVersion deve ser 1.0 ou 1.1");
   if (typeof skill.slug !== "string" || !SLUG_PATTERN.test(skill.slug)) errors.push("slug possui formato inválido");
   requireText(skill.name, "name", errors, { min: 2, max: 120 });
   requireText(skill.description, "description", errors, { min: 1, max: 1200 });
@@ -55,14 +134,23 @@ export function validateSkillPackage(skill, instructions, tests) {
   if (!STATUSES.has(skill.status)) errors.push("status deve ser draft, published ou archived");
   if (!isObject(skill.activation)) errors.push("activation deve ser um objeto");
   else for (const field of Object.keys(skill.activation)) {
-    if (field !== "keywords") errors.push(`campo não reconhecido em activation: ${field}`);
+    if (!new Set(["keywords", "negativeKeywords"]).has(field)) errors.push(`campo não reconhecido em activation: ${field}`);
   }
   requireStringArray(skill.activation?.keywords, "activation.keywords", errors, { min: 1 });
+  requireStringArray(skill.activation?.negativeKeywords ?? [], "activation.negativeKeywords", errors);
   requireStringArray(skill.requiredFields ?? [], "requiredFields", errors);
   requireStringArray(skill.questions ?? [], "questions", errors);
   requireStringArray(skill.allowedTools, "allowedTools", errors, { min: 1 });
+  if (Array.isArray(skill.allowedTools)) {
+    for (const tool of skill.allowedTools) {
+      if (typeof tool === "string" && !RUNTIME_TOOLS.has(tool.trim())) {
+        errors.push(`allowedTools contém ferramenta desconhecida: ${tool}`);
+      }
+    }
+  }
   requireStringArray(skill.guardrails, "guardrails", errors, { min: 1 });
   requireStringArray(skill.handoff, "handoff", errors, { min: 1 });
+  validateWorkflow(skill, errors);
   requireText(instructions, "instructions.md", errors, { min: 80, max: 20000 });
   if (!String(instructions || "").startsWith("# ")) errors.push("instructions.md deve começar com um título H1");
 
@@ -70,7 +158,6 @@ export function validateSkillPackage(skill, instructions, tests) {
     errors.push("tests.json deve conter pelo menos dois casos");
   } else {
     const ids = new Set();
-    const keywords = (skill.activation?.keywords || []).map(normalizeTriggerText);
     for (const [index, testCase] of tests.cases.entries()) {
       const prefix = `tests.cases[${index}]`;
       requireText(testCase?.id, `${prefix}.id`, errors);
@@ -81,10 +168,13 @@ export function validateSkillPackage(skill, instructions, tests) {
         errors.push(`${prefix}.expected.shouldActivate deve ser booleano`);
         continue;
       }
-      const input = normalizeTriggerText(testCase.input);
-      const keywordMatch = keywords.some((keyword) => input.includes(keyword));
-      if (keywordMatch !== testCase.expected.shouldActivate) {
-        errors.push(`${prefix} não corresponde aos gatilhos declarados (esperado ${testCase.expected.shouldActivate}, obtido ${keywordMatch})`);
+      const activation = evaluateSkillActivation(skill, testCase.input);
+      if (activation.shouldActivate !== testCase.expected.shouldActivate) {
+        errors.push(`${prefix} não corresponde aos gatilhos declarados (esperado ${testCase.expected.shouldActivate}, obtido ${activation.shouldActivate})`);
+      }
+      if (testCase.expected.stage != null && skill.schemaVersion === "1.1") {
+        const stages = new Set((skill.workflow?.stages || []).map((stage) => stage.id));
+        if (!stages.has(testCase.expected.stage)) errors.push(`${prefix}.expected.stage não existe no workflow`);
       }
     }
   }

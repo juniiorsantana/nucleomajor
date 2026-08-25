@@ -114,6 +114,12 @@ alterações e deixa o Supabase criar uma nova versão. Essa credencial nunca de
 ser configurada no frontend ou na Hostinger. Veja o fluxo completo em
 `packages/intelligence/README.md`.
 
+Antes da primeira publicação, aplique a migration
+`20260824153000_fase_h2_skill_runtime.sql`. Ela cria o contrato resolvido usado
+pelo assistente em cada mensagem. Depois publique as skills e confirme no
+terminal que cada versão foi verificada com seu hash. Sem esse contrato, o
+runtime de produção falha de forma segura e não improvisa instruções ou ações.
+
 No Supabase Auth, permita:
 
 ```text

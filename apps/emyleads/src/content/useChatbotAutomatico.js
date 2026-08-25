@@ -29,6 +29,16 @@ async function transferir(mensagem, contato, preparacao, transferencia) {
       contato: contato.telefone || mensagem.telefone,
       destino: transferencia.destino,
       motivo: transferencia.motivo,
+      routingContext: transferencia.destino === "ia" ? {
+        chatbotId: preparacao.chatbotId,
+        chatbotVersion: preparacao.chatbotVersion || 1,
+        transferNodeId: transferencia.transferNodeId,
+        targetMode: transferencia.targetMode || "reception",
+        targetSkillId: transferencia.targetSkillId,
+        targetCampaignId: transferencia.targetCampaignId,
+        returnNodeId: transferencia.returnNodeId,
+        failureNodeId: transferencia.failureNodeId,
+      } : null,
     });
   } catch (err) {
     await anotar({

@@ -16,6 +16,12 @@ export const DESTINOS_TRANSFERENCIA = {
   humano: "humano",
 };
 
+export const ALVOS_IA = {
+  recepcao: "reception",
+  skill: "skill",
+  campanha: "campaign",
+};
+
 export const ehTransferencia = (passo) => passo?.tipo === TIPOS_PASSO.transferir;
 
 /**
@@ -49,7 +55,11 @@ export function criarPasso(tipo, partial = {}) {
   if (tipo === TIPOS_PASSO.transferir) {
     // `humano` como padrão de propósito: transferir para uma pessoa é sempre
     // seguro. Passar para a IA é que precisa ser uma escolha.
-    return { id: uid(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "", ...partial };
+    return {
+      id: uid(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "",
+      alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null,
+      retornoPassoId: null, falhaPassoId: null, ...partial,
+    };
   }
   throw new Error(`Tipo de passo desconhecido: ${tipo}.`);
 }

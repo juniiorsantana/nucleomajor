@@ -1,20 +1,15 @@
 {
   "cases": [
-    {
-      "id": "pedido-de-preco",
-      "input": "Quero saber o preço e os planos disponíveis.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "solicitar-proposta",
-      "input": "Vocês conseguem enviar uma proposta para minha empresa?",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "problema-tecnico",
-      "input": "O sistema não funciona e aparece um erro ao entrar.",
-      "expected": { "shouldActivate": false }
-    }
+    { "id": "pedido-de-preco", "input": "Quero saber o preço e os planos disponíveis.", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "pedido-de-preco-sem-acento", "input": "Quanto custa? Me passa o preco, por favor.", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "solicitar-proposta", "input": "Vocês conseguem enviar uma proposta para minha empresa?", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "solicitar-orcamento", "input": "Manda um orçamento para 20 pessoas.", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "pedido-de-desconto", "input": "Tem desconto se eu fechar hoje?", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "comprar", "input": "Quero comprar a solução.", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "contratar", "input": "Como faço para contratar?", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "valor", "input": "Qual o valor mensal?", "expected": { "shouldActivate": true, "stage": "descobrir" } },
+    { "id": "problema-tecnico", "input": "O sistema não funciona e aparece um erro ao entrar.", "expected": { "shouldActivate": false, "stage": "descobrir" } },
+    { "id": "remarcacao-de-horario", "input": "Consigo remarcar meu horário de amanhã?", "expected": { "shouldActivate": false, "stage": "descobrir" } },
+    { "id": "negativo-suporte", "input": "Apareceu erro no preço da tela.", "expected": { "shouldActivate": false, "stage": "descobrir" } }
   ]
 }
-

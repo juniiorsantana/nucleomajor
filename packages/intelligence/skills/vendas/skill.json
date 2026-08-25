@@ -1,6 +1,6 @@
 {
   "$schema": "../skill.schema.json",
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "slug": "vendas",
   "name": "Vendas",
   "description": "Entende o interesse, apresenta a oferta autorizada e conduz o próximo passo.",
@@ -8,12 +8,23 @@
   "status": "published",
   "objective": "Conduzir oportunidades comerciais com clareza, sem inventar condições ou pressionar o cliente.",
   "activation": {
-    "keywords": ["preço", "valor", "comprar", "contratar", "proposta", "plano", "desconto", "orçamento"]
+    "keywords": ["preço", "preco", "valor", "comprar", "contratar", "proposta", "plano", "desconto", "orçamento", "orcamento", "quanto custa", "fechar"],
+    "negativeKeywords": ["erro no preço", "problema no plano que já contratei"]
+  },
+  "routing": { "intent": "sales", "priority": 20, "fallback": false },
+  "workflow": {
+    "initialStage": "descobrir",
+    "stages": [
+      { "id": "descobrir", "objective": "Entender necessidade e resultado esperado antes de recomendar uma oferta.", "requiredFields": ["need"], "allowedTools": ["crm.contact.read"], "completion": "A necessidade comercial está clara." },
+      { "id": "consultar", "objective": "Consultar a oferta externa publicada antes de citar preço ou condição.", "requiredFields": ["need"], "allowedTools": ["knowledge.search", "crm.contact.read"], "completion": "Foi encontrada uma oferta publicada ou confirmada uma exceção." },
+      { "id": "apresentar", "objective": "Apresentar somente a condição autorizada e propor um próximo passo sem pressão.", "requiredFields": ["need"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"], "completion": "O cliente respondeu à oferta ou ao próximo passo." },
+      { "id": "avancar", "objective": "Registrar o resultado e encaminhar para agenda ou pessoa quando necessário.", "requiredFields": ["next_step"], "allowedTools": ["crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff"], "completion": "O próximo passo foi confirmado, recusado ou transferido." }
+    ],
+    "delegatesTo": ["agenda"]
   },
   "requiredFields": ["need"],
   "questions": ["O que você precisa resolver?", "Qual resultado você espera alcançar?"],
-  "allowedTools": ["crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"],
+  "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff"],
   "guardrails": ["published_offer_only", "no_discount_without_rule", "no_false_urgency"],
-  "handoff": ["commercial_exception", "requested_human", "low_confidence"]
+  "handoff": ["commercial_exception", "requested_human", "low_confidence", "skill_limit"]
 }
-

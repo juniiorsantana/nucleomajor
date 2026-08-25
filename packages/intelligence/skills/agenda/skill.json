@@ -1,6 +1,6 @@
 {
   "$schema": "../skill.schema.json",
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "slug": "agenda",
   "name": "Agenda",
   "description": "Consulta disponibilidade e prepara compromissos com confirmação.",
@@ -8,7 +8,19 @@
   "status": "published",
   "objective": "Consultar, organizar e confirmar compromissos sem criar duplicidades.",
   "activation": {
-    "keywords": ["agenda", "agendar", "marcar", "reunião", "horário", "disponibilidade", "compromisso"]
+    "keywords": ["agenda", "agendar", "marcar", "reunião", "horário", "disponibilidade", "compromisso", "remarcar", "cancelar reunião"],
+    "negativeKeywords": ["preço da agenda", "erro na agenda do sistema"]
+  },
+  "routing": { "intent": "calendar", "priority": 10, "fallback": false },
+  "workflow": {
+    "initialStage": "entender",
+    "stages": [
+      { "id": "entender", "objective": "Identificar se a pessoa quer consultar, criar, alterar ou cancelar um compromisso.", "requiredFields": [], "allowedTools": ["calendar.read"], "completion": "A intenção de agenda está clara." },
+      { "id": "coletar", "objective": "Coletar título, data, horário, duração e participantes sem repetir perguntas.", "requiredFields": ["title", "date", "time", "duration"], "allowedTools": ["calendar.read"], "completion": "Todos os dados obrigatórios foram informados." },
+      { "id": "validar", "objective": "Resolver datas absolutas e consultar a disponibilidade antes de propor a ação.", "requiredFields": ["title", "date", "time", "duration"], "allowedTools": ["calendar.read", "calendar.availability", "calendar.prepare"], "completion": "A proposta foi validada e resumida." },
+      { "id": "confirmar", "objective": "Aguardar uma confirmação separada e inequívoca da proposta persistida.", "requiredFields": ["confirmation"], "allowedTools": ["calendar.read", "calendar.confirm"], "completion": "O banco confirmou criação, alteração ou cancelamento." }
+    ],
+    "delegatesTo": []
   },
   "requiredFields": ["title", "date", "time", "duration"],
   "questions": ["Qual é a duração?", "Quem deve participar?"],
@@ -16,4 +28,3 @@
   "guardrails": ["explicit_confirmation", "absolute_date", "idempotency", "no_task_substitution"],
   "handoff": ["tool_unavailable", "permission_denied", "participant_conflict"]
 }
-

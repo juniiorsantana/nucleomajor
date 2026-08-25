@@ -31,7 +31,16 @@ export const ordenarChatbots = (chatbots) =>
  */
 export function proximaTransferencia(passos = []) {
   const passo = passos.find((p) => p.tipo === TIPOS_PASSO.transferir);
-  return passo ? { destino: passo.destino, motivo: passo.motivo || "" } : null;
+  return passo ? {
+    destino: passo.destino,
+    motivo: passo.motivo || "",
+    transferNodeId: passo.id,
+    targetMode: passo.alvoIa || "reception",
+    targetSkillId: passo.skillId || null,
+    targetCampaignId: passo.campanhaId || null,
+    returnNodeId: passo.retornoPassoId || null,
+    failureNodeId: passo.falhaPassoId || null,
+  } : null;
 }
 
 /**
@@ -55,7 +64,7 @@ export function planoDosPassos(chatbot, contato) {
     // Transferência antes da mensagem encerra o plano: o fluxo entregou a
     // conversa e não tem mais o que dizer.
     if (passo.tipo === TIPOS_PASSO.transferir) {
-      transferencia = { destino: passo.destino, motivo: passo.motivo || "" };
+      transferencia = proximaTransferencia([passo]);
       parouEm = indice;
       restantes = caminho.slice(indice + 1);
       break;

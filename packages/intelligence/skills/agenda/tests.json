@@ -1,20 +1,14 @@
 {
   "cases": [
-    {
-      "id": "consultar-disponibilidade",
-      "input": "Você pode consultar minha disponibilidade amanhã?",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "agendar-reuniao",
-      "input": "Agenda uma reunião com a Adriane às 14h.",
-      "expected": { "shouldActivate": true }
-    },
-    {
-      "id": "duvida-de-preco",
-      "input": "Qual é o preço do plano completo?",
-      "expected": { "shouldActivate": false }
-    }
+    { "id": "consultar-disponibilidade", "input": "Você pode consultar minha disponibilidade amanhã?", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "agendar-reuniao", "input": "Agenda uma reunião com a Adriane às 14h.", "expected": { "shouldActivate": true, "stage": "coletar" } },
+    { "id": "marcar-horario", "input": "Quero marcar um horário na sexta.", "expected": { "shouldActivate": true, "stage": "coletar" } },
+    { "id": "remarcar", "input": "Preciso remarcar meu compromisso.", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "cancelar", "input": "Quero cancelar reunião de amanhã.", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "horario-livre", "input": "Qual horário está livre segunda?", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "compromisso", "input": "Tenho algum compromisso hoje?", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "duvida-de-preco", "input": "Qual é o preço do plano completo?", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "erro-produto", "input": "O sistema travou ao entrar.", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "negativo-agenda", "input": "Apareceu um erro na agenda do sistema.", "expected": { "shouldActivate": false, "stage": "entender" } }
   ]
 }
-

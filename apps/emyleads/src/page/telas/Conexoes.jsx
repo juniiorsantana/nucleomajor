@@ -104,7 +104,7 @@ function correspondencia(sessaoWeb, phoneMasked) {
  * mensagem. Um controle que parecesse "o mesmo botão em outro lugar" faria o
  * operador desligar um achando que desligou os dois.
  */
-function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, aoEncerrar }) {
+function BlocoAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefinirAutomacao, aoDefinirDono, aoEncerrar }) {
   const [sessoesAbertas, setSessoesAbertas] = useState(false);
 
   // `undefined` enquanto não se sabe. Pintar "desligada" antes de ler seria
@@ -154,7 +154,7 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
           aria-checked={ativa}
           aria-label="Atendimento automático desta conexão"
           onClick={() => aoDefinirAutomacao(!ativa, resumo.donoPadrao)}
-          disabled={ocupado === "automacao"}
+          disabled={somenteLeitura || ocupado === "automacao"}
           className={`relative h-6 w-11 flex-none cursor-pointer rounded-full transition-colors disabled:opacity-40 ${
             ativa ? "bg-success" : "bg-line-strong"
           }`}
@@ -176,13 +176,17 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
               : "Com o atendimento desligado, nada responde — o padrão só vale depois de ligar."}
           </p>
         </div>
-        <Seletor
-          compacto
-          valor={resumo.donoPadrao || ""}
-          aoMudar={(valor) => valor && aoDefinirAutomacao(ativa, valor)}
-          opcoes={OPCOES_DE_DONO}
-          rotuloVazio="Escolher…"
-        />
+        {somenteLeitura ? (
+          <SeloEstado tom="neutro">{textoDoDono(resumo.donoPadrao)}</SeloEstado>
+        ) : (
+          <Seletor
+            compacto
+            valor={resumo.donoPadrao || ""}
+            aoMudar={(valor) => valor && aoDefinirAutomacao(ativa, valor)}
+            opcoes={OPCOES_DE_DONO}
+            rotuloVazio="Escolher…"
+          />
+        )}
       </div>
 
       <button
@@ -227,7 +231,7 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
                     {sessao.messages ? ` · ${sessao.messages} msg` : ""}
                   </p>
                 </div>
-                {OPCOES_DE_DONO.filter((o) => o.id !== sessao.owner).map((opcao) => (
+                {!somenteLeitura && OPCOES_DE_DONO.filter((o) => o.id !== sessao.owner).map((opcao) => (
                   <button
                     key={opcao.id}
                     type="button"
@@ -238,7 +242,7 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
                     {opcao.rotulo}
                   </button>
                 ))}
-                <button
+                {!somenteLeitura && <button
                   type="button"
                   onClick={() => aoEncerrar(sessao.contact)}
                   disabled={!!ocupado}
@@ -246,7 +250,7 @@ function BlocoAtendimento({ resumo, ocupado, aoDefinirAutomacao, aoDefinirDono, 
                   className="flex-none cursor-pointer rounded-[7px] px-2 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-danger disabled:opacity-40"
                 >
                   Finalizar
-                </button>
+                </button>}
               </div>
             ))
           )}
@@ -293,15 +297,17 @@ function CartaoConexao({
       <ShieldAlert size={13} className="mr-1.5" aria-hidden="true" />
       Número divergente
     </SeloEstado>
-  ) : conectado ? (
+  ) : runtimeOnline && conectado ? (
     <SeloEstado tom="sucesso">
       <CheckCircle2 size={13} className="mr-1.5" aria-hidden="true" />
-      Conectado
+      Operando
     </SeloEstado>
   ) : runtimeOnline ? (
     <SeloEstado tom="atencao">Aguardando conexão</SeloEstado>
+  ) : conectado ? (
+    <SeloEstado tom="atencao">Último estado: conectado</SeloEstado>
   ) : (
-    <SeloEstado tom="erro">{ROTULOS_RUNTIME[conexao.runtime] || "Runtime parado"}</SeloEstado>
+    <SeloEstado tom="erro">{ROTULOS_RUNTIME[conexao.runtime] || "Runtime sem resposta"}</SeloEstado>
   );
 
   return (
@@ -338,8 +344,13 @@ function CartaoConexao({
         <div className="border-b border-line md:border-b-0 md:border-r">
           <EstadoLinha
             rotulo="Bridge"
-            valor={ROTULOS_RUNTIME[conexao.runtime] || "Runtime parado"}
+            valor={ROTULOS_RUNTIME[conexao.runtime] || "Runtime sem resposta"}
             tom={runtimeOnline ? "sucesso" : "erro"}
+          />
+          <EstadoLinha
+            rotulo="Assistente"
+            valor={prontidao?.assistant === "online" ? "Em execução" : "Sem resposta recente"}
+            tom={prontidao?.assistant === "online" ? "sucesso" : "erro"}
           />
           <EstadoLinha
             rotulo="WhatsApp"
@@ -376,6 +387,15 @@ function CartaoConexao({
               valor={new Date(estado.updatedAt).toLocaleString("pt-BR")}
             />
           )}
+          {conexao.controlPlane?.heartbeat_at && (
+            <EstadoLinha
+              rotulo="Sinal da VPS"
+              valor={conexao.controlPlane.fresh
+                ? `Recebido ${fmtRelativo(conexao.controlPlane.heartbeat_at)}`
+                : `Desatualizado desde ${fmtRelativo(conexao.controlPlane.heartbeat_at)}`}
+              tom={conexao.controlPlane.fresh ? "sucesso" : "erro"}
+            />
+          )}
 
           <div className="flex min-h-11 items-center gap-3 border-b border-line px-5">
             <span className="text-[13px] text-sub">MCP do Núcleo</span>
@@ -408,16 +428,35 @@ function CartaoConexao({
             valor={rotuloAgenda}
             tom={agenda === "available" ? "sucesso" : agenda === "unavailable" ? "erro" : "neutro"}
           />
+          <EstadoLinha
+            rotulo="Chatbots na VPS"
+            valor={
+              prontidao?.chatbot === "online"
+                ? "Executor ativo"
+                : prontidao?.chatbot === "degraded"
+                  ? "Operando com restrições"
+                  : "Executor ainda não ativado"
+            }
+            tom={prontidao?.chatbot === "online" ? "sucesso" : "neutro"}
+          />
 
           <BlocoAtendimento
             resumo={resumo}
             ocupado={ocupado}
+            somenteLeitura={conexao.remoteManaged}
             aoDefinirAutomacao={aoDefinirAutomacao}
             aoDefinirDono={aoDefinirDono}
             aoEncerrar={aoEncerrar}
           />
 
-          <div className="flex flex-wrap items-center gap-2 px-5 py-4">
+          {conexao.remoteManaged && (
+            <div className="border-b border-line bg-success-soft/40 px-5 py-3 text-[12px] leading-relaxed text-sub">
+              Esta conexão opera na VPS. O portal já acompanha a saúde em tempo real;
+              comandos administrativos remotos serão liberados após a validação do canal seguro.
+            </div>
+          )}
+
+          {!conexao.remoteManaged && <div className="flex flex-wrap items-center gap-2 px-5 py-4">
             {!conectado && !divergente && runtimeOnline && (
               <BotaoPrimario
                 onClick={aoParear}
@@ -451,7 +490,7 @@ function CartaoConexao({
             >
               <Unplug size={15} aria-hidden="true" /> Revogar acesso local
             </button>
-          </div>
+          </div>}
         </div>
 
         <div className="flex min-h-[280px] items-center justify-center p-5">
@@ -651,7 +690,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
   };
 
   const conexoes = useMemo(() => estado?.conexoes || [], [estado]);
-  const gatewayOnline = estado?.gateway === "online";
+  const gatewayOnline = ["online", "cloud"].includes(estado?.gateway);
 
   if (!organizationId) {
     return (
@@ -799,8 +838,8 @@ export default function Conexoes({ organizacao, usuario = null }) {
                 <div className="flex items-start gap-3 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[13px] text-warning">
                   <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
                   <span>
-                    O serviço local não respondeu. Isso não significa que as sessões
-                    do WhatsApp caíram — significa que não dá para consultá-las agora.
+                    Nenhum runtime enviou um sinal recente. A última sessão conhecida
+                    continua preservada, mas o portal não pode afirmar que a automação está funcionando agora.
                   </span>
                 </div>
               )}

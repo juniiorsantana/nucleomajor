@@ -87,8 +87,18 @@ export async function publishCatalog(catalog, repository, { apply = false } = {}
       continue;
     }
     const saved = existing ? await repository.update(existing.id, record) : await repository.insert(record);
-    results.push({ slug: record.slug, action, version: saved?.current_version || null, id: saved?.id || existing?.id || null });
+    const verified = await repository.findPlatformSkill(record.slug);
+    if (!verified || comparable(verified) !== comparable(record)) {
+      throw new Error(`verificação pós-publicação falhou para ${record.slug}`);
+    }
+    results.push({
+      slug: record.slug,
+      action,
+      version: verified.current_version || saved?.current_version || null,
+      id: verified.id || saved?.id || existing?.id || null,
+      contentHash: verified.spec?.source?.contentHash || null,
+      verified: true,
+    });
   }
   return results;
 }
-

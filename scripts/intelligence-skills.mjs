@@ -29,7 +29,8 @@ function printPublishResults(results, apply) {
   const labels = { unchanged: "sem alteração", update: "atualizar", insert: "criar" };
   for (const result of results) {
     const version = result.version ? ` · versão ${result.version}` : "";
-    console.log(`${result.dryRun ? "○" : "✓"} ${result.slug}: ${labels[result.action]}${version}`);
+    const verification = result.verified ? ` · verificado ${String(result.contentHash || "").slice(0, 12)}` : "";
+    console.log(`${result.dryRun ? "○" : "✓"} ${result.slug}: ${labels[result.action]}${version}${verification}`);
   }
   if (!apply && results.some((result) => result.action !== "unchanged")) {
     console.log("\nSimulação concluída. Revise e repita com --apply para publicar.");
@@ -55,4 +56,3 @@ main().catch((error) => {
   console.error(`Erro: ${error.message}`);
   process.exitCode = 1;
 });
-

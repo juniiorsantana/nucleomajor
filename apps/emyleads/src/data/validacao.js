@@ -8,7 +8,7 @@
 
 import { STATUS_NEGOCIO } from "../domain/types.js";
 import { TIPOS_CONDICAO } from "../domain/regras.js";
-import { DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "../domain/chatbots.js";
+import { ALVOS_IA, DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "../domain/chatbots.js";
 import { SAIDA_PADRAO, VERSAO_CANVAS } from "../domain/chatbotGrafo.js";
 
 export const VERSAO_PACOTE = 1;
@@ -185,6 +185,15 @@ export function validarPasso(passo, nome = "Passo") {
     if (!Object.values(DESTINOS_TRANSFERENCIA).includes(passo.destino))
       throw erro(`${nome}.destino inválido.`, `${nome}.destino`);
     if (passo.motivo !== undefined && passo.motivo !== null) texto(passo.motivo, `${nome}.motivo`, { vazio: true });
+    if (passo.destino === DESTINOS_TRANSFERENCIA.ia) {
+      const alvo = passo.alvoIa || ALVOS_IA.recepcao;
+      if (!Object.values(ALVOS_IA).includes(alvo)) throw erro(`${nome}.alvoIa inválido.`, `${nome}.alvoIa`);
+      if (alvo === ALVOS_IA.skill && !passo.skillId) throw erro(`${nome}.skillId é obrigatório.`, `${nome}.skillId`);
+      if (alvo === ALVOS_IA.campanha && !passo.campanhaId) throw erro(`${nome}.campanhaId é obrigatório.`, `${nome}.campanhaId`);
+      for (const field of ["retornoPassoId", "falhaPassoId"]) {
+        if (passo[field] !== undefined && passo[field] !== null) texto(passo[field], `${nome}.${field}`, { vazio: true });
+      }
+    }
   } else {
     throw erro(`${nome}.tipo desconhecido.`, `${nome}.tipo`);
   }

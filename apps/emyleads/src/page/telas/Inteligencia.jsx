@@ -5,6 +5,7 @@ import {
   ShieldCheck, Sparkles, Users, WandSparkles, X,
 } from "lucide-react";
 import { api } from "../../data/client";
+import { resolverRotaSkill } from "../../domain/intelligenceRouter";
 import Conhecimento from "./Conhecimento";
 
 const tabs = [
@@ -25,6 +26,9 @@ const assistantDraft = (profile) => ({
   nome: profile.display_name || "", tom: profile.tone || "", ativo: profile.active ?? true,
   marca: profile.brand_config?.brandName || "", saudacao: profile.brand_config?.greeting || "",
   processo: profile.process_config?.instructions || "",
+  contextoHoras: profile.process_config?.sessionPolicy?.contextHours ?? 24,
+  subfluxoHoras: profile.process_config?.sessionPolicy?.subflowHours ?? 2,
+  confirmacaoMinutos: profile.process_config?.sessionPolicy?.confirmationMinutes ?? 30,
 });
 const tonePresets = [
   ["Natural e profissional", "Cordial, natural, profissional e objetivo. Use linguagem simples, demonstre interesse genuíno e evite respostas robóticas."],
@@ -41,7 +45,7 @@ function Assistants({ data, canWrite, reload, fail, onTest, onManageSkills }) {
   const update = (key, value) => setDrafts((current) => ({ ...current, [selected.id]: { ...current[selected.id], [key]: value } }));
   const choose = (profile) => { if (profile.id === selectedId) return; if (dirty && !confirm("Descartar as alterações ainda não salvas deste assistente?")) return; setSaved(false); setSelectedId(profile.id); };
   const discard = () => { if (selected) setDrafts((current) => ({ ...current, [selected.id]: assistantDraft(selected) })); setSaved(false); };
-  const save = async () => { if (!selected || !draft || !dirty) return; setSaving(true); setSaved(false); fail(""); try { await api.inteligencia.salvarPerfil({ id: selected.id, nome: draft.nome, tom: draft.tom, ativo: draft.ativo, marca: { ...selected.brand_config, brandName: draft.marca, greeting: draft.saudacao }, processo: { ...selected.process_config, instructions: draft.processo } }); await reload(); setSaved(true); } catch (error) { fail(error.message); } finally { setSaving(false); } };
+  const save = async () => { if (!selected || !draft || !dirty) return; setSaving(true); setSaved(false); fail(""); try { await api.inteligencia.salvarPerfil({ id: selected.id, nome: draft.nome, tom: draft.tom, ativo: draft.ativo, marca: { ...selected.brand_config, brandName: draft.marca, greeting: draft.saudacao }, processo: { ...selected.process_config, instructions: draft.processo, sessionPolicy: { contextHours: Number(draft.contextoHoras), subflowHours: Number(draft.subfluxoHoras), confirmationMinutes: Number(draft.confirmacaoMinutos) } } }); await reload(); setSaved(true); } catch (error) { fail(error.message); } finally { setSaving(false); } };
   if (!selected || !draft) return <div className="flex flex-1 items-center justify-center p-8 text-center text-[12px] text-sub">Nenhum assistente foi configurado para esta organização.</div>;
   const internal = selected.audience === "internal"; const bound = boundFor(selected); const previewName = draft.marca.trim() || draft.nome.trim() || (internal ? "Assistente interno" : "Assistente da empresa"); const previewGreeting = draft.saudacao.trim() || (internal ? "Olá! Como posso ajudar você agora?" : "Olá! Como posso ajudar você hoje?");
   return <div className="scrollbar-fina flex-1 overflow-y-auto p-4 md:p-7"><div className="mx-auto max-w-6xl"><div className="flex flex-col gap-2 md:flex-row md:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Configuração dos assistentes</p><h2 className="mt-1 text-[20px] font-semibold tracking-tight">Quem o assistente atende?</h2><p className="mt-1 max-w-2xl text-[12px] leading-5 text-sub">Escolha um público para configurar sua identidade, forma de conversar e habilidades. Cada fronteira protege um tipo de informação.</p></div><span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-bg px-3 py-1.5 text-[10px] text-sub md:ml-auto"><ShieldCheck size={13} className="text-success" />Permissões protegidas</span></div>
@@ -49,7 +53,7 @@ function Assistants({ data, canWrite, reload, fail, onTest, onManageSkills }) {
     <section className="mt-5 overflow-hidden rounded-[16px] border border-line bg-bg"><header className="flex flex-col gap-3 border-b border-line bg-surface/50 px-4 py-4 md:flex-row md:items-center md:px-5"><div className="flex items-center gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-[11px] ${internal ? "bg-accent-soft text-accent-forte" : "bg-[#e6f6f2] text-[#08796e]"}`}><Settings2 size={18} /></span><div><p className="text-[9.5px] font-bold uppercase tracking-[.12em] text-faint">Editando</p><h3 className="text-[14px] font-semibold">{internal ? "Assistente da equipe" : "Assistente de atendimento"}</h3></div></div><div className="flex items-center gap-2 md:ml-auto"><span className={`text-[10px] ${dirty ? "text-[#b56a15]" : saved ? "text-success" : "text-faint"}`}>{dirty ? "Alterações não salvas" : saved ? "Alterações salvas" : "Tudo salvo"}</span><button type="button" role="switch" aria-label="Ativar ou pausar assistente" aria-checked={draft.ativo} disabled={!canWrite} onClick={() => update("ativo", !draft.ativo)} className={`relative h-6 w-11 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 ${draft.ativo ? internal ? "bg-accent" : "bg-[#0f9f8f]" : "bg-faint/50"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${draft.ativo ? "left-6" : "left-1"}`} /></button><span className="text-[10.5px] font-medium text-sub">{draft.ativo ? "Ativo" : "Pausado"}</span></div></header>
       <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]"><div className="min-w-0 p-4 md:p-6"><div className="grid gap-6"><fieldset disabled={!canWrite} className="grid gap-3"><legend className="mb-1 flex items-center gap-2 text-[12px] font-semibold"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}>1</span>Identidade</legend><p className="-mt-2 pl-8 text-[10.5px] text-sub">O nome e a primeira mensagem que as pessoas reconhecem.</p><label className="text-[10.5px] font-semibold text-sub">Nome exibido<input value={draft.marca} onChange={(event) => update("marca", event.target.value)} placeholder={internal ? "Ex.: Núcleo Major" : "Ex.: Assistente Major"} className="mt-1.5 w-full rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[12.5px] font-normal outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10" /></label><label className="text-[10.5px] font-semibold text-sub">Saudação inicial<textarea value={draft.saudacao} onChange={(event) => update("saudacao", event.target.value)} placeholder="Como iniciar uma nova conversa" rows={2} className="mt-1.5 w-full resize-y rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[12.5px] font-normal leading-5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10" /></label></fieldset>
         <fieldset disabled={!canWrite} className="grid gap-3 border-t border-line pt-5"><legend className="mb-1 flex items-center gap-2 text-[12px] font-semibold"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}>2</span>Forma de conversar</legend><p className="-mt-2 pl-8 text-[10.5px] text-sub">Escolha um ponto de partida e personalize com suas palavras.</p><div className="flex flex-wrap gap-2">{tonePresets.map(([label, value]) => <button type="button" key={label} onClick={() => update("tom", value)} className={`rounded-full border px-3 py-1.5 text-[9.5px] transition ${draft.tom === value ? internal ? "border-accent bg-accent-soft text-accent-forte" : "border-[#0f9f8f] bg-[#e6f6f2] text-[#08796e]" : "border-line bg-bg text-sub hover:border-faint"}`}>{label}</button>)}</div><label className="text-[10.5px] font-semibold text-sub">Tom de voz<textarea value={draft.tom} onChange={(event) => update("tom", event.target.value)} rows={3} className="mt-1.5 w-full resize-y rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[12.5px] font-normal leading-5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10" /></label></fieldset>
-        <fieldset disabled={!canWrite} className="grid gap-3 border-t border-line pt-5"><legend className="mb-1 flex items-center gap-2 text-[12px] font-semibold"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}>3</span>Como este assistente deve trabalhar</legend><p className="-mt-2 pl-8 text-[10.5px] text-sub">Descreva processo, limites e situações que precisam de uma pessoa.</p><textarea value={draft.processo} onChange={(event) => update("processo", event.target.value)} placeholder="Ex.: entenda a necessidade antes de apresentar uma solução; não invente condições; transfira exceções comerciais..." rows={8} className="w-full resize-y rounded-[9px] border border-line bg-bg p-3 text-[12.5px] leading-5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10" /></fieldset>
+        <fieldset disabled={!canWrite} className="grid gap-3 border-t border-line pt-5"><legend className="mb-1 flex items-center gap-2 text-[12px] font-semibold"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}>3</span>Como este assistente deve trabalhar</legend><p className="-mt-2 pl-8 text-[10.5px] text-sub">Descreva processo, limites e situações que precisam de uma pessoa.</p><textarea value={draft.processo} onChange={(event) => update("processo", event.target.value)} placeholder="Ex.: entenda a necessidade antes de apresentar uma solução; não invente condições; transfira exceções comerciais..." rows={8} className="w-full resize-y rounded-[9px] border border-line bg-bg p-3 text-[12.5px] leading-5 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/10" />{!internal && <div className="rounded-[11px] border border-line bg-surface/70 p-3"><p className="text-[10.5px] font-semibold text-fg">Memória da conversa</p><p className="mt-1 text-[9.5px] text-sub">Após estes períodos, o atendimento volta com segurança para a Recepção.</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{[["contextoHoras", "Conversa", "horas", 1, 168], ["subfluxoHoras", "Habilidade", "horas", 1, 24], ["confirmacaoMinutos", "Confirmação", "minutos", 5, 120]].map(([key, label, suffix, min, max]) => <label key={key} className="text-[9.5px] font-semibold text-sub">{label}<span className="mt-1 flex items-center rounded-[8px] border border-line bg-bg"><input type="number" min={min} max={max} value={draft[key]} onChange={(event) => update(key, event.target.value)} className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-[11.5px] font-normal outline-none" /><span className="pr-2 text-[8.5px] text-faint">{suffix}</span></span></label>)}</div></div>}</fieldset>
         <div className="border-t border-line pt-5"><div className="flex items-center gap-2"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}>4</span><h4 className="text-[12px] font-semibold">Habilidades disponíveis</h4><button type="button" onClick={onManageSkills} className="ml-auto text-[10px] font-semibold text-accent-forte hover:underline">Ver catálogo</button></div><p className="mt-1 pl-8 text-[10.5px] text-sub">Cada habilidade define ações e limites específicos.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{bound.map((skill) => <div key={skill.id} className="rounded-[10px] border border-line bg-surface/60 p-3"><div className="flex items-center gap-2"><Sparkles size={14} className={internal ? "text-accent-forte" : "text-[#08796e]"} /><strong className="text-[11px]">{skill.name}</strong><span className="ml-auto text-[8.5px] text-faint">v{skill.current_version}</span></div><p className="mt-1 line-clamp-2 text-[9.5px] leading-4 text-sub">{skill.description}</p></div>)}{!bound.length && <p className="rounded-[10px] border border-dashed border-line p-4 text-center text-[10.5px] text-sub sm:col-span-2">Nenhuma habilidade vinculada.</p>}</div></div></div></div>
         <aside className="min-w-0 border-t border-line bg-[#f7f7fb] p-4 lg:border-l lg:border-t-0 lg:p-5"><div className="sticky top-4"><div className="flex items-center gap-2"><Eye size={15} className="text-accent-forte" /><h4 className="text-[12px] font-semibold">Prévia da conversa</h4><span className="ml-auto rounded-full bg-bg px-2 py-1 text-[8.5px] text-faint">Ilustrativa</span></div><p className="mt-1 text-[10px] leading-4 text-sub">Veja como identidade e saudação aparecem para este público.</p><div className="mt-4 overflow-hidden rounded-[16px] border border-line bg-[#efeae2] shadow-sm"><div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-white"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15"><Bot size={16} /></span><div className="min-w-0"><p className="truncate text-[10.5px] font-semibold">{previewName}</p><p className="text-[8.5px] text-white/70">online</p></div></div><div className="min-h-64 space-y-2.5 p-3 text-[10px] leading-4"><div className="max-w-[88%] rounded-[8px] rounded-tl-none bg-white px-3 py-2 shadow-sm">{previewGreeting}<span className="ml-2 whitespace-nowrap text-[7.5px] text-faint">09:41</span></div><div className="ml-auto max-w-[84%] rounded-[8px] rounded-tr-none bg-[#d9fdd3] px-3 py-2 shadow-sm">{internal ? "Pode consultar minha agenda de amanhã?" : "Olá, quero entender como funciona."}<span className="ml-2 whitespace-nowrap text-[7.5px] text-faint">09:42</span></div><div className="max-w-[88%] rounded-[8px] rounded-tl-none bg-white px-3 py-2 shadow-sm">{internal ? "Claro! Vou consultar seus compromissos respeitando suas permissões." : "Claro! Primeiro quero entender o que você precisa para orientar o melhor próximo passo."}<span className="ml-2 whitespace-nowrap text-[7.5px] text-faint">09:42</span></div></div></div><div className={`mt-3 rounded-[10px] border px-3 py-2.5 text-[9.5px] leading-4 ${internal ? "border-accent/20 bg-accent-soft/60 text-accent-forte" : "border-[#0f9f8f]/20 bg-[#e6f6f2] text-[#08796e]"}`}><strong className="block">Fronteira protegida</strong>{internal ? "Usa cargo e conhecimento interno autorizado." : "Usa somente conhecimento publicado para clientes."}</div></div></aside></div>
       <footer className="flex flex-col gap-3 border-t border-line bg-bg px-4 py-4 sm:flex-row sm:items-center md:px-6"><div className="text-[9.5px] text-sub">{dirty ? "Salve as mudanças antes de testar no simulador." : "As alterações salvas são usadas nas próximas conversas."}</div><div className="flex flex-wrap items-center gap-2 sm:ml-auto">{canWrite && <button type="button" onClick={discard} disabled={!dirty || saving} className="inline-flex items-center gap-1.5 rounded-[9px] border border-line px-3 py-2 text-[10.5px] font-semibold text-sub disabled:opacity-35"><RotateCcw size={13} />Descartar</button>}<button type="button" onClick={onTest} disabled={dirty} title={dirty ? "Salve as mudanças antes de testar" : "Abrir simulador"} className="inline-flex items-center gap-1.5 rounded-[9px] border border-line px-3 py-2 text-[10.5px] font-semibold text-fg disabled:cursor-not-allowed disabled:opacity-35"><FlaskConical size={13} />Testar no simulador</button>{canWrite && <button type="button" onClick={save} disabled={!dirty || saving || !draft.nome.trim()} className={`inline-flex items-center gap-1.5 rounded-[9px] px-4 py-2 text-[10.5px] font-semibold text-white disabled:opacity-35 ${internal ? "bg-accent" : "bg-[#0f9f8f]"}`}><Save size={13} />{saving ? "Salvando…" : "Salvar mudanças"}</button>}</div></footer></section></div></div>;
@@ -79,10 +83,105 @@ function Campaigns({ data, canWrite, reload, fail }) {
 }
 function Picker({ title, items, selected, label, change, disabled }) { return <div><p className="mb-2 text-[10.5px] font-semibold text-sub">{title}</p><div className="flex flex-wrap gap-2">{items.map((item) => <label key={item.id} className="rounded-full border border-line px-2.5 py-1 text-[10px]"><input type="checkbox" disabled={disabled} checked={selected.includes(item.id)} onChange={(event) => change(event.target.checked ? [...selected, item.id] : selected.filter((id) => id !== item.id))} className="mr-1.5" />{item[label]}</label>)}</div></div>; }
 
-function Simulator({ reload, fail }) {
+function SimulatorLegacy({ reload, fail }) {
   const [audience, setAudience] = useState("customer"); const [message, setMessage] = useState(""); const [source, setSource] = useState(""); const [result, setResult] = useState(null); const [loading, setLoading] = useState(false);
   const run = async () => { setLoading(true); try { const origin = {}; for (const line of list(source)) { const at = line.indexOf(":"); if (at > 0) origin[line.slice(0, at).trim()] = line.slice(at + 1).trim(); } setResult(await api.inteligencia.simular({ audiencia: audience, mensagem: message, origem: origin })); await reload(); } catch (error) { fail(error.message); } finally { setLoading(false); } };
   return <div className="scrollbar-fina flex-1 overflow-y-auto p-4 md:p-7"><div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-2"><section className="rounded-[14px] border border-line bg-bg p-5"><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-accent-soft text-accent-forte"><FlaskConical size={21} /></span><div><h2 className="text-[17px] font-semibold">Simular uma conversa</h2><p className="text-[11px] text-sub">Sem enviar mensagem nem alterar CRM ou agenda.</p></div></div><div className="mt-5 grid gap-4"><label className="text-[10.5px] font-semibold text-sub">Público<select value={audience} onChange={(e) => setAudience(e.target.value)} className="mt-1 w-full rounded-[8px] border border-line px-3 py-2 text-[12px] font-normal"><option value="customer">Cliente</option><option value="internal">Profissional interno</option></select></label><label className="text-[10.5px] font-semibold text-sub">Mensagem<textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Olá, vi o anúncio e quero saber o valor" className="mt-1 min-h-36 w-full rounded-[10px] border border-line p-3 text-[13px] font-normal" /></label><label className="text-[10.5px] font-semibold text-sub">Origem opcional<input value={source} onChange={(e) => setSource(e.target.value)} placeholder="ad:meta-123" className="mt-1 w-full rounded-[8px] border border-line px-3 py-2 font-mono text-[11px] font-normal" /></label><button onClick={run} disabled={loading || !message.trim()} className="inline-flex items-center justify-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40"><Sparkles size={15} />{loading ? "Resolvendo…" : "Resolver contexto"}</button></div></section><section className="rounded-[14px] border border-line bg-bg p-5"><h3 className="text-[14px] font-semibold">Por que responderia assim?</h3><p className="mt-1 text-[11px] text-sub">A decisão do servidor antes do modelo conversar.</p>{result ? <div className="mt-5"><Trail context={result} /><div className="mt-4 rounded-[10px] bg-surface p-3"><p className="text-[9.5px] font-bold uppercase text-faint">Skills permitidos</p><div className="mt-2 flex flex-wrap gap-1.5">{(result.skillsPermitidos || []).map((skill) => <span key={skill.id} className="rounded-full border border-line bg-bg px-2.5 py-1 text-[10px] text-sub">{skill.nome} · v{skill.versao}</span>)}</div></div></div> : <div className="flex min-h-[330px] flex-col items-center justify-center text-center"><Layers3 size={32} className="text-faint" /><p className="mt-3 text-[11.5px] text-sub">Execute uma simulação para visualizar a trilha.</p></div>}</section></div></div>;
+}
+
+function Simulator({ reload, fail }) {
+  const [audience, setAudience] = useState("customer");
+  const [message, setMessage] = useState("");
+  const [source, setSource] = useState("");
+  const [history, setHistory] = useState([]);
+  const [activeSkillId, setActiveSkillId] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const reset = () => {
+    setHistory([]);
+    setActiveSkillId(null);
+    setMessage("");
+  };
+
+  const run = async () => {
+    const cleanMessage = message.trim();
+    if (!cleanMessage || loading) return;
+    setLoading(true);
+    fail("");
+    try {
+      const origin = {};
+      for (const line of list(source)) {
+        const at = line.indexOf(":");
+        if (at > 0) origin[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+      }
+      const [preview, intelligence] = await Promise.all([
+        api.inteligencia.simular({ audiencia: audience, mensagem: cleanMessage, origem: origin }),
+        api.inteligencia.carregar(),
+      ]);
+      const skills = intelligence.skills.map((skill) => ({
+        ...skill,
+        status: skill.status || (skill.current_version ? "published" : "draft"),
+        audience: skill.audience || "customer",
+        spec: skill.spec || skill.spec_json || {},
+      }));
+      const route = resolverRotaSkill({
+        skills,
+        message: cleanMessage,
+        currentSkillId: activeSkillId,
+        audience,
+      });
+      setActiveSkillId(route.skill?.id || null);
+      setHistory((current) => [...current, {
+        id: `${Date.now()}-${current.length}`,
+        message: cleanMessage,
+        preview,
+        route,
+      }]);
+      setMessage("");
+      await reload();
+    } catch (error) {
+      fail(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return <div className="scrollbar-fina flex-1 overflow-y-auto p-4 md:p-7">
+    <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <section className="h-fit rounded-[14px] border border-line bg-bg p-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-accent-soft text-accent-forte"><FlaskConical size={21} /></span>
+          <div><h2 className="text-[17px] font-semibold">Simular uma conversa</h2><p className="text-[11px] text-sub">Teste o roteamento sem alterar CRM ou agenda.</p></div>
+        </div>
+        <label className="mt-5 block text-[10.5px] font-semibold text-sub">Público
+          <select value={audience} onChange={(event) => { setAudience(event.target.value); reset(); }} className="mt-1.5 w-full rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[12px] outline-none focus:border-accent">
+            <option value="customer">Cliente</option><option value="internal">Profissional</option>
+          </select>
+        </label>
+        <label className="mt-3 block text-[10.5px] font-semibold text-sub">Origem confiável <span className="font-normal text-faint">(opcional)</span>
+          <textarea value={source} onChange={(event) => setSource(event.target.value)} rows={3} placeholder={'utm_campaign: lancamento\nkeyword: consultoria'} className="mt-1.5 w-full resize-y rounded-[9px] border border-line p-3 font-mono text-[10.5px] outline-none focus:border-accent" />
+        </label>
+        <label className="mt-3 block text-[10.5px] font-semibold text-sub">Mensagem
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); run(); } }} rows={4} placeholder="Ex.: Quero saber valores e marcar uma conversa" className="mt-1.5 w-full resize-y rounded-[9px] border border-line p-3 text-[12px] outline-none focus:border-accent" />
+        </label>
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={run} disabled={!message.trim() || loading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[11.5px] font-semibold text-white disabled:opacity-40"><WandSparkles size={14} />{loading ? "Analisando…" : "Enviar teste"}</button>
+          <button type="button" onClick={reset} disabled={!history.length} className="rounded-[9px] border border-line px-3 text-sub disabled:opacity-35" title="Nova conversa"><RotateCcw size={15} /></button>
+        </div>
+      </section>
+      <section className="min-h-[480px] rounded-[14px] border border-line bg-bg p-5">
+        <div className="flex items-center gap-2"><MessageCircle size={17} className="text-accent-forte" /><h2 className="text-[15px] font-semibold">Resultado da conversa</h2><span className="ml-auto rounded-full bg-surface px-2 py-1 text-[9px] text-sub">Fase H.3 · sem efeitos reais</span></div>
+        {!history.length ? <div className="flex min-h-[390px] flex-col items-center justify-center text-center"><FlaskConical size={34} className="text-faint" /><h3 className="mt-3 text-[14px] font-semibold">Envie a primeira mensagem</h3><p className="mt-1 max-w-sm text-[11px] leading-5 text-sub">Você verá qual habilidade recebeu a conversa, por qual motivo e em qual etapa ela começou.</p></div> : <div className="mt-5 space-y-5">{history.map((item) => <article key={item.id} className="border-b border-line pb-5 last:border-0">
+          <div className="ml-auto max-w-[82%] rounded-[10px] rounded-tr-none bg-accent px-3 py-2.5 text-[11px] leading-5 text-white">{item.message}</div>
+          <div className="mt-3 rounded-[12px] border border-line bg-surface/60 p-4">
+            <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-accent-soft px-2.5 py-1 text-[9.5px] font-semibold text-accent-forte">{item.route.skill?.name || "Sem habilidade"}</span><span className="rounded-full bg-bg px-2.5 py-1 text-[9.5px] text-sub">Etapa: {item.route.stageId}</span><span className="text-[9.5px] text-faint">Motivo: {item.route.reason}</span></div>
+            <p className="mt-3 text-[10.5px] leading-5 text-sub">{item.route.stage?.objective || item.route.skill?.description || "Nenhuma rota publicada foi encontrada para esta mensagem."}</p>
+            {item.preview?.campaign?.name && <p className="mt-2 text-[9.5px] text-sub"><strong>Campanha:</strong> {item.preview.campaign.name}</p>}
+          </div>
+        </article>)}</div>}
+      </section>
+    </div>
+  </div>;
 }
 
 function Audit({ data, canWrite, reload, fail }) {
