@@ -41,8 +41,8 @@ import {
   minutosDoHorario,
   navegarReferencia,
   rotuloPeriodo,
-  somarPorCategoria,
   somarPorPessoa,
+  somarPorTipo,
 } from "./agenda/agendaUtils";
 
 const VISUALIZACOES = [
@@ -471,7 +471,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   const [confirmacao, setConfirmacao] = useState(null);
   const [ajustes, setAjustes] = useState({});
   const [zoom, setZoom] = useState(() => lerLocal("agenda:zoom", ZOOM_PADRAO));
-  const [modoCor, setModoCor] = useState(() => lerLocal("agenda:modoCor", "categoria"));
+  const [modoCor, setModoCor] = useState(() => lerLocal("agenda:modoCor", "tipo"));
   const [agruparEquipe, setAgruparEquipe] = useState(() => lerLocal("agenda:agruparEquipe", true));
   const [estreito, setEstreito] = useState(false);
   const inicializado = useRef(false);
@@ -562,7 +562,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   // A legenda acompanha o que está pintado: colorindo por pessoa, somar por
   // categoria daria uma legenda que não explica nenhuma cor da tela.
   const totais = useMemo(
-    () => (modoCor === "pessoa" ? somarPorPessoa(filtrados) : somarPorCategoria(filtrados)),
+    () => (modoCor === "pessoa" ? somarPorPessoa(filtrados) : somarPorTipo(filtrados)),
     [filtrados, modoCor],
   );
   const naoLidas = notificacoes.filter((item) => !item.lidaEm && item.status === "sent").length;
@@ -761,7 +761,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
           <button type="button" aria-label="Período anterior" title="Período anterior (←)" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, -1))} className="cursor-pointer border-r border-line p-2 text-sub hover:bg-surface-hover"><ChevronLeft size={15} /></button>
           <button type="button" aria-label="Próximo período" title="Próximo período (→)" onClick={() => setReferencia((atual) => navegarReferencia(visualizacao, atual, 1))} className="cursor-pointer p-2 text-sub hover:bg-surface-hover"><ChevronRight size={15} /></button>
         </div>
-        <span className="min-w-[185px] text-[13px] font-semibold capitalize text-fg">{rotuloPeriodo(visualizacao, referencia)}</span>
+        <span className="min-w-[185px] text-[13px] font-semibold text-fg first-letter:uppercase">{rotuloPeriodo(visualizacao, referencia)}</span>
 
         <div className="flex rounded-[8px] bg-surface p-1">
           {VISUALIZACOES.map((item) => (
@@ -816,7 +816,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
           <button
             type="button"
             onClick={() => setModoCor((atual) => (atual === "pessoa" ? "categoria" : "pessoa"))}
-            title={modoCor === "pessoa" ? "Colorindo por pessoa" : "Colorindo por categoria"}
+            title={modoCor === "pessoa" ? "Colorindo por pessoa" : "Colorindo por tipo de evento"}
             className={`cursor-pointer rounded-[8px] p-2 ${modoCor === "pessoa" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`}
           >
             <UserRound size={16} />
@@ -850,7 +850,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
         ) : estreito && visualizacao !== "month" ? (
           <VisaoLista dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)} eventos={filtrados} modoCor={modoCor} aoAbrir={abrirEvento} aoCriar={abrirNovo} />
         ) : visualizacao === "month" ? (
-          <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} />
+          <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} modoCor={modoCor} />
         ) : (
           <GradeAgenda
             dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)}
@@ -869,6 +869,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
             aoMover={mover}
             aoRedimensionar={redimensionar}
             aoAjustarZoom={ajustarZoom}
+            aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }}
           />
         )}
       </div>
@@ -902,4 +903,4 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   );
 }
 
-export const agendaInternals = { inicioDaSemana, chaveDia, dataLocal, horaLocal, isoLocal, eventoParaFormulario, intervaloDaVisao, somarPorCategoria, adicionarDias };
+export const agendaInternals = { inicioDaSemana, chaveDia, dataLocal, horaLocal, isoLocal, eventoParaFormulario, intervaloDaVisao, somarPorTipo, adicionarDias };

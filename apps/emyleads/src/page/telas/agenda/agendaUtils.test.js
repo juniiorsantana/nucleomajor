@@ -10,8 +10,10 @@ import {
   intervaloDaVisao,
   passoParaAltura,
   segmentosDoDia,
+  fundoDoEvento,
   somarPorCategoria,
   somarPorPessoa,
+  tipoDoEvento,
 } from "./agendaUtils";
 
 const evento = (id, inicio, fim, extras = {}) => ({
@@ -152,10 +154,30 @@ describe("identidade visual do bloco", () => {
   it("troca a dimensão pintada conforme o modo escolhido", () => {
     const item = evento("x", new Date().toISOString(), new Date().toISOString(), {
       ownerId: "ana",
+      tipo: "appointment",
       categoryColor: "#FB923C",
     });
-    expect(corDoEvento(item, "categoria")).toBe("#FB923C");
+    // A cor conta o TIPO, não a categoria: numa agenda com uma categoria só
+    // configurada, pintar por categoria devolvia a semana inteira da mesma cor.
+    expect(corDoEvento(item, "tipo")).toBe(tipoDoEvento(item).cor);
+    expect(corDoEvento(item, "tipo")).not.toBe("#FB923C");
     expect(corDoEvento(item, "pessoa")).toBe(corDaPessoa("ana"));
+  });
+
+  it("trata 'categoria' gravado antes como a cor padrão de hoje", () => {
+    // Quem já usava a agenda tem "categoria" no localStorage. A preferência
+    // antiga não pode virar tela quebrada nem um modo que não existe mais.
+    const item = evento("x", new Date().toISOString(), new Date().toISOString(), { tipo: "event" });
+    expect(corDoEvento(item, "categoria")).toBe(corDoEvento(item, "tipo"));
+  });
+
+  it("classifica o tipo pela origem antes do campo do formulário", () => {
+    const agora = new Date().toISOString();
+    expect(tipoDoEvento(evento("a", agora, agora, { titulo: "Indisponível", tipo: "event" })).id).toBe("unavailable");
+    expect(tipoDoEvento({ ...evento("b", agora, agora), sourceType: "task", tipo: "appointment" }).id).toBe("task");
+    expect(tipoDoEvento(evento("c", agora, agora, { tipo: "block" })).id).toBe("block");
+    expect(tipoDoEvento(evento("d", agora, agora, { tipo: "event" })).id).toBe("event");
+    expect(tipoDoEvento(evento("e", agora, agora, {})).id).toBe("appointment");
   });
 
   it("deixa indisponibilidade cinza nos dois modos", () => {
@@ -163,8 +185,20 @@ describe("identidade visual do bloco", () => {
       titulo: "Indisponível",
       ownerId: "ana",
     });
-    expect(corDoEvento(bloqueio, "categoria")).toBe("#CBD5E1");
-    expect(corDoEvento(bloqueio, "pessoa")).toBe("#CBD5E1");
+    const cinza = tipoDoEvento(bloqueio).cor;
+    expect(corDoEvento(bloqueio, "tipo")).toBe(cinza);
+    expect(corDoEvento(bloqueio, "pessoa")).toBe(cinza);
+  });
+
+  it("dilui a cor no fundo da tela em vez de calcular a cor do texto", () => {
+    // O contrato que substituiu a função de contraste: o fundo sai da cor do
+    // evento misturada com --el-bg, então o texto pode ser sempre --el-fg e
+    // qualquer cor que a empresa escolher no seletor nasce legível. Depender
+    // de --el-bg é o que faz o tema escuro funcionar sem uma segunda paleta.
+    const fundo = fundoDoEvento("#22C55E");
+    expect(fundo).toContain("#22C55E");
+    expect(fundo).toContain("var(--el-bg)");
+    expect(fundoDoEvento("#22C55E", 8)).toContain("8%");
   });
 
   it("extrai iniciais de nome simples e composto", () => {

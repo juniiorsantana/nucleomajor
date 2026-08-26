@@ -224,10 +224,21 @@ export function recortarSegmentosDoDia(eventos, dia) {
  *
  * Muta e devolve a mesma lista: o chamador já ordenou e só quer `coluna` e
  * `colunas` preenchidos.
+ *
+ * Também carimba o AGLOMERADO - `grupo`, `ordem` e `tamanhoGrupo`. A grade
+ * precisa disso para desenhar sobreposição em cascata: dividir a largura em
+ * partes iguais dava 24px por bloco com cinco simultâneos, largura em que o
+ * título fica com uns cinco pixels e o bloco só informa que existe. Com o
+ * aglomerado identificado a grade pode mostrar os primeiros em cascata e
+ * contar o resto, em vez de encolher todos até ninguém ser legível.
+ *
+ * `ordem` é o índice na lista já ordenada por início, então "os três
+ * primeiros" são de fato os três que começam antes.
  */
 export function empacotarEmColunas(segmentos) {
   let grupo = [];
   let fimGrupo = -1;
+  let idDoGrupo = 0;
   const fecharGrupo = () => {
     if (!grupo.length) return;
     const finais = [];
@@ -238,7 +249,13 @@ export function empacotarEmColunas(segmentos) {
       segmento.coluna = coluna;
     }
     const total = Math.max(1, finais.length);
-    grupo.forEach((segmento) => { segmento.colunas = total; });
+    grupo.forEach((segmento, indice) => {
+      segmento.colunas = total;
+      segmento.grupo = idDoGrupo;
+      segmento.ordem = indice;
+      segmento.tamanhoGrupo = grupo.length;
+    });
+    idDoGrupo += 1;
     grupo = [];
   };
 
@@ -377,17 +394,81 @@ export function corDaPessoa(id) {
 }
 
 /**
+ * Paleta por TIPO de evento.
+ *
+ * A cor deixou de contar a CATEGORIA e passou a contar o que o compromisso É.
+ * O motivo veio da agenda real: com uma categoria só configurada, colorir por
+ * categoria pintava a semana inteira da mesma cor e a cor não separava nada.
+ * O tipo, esse, já é escolhido a cada evento no diálogo - é o campo que varia.
+ *
+ * A categoria não some: vira etiqueta dentro do bloco, com o ponto colorido.
+ *
+ * Os rótulos repetem palavra por palavra as opções do seletor "Tipo" em
+ * DialogoEvento - a legenda tem que ensinar o mesmo vocabulário que o
+ * formulário usa, senão são dois idiomas para a mesma coisa.
+ *
+ * Nenhuma cor nova entra na identidade: `accent` é o roxo da marca e o resto
+ * já existia em CORES_PESSOA ou nos tokens de texto.
+ */
+export const TIPOS_EVENTO = [
+  { id: "appointment", rotulo: "Compromisso", cor: "#4F3CFC" },
+  { id: "event", rotulo: "Evento", cor: "#0EA5E9" },
+  { id: "task", rotulo: "Tarefa", cor: "#D97706" },
+  { id: "block", rotulo: "Bloqueio", cor: "#667085" },
+  { id: "unavailable", rotulo: "Indisponível", cor: "#98A2B3" },
+];
+
+const TIPO_POR_ID = new Map(TIPOS_EVENTO.map((tipo) => [tipo.id, tipo]));
+
+/**
+ * Qual das cinco leituras o evento recebe.
+ *
+ * A ordem importa: "Indisponível" é o bloqueio de agenda alheia e ganha de
+ * tudo - não é um tipo que a pessoa escolheu, é o que sobra quando ela não
+ * pode ver o resto. Depois vem a origem (tarefa espelhada) e só então o campo
+ * `tipo` que o formulário preenche.
+ */
+export function tipoDoEvento(evento) {
+  if (!evento) return TIPO_POR_ID.get("appointment");
+  if (evento.titulo === "Indisponível") return TIPO_POR_ID.get("unavailable");
+  if (evento.sourceType === "task") return TIPO_POR_ID.get("task");
+  return TIPO_POR_ID.get(evento.tipo) || TIPO_POR_ID.get("appointment");
+}
+
+/**
  * Cor do bloco conforme a dimensão que o usuário escolheu ver.
  *
- * "Indisponível" ignora o modo: um bloqueio de agenda alheia não tem categoria
- * legível nem deve tomar a identidade da pessoa - ele é ausência, e é cinza.
+ * Qualquer modo que não seja "pessoa" cai no tipo - inclusive o "categoria"
+ * que ficou gravado no localStorage de quem já usava a agenda. Migração sem
+ * migração: a preferência antiga continua válida e passa a significar "a cor
+ * padrão", que agora é o tipo.
  */
-export function corDoEvento(evento, modo = "categoria") {
-  if (!evento) return "#8B7CFF";
-  if (evento.titulo === "Indisponível") return "#CBD5E1";
+export function corDoEvento(evento, modo = "tipo") {
+  if (!evento) return TIPO_POR_ID.get("appointment").cor;
+  if (evento.titulo === "Indisponível") return TIPO_POR_ID.get("unavailable").cor;
   if (modo === "pessoa") return corDaPessoa(idDoResponsavel(evento));
-  if (evento.sourceType === "task") return evento.categoryColor || "#F59E0B";
-  return evento.categoryColor || "#8B7CFF";
+  return tipoDoEvento(evento).cor;
+}
+
+/**
+ * Fundo do bloco: a mesma cor, diluída no fundo da tela.
+ *
+ * É o que dispensa o cálculo de contraste que existia aqui. Antes o bloco era
+ * preenchido com a cor cheia e o texto era escolhido por luminância - uma
+ * conta que errava: #22C55E recebia branco a 2,28:1, abaixo do mínimo legível.
+ * E como a empresa escolhe as cores num seletor livre, não havia lista de
+ * cores para revisar; qualquer valor futuro podia cair no mesmo buraco.
+ *
+ * Diluindo no fundo, o texto pode ser sempre --el-fg e o contraste passa a ser
+ * o mesmo do resto da tela, para toda cor que existir. A cor cheia continua
+ * visível no trilho da esquerda, onde ela só precisa ser sinal, não suporte
+ * de leitura.
+ *
+ * `var(--el-bg)` e não branco: no tema escuro o mesmo cálculo devolve um tom
+ * escuro da cor, sem uma segunda paleta para manter.
+ */
+export function fundoDoEvento(cor, forca = 16) {
+  return `color-mix(in srgb, ${cor} ${forca}%, var(--el-bg))`;
 }
 
 export function minutosVisiveis(evento) {
@@ -403,6 +484,27 @@ export function somarPorCategoria(eventos) {
     mapa.set(chave, atual);
   });
   return [...mapa.values()].sort((a, b) => b.minutos - a.minutos);
+}
+
+/**
+ * Total por tipo, para a legenda que acompanha o que está pintado.
+ *
+ * Diferente de somarPorCategoria, este NÃO descarta tarefas: elas têm cor
+ * própria na grade, e uma legenda que explica quatro cores de cinco deixa a
+ * quinta parecendo erro de renderização.
+ */
+export function somarPorTipo(eventos) {
+  const mapa = new Map();
+  eventos.filter((evento) => !evento.diaInteiro).forEach((evento) => {
+    const tipo = tipoDoEvento(evento);
+    const atual = mapa.get(tipo.id) || { id: tipo.id, nome: tipo.rotulo, cor: tipo.cor, minutos: 0 };
+    atual.minutos += minutosVisiveis(evento);
+    mapa.set(tipo.id, atual);
+  });
+  // Ordem da paleta, não do volume: a legenda é uma chave de leitura e muda de
+  // ordem a cada semana se for ordenada por minutos - quem procura "Bloqueio"
+  // teria que reler a faixa inteira toda vez.
+  return TIPOS_EVENTO.map((tipo) => mapa.get(tipo.id)).filter(Boolean);
 }
 
 /**
