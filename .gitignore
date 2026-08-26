@@ -4,6 +4,7 @@ public/app/
 .playwright-venv/
 test-artifacts/
 artifacts/
+.claude/
 **/__pycache__/
 *.pyc
 .env
