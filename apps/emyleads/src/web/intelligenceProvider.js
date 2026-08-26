@@ -28,7 +28,7 @@ export function criarOperacoesInteligencia({ supabase = obterSupabaseWeb(), area
       const ctx = await contexto();
       const org = ctx.organizationId;
       const [templates, profiles, skills, skillVersions, bindings, collections, documentCollections, campaigns,
-        sources, campaignSkills, campaignCollections, simulations, audit] = await Promise.all([
+        sources, campaignSkills, campaignCollections, simulations, audit, pilotContacts, contacts] = await Promise.all([
         executar(supabase.from("assistant_templates").select("*").order("audience")),
         executar(supabase.from("assistant_profiles").select("*").eq("organization_id", org).order("audience")),
         executar(supabase.from("skill_definitions").select("*").or(`owner_type.eq.platform,organization_id.eq.${org}`).order("owner_type").order("name")),
@@ -42,8 +42,10 @@ export function criarOperacoesInteligencia({ supabase = obterSupabaseWeb(), area
         executar(supabase.from("campaign_knowledge_collections").select("*").eq("organization_id", org)),
         executar(supabase.from("intelligence_simulations").select("id,audience,input_excerpt,resolved_context,created_at").eq("organization_id", org).order("created_at", { ascending: false }).limit(20)),
         executar(supabase.from("intelligence_audit_log").select("id,entity_type,entity_id,action,version,metadata,created_at").eq("organization_id", org).order("created_at", { ascending: false }).limit(80)),
+        executar(supabase.from("customer_assistant_pilot_contacts").select("*").eq("organization_id", org).eq("active", true)),
+        executar(supabase.from("contacts").select("id,name,phone,whatsapp_id,company,updated_at").eq("organization_id", org).is("deleted_at", null).order("name")),
       ]);
-      return { templates, profiles, skills, skillVersions, bindings, collections, documentCollections, campaigns, sources, campaignSkills, campaignCollections, simulations, audit };
+      return { templates, profiles, skills, skillVersions, bindings, collections, documentCollections, campaigns, sources, campaignSkills, campaignCollections, simulations, audit, pilotContacts, contacts };
     },
 
     "inteligencia.salvarPerfil": async ({ id, nome, tom, marca = {}, processo = {}, ativo = true }) => {
@@ -54,6 +56,36 @@ export function criarOperacoesInteligencia({ supabase = obterSupabaseWeb(), area
       }).eq("organization_id", ctx.organizationId).eq("id", id).select("*"));
       if (!rows[0]) throw new Error("Assistente não encontrado ou sem permissão para editar.");
       return rows[0];
+    },
+
+    "inteligencia.configurarRollout": async ({ profileId, mode, contactIds = [] }) => {
+      await contexto();
+      const { data, error } = await supabase.rpc("customer_assistant_rollout_update", {
+        target_profile: profileId,
+        rollout_mode: mode,
+        selected_contacts: array(contactIds),
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    "inteligencia.listarAtendimentos": async () => {
+      const ctx = await contexto();
+      return executar(supabase.from("customer_handoff_requests")
+        .select("id,status,reason_code,summary,requested_at:created_at,accepted_at,completed_at,accepted_by,last_error_code,contact:contacts!customer_handoff_requests_contact_id_fkey(id,name,phone,whatsapp_id,company)")
+        .eq("organization_id", ctx.organizationId)
+        .order("requested_at", { ascending: false })
+        .limit(200));
+    },
+
+    "inteligencia.transicionarAtendimento": async ({ requestId, action }) => {
+      await contexto();
+      const { data, error } = await supabase.rpc("customer_handoff_transition", {
+        target_request: requestId,
+        requested_action: action,
+      });
+      if (error) throw error;
+      return data;
     },
 
     "inteligencia.salvarSkill": async ({ id = null, nome, descricao = "", audiencia = "customer", spec = {}, profileIds = [] }) => {

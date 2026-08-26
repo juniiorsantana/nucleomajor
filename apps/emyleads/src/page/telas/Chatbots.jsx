@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { AlertTriangle, Bot, BotOff, ChevronDown, ChevronRight, Copy, Pause, Pencil, Play, Plus, Power, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Bot, BotOff, Check, ChevronDown, ChevronRight, Copy, Headphones, Inbox, Pause, Pencil, Play, Plus, Power, RotateCcw, Trash2 } from "lucide-react";
 import { api } from "../../data/client";
+import { handoffGroup, maskPhone } from "../../domain/customerAssistant";
 import { fmtDataHora, fmtRelativo } from "../../lib/formato";
 import { useAutomacao } from "../../ui/useAutomacao";
 import { textoDoMotivo, useDiario } from "../../ui/useDiario";
@@ -135,9 +136,51 @@ function DiarioAutomacao({ diario, entradas }) {
   );
 }
 
-export default function Chatbots({ chatbots = [], recarregar, aoEditar }) {
+const HANDOFF_REASON = {
+  requested_human: "Cliente pediu uma pessoa",
+  low_confidence: "Baixa confiança",
+  sensitive_topic: "Assunto sensível",
+  commercial_exception: "Exceção comercial",
+  tool_unavailable: "Ferramenta indisponível",
+  skill_limit: "Limite da habilidade",
+};
+
+function HandoffQueue({ canManage, onError }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(null);
+  const load = async () => {
+    if (!canManage) return;
+    try { setItems(await api.inteligencia.listarAtendimentos()); }
+    catch (error) { onError(error?.message || "Não foi possível consultar a fila."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 8000);
+    return () => window.clearInterval(timer);
+  }, [canManage]);
+  const act = async (requestId, action) => {
+    setWorking(`${requestId}:${action}`); onError("");
+    try { await api.inteligencia.transicionarAtendimento({ requestId, action }); await load(); }
+    catch (error) { onError(error?.message || "Não foi possível atualizar o atendimento."); }
+    finally { setWorking(null); }
+  };
+  if (!canManage) return <EstadoVazio titulo="Fila restrita" descricao="Somente donos e administradores podem assumir atendimentos." />;
+  if (loading) return <div className="flex min-h-72 items-center justify-center text-[12px] text-sub">Carregando atendimentos…</div>;
+  const columns = [
+    ["waiting", "Aguardando atendimento", "Pedidos que precisam de uma pessoa"],
+    ["active", "Em atendimento", "Conversas assumidas pela equipe"],
+    ["finished", "Concluídos", "Histórico recente"],
+  ];
+  return <div className="grid gap-4 xl:grid-cols-3">{columns.map(([group, title, description]) => { const grouped = items.filter((item) => handoffGroup(item.status) === group); return <section key={group} className="min-w-0 rounded-[14px] border border-line bg-bg"><header className="flex items-start gap-3 border-b border-line px-4 py-3.5"><span className={`flex h-9 w-9 items-center justify-center rounded-[10px] ${group === "waiting" ? "bg-[#fff5e8] text-[#b56a15]" : group === "active" ? "bg-accent-soft text-accent-forte" : "bg-success-soft text-success"}`}>{group === "waiting" ? <Inbox size={17} /> : group === "active" ? <Headphones size={17} /> : <Check size={17} />}</span><div className="min-w-0"><h2 className="text-[12.5px] font-semibold">{title}</h2><p className="mt-0.5 text-[9.5px] text-sub">{description}</p></div><span className="ml-auto rounded-full bg-surface px-2 py-1 text-[9px] font-semibold text-sub">{grouped.length}</span></header><div className="grid gap-2 p-3">{grouped.length ? grouped.map((item) => { const contact = Array.isArray(item.contact) ? item.contact[0] : item.contact; const pending = working?.startsWith(`${item.id}:`) || ["completing", "returning"].includes(item.status); return <article key={item.id} className="rounded-[11px] border border-line bg-surface/50 p-3"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><strong className="block truncate text-[11.5px]">{contact?.name || "Contato do WhatsApp"}</strong><span className="mt-0.5 block text-[9.5px] text-sub">{contact?.company || maskPhone(contact?.phone || contact?.whatsapp_id)}</span></div><time className="text-[8.5px] text-faint">{fmtRelativo(item.requested_at)}</time></div><p className="mt-2 text-[9.5px] font-semibold text-sub">{HANDOFF_REASON[item.reason_code] || item.reason_code}</p>{item.summary && <p className="mt-1 line-clamp-3 text-[9.5px] leading-4 text-sub">{item.summary}</p>}{item.last_error_code && <p className="mt-2 text-[9px] text-danger">Falha temporária: {item.last_error_code}</p>}<div className="mt-3 flex flex-wrap gap-1.5">{item.status === "requested" && <button disabled={pending} onClick={() => act(item.id, "accept")} className="rounded-[8px] bg-accent px-3 py-1.5 text-[9.5px] font-semibold text-white disabled:opacity-40">Assumir</button>}{item.status === "accepted" && <><button disabled={pending} onClick={() => act(item.id, "complete")} className="rounded-[8px] bg-success px-3 py-1.5 text-[9.5px] font-semibold text-white disabled:opacity-40">Concluir</button><button disabled={pending} onClick={() => act(item.id, "return_to_ai")} className="inline-flex items-center gap-1 rounded-[8px] border border-line bg-bg px-3 py-1.5 text-[9.5px] font-semibold text-sub disabled:opacity-40"><RotateCcw size={11} />Devolver à IA</button></>}{pending && <span className="text-[9px] text-sub">Aplicando na VPS…</span>}</div></article>; }) : <p className="px-3 py-10 text-center text-[10px] text-faint">Nenhum atendimento nesta etapa.</p>}</div></section>; })}</div>;
+}
+
+export default function Chatbots({ chatbots = [], recarregar, aoEditar, sessao }) {
   const [busca, setBusca] = useState("");
   const [erro, setErro] = useState("");
+  const [view, setView] = useState("flows");
+  const canManage = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
   // Uma leitura só do diário, compartilhada pela lista e pelo painel de baixo.
   const { diario, entradas, porChatbot } = useDiario();
   const resumoPorBot = useMemo(
@@ -184,10 +227,12 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar }) {
     <>
       <CabecalhoTela
         titulo="Chatbots"
-        busca={<CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar chatbot" />}
-        acao={<BotaoPrimario onClick={() => aoEditar(null)}><Plus size={17} />Novo chatbot</BotaoPrimario>}
+        busca={view === "flows" ? <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar chatbot" /> : <span />}
+        acao={view === "flows" ? <BotaoPrimario onClick={() => aoEditar(null)}><Plus size={17} />Novo chatbot</BotaoPrimario> : <span />}
       />
       <div className="scrollbar-fina flex-1 overflow-y-auto px-8 py-6">
+        <nav className="mb-4 flex w-fit rounded-[10px] border border-line bg-bg p-1" aria-label="Áreas de chatbots"><button onClick={() => { setErro(""); setView("flows"); }} className={`rounded-[7px] px-3 py-2 text-[11px] font-semibold ${view === "flows" ? "bg-accent text-white" : "text-sub"}`}>Fluxos</button><button onClick={() => { setErro(""); setView("handoffs"); }} className={`inline-flex items-center gap-1.5 rounded-[7px] px-3 py-2 text-[11px] font-semibold ${view === "handoffs" ? "bg-accent text-white" : "text-sub"}`}><Headphones size={13} />Atendimentos</button></nav>
+        <div className={view === "flows" ? "" : "hidden"}>
         <AvisoAutomacao />
         {erro && <div className="mb-4 rounded-[10px] border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">{erro}</div>}
         {filtrados.length === 0 ? (
@@ -250,6 +295,8 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar }) {
           </div>
         )}
         <DiarioAutomacao diario={diario} entradas={entradas} />
+        </div>
+        {view === "handoffs" && <HandoffQueue canManage={canManage} onError={setErro} />}
       </div>
     </>
   );

@@ -124,6 +124,26 @@ let membrosDev = [
 ];
 let convitesDev = [];
 
+const customerProfileId = "dev-assistente-clientes";
+let intelligenceDev = {
+  profiles: [
+    { id: "dev-assistente-interno", audience: "internal", display_name: "Assistente interno", tone: "Claro e organizado", brand_config: { brandName: "Núcleo Major", greeting: "Olá! O que vamos fazer agora?" }, process_config: { instructions: "Ajude cada profissional conforme suas permissões." }, active: true },
+    { id: customerProfileId, audience: "customer", display_name: "Assistente Major", tone: "Natural e profissional", brand_config: { brandName: "Assistente Major", greeting: "Olá! Como posso ajudar você hoje?" }, process_config: { instructions: "Entenda a necessidade antes de orientar.", rollout: { mode: "pilot" } }, active: true },
+  ],
+  skills: ["Recepção", "Pré-qualificação", "Vendas", "Suporte", "Agenda"].map((name, index) => ({ id: `dev-skill-${index}`, name, description: `Habilidade oficial de ${name.toLocaleLowerCase("pt-BR")}.`, owner_type: "platform", audience: index === 4 ? "both" : "customer", current_version: 1, status: "published", spec: {} })),
+  contacts: [
+    { id: "dev-contato-piloto", name: "Mariana Costa", company: "Empresa Piloto", phone: "556599887766", whatsapp_id: "" },
+    { id: "dev-contato-segundo", name: "Rafael Lima", company: "Cliente real", phone: "556598765432", whatsapp_id: "" },
+  ],
+  pilotContacts: [{ organization_id: "dev-org", profile_id: customerProfileId, contact_id: "dev-contato-piloto", active: true }],
+  handoffs: [
+    { id: "dev-handoff-1", status: "requested", reason_code: "requested_human", summary: "Cliente quer conversar sobre condições comerciais.", requested_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(), contact: { name: "Mariana Costa", company: "Empresa Piloto", phone: "556599887766" } },
+    { id: "dev-handoff-2", status: "accepted", reason_code: "low_confidence", summary: "Necessidade precisa de validação da equipe.", requested_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(), contact: { name: "Paulo Mendes", phone: "556597771234" } },
+    { id: "dev-handoff-3", status: "completed", reason_code: "skill_limit", summary: "Atendimento concluído pela equipe.", requested_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), contact: { name: "Carla Souza", phone: "556596661111" } },
+  ],
+};
+const intelligenceBindings = intelligenceDev.skills.map((skill, index) => ({ organization_id: "dev-org", profile_id: customerProfileId, skill_id: skill.id, enabled: true, priority: index * 10 + 10 }));
+
 const agendaDev = [
   {
     id: "dev-evento-equipe",
@@ -305,6 +325,28 @@ const operacoesBancada = {
     revoked_at: null,
   }],
   "organizacoes.revogarRobo": async ({ conexaoId }) => ({ conexaoId, revogado: true }),
+  "inteligencia.carregar": async () => ({
+    templates: [], profiles: intelligenceDev.profiles, skills: intelligenceDev.skills,
+    skillVersions: [], bindings: intelligenceBindings, collections: [], documentCollections: [],
+    campaigns: [], sources: [], campaignSkills: [], campaignCollections: [], simulations: [], audit: [],
+    pilotContacts: intelligenceDev.pilotContacts, contacts: intelligenceDev.contacts,
+  }),
+  "inteligencia.salvarPerfil": async ({ id, nome, tom, marca, processo, ativo }) => {
+    intelligenceDev.profiles = intelligenceDev.profiles.map((profile) => profile.id === id ? { ...profile, display_name: nome, tone: tom, brand_config: marca, process_config: processo, active: ativo } : profile);
+    return intelligenceDev.profiles.find((profile) => profile.id === id);
+  },
+  "inteligencia.configurarRollout": async ({ profileId, mode, contactIds }) => {
+    intelligenceDev.profiles = intelligenceDev.profiles.map((profile) => profile.id === profileId ? { ...profile, process_config: { ...profile.process_config, rollout: { mode } } } : profile);
+    intelligenceDev.pilotContacts = (contactIds || []).map((contactId) => ({ organization_id: "dev-org", profile_id: profileId, contact_id: contactId, active: true }));
+    return { status: "updated", mode, pilotContacts: intelligenceDev.pilotContacts.length };
+  },
+  "inteligencia.listarAtendimentos": async () => intelligenceDev.handoffs,
+  "inteligencia.transicionarAtendimento": async ({ requestId, action }) => {
+    const status = action === "accept" ? "accepted" : action === "complete" ? "completed" : "returned";
+    intelligenceDev.handoffs = intelligenceDev.handoffs.map((item) => item.id === requestId ? { ...item, status } : item);
+    return { status, requestId };
+  },
+  "inteligencia.simular": async () => ({ assistente: { nome: "Assistente Major" }, skillAtivo: { nome: "Recepção" }, campanha: { nome: "Piloto Atendimento Major" }, colecoesPermitidas: [], skillsPermitidos: [] }),
   "agenda.permissao": async () => ({ organizationId: "dev-org", userId: "dev-user", papel: "owner" }),
   "agenda.calendario": async () => ({ organization_id: "dev-org", provider: "google", calendar_id: null, display_name: "Agenda compartilhada", enabled: false }),
   "agenda.contexto": async () => ({

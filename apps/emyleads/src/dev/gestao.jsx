@@ -19,7 +19,8 @@ await semearSePreciso();
 // saber de qual empresa são. Renderizar sem ela testaria uma tela que não
 // existe em produção.
 const sessao = await api.auth.estado();
+const telaInicial = new URLSearchParams(window.location.search).get("tela") || null;
 
 createRoot(document.getElementById("raiz")).render(
-  <Gestao sessao={sessao} atualizarSessao={async () => sessao} />
+  <Gestao sessao={sessao} atualizarSessao={async () => sessao} telaInicial={telaInicial} />
 );

@@ -437,7 +437,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           </Suspense>
         ) : tela === "chatbots" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando chatbots…</div>}>
-            <Chatbots chatbots={dados.chatbots} recarregar={carregar} aoEditar={setChatbotEditando} />
+            <Chatbots chatbots={dados.chatbots} recarregar={carregar} aoEditar={setChatbotEditando} sessao={sessao} />
           </Suspense>
         ) : tela === "conexoes" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conexões…</div>}>
