@@ -252,14 +252,27 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       const organizacao = atual?.organizacaoAtual?.id;
       if (!organizacao) throw new Error("Nenhuma empresa selecionada.");
       if (!connectionId || !usuarioId) throw new Error("Selecione a conexão e o profissional.");
-      const { data, error } = await supabase.rpc("whatsapp_operator_verification_begin", {
+      const { data, error } = await supabase.rpc("whatsapp_operator_verification_enqueue", {
         target_organization: organizacao,
         target_connection: connectionId,
         target_user: usuarioId,
         target_phone: String(telefone || "").trim(),
       });
       if (error) throw erroDaResposta(error, "operador-verificacao-inicio-falhou");
-      return Array.isArray(data) ? data[0] || null : data;
+      return data || null;
+    },
+
+    "organizacoes.statusVerificacaoOperador": async ({ comandoId } = {}) => {
+      const atual = await estado();
+      const organizacao = atual?.organizacaoAtual?.id;
+      if (!organizacao) throw new Error("Nenhuma empresa selecionada.");
+      if (!comandoId) throw new Error("Comando de verificação ausente.");
+      const { data, error } = await supabase.rpc("whatsapp_operator_verification_command_status", {
+        target_organization: organizacao,
+        target_command: comandoId,
+      });
+      if (error) throw erroDaResposta(error, "operador-verificacao-status-falhou");
+      return data || null;
     },
 
     "organizacoes.revogarOperador": async ({ operadorId } = {}) => {

@@ -176,6 +176,37 @@ describe("operações de autenticação", () => {
     });
   });
 
+  it("enfileira o código do operador sem devolver telefone ou código ao navegador", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({
+      sessao,
+      membros: [
+        { role: "owner", status: "active", organization: { id: "org-1", name: "Acme", slug: "acme" } },
+      ],
+    });
+    deps.supabase.rpc.mockResolvedValueOnce({
+      data: { command_id: "command-1", status: "pending", expires_at: "2026-08-26T12:00:00Z" },
+      error: null,
+    });
+    const operacoes = criarOperacoesAuth(deps);
+
+    const resultado = await operacoes["organizacoes.iniciarVerificacaoOperador"]({
+      connectionId: "connection-1",
+      usuarioId: "user-2",
+      telefone: "5566999640274",
+    });
+
+    expect(deps.supabase.rpc).toHaveBeenCalledWith("whatsapp_operator_verification_enqueue", {
+      target_organization: "org-1",
+      target_connection: "connection-1",
+      target_user: "user-2",
+      target_phone: "5566999640274",
+    });
+    expect(resultado).toEqual(expect.objectContaining({ command_id: "command-1", status: "pending" }));
+    expect(resultado).not.toHaveProperty("verification_code");
+    expect(resultado).not.toHaveProperty("target_phone_e164");
+  });
+
   it("envia convites pelo portal autenticado, sem devolver token ao navegador", async () => {
     const sessao = {
       access_token: "jwt-do-administrador",

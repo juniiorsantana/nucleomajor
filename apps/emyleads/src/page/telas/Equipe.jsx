@@ -126,6 +126,7 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
   const [ocupado, setOcupado] = useState("");
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+  const [modoEnvio, setModoEnvio] = useState("");
 
   const carregarConexoes = useCallback(async () => {
     setCarregando(true);
@@ -135,8 +136,9 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
       const lista = (resultado?.conexoes || []).filter((item) => item?.connectionId);
       setConexoes(lista);
       setConexaoId((atual) => (lista.some((item) => item.connectionId === atual) ? atual : lista[0]?.connectionId || ""));
-      if (resultado?.gateway !== "online") {
-        setErro("Conecte esta máquina ao serviço local para enviar os códigos pelo WhatsApp principal.");
+      setModoEnvio(resultado?.gateway || "");
+      if (!["online", "cloud"].includes(resultado?.gateway)) {
+        setErro("A VPS não está disponível para enviar códigos agora. Aguarde o sinal do runtime e tente novamente.");
       }
     } catch (e) {
       setConexoes([]);
@@ -191,6 +193,17 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
     return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
   }, [organizacaoId, carregarOperadores]);
 
+  const aguardarEnvio = async (comandoId) => {
+    for (let tentativa = 0; tentativa < 10; tentativa += 1) {
+      if (tentativa > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      }
+      const status = await api.organizacoes.statusVerificacaoOperador({ comandoId });
+      if (["completed", "failed", "expired"].includes(status?.status)) return status;
+    }
+    return { status: "pending" };
+  };
+
   const iniciar = async (membro) => {
     const codigoPais = paises[membro.user_id] || "BR";
     const telefone = telefoneOperadorE164(telefones[membro.user_id], codigoPais);
@@ -204,21 +217,24 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
         usuarioId: membro.user_id,
         telefone,
       });
-      if (!desafio?.target_phone_e164 || !desafio?.verification_code) {
-        throw new Error("O Supabase não devolveu um desafio de verificação válido.");
+      if (!desafio?.command_id) {
+        throw new Error("O Supabase não criou a solicitação de verificação.");
       }
-      await api.gateway.enviarCodigoOperador({
-        organizationId: organizacaoId,
-        connectionId: conexaoId,
-        recipient: desafio.target_phone_e164,
-        code: desafio.verification_code,
-      });
+      const resultado = await aguardarEnvio(desafio.command_id);
+      if (resultado?.status === "failed") {
+        throw new Error("A VPS não conseguiu enviar o código pelo WhatsApp principal. Verifique a conexão e tente novamente.");
+      }
+      if (resultado?.status === "expired") {
+        throw new Error("A solicitação expirou antes do envio. Tente gerar um novo código.");
+      }
       setTelefones((atual) => ({ ...atual, [membro.user_id]: "" }));
       setAguardandoVerificacao((atual) => ({
         ...atual,
         [membro.user_id]: Date.now() + 10 * 60 * 1000,
       }));
-      setAviso(`Código enviado para ${membro.profile?.full_name || "o profissional"}. Ele deve responder pelo próprio WhatsApp ao número principal.`);
+      setAviso(resultado?.status === "completed"
+        ? `Código enviado para ${membro.profile?.full_name || "o profissional"}. Ele deve responder pelo próprio WhatsApp ao número principal.`
+        : `Solicitação entregue à VPS para ${membro.profile?.full_name || "o profissional"}. O painel atualizará quando o código for enviado.`);
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -255,6 +271,9 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
           <p className="mt-1 max-w-[700px] text-[12px] text-sub">
             O número principal continua sendo o único que responde. Cada pessoa usa o próprio número apenas como identidade autorizada.
           </p>
+          {modoEnvio === "cloud" && (
+            <p className="mt-1 text-[11.5px] font-medium text-success">Envio protegido pela VPS Núcleo Major</p>
+          )}
         </div>
         {conexoes.length > 0 && (
           <label className="min-w-[210px]">
@@ -351,7 +370,11 @@ function OperadoresWhatsApp({ organizacaoId, membros }) {
                     />
                     <button
                       type="button"
-                      disabled={ocupado === membro.user_id || !telefoneOperadorE164(telefones[membro.user_id], paises[membro.user_id] || "BR")}
+                      disabled={
+                        !["online", "cloud"].includes(modoEnvio)
+                        || ocupado === membro.user_id
+                        || !telefoneOperadorE164(telefones[membro.user_id], paises[membro.user_id] || "BR")
+                      }
                       onClick={() => iniciar(membro)}
                       className="inline-flex items-center gap-1.5 rounded-[8px] bg-accent px-2.5 py-2 text-[11.5px] font-semibold text-white hover:bg-accent-forte disabled:opacity-50"
                     >

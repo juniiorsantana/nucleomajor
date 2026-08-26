@@ -5,6 +5,7 @@ import unittest
 ROOT = Path(__file__).parent / "migrations"
 CONTROL = (ROOT / "20260825120000_vps_runtime_control_plane.sql").read_text(encoding="utf-8").casefold()
 CHATBOT = (ROOT / "20260825130000_vps_chatbot_executor.sql").read_text(encoding="utf-8").casefold()
+COMMANDS = (ROOT / "20260826010000_vps_operator_verification_commands.sql").read_text(encoding="utf-8").casefold()
 
 
 class VpsRuntimeMigrationTests(unittest.TestCase):
@@ -29,7 +30,21 @@ class VpsRuntimeMigrationTests(unittest.TestCase):
         self.assertIn("chatbot definition changed before execution", CHATBOT)
 
     def test_migrations_avoid_the_previous_postgres_namespace_regression(self):
-        self.assertNotIn("pg_catalog.coalesce", CONTROL + CHATBOT)
+        self.assertNotIn("pg_catalog.coalesce", CONTROL + CHATBOT + COMMANDS)
+
+    def test_operator_command_keeps_code_out_of_the_browser(self):
+        self.assertIn("whatsapp_operator_verification_enqueue", COMMANDS)
+        self.assertIn("nucleo_runtime_commands_claim", COMMANDS)
+        self.assertIn("private.robot_organization()", COMMANDS)
+        self.assertIn("for update skip locked", COMMANDS)
+        self.assertIn("private_payload = '{}'::jsonb", COMMANDS)
+        self.assertNotIn("grant select on public.connection_runtime_commands", COMMANDS)
+
+        enqueue_return = COMMANDS.split(
+            "return jsonb_build_object(\n    'command_id'", 1
+        )[1].split("end;", 1)[0]
+        self.assertNotIn("verification_code", enqueue_return)
+        self.assertNotIn("target_phone_e164", enqueue_return)
 
 
 if __name__ == "__main__":
