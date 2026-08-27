@@ -8,6 +8,7 @@ import {
   Database,
   Mail,
   MapPin,
+  MoveRight,
   Phone,
   Plus,
   Trash2,
@@ -264,48 +265,19 @@ export function CartaoPerfil({
 /* Funil                                                               */
 /* ------------------------------------------------------------------ */
 
-/** Trilha em setas. O estágio atual ganha mais espaço para o nome caber. */
-function Setas({ estagios, atual }) {
-  const i = estagios.findIndex((e) => e.id === atual);
-
-  return (
-    <div className="flex px-3 pb-3">
-      {estagios.map((e, k) => {
-        const ativo = k === i;
-        const passado = k < i;
-        const recorte =
-          k === 0
-            ? "polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%)"
-            : "polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%, 7px 50%)";
-
-        return (
-          <div
-            key={e.id}
-            title={e.nome}
-            className={`flex h-[22px] min-w-0 items-center justify-center text-[9.5px] font-semibold ${
-              ativo
-                ? "bg-accent text-white"
-                : passado
-                  ? "bg-accent-soft text-accent-forte"
-                  : "bg-surface-hover text-faint"
-            }`}
-            style={{
-              flex: ativo ? 2 : 1,
-              clipPath: recorte,
-              marginLeft: k === 0 ? 0 : -5,
-              borderTopLeftRadius: k === 0 ? 4 : 0,
-              borderBottomLeftRadius: k === 0 ? 4 : 0,
-            }}
-          >
-            <span className="truncate px-1.5">{e.nome}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export function CartaoFunil({ negocios, estagios, contactId, recarregar }) {
+/**
+ * Faixa de progresso no lugar da trilha em setas.
+ *
+ * Seis estágios em ~356px davam ~56px cada, e o `truncate` cortava tudo em
+ * "Negoci…", "Novo l…", "Qualifi…" - seis rótulos ilegíveis para dizer uma
+ * posição. Aqui a posição vira barra, e o nome que sobra é o que importa: onde
+ * está e para onde vai.
+ *
+ * Depende de `estagios` chegar na ordem certa. Ver o comentário em Painel.jsx:
+ * na extensão a lista vem do IndexedDB em ordem de chave, e ordenar é do
+ * chamador.
+ */
+export function FaixaFunil({ negocios, estagios, contactId, recarregar }) {
   const aberto = negocios.find((n) => n.status === "aberto") || negocios[0] || null;
 
   const criar = async () => {
@@ -317,23 +289,33 @@ export function CartaoFunil({ negocios, estagios, contactId, recarregar }) {
     await recarregar();
   };
 
+  const Moldura = ({ children }) => (
+    <section className="overflow-hidden rounded-el-lg border border-line bg-bg">
+      <div className="px-3 pb-1 pt-2.5 text-[9.5px] font-bold uppercase tracking-[0.07em] text-sub">
+        Funil de vendas
+      </div>
+      {children}
+    </section>
+  );
+
   if (!aberto) {
     return (
-      <Cartao titulo="Funil de vendas">
-        <div className="flex items-center gap-2 px-3 pb-3 pt-1">
-          <span className="flex-1 text-[11.5px] text-faint">
-            Nenhum negócio registrado
-          </span>
-          <button
-            onClick={criar}
-            className="flex cursor-pointer items-center gap-1 rounded-el border border-line px-2 py-1 text-[11.5px] font-medium text-accent-forte transition-colors hover:border-accent"
-          >
-            <Plus size={12} /> Negócio
-          </button>
-        </div>
-      </Cartao>
+      <Moldura>
+      <div className="flex items-center gap-2 px-3 pb-2.5 pt-1">
+        <span className="flex-1 text-[11px] text-faint">Nenhum negócio registrado</span>
+        <button
+          onClick={criar}
+          className="flex cursor-pointer items-center gap-1 rounded-el border border-line px-2 py-1 text-[11px] font-medium text-accent-forte transition-colors hover:border-accent"
+        >
+          <Plus size={12} /> Negócio
+        </button>
+      </div>
+      </Moldura>
     );
   }
+
+  const indice = estagios.findIndex((e) => e.id === aberto.stageId);
+  const proximo = indice >= 0 ? estagios[indice + 1] : null;
 
   const mover = async (stageId) => {
     await api.negocios.atualizar({ id: aberto.id, patch: { stageId } });
@@ -341,15 +323,19 @@ export function CartaoFunil({ negocios, estagios, contactId, recarregar }) {
   };
 
   return (
-    <Cartao
-      titulo="Funil de vendas"
-      acao={
-        <div className="relative">
+    <Moldura>
+    <div className="px-3 pb-2.5 pt-1">
+      <div className="flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-sub">{aberto.titulo}</span>
+        {aberto.valor != null && (
+          <span className="flex-none text-[11.5px] font-semibold text-fg">{fmtMoeda(aberto.valor)}</span>
+        )}
+        <div className="relative flex-none">
           <select
             value={aberto.stageId}
             onChange={(e) => mover(e.target.value)}
             title="Mover de estágio"
-            className="cursor-pointer appearance-none rounded-full bg-accent-soft py-[3px] pl-2.5 pr-6 text-[11px] font-semibold text-accent-forte outline-none"
+            className="cursor-pointer appearance-none rounded-full bg-accent-soft py-[3px] pl-2.5 pr-6 text-[10.5px] font-semibold text-accent-forte outline-none"
           >
             {estagios.map((e) => (
               <option key={e.id} value={e.id}>
@@ -357,219 +343,36 @@ export function CartaoFunil({ negocios, estagios, contactId, recarregar }) {
               </option>
             ))}
           </select>
-          <ChevronDown
-            size={12}
-            className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-forte"
-          />
+          <ChevronDown size={11} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-accent-forte" />
         </div>
-      }
-    >
-      <div className="flex items-baseline gap-2 px-3 pb-1.5 pt-0.5">
-        <span className="min-w-0 flex-1 truncate text-[12px] text-sub">
-          {aberto.titulo}
-        </span>
-        {aberto.valor != null && (
-          <span className="flex-none text-[12.5px] font-semibold text-fg">
-            {fmtMoeda(aberto.valor)}
-          </span>
-        )}
       </div>
-      <Setas estagios={estagios} atual={aberto.stageId} />
-    </Cartao>
-  );
-}
 
-/* ------------------------------------------------------------------ */
-/* Tarefas                                                             */
-/* ------------------------------------------------------------------ */
-
-export function CartaoTarefas({ tarefas, recarregar, aoNova }) {
-  const abertas = tarefas.filter((t) => !t.concluida).length;
-
-  const alternar = async (t) => {
-    await api.tarefas.concluir({ id: t.id, concluida: !t.concluida });
-    await recarregar();
-  };
-
-  const ordenadas = [...tarefas].sort(
-    (a, b) => a.concluida - b.concluida || (a.venceEm ?? Infinity) - (b.venceEm ?? Infinity)
-  );
-
-  return (
-    <Cartao
-      titulo="Tarefas"
-      acao={
-        <>
-          {abertas > 0 && <Pilula>{abertas}</Pilula>}
-          <button
-            onClick={aoNova}
-            title="Nova tarefa"
-            className="cursor-pointer rounded-el p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
-          >
-            <Plus size={14} />
-          </button>
-        </>
-      }
-    >
-      {ordenadas.length === 0 ? (
-        <p className="px-3 pb-2.5 pt-0.5 text-[11.5px] text-faint">
-          Nenhuma tarefa.
-        </p>
-      ) : (
-        <div className="pb-2">
-          {ordenadas.map((t) => {
-            const venc = fmtVencimento(t.venceEm);
-            return (
-              <button
-                key={t.id}
-                onClick={() => alternar(t)}
-                title={t.concluida ? "Reabrir" : "Concluir"}
-                className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-[5px] text-left transition-colors hover:bg-surface-hover"
-              >
-                <span
-                  className={`flex h-4 w-4 flex-none items-center justify-center rounded-full border ${
-                    t.concluida
-                      ? "border-accent bg-accent text-white"
-                      : "border-line-strong"
-                  }`}
-                >
-                  {t.concluida && <Check size={10} strokeWidth={3} />}
-                </span>
-                <span
-                  className={`min-w-0 flex-1 truncate text-[12.5px] ${
-                    t.concluida ? "text-faint line-through" : "text-fg"
-                  }`}
-                >
-                  {t.titulo}
-                </span>
-                <span
-                  className={`flex-none text-[11px] ${t.concluida ? "text-faint" : TONS[venc.tom]}`}
-                >
-                  {t.concluida ? "Concluída" : venc.texto}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </Cartao>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Notas                                                               */
-/* ------------------------------------------------------------------ */
-
-export function CartaoNotas({ notas, recarregar, aoNova }) {
-  const remover = async (id) => {
-    if (!confirm("Excluir esta nota?")) return;
-    await api.notas.remover({ id });
-    await recarregar();
-  };
-
-  return (
-    <Cartao
-      titulo="Notas"
-      acao={
-        <button
-          onClick={aoNova}
-          title="Nova nota"
-          className="cursor-pointer rounded-el p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
-        >
-          <Plus size={14} />
-        </button>
-      }
-    >
-      {notas.length === 0 ? (
-        <p className="px-3 pb-2.5 pt-0.5 text-[11.5px] text-faint">
-          Nenhuma nota.
-        </p>
-      ) : (
-        <div className="pb-2">
-          {notas.map((n) => (
-            <div key={n.id} className="group px-3 py-1.5">
-              <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-fg">
-                {n.texto}
-              </p>
-              <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-faint">
-                <span>
-                  {n.autor ? `${n.autor} · ` : ""}
-                  {fmtDataHora(n.criadoEm)}
-                </span>
-                <button
-                  onClick={() => remover(n.id)}
-                  title="Excluir nota"
-                  className="ml-auto cursor-pointer opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Cartao>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Negócios (histórico)                                                */
-/* ------------------------------------------------------------------ */
-
-export function CartaoNegocios({ negocios, estagios, recarregar }) {
-  if (negocios.length <= 1) return null;
-
-  const marcar = async (id, status) => {
-    await api.negocios.atualizar({ id, patch: { status } });
-    await recarregar();
-  };
-
-  return (
-    <Cartao titulo="Todos os negócios">
-      <div className="pb-2">
-        {negocios.map((n) => (
-          <div key={n.id} className="px-3 py-1.5">
-            <div className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-fg">
-                {n.titulo}
-              </span>
-              {n.valor != null && (
-                <span className="text-[12px] font-semibold text-fg">
-                  {fmtMoeda(n.valor)}
-                </span>
-              )}
-            </div>
-            <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-faint">
-              <span>{estagios.find((e) => e.id === n.stageId)?.nome}</span>
-              <span>·</span>
-              <span>{fmtData(n.criadoEm)}</span>
-              {n.status === "aberto" && (
-                <span className="ml-auto flex gap-1.5">
-                  <button
-                    onClick={() => marcar(n.id, "ganho")}
-                    className="cursor-pointer text-accent-forte hover:underline"
-                  >
-                    ganho
-                  </button>
-                  <button
-                    onClick={() => marcar(n.id, "perdido")}
-                    className="cursor-pointer text-danger hover:underline"
-                  >
-                    perdido
-                  </button>
-                </span>
-              )}
-              {n.status !== "aberto" && (
-                <span
-                  className={`ml-auto font-medium ${n.status === "ganho" ? "text-accent-forte" : "text-danger"}`}
-                >
-                  {n.status}
-                </span>
-              )}
-            </div>
-          </div>
+      <div className="mt-2 flex gap-[3px]">
+        {estagios.map((e, k) => (
+          <span
+            key={e.id}
+            title={e.nome}
+            className={`h-[5px] flex-1 rounded-full ${k <= indice ? "bg-accent" : "bg-surface-hover"}`}
+          />
         ))}
       </div>
-    </Cartao>
+
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-[10px] text-faint">
+          {indice + 1} de {estagios.length}
+          {proximo && <> · próximo: <strong className="font-semibold text-sub">{proximo.nome}</strong></>}
+        </span>
+        {proximo && (
+          <button
+            type="button"
+            onClick={() => mover(proximo.id)}
+            className="flex flex-none cursor-pointer items-center gap-1 text-[10.5px] font-semibold text-accent-forte hover:underline"
+          >
+            Avançar <MoveRight size={11} strokeWidth={2.4} />
+          </button>
+        )}
+      </div>
+    </div>
+    </Moldura>
   );
 }

@@ -72,8 +72,8 @@ function Moldura({ titulo, children, aoFechar, aoSalvar, podeSalvar }) {
   );
 }
 
-function NovaTarefa({ contactId, aoFechar, recarregar }) {
-  const [titulo, setTitulo] = useState("");
+function NovaTarefa({ contactId, textoInicial = "", aoFechar, recarregar }) {
+  const [titulo, setTitulo] = useState(textoInicial);
   const [prazo, setPrazo] = useState("amanha");
 
   const salvar = async () => {
@@ -120,8 +120,8 @@ function NovaTarefa({ contactId, aoFechar, recarregar }) {
   );
 }
 
-function NovaNota({ contactId, aoFechar, recarregar }) {
-  const [texto, setTexto] = useState("");
+function NovaNota({ contactId, textoInicial = "", aoFechar, recarregar }) {
+  const [texto, setTexto] = useState(textoInicial);
 
   const salvar = async () => {
     await api.notas.criar({ contactId, texto: texto.trim() });
@@ -148,8 +148,8 @@ function NovaNota({ contactId, aoFechar, recarregar }) {
   );
 }
 
-function NovoNegocio({ contactId, estagios, aoFechar, recarregar }) {
-  const [titulo, setTitulo] = useState("");
+function NovoNegocio({ contactId, estagios, textoInicial = "", aoFechar, recarregar }) {
+  const [titulo, setTitulo] = useState(textoInicial);
   const [valor, setValor] = useState("");
 
   const salvar = async () => {
@@ -189,37 +189,14 @@ function NovoNegocio({ contactId, estagios, aoFechar, recarregar }) {
 }
 
 /** Formulário aberto, ancorado no rodapé do painel. */
-export function Formularios({ qual, contactId, estagios, aoFechar, recarregar }) {
+export function Formularios({ qual, contactId, estagios, textoInicial = "", aoFechar, recarregar }) {
   if (!qual) return null;
-  const props = { contactId, estagios, aoFechar, recarregar };
+  // `textoInicial` existe para o campo único do painel: quem começou a
+  // escrever ali e percebeu que precisa de prazo, valor ou estágio abre o
+  // formulário completo sem perder o que já digitou.
+  const props = { contactId, estagios, textoInicial, aoFechar, recarregar };
   if (qual === "tarefa") return <NovaTarefa {...props} />;
   if (qual === "nota") return <NovaNota {...props} />;
   if (qual === "negocio") return <NovoNegocio {...props} />;
   return null;
-}
-
-/** Cartão de atalhos, no fim da pilha. */
-export function CartaoAcoes({ aoAbrir }) {
-  const acoes = [
-    { id: "tarefa", rotulo: "Tarefa", icone: CalendarPlus },
-    { id: "negocio", rotulo: "Negócio", icone: DollarSign },
-    { id: "nota", rotulo: "Nota", icone: StickyNote },
-  ];
-
-  return (
-    <Cartao titulo="Ações rápidas">
-      <div className="flex gap-1.5 px-3 pb-3 pt-1">
-        {acoes.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => aoAbrir(a.id)}
-            className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-el border border-line py-1.5 text-[11.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
-          >
-            <a.icone size={13} strokeWidth={1.75} />
-            {a.rotulo}
-          </button>
-        ))}
-      </div>
-    </Cartao>
-  );
 }

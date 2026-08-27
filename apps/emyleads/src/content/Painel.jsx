@@ -1,18 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelRightClose, UserRoundPlus } from "lucide-react";
 import { api } from "../data/client";
 import { formatPhone } from "../lib/phone";
 import { Botao, Entrada, Esqueleto, Vazio } from "../ui/componentes";
 import { fotoDaConversa, fotoPersistivelDaConversa } from "../wa/conversa";
 import { achar, SELETORES } from "../wa/seletores";
-import { CartaoAcoes, Formularios } from "./acoes";
-import {
-  CartaoFunil,
-  CartaoNegocios,
-  CartaoNotas,
-  CartaoPerfil,
-  CartaoTarefas,
-} from "./cartoes";
+import { Formularios } from "./acoes";
+import { CartaoPerfil, FaixaFunil } from "./cartoes";
+import { LinhaDoTempo, montarLinhaDoTempo, Registrador } from "./registro";
 import { FaixaAutomacao } from "./FaixaAutomacao";
 import { FaixaSugestao } from "./FaixaSugestao";
 import ImportarWhatsApp from "./ImportarWhatsApp";
@@ -29,16 +24,22 @@ const VIGIA_MS = 500;
 /**
  * O painel de contexto — a peça central do EmyLeads.
  *
- * A ficha é uma PILHA DE CARTÕES numa rolagem só, e não abas: num CRM, clicar
- * para descobrir em que pé está o contato é justamente o trabalho que a ficha
- * deveria eliminar. Custa rolagem vertical; em troca, nada fica escondido.
+ * Uma rolagem só, e não abas: num CRM, clicar para descobrir em que pé está o
+ * contato é justamente o trabalho que o painel deveria eliminar. Custa rolagem
+ * vertical; em troca, nada fica escondido.
  *
- * Ordem: quem é (contato) · em que pé está (funil) · como está classificado
- * (tags) · o que fazer (tarefas) · o que foi dito (notas) · atalhos.
+ * Ordem: quem é (contato) · em que pé está (funil) · o que ficou desta
+ * conversa (o campo único) · o que já aconteceu (linha do tempo).
  *
- * ESPAÇO RESERVADO: a faixa de controle do bot entra logo abaixo da barra do
- * topo, acima da pilha — ao abrir uma conversa, "o bot vai responder isso?" é
- * tão urgente quanto "quem é essa pessoa?".
+ * As três seções separadas — Tarefas, Notas, Negócios — viraram uma linha do
+ * tempo só, e os três "+" viraram um campo. Com o WhatsApp aberto do lado, a
+ * pergunta não é "o que está pendente" (essa é a da tela de gestão): é "o que
+ * ficou disso". Três caixas para responder isso gastavam seis cabeçalhos de
+ * cartão em 380px, e ainda repetiam as mesmas três ações no rodapé.
+ *
+ * A faixa de controle do bot fica logo abaixo da barra do topo — ao abrir uma
+ * conversa, "o bot vai responder isso?" é tão urgente quanto "quem é essa
+ * pessoa?".
  */
 
 function useEncolherWhatsApp(largura) {
@@ -168,6 +169,7 @@ export default function Painel() {
   const [tags, setTags] = useState([]);
   const [foto, setFoto] = useState(null);
   const [formulario, setFormulario] = useState(null);
+  const [rascunho, setRascunho] = useState("");
   const [tela, setTela] = useState("ficha"); // ficha | importar
 
   useEffect(() => {
@@ -175,7 +177,17 @@ export default function Painel() {
       .ler({ chave: CHAVE_RECOLHIDO })
       .then((v) => setRecolhido(!!v))
       .catch(() => setRecolhido(false));
-    api.estagios.listar().then(setEstagios).catch(() => {});
+    // Ordenar aqui não é capricho: na extensão `estagios.listar` cai no
+    // localProvider, que faz `db.todos` = IDBObjectStore.getAll() - e o
+    // IndexedDB devolve em ordem de CHAVE. Como os ids são slugs, a lista
+    // chegava alfabética (contato, fechado, negociacao, novo-lead...) e o
+    // painel exibia o funil fora de ordem, marcando "Fechado" como etapa já
+    // cumprida de um negócio em Proposta. O `estagios[0]` também virava o
+    // estágio padrão de toda oportunidade criada por aqui.
+    api.estagios
+      .listar()
+      .then((lista) => setEstagios([...lista].sort((a, b) => a.ordem - b.ordem)))
+      .catch(() => {});
     api.tags.listar().then(setTags).catch(() => {});
   }, []);
 
@@ -238,6 +250,13 @@ export default function Painel() {
   );
 
   useEncolherWhatsApp(recolhido === false ? LARGURA : 0);
+
+  // Recalcular a cada render custaria uma ordenação de tudo a cada tecla
+  // digitada no campo de registro, que fica logo acima da lista.
+  const linhaDoTempo = useMemo(
+    () => montarLinhaDoTempo(ficha, estagios),
+    [ficha, estagios],
+  );
 
   if (recolhido === null) return null;
 
@@ -362,35 +381,28 @@ export default function Painel() {
               tags={tags}
               recarregar={recarregar}
             />
-            <CartaoFunil
+            <FaixaFunil
               negocios={ficha.negocios}
               estagios={estagios}
               contactId={ficha.contato.id}
               recarregar={recarregar}
             />
-            <CartaoTarefas
-              tarefas={ficha.tarefas}
-              recarregar={recarregar}
-              aoNova={() => setFormulario("tarefa")}
-            />
-            <CartaoNotas
-              notas={ficha.notas}
-              recarregar={recarregar}
-              aoNova={() => setFormulario("nota")}
-            />
-            <CartaoNegocios
-              negocios={ficha.negocios}
+            <Registrador
+              contactId={ficha.contato.id}
               estagios={estagios}
               recarregar={recarregar}
+              aoDetalhar={(tipo, texto) => { setRascunho(texto); setFormulario(tipo); }}
             />
-            <CartaoAcoes aoAbrir={setFormulario} />
+            <LinhaDoTempo itens={linhaDoTempo} />
           </div>
 
           <Formularios
+            key={`${formulario}-${rascunho}`}
             qual={formulario}
             contactId={ficha.contato.id}
             estagios={estagios}
-            aoFechar={() => setFormulario(null)}
+            textoInicial={rascunho}
+            aoFechar={() => { setFormulario(null); setRascunho(""); }}
             recarregar={recarregar}
           />
         </>
