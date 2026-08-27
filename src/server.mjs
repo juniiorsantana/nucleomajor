@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildInviteEmail, inviteUrl, normalizeInviteId, normalizeInviteInput } from "./invite.mjs";
+import { FERRAMENTA_LER_DOCUMENTO, knowledgeContext, readKnowledgeDocument, searchKnowledge } from "./knowledgeSearch.mjs";
 import { createMailer, sendInviteEmail } from "./email.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -171,12 +172,11 @@ async function assistantContext({ organizationId, userId, token, membership, thr
   const now = new Date();
   const rangeEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const conversationHash = createHash("sha256").update(`web:${organizationId}:${userId}:${threadId}`).digest("hex");
-  const [documents, calendar, members, contacts, intelligence] = await Promise.all([
-    supabaseRequest(
-      `/rest/v1/knowledge_documents?select=scope_type,path,title,content_markdown&organization_id=eq.${encodeURIComponent(organizationId)}&deleted_at=is.null&status=eq.active&audience=eq.internal&order=updated_at.desc&limit=12`,
-      token,
-      { method: "GET" },
-    ).catch(() => []),
+  const [knowledge, calendar, members, contacts, intelligence] = await Promise.all([
+    // `null` no erro, e não `[]`: a diferença entre "a busca falhou" e "não há
+    // documento" é o que o assistente precisa para não afirmar que a empresa
+    // não escreveu nada sobre o assunto quando o Supabase é que não respondeu.
+    searchKnowledge({ callSupabase: supabaseRequest, token, organizationId, message }).catch(() => null),
     supabaseRequest("/rest/v1/rpc/calendar_events_list", token, {
       method: "POST",
       body: JSON.stringify({
@@ -208,12 +208,7 @@ async function assistantContext({ organizationId, userId, token, membership, thr
     userId,
     role: membership.role,
     responsibility: membership.responsibility || "",
-    documents: (documents || []).map((item) => ({
-      scope: item.scope_type,
-      path: item.path,
-      title: item.title,
-      content: String(item.content_markdown || "").slice(0, 1600),
-    })),
+    knowledge: knowledgeContext(knowledge),
     calendar: (calendar || []).slice(0, 60),
     members: (members || []).map((item) => ({
       id: item.user_id,
@@ -231,7 +226,7 @@ async function assistantContext({ organizationId, userId, token, membership, thr
   };
 }
 
-async function callAnthropic({ messages, context, organization }) {
+async function callAnthropic({ messages, context, organization, allowDocumentRead = true }) {
   if (!ANTHROPIC_API_KEY) {
     throw new HttpError(503, "Configure ANTHROPIC_API_KEY para ativar o assistente web.", "assistant-not-configured");
   }
@@ -255,13 +250,22 @@ async function callAnthropic({ messages, context, organization }) {
         "Para criar um compromisso, use obrigatoriamente a ferramenta propor_evento. A ferramenta apenas prepara a ação; o usuário confirmará na interface.",
         `Agora: ${new Date().toISOString()}. Fuso operacional: America/Sao_Paulo.`,
         `Contexto de inteligência autorizado: ${JSON.stringify(context.intelligence || {})}`,
-        `Conhecimento disponível: ${JSON.stringify(context.documents)}`,
+        "O conhecimento abaixo é o resultado de uma busca feita com a pergunta atual, não o acervo inteiro. Nunca conclua que algo não existe só porque não está aqui.",
+        allowDocumentRead
+          ? "Se o trecho não bastar, leia o documento inteiro com ler_documento antes de responder. Use apenas documentoId que apareça nos trechos."
+          : "Você já leu documentos nesta rodada e não pode ler mais. Responda com o que tem e diga o que ficou por confirmar.",
+        `Conhecimento encontrado para esta pergunta: ${JSON.stringify(context.knowledge)}`,
         `Agenda dos próximos 30 dias: ${JSON.stringify(context.calendar)}`,
         `Profissionais que podem ser usados como responsáveis ou participantes: ${JSON.stringify(context.members)}`,
         `Contatos recentes disponíveis para associação opcional: ${JSON.stringify(context.contacts)}`,
       ].join("\n\n"),
       messages,
-      tools: [{
+      tools: [
+        // Na última rodada a ferramenta sai da lista em vez de ser recusada
+        // depois: se ela continuasse ofertada, o modelo gastaria a resposta
+        // final pedindo mais uma leitura e o usuário receberia texto vazio.
+        ...(allowDocumentRead ? [FERRAMENTA_LER_DOCUMENTO] : []),
+        {
         name: "propor_evento",
         description: "Prepara um evento de agenda para confirmação explícita do usuário.",
         input_schema: {
@@ -287,6 +291,57 @@ async function callAnthropic({ messages, context, organization }) {
     throw new HttpError(502, "O assistente não respondeu agora. Tente novamente.", payload?.error?.type || "assistant-provider-failed");
   }
   return payload;
+}
+
+/**
+ * Quantas leituras de documento cabem em uma resposta.
+ *
+ * O teto existe porque a conversa cresce a cada rodada e a leitura devolve o
+ * documento inteiro: sem ele, um modelo indeciso encadearia leituras até
+ * estourar o contexto, com o usuário olhando para um "pensando…" que não
+ * termina.
+ */
+const MAXIMO_DE_LEITURAS = 2;
+
+/**
+ * Resposta do assistente, resolvendo as leituras de documento pelo caminho.
+ *
+ * `propor_evento` encerra o laço mesmo que venha junto com uma leitura: aquele
+ * fluxo termina em confirmação do usuário, não em outra rodada de modelo.
+ *
+ * `ask` é injetável para o laço ser testável sem falar com a Anthropic.
+ */
+export async function assistantCompletion({ organization, context, messages, readDocument, onRead, ask = callAnthropic }) {
+  const conversation = messages.map((item) => ({ role: item.role, content: item.content }));
+  for (let leituras = 0; ; leituras += 1) {
+    const allowDocumentRead = leituras < MAXIMO_DE_LEITURAS;
+    const completion = await ask({ messages: conversation, context, organization, allowDocumentRead });
+    const blocks = completion.content || [];
+    if (blocks.some((item) => item.type === "tool_use" && item.name === "propor_evento")) return completion;
+    const pedidos = blocks.filter((item) => item.type === "tool_use" && item.name === "ler_documento");
+    if (!pedidos.length || !allowDocumentRead) return completion;
+
+    conversation.push({ role: "assistant", content: blocks });
+    const resultados = [];
+    for (const pedido of pedidos) {
+      try {
+        const documento = await readDocument(pedido.input?.documentoId);
+        resultados.push({ type: "tool_result", tool_use_id: pedido.id, content: JSON.stringify(documento) });
+      } catch {
+        // O erro volta como resultado da ferramenta, não como exceção: o
+        // modelo precisa saber que aquele id não vale para parar de repeti-lo
+        // — e um documento inacessível não pode derrubar a conversa inteira.
+        resultados.push({
+          type: "tool_result",
+          tool_use_id: pedido.id,
+          is_error: true,
+          content: "Documento indisponível para este usuário. Responda com os trechos que já tem.",
+        });
+      }
+    }
+    conversation.push({ role: "user", content: resultados });
+    onRead?.(pedidos.length);
+  }
 }
 
 async function assistantApi(req, res, url, token, user) {
@@ -363,10 +418,14 @@ async function assistantApi(req, res, url, token, user) {
     };
     streamEvent("status", { message: "Consultando agenda e conhecimento…" });
     try {
-      const completion = await callAnthropic({
+      const completion = await assistantCompletion({
       organization,
       context,
       messages: (history || []).map((item) => ({ role: item.role, content: item.content })),
+      readDocument: (documentId) => readKnowledgeDocument({
+        callSupabase: supabaseRequest, token, organizationId: targetOrganization, documentId,
+      }),
+      onRead: () => streamEvent("status", { message: "Lendo o documento inteiro…" }),
       });
       streamEvent("status", { message: "Registrando a resposta com segurança…" });
       const textBlocks = (completion.content || []).filter((item) => item.type === "text");
