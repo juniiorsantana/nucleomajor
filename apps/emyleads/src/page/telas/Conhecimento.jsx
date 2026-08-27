@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Archive, BookOpen, Building2, Clock3, FileText, Plus, Save, Search, UsersRound, UserRound, X } from "lucide-react";
 import { api } from "../../data/client";
+import { colecaoAutomatica, colecoesExternasDisponiveis, exigeColecaoExterna, motivoParaNaoPublicar } from "./conhecimentoRegras";
 
 const scopes = [
   { id: "organization", label: "Organização", note: "Identidade e regras", icon: Building2 },
@@ -46,6 +47,24 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
 
   const counts = useMemo(() => Object.fromEntries(scopes.map((item) => [item.id, documents.filter((doc) => doc.escopo === item.id).length])), [documents]);
 
+  /**
+   * Marcar "Atendimento a clientes" NÃO basta para o cliente ler.
+   *
+   * `nucleo_contextual_knowledge_search` só encontra um documento externo se
+   * ele estiver numa `knowledge_collections` ativa e externa — e, se a coleção
+   * for de campanha, se houver o vínculo em `campaign_knowledge_collections`
+   * com a campanha daquele contexto. Sem coleção, o documento é publicado,
+   * aparece na lista, e a Recepção nunca o encontra: some sem erro nenhum.
+   *
+   * Por isso a coleção deixou de ser opcional quando o público é externo.
+   */
+  const colecoesExternas = useMemo(
+    () => colecoesExternasDisponiveis(intelligenceData?.collections),
+    [intelligenceData],
+  );
+  const exigeColecao = exigeColecaoExterna(draft);
+  const impedimento = motivoParaNaoPublicar(draft, intelligenceData?.collections);
+
   const open = (document) => {
     const colecoesIds = Array.isArray(document.colecoesIds)
       ? document.colecoesIds
@@ -56,6 +75,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
 
   const save = async () => {
     if (!draft?.titulo.trim() || !draft?.caminho.trim()) { setError("Informe o título e o caminho do documento."); return; }
+    if (impedimento) { setError(impedimento); return; }
     const path = draft.caminho.trim().endsWith(".md") ? draft.caminho.trim() : `${draft.caminho.trim()}.md`;
     setSaving(true); setError("");
     try {
@@ -127,11 +147,17 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
               <input value={draft.titulo} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, titulo: e.target.value })} placeholder="Título do documento" className="mt-4 w-full bg-transparent text-[24px] font-semibold tracking-tight text-fg outline-none placeholder:text-faint" />
               <input value={draft.caminho} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, caminho: e.target.value })} placeholder="processos/comercial.md" className="mt-2 w-full rounded-[8px] border border-line bg-bg px-3 py-2 font-mono text-[11.5px] text-sub outline-none focus:border-accent" />
               {draft.escopo !== "personal" && intelligenceData && <div className="mt-4 grid gap-3 rounded-[11px] border border-line bg-bg p-3 md:grid-cols-2">
-                <label><span className="mb-1 block text-[10.5px] font-semibold text-sub">Quem pode usar</span><select disabled={!canWrite} value={draft.audiencia || "internal"} onChange={(e) => setDraft({ ...draft, audiencia: e.target.value, colecoesIds: [] })} className="w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[12px]"><option value="internal">Somente equipe</option><option value="external">Atendimento a clientes</option></select></label>
-                <div><span className="mb-1 block text-[10.5px] font-semibold text-sub">Coleções</span><div className="flex flex-wrap gap-1.5">{(intelligenceData.collections || []).filter((item) => item.audience === (draft.audiencia === "external" ? "external" : "internal") && item.scope_type !== "personal").map((collection) => <label key={collection.id} className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[10.5px] text-sub"><input type="checkbox" disabled={!canWrite} checked={(draft.colecoesIds || []).includes(collection.id)} onChange={(e) => setDraft({ ...draft, colecoesIds: e.target.checked ? [...(draft.colecoesIds || []), collection.id] : (draft.colecoesIds || []).filter((id) => id !== collection.id) })} />{collection.name}</label>)}</div></div>
+                <label><span className="mb-1 block text-[10.5px] font-semibold text-sub">Quem pode usar</span><select disabled={!canWrite} value={draft.audiencia || "internal"} onChange={(e) => {
+                  const audiencia = e.target.value;
+                  // Com uma coleção externa só, escolher é cerimônia: já marca.
+                  setDraft({ ...draft, audiencia, colecoesIds: colecaoAutomatica(audiencia, intelligenceData?.collections) });
+                }} className="w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[12px]"><option value="internal">Somente equipe</option><option value="external">Atendimento a clientes</option></select></label>
+                <div><span className="mb-1 block text-[10.5px] font-semibold text-sub">Coleções{exigeColecao && <span className="ml-1 font-normal text-danger">· obrigatória</span>}</span><div className="flex flex-wrap gap-1.5">{(intelligenceData.collections || []).filter((item) => item.audience === (draft.audiencia === "external" ? "external" : "internal") && item.scope_type !== "personal").map((collection) => <label key={collection.id} className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[10.5px] text-sub"><input type="checkbox" disabled={!canWrite} checked={(draft.colecoesIds || []).includes(collection.id)} onChange={(e) => setDraft({ ...draft, colecoesIds: e.target.checked ? [...(draft.colecoesIds || []), collection.id] : (draft.colecoesIds || []).filter((id) => id !== collection.id) })} />{collection.name}</label>)}</div>
+                  {impedimento && <p className="mt-2 text-[10.5px] leading-4 text-danger">{impedimento}</p>}
+                </div>
               </div>}
               <textarea value={draft.conteudo} readOnly={!canWrite} onChange={(e) => setDraft({ ...draft, conteudo: e.target.value })} placeholder="# Comece a documentar aqui…" className="mt-4 min-h-[430px] w-full resize-y rounded-[12px] border border-line bg-bg p-4 font-mono text-[12.5px] leading-6 text-fg outline-none focus:border-accent" />
-              {canWrite && <div className="mt-3 flex justify-end"><button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12.5px] font-semibold text-white disabled:opacity-40"><Save size={15} /> {saving ? "Salvando…" : "Salvar documento"}</button></div>}
+              {canWrite && <div className="mt-3 flex justify-end"><button type="button" onClick={save} disabled={saving || Boolean(impedimento)} title={impedimento || undefined} className="inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12.5px] font-semibold text-white disabled:opacity-40"><Save size={15} /> {saving ? "Salvando…" : "Salvar documento"}</button></div>}
             </div>
           )}
         </main>
