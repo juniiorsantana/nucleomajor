@@ -8,7 +8,7 @@ create or replace function public.nucleo_knowledge_search(
   scope_filter text default 'todos',
   page_limit integer default 10,
   page_offset integer default 0
-)r
+)
 returns jsonb
 language plpgsql
 security definer
