@@ -19,6 +19,7 @@
     "test:app": "npm test --workspace @nucleomajor/emyleads",
     "intelligence:validate": "node scripts/intelligence-skills.mjs validate",
     "intelligence:publish": "node scripts/intelligence-skills.mjs publish",
+    "docs:check": "node scripts/check-docs.mjs",
     "check": "node --check src/server.mjs && node --check src/start.mjs && node --check src/invite.mjs && node --check src/email.mjs && npm run build:web"
   },
   "engines": {

@@ -1,0 +1,30 @@
+{
+  "$schema": "../skill.schema.json",
+  "schemaVersion": "1.1",
+  "slug": "tarefas",
+  "name": "Tarefas",
+  "description": "Consulta e cria tarefas internas com atribuição e confirmação.",
+  "audience": "internal",
+  "status": "published",
+  "objective": "Organizar os próximos passos da equipe sem perder prazos nem criar duplicidades.",
+  "activation": {
+    "keywords": ["tarefa", "tarefas", "pendência", "pendencias", "afazer", "lembrar de", "retornar para", "follow-up"],
+    "negativeKeywords": ["erro na tela de tarefas", "preço do módulo de tarefas"]
+  },
+  "routing": { "intent": "task", "priority": 15, "fallback": false },
+  "workflow": {
+    "initialStage": "entender",
+    "stages": [
+      { "id": "entender", "objective": "Identificar se o profissional quer consultar ou criar uma tarefa interna.", "requiredFields": [], "allowedTools": ["task.read"], "completion": "A intenção relacionada à tarefa está clara." },
+      { "id": "coletar", "objective": "Coletar título e vencimento e identificar responsável, contato e negócio quando mencionados.", "requiredFields": ["title", "due_at"], "allowedTools": ["task.read"], "completion": "Os dados obrigatórios foram informados e os vínculos foram resolvidos." },
+      { "id": "preparar", "objective": "Persistir uma proposta idempotente e apresentar o resumo antes de qualquer criação.", "requiredFields": ["title", "due_at"], "allowedTools": ["task.read", "task.prepare"], "completion": "A proposta foi persistida e aguarda confirmação em outra mensagem." },
+      { "id": "confirmar", "objective": "Validar a confirmação separada e criar exatamente uma tarefa no CRM.", "requiredFields": ["confirmation"], "allowedTools": ["task.read", "task.confirm"], "completion": "O banco confirmou a tarefa criada ou já existente." }
+    ],
+    "delegatesTo": ["agenda"]
+  },
+  "requiredFields": ["title", "due_at"],
+  "questions": ["Qual é o prazo da tarefa?", "A tarefa fica para você ou para outro profissional?"],
+  "allowedTools": ["task.read", "task.prepare", "task.confirm"],
+  "guardrails": ["operator_only", "explicit_confirmation", "separate_confirmation_turn", "idempotency", "no_calendar_substitution"],
+  "handoff": ["tool_unavailable", "permission_denied", "ambiguous_contact"]
+}

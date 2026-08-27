@@ -46,9 +46,15 @@ async function main() {
   }
   const repository = new SupabaseSkillRepository({
     url: process.env.SUPABASE_URL,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    serviceRoleKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
   });
   const results = await publishCatalog(catalog, repository, { apply: options.apply });
+  if (options.apply && catalog.some((entry) => ["agenda", "solicitacao-agenda"].includes(entry.record.slug))) {
+    const synchronization = await repository.syncSchedulingBindings();
+    const profiles = Number(synchronization?.profiles || 0);
+    const campaigns = Number(synchronization?.campaigns || 0);
+    console.log(`✓ vínculos de agenda sincronizados · ${profiles} assistente(s) · ${campaigns} campanha(s)`);
+  }
   printPublishResults(results, options.apply);
 }
 

@@ -10,16 +10,19 @@ export class SupabaseSkillRepository {
     this.serviceRoleKey = String(serviceRoleKey || "").trim();
     this.fetchImpl = fetchImpl;
     if (!this.url || !this.serviceRoleKey) {
-      throw new Error("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios para publicar");
+      throw new Error("SUPABASE_URL e uma chave secreta do Supabase são obrigatórios para publicar");
     }
   }
 
   async request(path, options = {}) {
+    const isOpaqueSecret = this.serviceRoleKey.startsWith("sb_secret_");
     const response = await this.fetchImpl(`${this.url}/rest/v1/${path}`, {
       ...options,
       headers: {
         apikey: this.serviceRoleKey,
-        authorization: `Bearer ${this.serviceRoleKey}`,
+        // As chaves novas sb_secret_ não são JWT e não podem ser enviadas
+        // como Bearer. A service_role legada continua usando os dois headers.
+        ...(!isOpaqueSecret ? { authorization: `Bearer ${this.serviceRoleKey}` } : {}),
         "content-type": "application/json",
         accept: "application/json",
         ...(options.headers || {}),
@@ -59,6 +62,13 @@ export class SupabaseSkillRepository {
       body: JSON.stringify(changes),
     });
     return rows?.[0] || null;
+  }
+
+  async syncSchedulingBindings() {
+    return this.request("rpc/intelligence_scheduling_bindings_sync", {
+      method: "POST",
+      body: JSON.stringify({ target_organization: null }),
+    });
   }
 }
 

@@ -2,6 +2,9 @@
 
 Monorepo do portal web, API Node.js e conector opcional do EmyLeads.
 
+> Documentação canônica: [`docs/README.md`](docs/README.md). Antes de alterar o
+> produto, consulte também [`docs/STATUS.md`](docs/STATUS.md) e o SPEC do componente.
+
 - `https://nucleomajor.com/` — página pública;
 - `https://nucleomajor.com/convite` — criação de conta e aceite de convite;
 - `https://nucleomajor.com/app` — painel web completo;
@@ -43,17 +46,11 @@ npm run test:server
 npm run test:app
 ```
 
-## Banco da Fase F
+## Banco e migrations
 
-Antes de liberar `/app`, aplique no SQL Editor do Supabase:
-
-```text
-supabase/migrations/20260823030000_fase_f_web.sql
-```
-
-Ela cria chatbots centralizados e versionados, conversas do assistente,
-execuções de ferramentas e a confirmação transacional/idempotente de eventos.
-As migrations anteriores das Fases A–E continuam sendo pré-requisitos.
+As migrations em `supabase/migrations` são a fonte do schema e devem ser
+aplicadas em ordem. Não altere uma migration já aplicada; crie uma correção
+aditiva. O estado implantado e as pendências estão em `docs/STATUS.md`.
 
 ## Hostinger
 
@@ -133,10 +130,11 @@ https://nucleomajor.com/convite
 
 O painel web não depende da extensão.
 
-- API Oficial: o portal funciona normalmente; a ativação do canal depende das
-  credenciais e do webhook da Meta.
-- WhatsApp Web: a extensão compilada em `apps/emyleads/dist` funciona somente
-  como conector e precisa permanecer ativa para receber e enviar mensagens.
+- Runtime atual: Bridge e assistente operam continuamente na VPS; não dependem
+  do computador ou da extensão.
+- Extensão: adiciona o painel ao WhatsApp Web e integrações locais opcionais.
+- API Oficial: planejada; deverá implementar os mesmos contratos de conexão,
+  organização, roteamento e observabilidade.
 
 As definições de chatbots ficam no Supabase. O conector sincroniza a versão
 central e conserva uma cópia no IndexedDB para tolerar quedas temporárias de

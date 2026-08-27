@@ -1,0 +1,29 @@
+name: Evolução
+description: Propor uma mudança de produto ou arquitetura
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema do usuário
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Escopo e fora de escopo
+  - type: textarea
+    id: risks
+    attributes:
+      label: Riscos, dados e permissões
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite

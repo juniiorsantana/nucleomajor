@@ -8,17 +8,34 @@ import {
   loadSkillCatalog,
   validateSkillPackage,
 } from "../packages/intelligence/src/catalog.mjs";
-import { publishCatalog } from "../packages/intelligence/src/publisher.mjs";
+import { publishCatalog, SupabaseSkillRepository } from "../packages/intelligence/src/publisher.mjs";
 
-test("catálogo oficial possui cinco skills válidas e instruções versionáveis", async () => {
+test("catálogo oficial possui sete skills válidas e instruções versionáveis", async () => {
   const catalog = assertValidCatalog(await loadSkillCatalog());
-  assert.deepEqual(catalog.map((entry) => entry.record.slug), ["agenda", "pre-qualificacao", "recepcao", "suporte", "vendas"]);
+  assert.deepEqual(catalog.map((entry) => entry.record.slug), ["agenda", "pre-qualificacao", "recepcao", "solicitacao-agenda", "suporte", "tarefas", "vendas"]);
   for (const entry of catalog) {
     assert.equal(entry.record.owner_type, "platform");
     assert.match(entry.record.spec.instructionsMarkdown, /^# /);
     assert.match(entry.record.spec.source.contentHash, /^[a-f0-9]{64}$/);
     assert.equal(entry.record.spec.source.path, `packages/intelligence/skills/${entry.record.slug}`);
   }
+});
+
+test("agenda interna e solicitação externa possuem fronteiras distintas", async () => {
+  const catalog = assertValidCatalog(await loadSkillCatalog());
+  const agenda = catalog.find((entry) => entry.record.slug === "agenda").record;
+  const request = catalog.find((entry) => entry.record.slug === "solicitacao-agenda").record;
+  assert.equal(agenda.audience, "internal");
+  assert.ok(agenda.spec.allowedTools.includes("calendar.confirm"));
+  assert.ok(!agenda.spec.allowedTools.includes("calendar.request.submit"));
+  assert.equal(request.audience, "customer");
+  assert.deepEqual(request.spec.allowedTools, [
+    "calendar.availability",
+    "calendar.request.prepare",
+    "calendar.request.submit",
+  ]);
+  assert.ok(request.spec.guardrails.includes("no_direct_creation"));
+  assert.ok(!request.spec.allowedTools.includes("calendar.confirm"));
 });
 
 test("roteamento diferencia gatilho, bloqueio e fallback", () => {
@@ -120,4 +137,33 @@ test("publicação aplicada atualiza somente conteúdo diferente", async () => {
   assert.equal(unchanged[0].action, "unchanged");
   assert.equal(writes.length, 1);
   assert.equal(canonicalJson(current.spec), canonicalJson(entry.record.spec));
+});
+
+test("publicador não envia chave sb_secret como Bearer", async () => {
+  let headers;
+  const repository = new SupabaseSkillRepository({
+    url: "https://project.supabase.co",
+    serviceRoleKey: "sb_secret_teste",
+    fetchImpl: async (_url, options) => {
+      headers = options.headers;
+      return { ok: true, text: async () => "[]" };
+    },
+  });
+  await repository.request("skill_definitions");
+  assert.equal(headers.apikey, "sb_secret_teste");
+  assert.equal(headers.authorization, undefined);
+});
+
+test("publicador mantém Bearer para service_role JWT legada", async () => {
+  let headers;
+  const repository = new SupabaseSkillRepository({
+    url: "https://project.supabase.co",
+    serviceRoleKey: "eyJservice-role",
+    fetchImpl: async (_url, options) => {
+      headers = options.headers;
+      return { ok: true, text: async () => "[]" };
+    },
+  });
+  await repository.request("skill_definitions");
+  assert.equal(headers.authorization, "Bearer eyJservice-role");
 });

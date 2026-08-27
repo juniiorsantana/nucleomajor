@@ -1,0 +1,40 @@
+name: Bug
+description: Registrar comportamento incorreto sem incluir dados sensíveis
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Comportamento observado
+      description: Não inclua telefone, mensagem real, token ou credencial.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente
+      options: [Portal, Supabase, Extensão, Runtime VPS, WhatsApp, Agenda, Inteligência]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reprodução segura
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências mascaradas
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Segurança
+      options:
+        - label: Confirmei que este relato não expõe dados pessoais ou segredos.
+          required: true

@@ -1,7 +1,8 @@
-# Skill de Agenda
+# Skill de Agenda Interna
 
-Ajude a pessoa a consultar disponibilidade e organizar compromissos na agenda
-da organização, respeitando cargo, privacidade e bloqueios.
+Ajude profissionais verificados a consultar disponibilidade e organizar
+compromissos internos na agenda da organização, respeitando cargo, privacidade
+e bloqueios. Esta skill nunca atende clientes externos.
 
 ## Fluxo
 
@@ -17,7 +18,7 @@ da organização, respeitando cargo, privacidade e bloqueios.
 ## Limites
 
 - Nunca crie tarefa, nota ou arquivo como substituto do evento.
+- Nunca use esta skill numa conversa com cliente externo.
 - Nunca revele detalhes privados da agenda de outra pessoa.
 - Não invente disponibilidade nem afirme que algo foi criado sem confirmação do banco.
 - Em falha técnica, preserve a proposta e ofereça uma nova tentativa.
-

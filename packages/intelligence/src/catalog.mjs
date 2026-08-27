@@ -19,6 +19,11 @@ export const RUNTIME_TOOLS = new Set([
   "calendar.availability",
   "calendar.prepare",
   "calendar.confirm",
+  "calendar.request.prepare",
+  "calendar.request.submit",
+  "task.read",
+  "task.prepare",
+  "task.confirm",
 ]);
 const SCHEMA_VERSIONS = new Set(["1.0", "1.1"]);
 const STAGE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;

@@ -291,6 +291,25 @@ function CartaoConexao({
   const rotuloAgenda = agenda === "available"
     ? prontidao?.agendaWrite ? "Leitura e escrita disponíveis" : "Somente leitura"
     : agenda === "unavailable" ? "Indisponível no último teste" : "Ainda não testada por um operador";
+  const aprovacaoExterna = prontidao?.externalApproval;
+  const rotuloAprovacaoExterna = aprovacaoExterna === "available"
+    ? "Fluxo de aprovação disponível"
+    : aprovacaoExterna === "unavailable"
+      ? "Skill ou ferramentas incompatíveis"
+      : "Ainda não testada por um cliente piloto";
+  const trabalhador = prontidao?.notificationWorker;
+  const rotuloTrabalhador = trabalhador === "online"
+    ? prontidao?.lastNotificationAt
+      ? `Ativo · última entrega ${fmtRelativo(prontidao.lastNotificationAt)}`
+      : "Ativo · aguardando primeira entrega"
+    : trabalhador === "dry_run"
+      ? "Simulação — não envia mensagens"
+      : trabalhador === "error"
+        ? "Erro no último ciclo"
+        : "Não configurado";
+  const skillAtiva = prontidao?.skillSlug
+    ? `${prontidao.skillSlug}${prontidao.skillVersion ? ` v${prontidao.skillVersion}` : ""}${prontidao.skillHash ? ` · ${prontidao.skillHash.slice(0, 12)}` : ""}`
+    : "Ainda não resolvida neste runtime";
 
   const selo = divergente ? (
     <SeloEstado tom="erro">
@@ -424,10 +443,21 @@ function CartaoConexao({
             )}
           </div>
           <EstadoLinha
-            rotulo="Agenda"
+            rotulo="Agenda interna"
             valor={rotuloAgenda}
             tom={agenda === "available" ? "sucesso" : agenda === "unavailable" ? "erro" : "neutro"}
           />
+          <EstadoLinha
+            rotulo="Aprovação externa"
+            valor={rotuloAprovacaoExterna}
+            tom={aprovacaoExterna === "available" ? "sucesso" : aprovacaoExterna === "unavailable" ? "erro" : "neutro"}
+          />
+          <EstadoLinha
+            rotulo="Notificações da agenda"
+            valor={rotuloTrabalhador}
+            tom={trabalhador === "online" ? "sucesso" : trabalhador === "error" ? "erro" : "neutro"}
+          />
+          <EstadoLinha rotulo="Skill usada por último" valor={skillAtiva} />
           <EstadoLinha
             rotulo="Chatbots na VPS"
             valor={

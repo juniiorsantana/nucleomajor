@@ -341,6 +341,33 @@ export function criarOperacoesAgenda({ supabase = obterSupabase(), area = chrome
       return { id, lida: true };
     },
 
+    "agenda.solicitacoes": async ({ status = null, limite = 100 } = {}) => {
+      const atual = await membro();
+      if (!["owner", "admin"].includes(atual.role)) return [];
+      const { data, error } = await supabase.rpc("calendar_booking_requests_list", {
+        target_organization: atual.organizationId,
+        status_filter: status || null,
+        max_items: Math.max(1, Math.min(Number(limite) || 100, 200)),
+      });
+      if (error) throw erroAgenda(error, "agenda-solicitacoes-falhou");
+      return Array.isArray(data) ? data : [];
+    },
+
+    "agenda.solicitacaoDecidir": async ({ id, decisao, motivo = "" }) => {
+      const atual = await membro();
+      if (!["owner", "admin"].includes(atual.role)) {
+        throw erroAgenda({ message: "Somente donos e administradores decidem solicitações." }, "agenda-solicitacao-sem-permissao");
+      }
+      const { data, error } = await supabase.rpc("calendar_booking_request_decide", {
+        target_organization: atual.organizationId,
+        target_request: id,
+        decision: decisao,
+        reason: texto(motivo).slice(0, 500) || null,
+      });
+      if (error) throw erroAgenda(error, "agenda-solicitacao-decisao-falhou");
+      return data || {};
+    },
+
     "agenda.telefoneSolicitar": async ({ telefone }) => {
       const atual = await membro();
       const { data, error } = await supabase.rpc("calendar_phone_verification_begin", {

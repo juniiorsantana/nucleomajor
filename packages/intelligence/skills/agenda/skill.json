@@ -3,10 +3,10 @@
   "schemaVersion": "1.1",
   "slug": "agenda",
   "name": "Agenda",
-  "description": "Consulta disponibilidade e prepara compromissos com confirmação.",
-  "audience": "both",
+  "description": "Consulta disponibilidade e cria compromissos internos com confirmação.",
+  "audience": "internal",
   "status": "published",
-  "objective": "Consultar, organizar e confirmar compromissos sem criar duplicidades.",
+  "objective": "Permitir que profissionais consultem, organizem e confirmem compromissos internos sem criar duplicidades.",
   "activation": {
     "keywords": ["agenda", "agendar", "marcar", "reunião", "horário", "disponibilidade", "compromisso", "remarcar", "cancelar reunião"],
     "negativeKeywords": ["preço da agenda", "erro na agenda do sistema"]
@@ -25,6 +25,6 @@
   "requiredFields": ["title", "date", "time", "duration"],
   "questions": ["Qual é a duração?", "Quem deve participar?"],
   "allowedTools": ["calendar.read", "calendar.availability", "calendar.prepare", "calendar.confirm"],
-  "guardrails": ["explicit_confirmation", "absolute_date", "idempotency", "no_task_substitution"],
+  "guardrails": ["operator_only", "explicit_confirmation", "absolute_date", "idempotency", "no_task_substitution"],
   "handoff": ["tool_unavailable", "permission_denied", "participant_conflict"]
 }

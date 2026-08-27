@@ -241,8 +241,17 @@ export function criarOperacoesGateway() {
 
   const runtimeRemoto = async (organizationId) => {
     const supabase = obterSupabaseWeb();
+    const camposBase = "connection_id,instance_id,runtime_kind,host_label,runtime_version,bridge_status,whatsapp_status,assistant_status,mcp_status,agenda_status,agenda_read,agenda_write,chatbot_status,automation_enabled,default_owner,open_bot,open_ai,open_human,contract_version,started_at,heartbeat_at";
+    const camposH4 = `${camposBase},external_approval_status,notification_worker_status,last_notification_at,skill_slug,skill_version,skill_hash`;
+    const consultaH4 = await supabase.from("connection_runtime_status")
+      .select(camposH4)
+      .eq("organization_id", organizationId);
+    if (!consultaH4.error) return consultaH4.data || [];
+
+    // Compatibilidade enquanto a migration de prontidão H.4 ainda não foi
+    // aplicada: não derruba toda a telemetria por causa de colunas novas.
     const { data, error } = await supabase.from("connection_runtime_status")
-      .select("connection_id,instance_id,runtime_kind,host_label,runtime_version,bridge_status,whatsapp_status,assistant_status,mcp_status,agenda_status,agenda_read,agenda_write,chatbot_status,automation_enabled,default_owner,open_bot,open_ai,open_human,contract_version,started_at,heartbeat_at")
+      .select(camposBase)
       .eq("organization_id", organizationId);
     // Compatibilidade durante a janela entre publicar o frontend e aplicar a
     // migration: a conexão continua visível, apenas sem telemetria da VPS.
@@ -283,6 +292,12 @@ export function criarOperacoesGateway() {
           agenda: heartbeatFresh ? control.agenda_status : "not_checked",
           agendaRead: heartbeatFresh ? control.agenda_read : null,
           agendaWrite: heartbeatFresh ? control.agenda_write : null,
+          externalApproval: heartbeatFresh ? control.external_approval_status || "not_checked" : "not_checked",
+          notificationWorker: heartbeatFresh ? control.notification_worker_status || "not_configured" : "not_configured",
+          lastNotificationAt: control.last_notification_at || null,
+          skillSlug: control.skill_slug || "",
+          skillVersion: control.skill_version || null,
+          skillHash: control.skill_hash || "",
           chatbot: heartbeatFresh ? control.chatbot_status : "not_configured",
           checkedAt: control.heartbeat_at,
           contractVersion: control.contract_version,

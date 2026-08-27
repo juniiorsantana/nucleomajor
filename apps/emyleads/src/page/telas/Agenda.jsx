@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  CalendarClock,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -54,6 +55,7 @@ const PAINEIS = {
   tasks: { titulo: "Tarefas", icone: SquareCheckBig },
   contacts: { titulo: "Contatos", icone: ContactRound },
   notifications: { titulo: "Notificações", icone: Bell },
+  requests: { titulo: "Solicitações", icone: CalendarClock },
   settings: { titulo: "Preferências", icone: Settings2 },
 };
 const SEGUNDOS_DESFAZER = 9000;
@@ -378,6 +380,61 @@ function PainelNotificacoes({ contexto, notificacoes, aoAtualizar, aoMarcarLida 
   );
 }
 
+const ROTULOS_SOLICITACAO = {
+  awaiting_customer_confirmation: "Aguardando cliente",
+  awaiting_team_approval: "Aguardando aprovação",
+  completed: "Aprovada",
+  rejected: "Recusada",
+  expired: "Expirada",
+  failed: "Falhou",
+  cancelled: "Cancelada",
+};
+
+function PainelSolicitacoes({ solicitacoes, ocupado, aoDecidir }) {
+  const [motivos, setMotivos] = useState({});
+  const pendentes = solicitacoes.filter((item) => item.status === "awaiting_team_approval");
+  const historico = solicitacoes.filter((item) => item.status !== "awaiting_team_approval");
+  const renderizar = (item) => (
+    <article key={item.id} className="rounded-[10px] border border-line bg-bg p-3">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12px] font-semibold text-fg">{item.subject || "Reunião"}</p>
+          <p className="mt-1 text-[10.5px] text-sub">{item.customer_name || "Cliente"} · {item.responsible_name || "Profissional"}</p>
+          <p className="mt-1 text-[10.5px] text-faint">{formatarDataHora(item.starts_at)} até {formatarDataHora(item.ends_at)}</p>
+        </div>
+        <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${item.status === "awaiting_team_approval" ? "bg-warning/10 text-warning" : item.status === "completed" ? "bg-success-soft text-success" : "bg-surface text-sub"}`}>
+          {ROTULOS_SOLICITACAO[item.status] || item.status}
+        </span>
+      </div>
+      {item.status === "awaiting_team_approval" && (
+        <div className="mt-3">
+          <input
+            value={motivos[item.id] || ""}
+            onChange={(e) => setMotivos((atual) => ({ ...atual, [item.id]: e.target.value }))}
+            maxLength={500}
+            className="w-full rounded-[8px] border border-line px-3 py-2 text-[10.5px] text-fg"
+            placeholder="Motivo da recusa (opcional)"
+          />
+          <div className="mt-2 flex gap-2">
+            <button type="button" disabled={ocupado === item.id} onClick={() => aoDecidir(item, "approve", "")} className="flex-1 cursor-pointer rounded-[8px] bg-success px-3 py-2 text-[10.5px] font-semibold text-white disabled:opacity-40">Aprovar</button>
+            <button type="button" disabled={ocupado === item.id} onClick={() => aoDecidir(item, "reject", motivos[item.id] || "")} className="flex-1 cursor-pointer rounded-[8px] border border-danger/30 px-3 py-2 text-[10.5px] font-semibold text-danger disabled:opacity-40">Recusar</button>
+          </div>
+        </div>
+      )}
+      {item.decision_reason && <p className="mt-2 text-[10px] text-faint">Motivo: {item.decision_reason}</p>}
+    </article>
+  );
+  return (
+    <div className="p-4">
+      <p className="text-[10.5px] text-sub">Pedidos de clientes bloqueiam o horário provisoriamente. A primeira decisão válida encerra a solicitação.</p>
+      <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-faint">Aguardando ({pendentes.length})</h3>
+      <div className="mt-2 space-y-2">{pendentes.map(renderizar)}{!pendentes.length && <p className="py-6 text-center text-[11px] text-faint">Nenhuma solicitação pendente.</p>}</div>
+      <h3 className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-faint">Histórico</h3>
+      <div className="mt-2 space-y-2">{historico.slice(0, 30).map(renderizar)}{!historico.length && <p className="py-6 text-center text-[11px] text-faint">O histórico aparecerá aqui.</p>}</div>
+    </div>
+  );
+}
+
 function LinhaCategoria({ categoria, aoSalvar }) {
   const [nome, setNome] = useState(categoria.name);
   const [cor, setCor] = useState(categoria.color);
@@ -458,6 +515,8 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   const [filtroContato, setFiltroContato] = useState("");
   const [busca, setBusca] = useState("");
   const [painel, setPainel] = useState(null);
+  const [solicitacoes, setSolicitacoes] = useState([]);
+  const [solicitacaoOcupada, setSolicitacaoOcupada] = useState("");
   const [dialogo, setDialogo] = useState(null);
   const [detalhe, setDetalhe] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -515,6 +574,11 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
       setEventos(lista);
       setContexto(proximoContexto);
       setNotificacoes(proximasNotificacoes);
+      if (["owner", "admin"].includes(proximoContexto?.papel)) {
+        setSolicitacoes(await api.agenda.solicitacoes({ limite: 100 }));
+      } else {
+        setSolicitacoes([]);
+      }
       if (!inicializado.current) {
         setVisualizacao(proximoContexto?.preference?.defaultView || "week");
         inicializado.current = true;
@@ -529,6 +593,15 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   }, [intervalo.ate, intervalo.de]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  useEffect(() => {
+    if (!contexto || !["owner", "admin"].includes(contexto.papel)) return undefined;
+    const atualizarSolicitacoes = () => api.agenda.solicitacoes({ limite: 100 })
+      .then(setSolicitacoes)
+      .catch(() => {});
+    const intervaloAtualizacao = window.setInterval(atualizarSolicitacoes, 15000);
+    return () => window.clearInterval(intervaloAtualizacao);
+  }, [contexto]);
 
   const categorias = contexto?.categories || [];
   const membros = contexto?.members || [];
@@ -566,6 +639,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
     [filtrados, modoCor],
   );
   const naoLidas = notificacoes.filter((item) => !item.lidaEm && item.status === "sent").length;
+  const solicitacoesPendentes = solicitacoes.filter((item) => item.status === "awaiting_team_approval").length;
   const inicioExpediente = minutosDoHorario(String(contexto?.preference?.dayStart || contexto?.calendar?.dayStart || "05:00").slice(0, 5));
   const fimExpediente = minutosDoHorario(String(contexto?.preference?.dayEnd || contexto?.calendar?.dayEnd || "23:59").slice(0, 5));
   // O expediente diz onde a atenção mora; a faixa desenhada precisa caber todo
@@ -707,6 +781,16 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   );
 
   const marcarLida = async (item) => { if (!item.lidaEm) await api.agenda.notificacaoLida({ id: item.id }); await carregar({ silencioso: true }); };
+  const decidirSolicitacao = async (item, decisao, motivo) => {
+    setSolicitacaoOcupada(item.id);
+    try {
+      await api.agenda.solicitacaoDecidir({ id: item.id, decisao, motivo });
+      await carregar({ silencioso: true });
+      mostrarAviso({ texto: decisao === "approve" ? "Solicitação aprovada. O cliente será avisado." : "Solicitação recusada. O cliente será avisado." });
+    } catch (falha) {
+      mostrarAviso({ tom: "erro", texto: falha?.message || String(falha) });
+    } finally { setSolicitacaoOcupada(""); }
+  };
   const alternarPainel = (tipo) => setPainel((atual) => atual === tipo ? null : tipo);
 
   /**
@@ -831,6 +915,12 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
           )}
 
           <span className="mx-0.5 h-5 border-l border-line" />
+          {["owner", "admin"].includes(papel) && (
+            <button type="button" onClick={() => alternarPainel("requests")} className={`relative cursor-pointer rounded-[8px] p-2 ${painel === "requests" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Solicitações de clientes">
+              <CalendarClock size={16} />
+              {solicitacoesPendentes > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[8px] font-bold text-white">{solicitacoesPendentes}</span>}
+            </button>
+          )}
           <button type="button" onClick={() => alternarPainel("tasks")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "tasks" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Tarefas"><SquareCheckBig size={16} /></button>
           <button type="button" onClick={() => alternarPainel("contacts")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "contacts" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Contatos"><ContactRound size={16} /></button>
           <button type="button" onClick={() => alternarPainel("settings")} className={`cursor-pointer rounded-[8px] p-2 ${painel === "settings" ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover"}`} title="Preferências"><Settings2 size={16} /></button>
@@ -880,6 +970,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
         {painel === "tasks" && <PainelTarefas tarefas={tarefas} contatos={contatos} aoAbrir={(tarefa) => { setPainel(null); aoAbrirTarefa(tarefa); }} />}
         {painel === "contacts" && <PainelContatos contatos={contatos} selecionado={filtroContato} aoFiltrar={(id) => { setFiltroContato(id); setPainel(null); }} aoAbrir={aoAbrirContato} />}
         {painel === "notifications" && <PainelNotificacoes contexto={contexto} notificacoes={notificacoes} aoAtualizar={async () => carregar({ silencioso: true })} aoMarcarLida={marcarLida} />}
+        {painel === "requests" && <PainelSolicitacoes solicitacoes={solicitacoes} ocupado={solicitacaoOcupada} aoDecidir={decidirSolicitacao} />}
         {painel === "settings" && <PainelPreferencias contexto={contexto} visualizacao={visualizacao} aoSalvar={async (form) => { await api.agenda.preferenciasAtualizar(form); await carregar({ silencioso: true }); }} aoSalvarCategoria={async (categoria) => { await api.agenda.categoriaSalvar(categoria); await carregar({ silencioso: true }); }} />}
       </PainelLateral>
 

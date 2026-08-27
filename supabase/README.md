@@ -13,20 +13,21 @@ projeto antes de ativar Auth ou sincronização na extensão.
 - `legacy_id` preserva os IDs atuais do IndexedDB durante a migração.
 - `version`, `updated_at` e `deleted_at` sustentam sincronização e tombstones.
 
-## Estado na Fase 3
+## Estado atual
 
-O Supabase sincroniza o CRM e os efeitos dos chatbots, não a definição visual
-dos fluxos. Permanecem remotos: contatos, negócios, tarefas, notas, eventos,
-estágios, tags, vínculos de tags, organizações e fotos. Permanecem locais ao
-workspace: chatbots, condições, passos, posições e conexões do canvas.
+O Supabase armazena CRM, agenda, chatbots versionados, conhecimento, skills,
+campanhas, conversas, qualificações, handoffs e comandos do runtime. A extensão
+pode manter cache local da versão ativa, mas a definição central e os dados de
+negócio permanecem remotos.
 
-Quando um chatbot altera etiquetas ou executa, o contato atualizado e o evento
-`chatbot.executado` entram no outbox normal. O wrapper do provider restaura o
-workspace salvo antes de toda operação, pois o service worker MV3 pode perder o
-estado em memória ao dormir.
+IndexedDB continua existindo para migração legada e tolerância temporária a
+falhas na extensão. Ele não é fonte de verdade e não é usado pelo portal web.
 
 O cliente da extensão usa exclusivamente a publishable key. Secret keys e
 `service_role` nunca pertencem ao código ou aos arquivos de ambiente da extensão.
+
+Consulte o contrato atualizado em
+[`docs/specs/SPEC-DATA-SECURITY.md`](../docs/specs/SPEC-DATA-SECURITY.md).
 
 ## Portal Núcleo Major e convites por e-mail
 
@@ -153,7 +154,7 @@ A migration `20260814140000_whatsapp_connections.sql` acrescenta o domínio das
 conexões: `whatsapp_connections`, `whatsapp_device_sessions`,
 `connection_installations`, `connection_hosts` e `connection_events`. A unidade
 operacional é a **conexão**, não o número e não o processo — ver
-[ADR-001](../ADR-001-CONEXOES-MULTITENANT.md).
+[ADR-0005](../docs/adr/ADR-0005-WHATSAPP-CONNECTIONS.md).
 
 O que essa migration garante além do `organization_id`:
 

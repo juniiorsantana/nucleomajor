@@ -1,0 +1,10 @@
+{
+  "cases": [
+    { "id": "cliente-quer-agendar", "input": "Quero agendar uma reunião com o Lucas.", "expected": { "shouldActivate": true, "stage": "entender" } },
+    { "id": "cliente-informa-horario", "input": "Pode marcar um horário amanhã às 14h?", "expected": { "shouldActivate": true, "stage": "coletar" } },
+    { "id": "cliente-consulta", "input": "Tem disponibilidade para uma conversa na sexta?", "expected": { "shouldActivate": true, "stage": "coletar" } },
+    { "id": "erro-agenda", "input": "Apareceu um erro na agenda do sistema.", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "cancelamento-confirmado", "input": "Quero cancelar reunião confirmada ontem.", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "duvida-preco", "input": "Qual é o valor do serviço?", "expected": { "shouldActivate": false, "stage": "entender" } }
+  ]
+}

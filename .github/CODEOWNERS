@@ -1,0 +1,9 @@
+# Responsabilidade padrão
+* @juniiorsantana
+
+# Fronteiras sensíveis
+/supabase/ @juniiorsantana
+/src/ @juniiorsantana
+/packages/intelligence/ @juniiorsantana
+/apps/emyleads/public/manifest.json @juniiorsantana
+/.github/ @juniiorsantana

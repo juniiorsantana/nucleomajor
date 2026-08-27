@@ -1,0 +1,30 @@
+{
+  "$schema": "../skill.schema.json",
+  "schemaVersion": "1.1",
+  "slug": "solicitacao-agenda",
+  "name": "Solicitação de agenda",
+  "description": "Prepara pedidos de horário de clientes e os submete à aprovação da equipe.",
+  "audience": "customer",
+  "status": "published",
+  "objective": "Reservar provisoriamente um horário solicitado pelo cliente sem efetivar o compromisso antes da aprovação da equipe.",
+  "activation": {
+    "keywords": ["agendar", "marcar", "reunião", "horário", "disponibilidade", "consulta", "conversa", "atendimento"],
+    "negativeKeywords": ["erro na agenda", "cancelar reunião confirmada", "remarcar reunião confirmada"]
+  },
+  "routing": { "intent": "calendar_request", "priority": 45, "fallback": false },
+  "workflow": {
+    "initialStage": "entender",
+    "stages": [
+      { "id": "entender", "objective": "Identificar o assunto e o profissional desejado sem prometer confirmação.", "requiredFields": [], "allowedTools": [], "completion": "A intenção de solicitar um horário está clara." },
+      { "id": "coletar", "objective": "Coletar título, data, horário, duração e responsável, perguntando somente o que falta.", "requiredFields": ["title", "date", "time", "duration", "responsible"], "allowedTools": ["calendar.availability"], "completion": "Os dados obrigatórios estão completos e o horário foi consultado." },
+      { "id": "confirmar_cliente", "objective": "Persistir a proposta e solicitar uma confirmação explícita do cliente em outra mensagem.", "requiredFields": ["title", "date", "time", "duration", "responsible"], "allowedTools": ["calendar.request.prepare"], "completion": "A proposta está persistida e aguarda confirmação do cliente." },
+      { "id": "submeter", "objective": "Após a confirmação do cliente, criar somente o bloqueio provisório e enviar a solicitação para aprovação da equipe.", "requiredFields": ["confirmation"], "allowedTools": ["calendar.request.submit"], "completion": "O banco confirmou que a solicitação aguarda aprovação da equipe." }
+    ],
+    "delegatesTo": ["recepcao", "conversation.handoff"]
+  },
+  "requiredFields": ["title", "date", "time", "duration", "responsible"],
+  "questions": ["Qual dia e horário você prefere?", "Quanto tempo devemos reservar?", "Com qual profissional você deseja falar?"],
+  "allowedTools": ["calendar.availability", "calendar.request.prepare", "calendar.request.submit"],
+  "guardrails": ["customer_only", "pilot_only", "explicit_confirmation", "separate_confirmation_turn", "team_approval", "tentative_hold", "absolute_date", "idempotency", "no_direct_creation"],
+  "handoff": ["less_than_30_minutes", "no_verified_approver", "tool_unavailable", "permission_denied", "conflict", "low_confidence"]
+}
