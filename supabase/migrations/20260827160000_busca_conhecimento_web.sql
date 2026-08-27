@@ -32,7 +32,10 @@ set search_path = ''
 as $$
 declare
   member_role public.organization_role;
-  normalized_query text := left(trim(coalesce(search_query, '')), 400);
+  -- 600 é o teto do que searchKnowledge consegue emitir (12 termos de até 40
+  -- caracteres mais os separadores " or "). Cortar antes disso partiria o
+  -- último termo ao meio e ele deixaria de casar com qualquer documento.
+  normalized_query text := left(trim(coalesce(search_query, '')), 600);
   -- Cinco é o teto do contrato: o assistente injeta três no prompt e guarda os
   -- outros dois para citar quando o usuário pedir mais sobre o mesmo assunto.
   safe_limit integer := least(greatest(coalesce(result_limit, 5), 1), 5);
@@ -109,6 +112,11 @@ begin
         )
       )
     )
+    -- Só full-text, sem o `title ilike '%consulta%'` que as buscas do robô
+    -- usam como rede: aqui a consulta chega com os termos unidos por " or ",
+    -- e um ilike sobre essa string procuraria a frase inteira dentro do
+    -- título — nunca casaria. O título já pesa 'A' no search_vector, que é o
+    -- que aquele ilike existia para garantir.
     and document.search_vector @@ query_terms;
 
   -- ts_headline lê o markdown inteiro e não usa índice: um documento de 1 MB
