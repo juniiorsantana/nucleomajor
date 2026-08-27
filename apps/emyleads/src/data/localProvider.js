@@ -397,8 +397,17 @@ const atualizarEm = (loja, validar) => async ({ id, patch }) => {
 async function atualizarNegocio({ id, patch }) {
   if (patch.contactId !== undefined) await exigirContato(patch.contactId);
   if (patch.stageId !== undefined) await exigirEstagio(patch.stageId);
+  // Lido ANTES da gravação: é a única janela em que o estágio antigo ainda
+  // existe. Sem ele o log guarda só o nome do campo que mudou, e a linha do
+  // tempo consegue dizer "mexeram no estágio" mas nunca "de onde para onde" -
+  // que é justamente a informação que faz a entrada valer a linha.
+  const anterior = patch.stageId !== undefined ? await db.buscar(LOJAS.negocios, id) : null;
   const salvo = await atualizarEm(LOJAS.negocios, validarNegocio)({ id, patch });
-  await registrarEvento({ contactId: salvo.contactId, tipo: "deal.updated", entidadeTipo: "negocio", entidadeId: id, carga: { campos: Object.keys(patch || {}) } });
+  const carga = { campos: Object.keys(patch || {}) };
+  if (anterior && anterior.stageId !== salvo.stageId) {
+    carga.estagio = { de: anterior.stageId, para: salvo.stageId };
+  }
+  await registrarEvento({ contactId: salvo.contactId, tipo: "deal.updated", entidadeTipo: "negocio", entidadeId: id, carga });
   return salvo;
 }
 
