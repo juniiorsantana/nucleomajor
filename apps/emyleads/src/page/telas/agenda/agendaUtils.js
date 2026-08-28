@@ -186,6 +186,16 @@ export function eventoEditavel(evento, usuarioId, papel) {
   return evento.ownerId === usuarioId;
 }
 
+export function eventoPessoalDeOutro(evento, usuarioId) {
+  return Boolean(
+    evento
+    && evento.sourceType !== "task"
+    && evento.visibilidade === "personal"
+    && evento.ownerId
+    && evento.ownerId !== usuarioId,
+  );
+}
+
 export function eventoVisivelNoFiltro(evento, filtro, usuarioId) {
   if (filtro === "team") return true;
   if (filtro && filtro !== "mine") return evento.ownerId === filtro || evento.visibilidade === "organization";

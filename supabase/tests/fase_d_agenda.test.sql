@@ -3,7 +3,7 @@
 -- serviço de WhatsApp e nunca faz envio real.
 
 begin;
-select plan(10);
+select plan(12);
 
 insert into auth.users (id, email, email_confirmed_at) values
   ('11111111-1111-4111-8111-111111111111', 'dona-a@teste.local', now()),
@@ -76,6 +76,21 @@ select is_empty(
        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '2030-08-21 00:00+00', '2030-08-22 00:00+00'
      ) where organization_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' $$,
   'organização B nunca aparece no contexto A'
+);
+
+select is_empty(
+  $$ update public.calendar_events set category_id = (
+       select id from public.calendar_categories
+       where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+       order by position desc limit 1
+     ) where id = 'a1000000-0000-4000-8000-000000000001' returning id $$,
+  'dono não troca categoria de evento pessoal de outro profissional'
+);
+
+select is_empty(
+  $$ update public.calendar_events set visibility = 'organization'
+     where id = 'a1000000-0000-4000-8000-000000000001' returning id $$,
+  'dono não transforma evento pessoal de outro profissional em evento da empresa'
 );
 
 select set_config('request.jwt.claims',

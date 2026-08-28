@@ -11,10 +11,33 @@ import {
   passoParaAltura,
   segmentosDoDia,
   fundoDoEvento,
+  eventoEditavel,
+  eventoPessoalDeOutro,
   somarPorCategoria,
   somarPorPessoa,
   tipoDoEvento,
 } from "./agendaUtils";
+
+describe("permissões de eventos pessoais", () => {
+  const pessoalDoLucas = {
+    id: "evento-lucas",
+    sourceType: "event",
+    ownerId: "lucas",
+    titulo: "Indisponível",
+    visibilidade: "personal",
+  };
+
+  it("não permite que dono ou administrador edite evento pessoal de outra pessoa", () => {
+    expect(eventoEditavel(pessoalDoLucas, "junior", "owner")).toBe(false);
+    expect(eventoEditavel(pessoalDoLucas, "admin", "admin")).toBe(false);
+  });
+
+  it("identifica o evento pessoal de outro profissional para a interface somente leitura", () => {
+    expect(eventoPessoalDeOutro(pessoalDoLucas, "junior")).toBe(true);
+    expect(eventoPessoalDeOutro({ ...pessoalDoLucas, ownerId: "junior" }, "junior")).toBe(false);
+    expect(eventoPessoalDeOutro({ ...pessoalDoLucas, visibilidade: "organization" }, "junior")).toBe(false);
+  });
+});
 
 const evento = (id, inicio, fim, extras = {}) => ({
   id,

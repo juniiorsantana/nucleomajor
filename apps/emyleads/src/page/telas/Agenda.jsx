@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ContactRound,
   ListFilter,
+  LockKeyhole,
   Minus,
   PanelRightClose,
   Plus,
@@ -31,6 +32,7 @@ import {
   dataLocal,
   diasDoIntervalo,
   eventoEditavel,
+  eventoPessoalDeOutro,
   eventoParaFormulario,
   eventoVisivelNoFiltro,
   faixaVisivel,
@@ -95,7 +97,7 @@ function idContatoDaTarefa(tarefa) {
   return tarefa?.contatoId || tarefa?.contactId || tarefa?.contact_id || null;
 }
 
-function DetalheEvento({ evento, aoFechar }) {
+function DetalheEvento({ evento, usuarioId, aoFechar }) {
   useEffect(() => {
     if (!evento) return undefined;
     const teclado = (e) => { if (e.key === "Escape") aoFechar(); };
@@ -103,6 +105,7 @@ function DetalheEvento({ evento, aoFechar }) {
     return () => window.removeEventListener("keydown", teclado);
   }, [aoFechar, evento]);
   if (!evento) return null;
+  const pessoalDeOutro = eventoPessoalDeOutro(evento, usuarioId);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="agenda-detalhe-titulo" className="w-full max-w-md rounded-[15px] border border-line bg-bg p-5 shadow-2xl">
@@ -116,9 +119,19 @@ function DetalheEvento({ evento, aoFechar }) {
         </div>
         <dl className="mt-5 grid gap-3 text-[12px]">
           <div><dt className="text-faint">Responsável</dt><dd className="mt-0.5 font-medium text-fg">{evento.ownerName || "Não informado"}</dd></div>
-          {evento.categoryName && <div><dt className="text-faint">Categoria</dt><dd className="mt-0.5 font-medium text-fg">{evento.categoryName}</dd></div>}
-          {evento.local && <div><dt className="text-faint">Local</dt><dd className="mt-0.5 text-fg">{evento.local}</dd></div>}
-          {evento.descricao && <div><dt className="text-faint">Descrição</dt><dd className="mt-0.5 whitespace-pre-wrap text-fg">{evento.descricao}</dd></div>}
+          {pessoalDeOutro ? (
+            <div className="flex gap-2 rounded-[10px] border border-line bg-surface p-3 text-sub">
+              <LockKeyhole size={15} className="mt-0.5 flex-none text-faint" />
+              <div>
+                <dt className="font-semibold text-fg">Evento pessoal protegido</dt>
+                <dd className="mt-1 leading-5">Somente {evento.ownerName || "o profissional responsável"} pode editar horário, categoria, visibilidade ou transformar este item em evento da empresa.</dd>
+              </div>
+            </div>
+          ) : <>
+            {evento.categoryName && <div><dt className="text-faint">Categoria</dt><dd className="mt-0.5 font-medium text-fg">{evento.categoryName}</dd></div>}
+            {evento.local && <div><dt className="text-faint">Local</dt><dd className="mt-0.5 text-fg">{evento.local}</dd></div>}
+            {evento.descricao && <div><dt className="text-faint">Descrição</dt><dd className="mt-0.5 whitespace-pre-wrap text-fg">{evento.descricao}</dd></div>}
+          </>}
         </dl>
       </section>
     </div>
@@ -988,7 +1001,7 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
         aoSalvar={salvarEvento}
         aoExcluir={excluirEvento}
       />
-      <DetalheEvento evento={detalhe} aoFechar={() => setDetalhe(null)} />
+      <DetalheEvento evento={detalhe} usuarioId={usuarioId} aoFechar={() => setDetalhe(null)} />
       <DialogoConfirmar pedido={confirmacao} aoFechar={() => setConfirmacao(null)} />
     </div>
   );

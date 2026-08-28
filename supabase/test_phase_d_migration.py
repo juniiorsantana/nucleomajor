@@ -6,6 +6,11 @@ import unittest
 
 
 MIGRATION = Path(__file__).parent / "migrations" / "20260821210000_fase_d_agenda_integrada.sql"
+PERSONAL_EVENTS_MIGRATION = (
+    Path(__file__).parent
+    / "migrations"
+    / "20260828170000_restringir_eventos_pessoais.sql"
+)
 
 
 class PhaseDMigrationTest(unittest.TestCase):
@@ -82,6 +87,36 @@ class PhaseDMigrationTest(unittest.TestCase):
         self.assertIn("'indisponível'", body)
         self.assertNotIn("insert into public.calendar_events", body)
         self.assertNotIn("update public.calendar_events", body)
+
+    def test_evento_pessoal_de_colega_nao_vira_corporativo(self):
+        sql = PERSONAL_EVENTS_MIGRATION.read_text(encoding="utf-8").casefold()
+        policy = re.search(
+            r"create policy calendar_events_update.*?with check \(.*?\n\);",
+            sql,
+            flags=re.DOTALL,
+        )
+        self.assertIsNotNone(policy)
+        policy_sql = policy.group(0)
+        self.assertIn("visibility = 'personal' and owner_id = auth.uid()", policy_sql)
+        self.assertIn(
+            "visibility = 'organization' and private.can_manage_org(organization_id)",
+            policy_sql,
+        )
+        self.assertNotIn(
+            "visibility = 'personal' and private.can_manage_org", policy_sql
+        )
+
+    def test_evento_pessoal_de_colega_nao_pode_ser_excluido_por_admin(self):
+        sql = PERSONAL_EVENTS_MIGRATION.read_text(encoding="utf-8").casefold()
+        policy = re.search(
+            r"create policy calendar_events_delete.*?;", sql, flags=re.DOTALL
+        )
+        self.assertIsNotNone(policy)
+        policy_sql = policy.group(0)
+        self.assertIn("visibility = 'personal' and owner_id = auth.uid()", policy_sql)
+        self.assertNotIn(
+            "visibility = 'personal' and private.can_manage_org", policy_sql
+        )
 
 
 if __name__ == "__main__":
