@@ -20,8 +20,8 @@ conteúdo privado. Use apenas identificadores curtos do teste.
 ## Pré-requisitos
 
 - [ ] portal publicado a partir da `main`;
-- [ ] migration `20260828183000_fase_h5_prontidao_modelo.sql` aplicada;
-- [ ] sete skills oficiais validadas e publicadas com versão e hash;
+- [x] migration `20260828183000_fase_h5_prontidao_modelo.sql` aplicada;
+- [x] sete skills oficiais validadas e publicadas com versão e hash;
 - [ ] Bridge e assistente ativos na VPS, WSL desligado;
 - [ ] painel mostra WhatsApp, MCP, agenda, modelo e notificações separadamente;
 - [ ] Claude com uso disponível;
