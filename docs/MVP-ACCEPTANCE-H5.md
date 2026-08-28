@@ -19,16 +19,16 @@ conteúdo privado. Use apenas identificadores curtos do teste.
 
 ## Pré-requisitos
 
-- [ ] portal publicado a partir da `main`;
+- [x] portal publicado a partir da `main`;
 - [x] migration `20260828183000_fase_h5_prontidao_modelo.sql` aplicada;
 - [x] sete skills oficiais validadas e publicadas com versão e hash;
-- [ ] Bridge e assistente ativos na VPS, WSL desligado;
+- [x] Bridge e assistente ativos na VPS, WSL desligado;
 - [ ] painel mostra WhatsApp, MCP, agenda, modelo e notificações separadamente;
 - [ ] Claude com uso disponível;
 - [ ] documento interno e documento externo de teste publicados nos escopos
   corretos;
 - [ ] campanha piloto ligada somente ao contato controlado;
-- [ ] notificações ainda em simulação.
+- [x] notificações ainda em simulação.
 
 ## Aceite interno
 

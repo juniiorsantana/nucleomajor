@@ -30,11 +30,12 @@ Skills conferidas no Supabase em 28/08/2026:
 ## Versões implantadas
 
 - Portal em produção antes da H.5: `048ee48` na branch `main`.
-- Candidato H.5 publicado no GitHub: `618b623` na branch `main`; o novo commit
-  documental dispara a implantação automática da Hostinger.
-- Runtime da VPS: `46b4d24` na branch `hardening`.
-- Runtime H.5 preparado e testado localmente: `461ca8a`; ainda precisa ser
-  enviado ao repositório privado e implantado na VPS.
+- Portal H.5 publicado na branch `main`; commit operacional `618b623` e
+  registro de implantação `e64000f`. O endereço público respondeu `HTTP 200`
+  após o disparo automático da Hostinger.
+- Runtime H.5 da VPS: `461ca8a` na branch `hardening`, implantado em 28/08/2026.
+- Bridge e assistente permaneceram ativos depois da implantação; a sessão do
+  WhatsApp não foi recriada.
 - O runtime aceita o formato atual de refresh token do Supabase e protege a
   renovação concorrente da credencial técnica.
 - Logs novos do Bridge não registram conteúdo, nome ou telefone completo das
@@ -99,9 +100,9 @@ o assistente, sem mexer na sessão do WhatsApp.
 
 - O limite de uso do Claude pode impedir respostas geradas pelo modelo, mesmo
   quando Bridge, WhatsApp, MCP e agenda estão saudáveis.
-- A H.5 separa esse estado no contrato e no portal; a migration está aplicada
-  e falta concluir a implantação do portal e do runtime para a informação
-  aparecer de ponta a ponta em produção.
+- A H.5 separa esse estado no contrato e no portal; migration, portal e runtime
+  estão implantados. Falta provocar um sucesso ou erro real do modelo e
+  conferir a atualização desse estado no painel.
 - O piloto externo ainda não deve ser aberto para clientes reais.
 - Falta validar a ferramenta de tarefas de ponta a ponta na VPS.
 - Falta validar conhecimento externo publicado em uma jornada real controlada.
