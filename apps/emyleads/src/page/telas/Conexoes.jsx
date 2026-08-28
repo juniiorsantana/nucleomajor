@@ -287,6 +287,23 @@ function CartaoConexao({
     ? ROTULOS[estado.status] || "Sem sessão do WhatsApp"
     : "Não consultada";
   const mcpAtivo = robo?.status === "active" && prontidao?.mcp === "configured";
+  const estadoModelo = prontidao?.modelStatus;
+  const codigoModelo = prontidao?.lastModelErrorCode;
+  const rotuloModelo = estadoModelo === "available"
+    ? prontidao?.lastModelSuccessAt
+      ? `Disponível · respondeu ${fmtRelativo(prontidao.lastModelSuccessAt)}`
+      : "Disponível"
+    : estadoModelo === "quota_exhausted" || codigoModelo === "model_quota_exhausted"
+      ? "Limite do Claude atingido"
+      : codigoModelo === "model_auth_unavailable"
+        ? "Claude sem autenticação"
+        : codigoModelo === "model_rate_limited"
+          ? "Claude temporariamente limitado"
+          : codigoModelo === "model_timeout"
+            ? "Claude demorou além do limite"
+            : estadoModelo === "unavailable"
+              ? "Claude indisponível no último teste"
+              : "Ainda não testado desde o reinício";
   const agenda = prontidao?.agenda;
   const rotuloAgenda = agenda === "available"
     ? prontidao?.agendaWrite ? "Leitura e escrita disponíveis" : "Somente leitura"
@@ -370,6 +387,11 @@ function CartaoConexao({
             rotulo="Assistente"
             valor={prontidao?.assistant === "online" ? "Em execução" : "Sem resposta recente"}
             tom={prontidao?.assistant === "online" ? "sucesso" : "erro"}
+          />
+          <EstadoLinha
+            rotulo="Modelo de IA"
+            valor={rotuloModelo}
+            tom={estadoModelo === "available" ? "sucesso" : estadoModelo === "unavailable" || estadoModelo === "quota_exhausted" ? "erro" : "neutro"}
           />
           <EstadoLinha
             rotulo="WhatsApp"

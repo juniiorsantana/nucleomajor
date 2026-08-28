@@ -17,9 +17,19 @@
 - Skills oficiais versionadas e roteamento contextual H.3 disponíveis.
 - Repositório privado do runtime disponível no GitHub, branch `hardening`.
 
+Skills conferidas no Supabase em 28/08/2026:
+
+- `agenda` v4 · `bad26124f521`;
+- `pre-qualificacao` v3 · `ce02e9fb83a6`;
+- `recepcao` v1 · `205e418dca0c`;
+- `solicitacao-agenda` v1 · `716f673fbc9d`;
+- `suporte` v3 · `7d87526e2f78`;
+- `tarefas` v2 · `36327474cacf`;
+- `vendas` v3 · `9ee6e4a1ac4a`.
+
 ## Versões implantadas
 
-- Portal: `8ff4eaa` na branch `main`.
+- Portal em produção antes da H.5: `048ee48` na branch `main`.
 - Runtime da VPS: `46b4d24` na branch `hardening`.
 - O runtime aceita o formato atual de refresh token do Supabase e protege a
   renovação concorrente da credencial técnica.
@@ -33,6 +43,8 @@
 - Agenda externa com aprovação H.4 aplicada.
 - Prontidão do runtime H.4 aplicada.
 - Consulta segura de disponibilidade externa aplicada.
+- Proteção de eventos pessoais aplicada.
+- Migration H.5 de prontidão do modelo criada e aguardando aplicação.
 
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
@@ -83,6 +95,9 @@ o assistente, sem mexer na sessão do WhatsApp.
 
 - O limite de uso do Claude pode impedir respostas geradas pelo modelo, mesmo
   quando Bridge, WhatsApp, MCP e agenda estão saudáveis.
+- A H.5 separa esse estado no contrato e no portal; falta publicar o portal,
+  implantar o runtime e aplicar sua migration para a informação aparecer em
+  produção.
 - O piloto externo ainda não deve ser aberto para clientes reais.
 - Falta validar a ferramenta de tarefas de ponta a ponta na VPS.
 - Falta validar conhecimento externo publicado em uma jornada real controlada.
@@ -102,3 +117,5 @@ o assistente, sem mexer na sessão do WhatsApp.
 6. testar reserva provisória, aprovação, recusa, expiração e aviso ao cliente;
 7. executar dez jornadas controladas durante 48 horas;
 8. somente então avaliar a mudança do piloto para o modo Ativo.
+
+O registro das dez jornadas fica em `docs/MVP-ACCEPTANCE-H5.md`.

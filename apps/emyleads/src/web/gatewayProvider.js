@@ -243,6 +243,12 @@ export function criarOperacoesGateway() {
     const supabase = obterSupabaseWeb();
     const camposBase = "connection_id,instance_id,runtime_kind,host_label,runtime_version,bridge_status,whatsapp_status,assistant_status,mcp_status,agenda_status,agenda_read,agenda_write,chatbot_status,automation_enabled,default_owner,open_bot,open_ai,open_human,contract_version,started_at,heartbeat_at";
     const camposH4 = `${camposBase},external_approval_status,notification_worker_status,last_notification_at,skill_slug,skill_version,skill_hash`;
+    const camposH5 = `${camposH4},model_status,last_model_success_at,last_model_error_code`;
+    const consultaH5 = await supabase.from("connection_runtime_status")
+      .select(camposH5)
+      .eq("organization_id", organizationId);
+    if (!consultaH5.error) return consultaH5.data || [];
+
     const consultaH4 = await supabase.from("connection_runtime_status")
       .select(camposH4)
       .eq("organization_id", organizationId);
@@ -288,6 +294,9 @@ export function criarOperacoesGateway() {
         expectedPhoneMasked: item.expected_phone_last4 ? `•••• ${item.expected_phone_last4}` : null,
         readiness: control ? {
           assistant: heartbeatFresh ? control.assistant_status : "offline",
+          modelStatus: heartbeatFresh ? control.model_status || "not_checked" : "not_checked",
+          lastModelSuccessAt: control.last_model_success_at || null,
+          lastModelErrorCode: heartbeatFresh ? control.last_model_error_code || "" : "",
           mcp: heartbeatFresh ? control.mcp_status : "unavailable",
           agenda: heartbeatFresh ? control.agenda_status : "not_checked",
           agendaRead: heartbeatFresh ? control.agenda_read : null,

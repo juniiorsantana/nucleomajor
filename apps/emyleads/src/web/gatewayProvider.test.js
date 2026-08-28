@@ -91,6 +91,9 @@ describe("WebGatewayProvider Realtime", () => {
       bridge_status: "online",
       whatsapp_status: "connected",
       assistant_status: "online",
+      model_status: "quota_exhausted",
+      last_model_success_at: "2026-08-25T11:55:00Z",
+      last_model_error_code: "model_quota_exhausted",
       mcp_status: "configured",
       agenda_status: "available",
       agenda_read: true,
@@ -111,7 +114,14 @@ describe("WebGatewayProvider Realtime", () => {
       runtime: "online",
       host: "VPS Núcleo Major",
       remoteManaged: true,
-      readiness: { assistant: "online", mcp: "configured", agenda: "available", chatbot: "online" },
+      readiness: {
+        assistant: "online",
+        modelStatus: "quota_exhausted",
+        lastModelErrorCode: "model_quota_exhausted",
+        mcp: "configured",
+        agenda: "available",
+        chatbot: "online",
+      },
       attendance: { iaAtiva: true, donoPadrao: "ia" },
     });
   });

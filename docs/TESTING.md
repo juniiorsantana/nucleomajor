@@ -61,3 +61,9 @@ Validar desktop, tablet e celular, além de:
 
 Nenhum teste automatizado deve enviar mensagem real, criar cliente real ou
 usar credenciais de produção sem uma etapa de aceite explicitamente marcada.
+
+## Aceite H.5
+
+O roteiro operacional, inclusive a ativação reversível das notificações e o
+registro das dez jornadas em 48 horas, está em
+`docs/MVP-ACCEPTANCE-H5.md`.

@@ -5,6 +5,7 @@ import test from "node:test";
 const migrationUrl = new URL("../supabase/migrations/20260827190000_fase_h4_agenda_externa_aprovacao.sql", import.meta.url);
 const readinessMigrationUrl = new URL("../supabase/migrations/20260827193000_fase_h4_prontidao_runtime.sql", import.meta.url);
 const availabilityMigrationUrl = new URL("../supabase/migrations/20260827210000_fase_h4_disponibilidade_cliente.sql", import.meta.url);
+const modelReadinessMigrationUrl = new URL("../supabase/migrations/20260828183000_fase_h5_prontidao_modelo.sql", import.meta.url);
 
 test("migration H.4 mantém criação externa atrás de aprovação", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -31,6 +32,16 @@ test("prontidão H.4 separa agenda, aprovação, notificações e versão da ski
   assert.match(sql, /skill_version/);
   assert.match(sql, /skill_hash/);
   assert.match(sql, /create or replace function public\.nucleo_runtime_heartbeat/);
+});
+
+test("prontidão H.5 publica disponibilidade do modelo sem erro bruto", async () => {
+  const sql = await readFile(modelReadinessMigrationUrl, "utf8");
+  assert.match(sql, /model_status/);
+  assert.match(sql, /last_model_success_at/);
+  assert.match(sql, /last_model_error_code/);
+  assert.match(sql, /quota_exhausted/);
+  assert.match(sql, /safe_model_error !~ '\^\[a-z0-9_\]\+\$'/);
+  assert.doesNotMatch(sql, /last_model_error_message/i);
 });
 
 test("bloqueio provisório não contém dados do cliente nem lembretes", async () => {
