@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migrationUrl = new URL("../supabase/migrations/20260827190000_fase_h4_agenda_externa_aprovacao.sql", import.meta.url);
 const readinessMigrationUrl = new URL("../supabase/migrations/20260827193000_fase_h4_prontidao_runtime.sql", import.meta.url);
+const availabilityMigrationUrl = new URL("../supabase/migrations/20260827210000_fase_h4_disponibilidade_cliente.sql", import.meta.url);
 
 test("migration H.4 mantém criação externa atrás de aprovação", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -37,4 +38,14 @@ test("bloqueio provisório não contém dados do cliente nem lembretes", async (
   assert.match(sql, /'Reserva provisória — aguardando aprovação'/);
   assert.match(sql, /'\{\}'::integer\[\]/);
   assert.match(sql, /contact_id, status[\s\S]{0,300}null, 'tentative'/);
+});
+
+test("disponibilidade externa devolve somente estado e intervalo sem detalhes privados", async () => {
+  const sql = await readFile(availabilityMigrationUrl, "utf8");
+  assert.match(sql, /create or replace function public\.nucleo_customer_calendar_availability/);
+  assert.match(sql, /context\.audience = 'customer'/);
+  assert.match(sql, /event\.status in \('scheduled', 'tentative'\)/);
+  assert.match(sql, /'status', case when has_conflict then 'conflict' else 'available' end/);
+  assert.match(sql, /calendar interval must use 30-minute boundaries/);
+  assert.doesNotMatch(sql, /jsonb_build_object\([\s\S]*?'(?:title|description|contact|category|participants)'/i);
 });
