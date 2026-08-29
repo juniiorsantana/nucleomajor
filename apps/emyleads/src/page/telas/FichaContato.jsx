@@ -98,6 +98,7 @@ export default function FichaContato({
   aoEditar,
   aoCriarNegocio,
   aoCriarTarefa,
+  aoCriarNota,
   aoAbrirNegocio,
   aoAbrirTarefa,
 }) {
@@ -254,7 +255,7 @@ export default function FichaContato({
           </section>
 
           <section className="border-t border-line px-5 py-4">
-            <BlocoTitulo>Notas · {notasDoContato.length}</BlocoTitulo>
+            <BlocoTitulo acao={<button type="button" onClick={aoCriarNota} className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Nova</button>}>Notas · {notasDoContato.length}</BlocoTitulo>
             {notasDoContato.length ? (
               <div className="grid gap-2">
                 {notasDoContato.slice(0, 3).map((nota) => (

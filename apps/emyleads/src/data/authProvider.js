@@ -21,14 +21,33 @@ function erroDaResposta(error, codigo = "supabase-erro") {
   return erro;
 }
 
-function usuarioPublico(user) {
+/**
+ * O usuário da sessão, já com o perfil.
+ *
+ * `nome` passa a preferir `profiles.full_name` e só cai para o metadado do
+ * cadastro quando o perfil ainda não foi lido. Os dois existiam em paralelo, e
+ * o metadado é o que NÃO se consegue corrigir: quem digitou o nome errado ao
+ * criar a conta ficava com ele para sempre em toda tela que lia daqui.
+ */
+function usuarioPublico(user, perfil = null) {
   if (!user) return null;
+  const doCadastro = user.user_metadata?.full_name || "";
   return {
     id: user.id,
     email: user.email || "",
-    nome: user.user_metadata?.full_name || "",
+    nome: perfil?.full_name || doCadastro,
+    perfil: perfil || {
+      id: user.id,
+      full_name: doCadastro,
+      display_name: "",
+      color: null,
+      avatar_path: null,
+    },
   };
 }
+
+const nomeCurtoValido = (valor) => String(valor || "").trim().length <= 40;
+const corValida = (valor) => !valor || /^#[0-9a-f]{6}$/i.test(String(valor).trim());
 
 export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.storage.local } = {}) {
   const portalRequest = async (path, { method = "GET", body } = {}) => {
@@ -68,6 +87,24 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   };
 
+  /**
+   * O perfil de quem está logado.
+   *
+   * Falha silenciosa de propósito: perfil é identidade visual, não credencial.
+   * Se esta leitura cair, a pessoa continua entrando e o avatar volta ao
+   * fallback derivado do id — derrubar a sessão porque o nome curto não chegou
+   * seria trocar um enfeite por um bloqueio.
+   */
+  const lerPerfil = async (userId) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,full_name,display_name,color,avatar_path")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return null;
+    return data || null;
+  };
+
   const estado = async () => {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw erroDaResposta(error, "sessao-falhou");
@@ -77,6 +114,7 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       return null;
     }
 
+    const perfil = await lerPerfil(user.id);
     const organizacoes = await listarOrganizacoes(user.id);
     const salvo = (await area.get(CHAVE_WORKSPACE))[CHAVE_WORKSPACE];
     const organizacaoAtual =
@@ -88,11 +126,69 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
 
     db.definirWorkspace(organizacaoAtual?.id || null);
 
-    return { usuario: usuarioPublico(user), organizacoes, organizacaoAtual };
+    return { usuario: usuarioPublico(user, perfil), organizacoes, organizacaoAtual };
+  };
+
+  /**
+   * Grava o próprio perfil.
+   *
+   * Escreve direto na tabela em vez de por RPC porque `profiles_update_self`
+   * já resolve a autorização no banco: cada um escreve na própria linha e em
+   * mais nenhuma. Uma função `security definer` aqui só acrescentaria um lugar
+   * a mais para a regra divergir.
+   */
+  const salvarPerfil = async ({ nome, nomeCurto, cor } = {}) => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw erroDaResposta(error, "sessao-falhou");
+    const user = data?.session?.user;
+    if (!user) {
+      const erro = new Error("Sua sessão expirou. Entre novamente.");
+      erro.codigo = "auth-expirada";
+      throw erro;
+    }
+
+    const patch = {};
+    if (nome !== undefined) patch.full_name = String(nome || "").trim();
+    if (nomeCurto !== undefined) {
+      if (!nomeCurtoValido(nomeCurto)) {
+        const erro = new Error("O nome curto passa de 40 caracteres.");
+        erro.codigo = "perfil-nome-curto-longo";
+        throw erro;
+      }
+      patch.display_name = String(nomeCurto || "").trim();
+    }
+    if (cor !== undefined) {
+      if (!corValida(cor)) {
+        const erro = new Error("Cor inválida.");
+        erro.codigo = "perfil-cor-invalida";
+        throw erro;
+      }
+      patch.color = cor ? String(cor).trim().toLowerCase() : null;
+    }
+    if (!Object.keys(patch).length) return lerPerfil(user.id);
+
+    const { data: salvo, error: falha } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", user.id)
+      .select("id,full_name,display_name,color,avatar_path")
+      .maybeSingle();
+    if (falha) throw erroDaResposta(falha, "perfil-salvar-falhou");
+    return salvo || null;
   };
 
   return {
     "auth.estado": estado,
+
+    "perfil.ler": async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw erroDaResposta(error, "sessao-falhou");
+      const user = data?.session?.user;
+      if (!user) return null;
+      return lerPerfil(user.id);
+    },
+
+    "perfil.salvar": salvarPerfil,
 
     "auth.migracaoControle": async ({ organizationId, acao = "ler" } = {}) => {
       const atual = await estado();
@@ -223,12 +319,49 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       return { ...atual, organizacaoAtual: organizacao };
     },
 
+    /**
+     * Renomeia a empresa. Como no perfil, a autorização já está na policy
+     * (`organizations_update` exige `can_manage_org`), então atendente que
+     * tentar não recebe erro de tela: recebe zero linhas do banco.
+     *
+     * O `slug` fica de fora de propósito — convites e links já emitidos
+     * apontam para ele, e trocá-lo quebraria endereço que alguém já tem.
+     */
+    "organizacoes.atualizar": async ({ nome } = {}) => {
+      const atual = await estado();
+      const organizacao = atual?.organizacaoAtual;
+      if (!organizacao) {
+        const erro = new Error("Nenhuma empresa selecionada.");
+        erro.codigo = "workspace-ausente";
+        throw erro;
+      }
+      const limpo = String(nome || "").trim();
+      if (limpo.length < 2 || limpo.length > 120) {
+        const erro = new Error("O nome da empresa precisa ter entre 2 e 120 caracteres.");
+        erro.codigo = "organizacao-nome-invalido";
+        throw erro;
+      }
+      const { data, error } = await supabase
+        .from("organizations")
+        .update({ name: limpo })
+        .eq("id", organizacao.id)
+        .select("id,name,slug")
+        .maybeSingle();
+      if (error) throw erroDaResposta(error, "organizacao-atualizar-falhou");
+      if (!data) {
+        const erro = new Error("Só o dono ou um administrador renomeia a empresa.");
+        erro.codigo = "organizacao-sem-permissao";
+        throw erro;
+      }
+      return data;
+    },
+
     "organizacoes.membros": async () => {
       const atual = await estado();
       if (!atual?.organizacaoAtual) return [];
       const { data, error } = await supabase
         .from("organization_members")
-        .select("user_id,role,status,responsibility,joined_at,profile:profiles(id,full_name,avatar_path)")
+        .select("user_id,role,status,responsibility,joined_at,profile:profiles(id,full_name,display_name,color,avatar_path)")
         .eq("organization_id", atual.organizacaoAtual.id)
         .order("joined_at", { ascending: true });
       if (error) throw erroDaResposta(error, "membros-lista-falhou");

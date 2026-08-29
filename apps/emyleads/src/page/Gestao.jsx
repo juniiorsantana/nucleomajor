@@ -1,11 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, Filter, LibraryBig, LogOut, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
+import { PAPEIS } from "../ui/papeis";
+import { corDaPessoa, nomeCurto } from "../ui/perfil";
 import Contatos from "./telas/Contatos";
 import FichaContato from "./telas/FichaContato";
 import Funil from "./telas/Funil";
 import Tarefas from "./telas/Tarefas";
-import { BotaoPrimario, CabecalhoTela, Marca, Rail } from "./ui";
+import { CampoFormulario, ENTRADA_GESTAO, ModalGestao } from "./telas/gestaoCompartilhados";
+import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Assistente = lazy(() => import("./telas/Assistente"));
@@ -15,6 +18,7 @@ const ChatbotEditor = lazy(() => import("./telas/ChatbotEditor"));
 const Conexoes = lazy(() => import("./telas/Conexoes"));
 const Equipe = lazy(() => import("./telas/Equipe"));
 const Configuracoes = lazy(() => import("./telas/Configuracoes"));
+const MinhaConta = lazy(() => import("./telas/MinhaConta"));
 
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
@@ -138,6 +142,56 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
   );
 }
 
+function ModalNota({ contato, aoFechar, aoSalvar }) {
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+
+  const enviar = async (evento) => {
+    evento.preventDefault();
+    const conteudo = texto.trim();
+    if (!conteudo) return;
+    setSalvando(true);
+    setErro(null);
+    try {
+      await api.notas.criar({ contactId: contato.id, texto: conteudo });
+      await aoSalvar();
+      aoFechar();
+    } catch (err) {
+      setErro(err?.message || String(err));
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <ModalGestao titulo={`Nova nota · ${contato.nome || "Contato"}`} aoFechar={aoFechar}>
+      <form onSubmit={enviar}>
+        <div className="px-5 py-4">
+          <CampoFormulario rotulo="Anotação">
+            <textarea
+              autoFocus
+              rows={5}
+              value={texto}
+              onChange={(evento) => setTexto(evento.target.value)}
+              placeholder="Registre informações úteis para o próximo atendimento."
+              className={`${ENTRADA_GESTAO} resize-y`}
+            />
+          </CampoFormulario>
+          {erro && <p className="mt-2 text-[12px] text-danger">{erro}</p>}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
+          <button type="button" onClick={aoFechar} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+            Cancelar
+          </button>
+          <BotaoPrimario type="submit" disabled={salvando || !texto.trim()} className="!py-2">
+            {salvando ? "Salvando…" : "Salvar nota"}
+          </BotaoPrimario>
+        </div>
+      </form>
+    </ModalGestao>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 function EmConstrucao({ titulo }) {
@@ -169,7 +223,16 @@ function AvisoMigracao({ migracao }) {
   );
 }
 
-function RodapeWorkspace({ sessao, aoTrocar }) {
+/**
+ * O rodapé é o único lugar do app onde pessoa e empresa aparecem juntas — e
+ * por isso é a porta da conta.
+ *
+ * O botão mostrava a empresa e o e-mail, mas o menu só oferecia empresas: a
+ * pessoa aparecia sem ser clicável, e não havia para onde ir. Agora o menu
+ * segue a mesma separação do modelo de dados: quem você é em cima, em que
+ * empresa você está embaixo.
+ */
+function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta }) {
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -194,18 +257,48 @@ function RodapeWorkspace({ sessao, aoTrocar }) {
   };
 
   if (!sessao?.organizacaoAtual) return null;
+
+  const perfil = sessao.usuario?.perfil;
+  const apelido = nomeCurto(perfil, sessao.usuario?.email || "Conta");
+  const cor = corDaPessoa(perfil);
+  const papel = PAPEIS[sessao.organizacaoAtual.papel] || "";
+
   return (
     <div className="relative">
       <button onClick={() => setAberto(!aberto)} className="flex w-full cursor-pointer items-center gap-2.5 rounded-[12px] border border-line px-3 py-2.5 text-left hover:bg-surface-hover">
-        <Marca tamanho={30} texto={false} />
+        <Iniciais nome={perfil?.full_name || apelido} tamanho={30} cor={cor} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-fg">{sessao.organizacaoAtual.name}</span>
-          <span className="block truncate text-[11.5px] text-sub">{sessao.usuario?.email || "Conta conectada"}</span>
+          <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
+          <span className="block truncate text-[11.5px] text-sub">
+            {sessao.organizacaoAtual.name}
+            {papel && ` · ${papel}`}
+          </span>
         </span>
         <ChevronDown size={15} className={`flex-none text-sub transition-transform ${aberto ? "rotate-180" : ""}`} />
       </button>
       {aberto && (
         <div className="absolute bottom-[calc(100%+8px)] left-0 right-0 z-20 overflow-hidden rounded-[10px] border border-line bg-bg p-1 shadow-xl">
+          <div className="flex items-center gap-2.5 px-2.5 py-2">
+            <Iniciais nome={perfil?.full_name || apelido} tamanho={32} cor={cor} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
+              <span className="block truncate text-[11.5px] text-sub">{sessao.usuario?.email || "Conta conectada"}</span>
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setAberto(false);
+              aoAbrirConta?.();
+            }}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
+          >
+            <CircleUser size={15} /> Minha conta
+          </button>
+
+          <div className="my-1 border-t border-line" />
+          <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-faint">
+            Trocar de empresa
+          </p>
           {sessao.organizacoes.map((org) => (
             <button key={org.id} onClick={() => trocar(org.id)} className="flex w-full cursor-pointer items-center rounded-[7px] px-2.5 py-2 text-left text-[12.5px] text-sub hover:bg-surface-hover hover:text-fg">
               <span className="min-w-0 flex-1 truncate">{org.name}</span>
@@ -229,6 +322,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const [erro, setErro] = useState(null);
   const [editando, setEditando] = useState(undefined); // undefined = fechado
   const [ficha, setFicha] = useState(null);
+  const [notaContato, setNotaContato] = useState(null);
   const [comando, setComando] = useState(null);
   const [chatbotEditando, setChatbotEditando] = useState(undefined); // undefined = lista fechada, null = novo
 
@@ -351,6 +445,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           sessao ? (
             <RodapeWorkspace
               sessao={sessao}
+              aoAbrirConta={() => trocarTela("conta")}
               aoTrocar={async (proximo) => {
                 setDados(null);
                 // Descarrega a credencial local do workspace que está saindo
@@ -451,6 +546,14 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando configurações…</div>}>
             <Configuracoes dados={dados} recarregar={carregar} />
           </Suspense>
+        ) : tela === "conta" ? (
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando sua conta…</div>}>
+            <MinhaConta
+              sessao={sessao}
+              atualizarSessao={atualizarSessao}
+              aoAbrirTela={trocarTela}
+            />
+          </Suspense>
         ) : null}
       </main>
 
@@ -473,8 +576,16 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           aoEditar={editarFicha}
           aoCriarNegocio={criarNegocio}
           aoCriarTarefa={criarTarefa}
+          aoCriarNota={() => setNotaContato(fichaAtualizada)}
           aoAbrirNegocio={abrirNegocio}
           aoAbrirTarefa={abrirTarefa}
+        />
+      )}
+      {notaContato && (
+        <ModalNota
+          contato={notaContato}
+          aoFechar={() => setNotaContato(null)}
+          aoSalvar={carregar}
         />
       )}
     </div>

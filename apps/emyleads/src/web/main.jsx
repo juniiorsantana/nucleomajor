@@ -16,6 +16,7 @@ const slugToScreen = {
   conexoes: "conexoes",
   equipe: "equipe",
   configuracoes: "config",
+  conta: "conta",
 };
 const screenToSlug = Object.fromEntries(Object.entries(slugToScreen).map(([slug, screen]) => [screen, slug]));
 screenToSlug.conhecimento = "conhecimento";

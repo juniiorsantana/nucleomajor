@@ -8,6 +8,7 @@ import {
   paisDoTelefone,
   telefoneOperadorE164,
 } from "../../lib/telefoneOperador";
+import { corDaPessoa } from "../../ui/perfil";
 import {
   DESCRICAO_DO_PAPEL,
   OPCOES_DE_PAPEL,
@@ -484,7 +485,7 @@ function LinhaMembro({ membro, meuPapel, meuId, aoMudarPapel, aoSalvarResponsabi
     <div className="border-b border-line last:border-b-0">
       <div className={`${COLUNAS} px-5 py-3.5`}>
       <div className="flex min-w-0 items-center gap-2.5">
-        <Iniciais nome={nome || "?"} tamanho={30} />
+        <Iniciais nome={nome || "?"} tamanho={30} cor={corDaPessoa(membro.profile)} />
         <div className="min-w-0">
           <p className="truncate text-[13.5px] font-medium text-fg">
             {nome || "Sem nome no perfil"}

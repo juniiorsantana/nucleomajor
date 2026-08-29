@@ -103,7 +103,7 @@ let membrosDev = [
     status: "active",
     responsibility: "Direção comercial, propostas estratégicas e decisões finais.",
     joined_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-    profile: { id: "dev-user", full_name: "Usuário de desenvolvimento", avatar_path: null },
+    profile: { id: "dev-user", full_name: "Usuário de desenvolvimento", display_name: "", color: null, avatar_path: null },
   },
   {
     user_id: "dev-admin",
@@ -111,7 +111,7 @@ let membrosDev = [
     status: "active",
     responsibility: "Coordena a operação e acompanha os indicadores da equipe.",
     joined_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    profile: { id: "dev-admin", full_name: "Ana Administradora", avatar_path: null },
+    profile: { id: "dev-admin", full_name: "Ana Administradora", display_name: "Ana", color: "#0369a1", avatar_path: null },
   },
   {
     user_id: "dev-atendente",
@@ -119,10 +119,11 @@ let membrosDev = [
     status: "active",
     responsibility: "Atende novos leads e faz o primeiro diagnóstico.",
     joined_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    profile: { id: "dev-atendente", full_name: "Bruno Atendente", avatar_path: null },
+    profile: { id: "dev-atendente", full_name: "Bruno Atendente", display_name: "", color: null, avatar_path: null },
   },
 ];
 let convitesDev = [];
+let organizacaoDev = { id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada" };
 
 const customerProfileId = "dev-assistente-clientes";
 let intelligenceDev = {
@@ -236,6 +237,7 @@ const agendaDev = [
 ];
 
 let notificacoesAgendaDev = [];
+let conhecimentoDev = [];
 let preferenciasAgendaDev = {
   timezone: "America/Sao_Paulo",
   dayStart: "05:00:00",
@@ -258,13 +260,46 @@ const categoriasAgendaDev = [
 
 const operacoesBancada = {
   ...operacoes,
-  "auth.estado": async () => ({
-    usuario: { id: "dev-user", email: "dev@emyleads.local", nome: "Usuário de desenvolvimento" },
-    organizacoes: [{ id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada", papel: "owner" }],
-    organizacaoAtual: { id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada", papel: "owner" },
-  }),
+  "auth.estado": async () => {
+    const perfil = membrosDev.find((m) => m.user_id === "dev-user")?.profile || null;
+    return {
+      usuario: {
+        id: "dev-user",
+        email: "dev@emyleads.local",
+        nome: perfil?.full_name || "Usuário de desenvolvimento",
+        perfil,
+      },
+      organizacoes: [{ ...organizacaoDev, papel: "owner" }],
+      organizacaoAtual: { ...organizacaoDev, papel: "owner" },
+    };
+  },
   "auth.sair": async () => ({ ok: true }),
+
+  // O perfil da bancada mora dentro de `membrosDev` e não numa cópia à parte:
+  // com duas cópias, salvar aqui mudaria o rodapé e deixaria a Equipe exibindo
+  // o nome velho — o exato defeito que a tela nova existe para acabar.
+  "perfil.ler": async () => membrosDev.find((m) => m.user_id === "dev-user")?.profile || null,
+  "perfil.salvar": async ({ nome, nomeCurto, cor } = {}) => {
+    membrosDev = membrosDev.map((m) => {
+      if (m.user_id !== "dev-user") return m;
+      const perfil = { ...m.profile };
+      if (nome !== undefined) perfil.full_name = String(nome || "").trim();
+      if (nomeCurto !== undefined) perfil.display_name = String(nomeCurto || "").trim();
+      if (cor !== undefined) perfil.color = cor ? String(cor).toLowerCase() : null;
+      return { ...m, profile: perfil };
+    });
+    return membrosDev.find((m) => m.user_id === "dev-user")?.profile || null;
+  },
+
   "organizacoes.selecionar": async () => operacoesBancada["auth.estado"](),
+  "organizacoes.atualizar": async ({ nome }) => {
+    const limpo = String(nome || "").trim();
+    if (limpo.length < 2 || limpo.length > 120) {
+      throw new Error("O nome da empresa precisa ter entre 2 e 120 caracteres.");
+    }
+    organizacaoDev = { ...organizacaoDev, name: limpo };
+    return organizacaoDev;
+  },
   "organizacoes.listar": async () => (await operacoesBancada["auth.estado"]()).organizacoes,
   "organizacoes.membros": async () => membrosDev,
   "organizacoes.convites": async () => convitesDev,
@@ -347,6 +382,47 @@ const operacoesBancada = {
     return { status, requestId };
   },
   "inteligencia.simular": async () => ({ assistente: { nome: "Assistente Major" }, skillAtivo: { nome: "Recepção" }, campanha: { nome: "Piloto Atendimento Major" }, colecoesPermitidas: [], skillsPermitidos: [] }),
+  "conhecimento.listar": async () => conhecimentoDev.filter((item) => item.status !== "archived"),
+  "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "", audiencia = "internal", colecoesIds = [], publicado = false }) => {
+    const agora = new Date().toISOString();
+    const anterior = conhecimentoDev.find((item) => item.id === id);
+    const salvo = {
+      id: id || `dev-conhecimento-${Date.now()}`,
+      organizationId: "dev-org",
+      escopo,
+      usuarioId: escopo === "personal" ? "dev-user" : null,
+      caminho,
+      titulo,
+      conteudo,
+      status: "active",
+      audiencia,
+      publicadoEm: publicado ? (anterior?.publicadoEm || agora) : null,
+      versao: Number(anterior?.versao || 0) + 1,
+      criadoEm: anterior?.criadoEm || agora,
+      atualizadoEm: agora,
+      atualizadoPor: "dev-user",
+      colecoesIds,
+    };
+    conhecimentoDev = anterior
+      ? conhecimentoDev.map((item) => item.id === id ? salvo : item)
+      : [salvo, ...conhecimentoDev];
+    return salvo;
+  },
+  "conhecimento.testar": async ({ conteudo = "", pergunta = "" }) => {
+    const palavra = String(pergunta).toLocaleLowerCase("pt-BR").split(/\s+/).find((item) => item.length > 3);
+    const casou = Boolean(palavra && String(conteudo).toLocaleLowerCase("pt-BR").includes(palavra));
+    return { consulta: pergunta, casou, trecho: casou ? String(conteudo).slice(0, 240) : "", relevancia: casou ? 1 : 0 };
+  },
+  "conhecimento.versoes": async ({ id }) => conhecimentoDev.filter((item) => item.id === id).map((item) => ({
+    id: `${item.id}-v${item.versao}`, document_id: item.id, version: item.versao,
+    path: item.caminho, title: item.titulo, content_markdown: item.conteudo,
+    status: item.status, audience: item.audiencia, published_at: item.publicadoEm,
+    changed_by: item.atualizadoPor, created_at: item.atualizadoEm,
+  })),
+  "conhecimento.arquivar": async ({ id }) => {
+    conhecimentoDev = conhecimentoDev.map((item) => item.id === id ? { ...item, status: "archived" } : item);
+    return { id, arquivado: true };
+  },
   "agenda.permissao": async () => ({ organizationId: "dev-org", userId: "dev-user", papel: "owner" }),
   "agenda.calendario": async () => ({ organization_id: "dev-org", provider: "google", calendar_id: null, display_name: "Agenda compartilhada", enabled: false }),
   "agenda.contexto": async () => ({
@@ -564,6 +640,11 @@ const operacoesBancada = {
 };
 
 export function instalarChromeFalso() {
+  globalThis.__EMYLEADS_DEV_CALL__ = async (op, args = {}) => {
+    const executar = operacoesBancada[op];
+    if (!executar) throw new Error(`Operação desconhecida: ${op}`);
+    return executar(args);
+  };
   globalThis.chrome = {
     storage: {
       local: {

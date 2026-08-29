@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    .modal { width: 540px; border-radius: 16px; border: 1px solid #e6e9ed; background: #ffffff; box-shadow: 0 12px 34px rgba(18,23,48,.12); overflow: hidden; display: flex; flex-direction: column; }
+    .passo { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; color: #98a2b3; }
+    .bola { display: flex; width: 17px; height: 17px; align-items: center; justify-content: center; border-radius: 999px; background: #eef0f3; font-size: 9.5px; font-weight: 700; color: #98a2b3; }
+    .bolaon { background: #4f3cfc; color: #ffffff; }
+    .bolafeita { background: #dcfce7; color: #16a34a; }
+    .opc { display: flex; align-items: flex-start; gap: 11px; border-radius: 11px; border: 1px solid #e6e9ed; background: #ffffff; padding: 12px 13px; }
+    .opcon { border-color: #4f3cfc; background: #f7f6ff; box-shadow: 0 0 0 3px rgba(79,60,252,.08); }
+    .oi { display: flex; width: 32px; height: 32px; flex: none; align-items: center; justify-content: center; border-radius: 9px; }
+    .ot { font-size: 13px; font-weight: 600; color: #121730; }
+    .od { margin-top: 3px; font-size: 11px; line-height: 16px; color: #667085; text-wrap: pretty; }
+    .rot { font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: #121730; }
+    .sub { margin-top: 3px; font-size: 12px; color: #667085; text-wrap: pretty; }
+    .bt { border-radius: 9px; padding: 9px 15px; font-size: 12.5px; font-weight: 600; }
+    .sec { font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; }
+    .cx { display: flex; align-items: center; gap: 9px; border-radius: 9px; border: 1px solid #e6e9ed; padding: 9px 11px; font-size: 12px; color: #121730; }
+    .marca { display: flex; width: 16px; height: 16px; flex: none; align-items: center; justify-content: center; border-radius: 5px; border: 1.5px solid #d3d8de; }
+    .marcaon { border-color: #4f3cfc; background: #4f3cfc; color: #ffffff; }
+    .eti { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3; }
+  </style>
+</helmet>
+
+<div style="width: 1740px; height: 830px; background: #eceef2; box-sizing: border-box; padding: 24px; display: flex; gap: 32px; align-items: flex-start;">
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span class="eti">Etapa 3</span>
+    <div class="modal">
+      <div style="display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e6e9ed; padding: 12px 18px;">
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>O quê</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Como</span>
+        <span class="passo"><span class="bola bolaon">3</span>Quem usa</span>
+        <span class="passo"><span class="bola">4</span>Onde</span>
+        <span class="passo"><span class="bola">5</span>Revisar</span>
+        <span style="margin-left: auto; color: #98a2b3;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+      </div>
+
+      <div style="padding: 18px;">
+        <div class="rot">Quem poderá usar este conteúdo?</div>
+        <p class="sub">Isto decide quem vê a informação — inclusive se o assistente pode repeti-la para um cliente.</p>
+
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+          <div class="opc opcon">
+            <span class="oi" style="background: #E0F2FE; color: #0369a1;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Clientes</span><span class="od">O assistente de atendimento <strong style="color: #121730;">pode repetir isto para quem escrever no WhatsApp</strong>. Use só para o que você diria a um cliente sem hesitar.</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi" style="background: #eeebff; color: #3d29db;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M15 20a6 6 0 00-12 0"></path><circle cx="9" cy="8" r="3.4"></circle><path d="M17 20a5 5 0 00-3-4.6"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Toda a equipe</span><span class="od">Fica disponível para os profissionais autorizados da empresa. <strong style="color: #121730;">O assistente de cliente não usa.</strong></span></span>
+          </div>
+          <div class="opc">
+            <span class="oi" style="background: #f5f6f8; color: #667085;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Somente eu</span><span class="od">Só você vê e só o seu assistente usa. <strong style="color: #121730;">Nem administradores leem.</strong></span></span>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; display: flex; align-items: flex-start; gap: 9px; border-radius: 10px; background: #f5f6f8; padding: 10px 12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" style="flex: none; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v4h1"></path></svg>
+          <span style="font-size: 11px; line-height: 16px; color: #667085; text-wrap: pretty;">Dá para mudar depois. Ao trocar de <strong style="color: #121730;">Equipe</strong> para <strong style="color: #121730;">Clientes</strong>, pedimos uma confirmação — é o único caminho que expõe conteúdo para fora.</span>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed; background: #fafbfc; padding: 12px 18px;">
+        <span style="font-size: 12.5px; font-weight: 500; color: #667085;">Voltar</span>
+        <span style="margin-left: auto; font-size: 12.5px; font-weight: 500; color: #667085;">Cancelar</span>
+        <span class="bt" style="background: #4f3cfc; color: #ffffff;">Continuar</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span class="eti">Etapa 4</span>
+    <div class="modal">
+      <div style="display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e6e9ed; padding: 12px 18px;">
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>O quê</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Como</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Quem usa</span>
+        <span class="passo"><span class="bola bolaon">4</span>Onde</span>
+        <span class="passo"><span class="bola">5</span>Revisar</span>
+        <span style="margin-left: auto; color: #98a2b3;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+      </div>
+
+      <div style="padding: 18px;">
+        <div class="rot">Onde este conteúdo deve ser usado?</div>
+        <p class="sub">Pode deixar no geral e ajustar depois. Restringir serve quando o texto só faz sentido num contexto.</p>
+
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+          <div class="opc opcon" style="align-items: center; padding: 12px 13px;">
+            <span class="marca marcaon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Em qualquer lugar</span><span class="od">Todos os assistentes e skills desta empresa podem consultar.</span></span>
+          </div>
+          <div class="opc" style="align-items: center; padding: 12px 13px;">
+            <span class="marca"></span>
+            <span style="min-width: 0;"><span class="ot">Só em lugares específicos</span><span class="od">Escolha abaixo quais.</span></span>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; opacity: .45; pointer-events: none;">
+          <div class="sec">Assistentes</div>
+          <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+            <span class="cx"><span class="marca"></span>Atendimento no WhatsApp</span>
+            <span class="cx"><span class="marca"></span>Assistente do operador</span>
+          </div>
+
+          <div class="sec" style="margin-top: 14px;">Skills</div>
+          <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Atendimento</span>
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Comercial</span>
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Suporte</span>
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Qualificação</span>
+          </div>
+
+          <div class="sec" style="margin-top: 14px;">Campanhas</div>
+          <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Captação agosto</span>
+            <span style="border-radius: 999px; border: 1px solid #e6e9ed; padding: 5px 11px; font-size: 11.5px; color: #667085;">Retorno de inativos</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed; background: #fafbfc; padding: 12px 18px;">
+        <span style="font-size: 12.5px; font-weight: 500; color: #667085;">Voltar</span>
+        <span style="margin-left: auto; font-size: 12.5px; font-weight: 500; color: #667085;">Cancelar</span>
+        <span class="bt" style="background: #4f3cfc; color: #ffffff;">Continuar</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span class="eti">Etapa 5</span>
+    <div class="modal">
+      <div style="display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #e6e9ed; padding: 12px 18px;">
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>O quê</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Como</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Quem usa</span>
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>Onde</span>
+        <span class="passo"><span class="bola bolaon">5</span>Revisar</span>
+        <span style="margin-left: auto; color: #98a2b3;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+      </div>
+
+      <div style="padding: 18px;">
+        <div class="rot">Confira antes de publicar</div>
+        <p class="sub">Faça uma pergunta de verdade e veja o que o assistente responderia com este conteúdo.</p>
+
+        <div style="margin-top: 14px; border-radius: 11px; border: 1px solid #e6e9ed; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 11px 13px; background: #fafbfc;">
+            <span style="display: flex; width: 28px; height: 28px; flex: none; align-items: center; justify-content: center; border-radius: 8px; background: #eeebff; color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"></path><path d="M14 3v5h5"></path></svg></span>
+            <span style="min-width: 0; flex-grow: 1;"><span style="display: block; font-size: 12.5px; font-weight: 600; color: #121730;">Sobre a Major Hub</span><span style="display: block; font-size: 10.5px; color: #98a2b3;">1.240 palavras · cabe folgado no limite</span></span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #e6e9ed;">
+            <div style="padding: 10px 13px; border-right: 1px solid #e6e9ed;">
+              <span class="sec">Quem pode usar</span>
+              <div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; background: #E0F2FE; padding: 3px 9px; font-size: 10.5px; font-weight: 600; color: #0369a1;">Clientes</div>
+              <p style="margin: 7px 0 0; font-size: 10.5px; line-height: 15px; color: #b45309; text-wrap: pretty;">Sai para fora da empresa.</p>
+            </div>
+            <div style="padding: 10px 13px;">
+              <span class="sec">Quem vai consultar</span>
+              <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #121730;">
+                <span>Atendimento no WhatsApp</span>
+                <span>Assistente do operador</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <span class="sec">Faça uma pergunta para testar</span>
+          <div style="margin-top: 7px; display: flex; align-items: center; gap: 8px; border: 1px solid #d3d8de; border-radius: 10px; padding: 9px 12px;">
+            <span style="flex-grow: 1; font-size: 12.5px; color: #121730;">Vocês atendem fora de Cuiabá?</span>
+            <span style="display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 7px; background: #4f3cfc; color: #ffffff;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12h14M12 6l6 6-6 6"></path></svg></span>
+          </div>
+
+          <div style="margin-top: 9px; border-radius: 10px; background: #f5f6f8; padding: 11px 13px;">
+            <p style="margin: 0; font-size: 12px; line-height: 18px; color: #121730; text-wrap: pretty;">Atendemos todo o Brasil de forma remota, e presencialmente em Cuiabá e região. Para projetos fora daí, a gente combina encontros por vídeo.</p>
+            <div style="margin-top: 9px; display: flex; align-items: center; gap: 6px; border-top: 1px solid #e6e9ed; padding-top: 8px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path></svg>
+              <span style="font-size: 10.5px; color: #667085;">respondeu usando <strong style="color: #121730;">"Onde atendemos"</strong>, o 3º trecho deste documento</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed; background: #fafbfc; padding: 12px 18px;">
+        <span style="font-size: 12.5px; font-weight: 500; color: #667085;">Voltar</span>
+        <span style="margin-left: auto; border-radius: 9px; border: 1px solid #d3d8de; padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: #667085;">Salvar como rascunho</span>
+        <span class="bt" style="background: #4f3cfc; color: #ffffff;">Publicar</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

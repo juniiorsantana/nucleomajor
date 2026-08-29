@@ -37,6 +37,12 @@ export const MAXIMO_DE_TERMOS = 12;
  * que uma aspas solta abra uma frase, que um hífen inicial vire negação e
  * apague justamente o documento certo, e que um "or" digitado pelo usuário
  * mude a estrutura da consulta.
+ *
+ * TEM ESPELHO: `public.nucleo_knowledge_query` (20260828180000) repete estas
+ * regras em SQL, porque a etapa de revisão da tela de Conhecimento testa um
+ * rascunho — que a busca real não encontra — e precisa montar a mesma
+ * consulta. As duas raízes de build são separadas e nenhum import cruza as
+ * duas, então não dá para compartilhar. Mudou aqui, mude lá.
  */
 export function searchQuery(message, { maxTerms = MAXIMO_DE_TERMOS } = {}) {
   const termos = [];

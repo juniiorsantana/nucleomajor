@@ -5,6 +5,7 @@
  * depende dele. Só o transporte é falso.
  */
 
+import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "../data/client";
 import Gestao from "../page/Gestao";
@@ -18,9 +19,25 @@ await semearSePreciso();
 // escopadas por workspace — Conexões, hoje — não conseguem nem começar sem
 // saber de qual empresa são. Renderizar sem ela testaria uma tela que não
 // existe em produção.
-const sessao = await api.auth.estado();
+const sessaoInicial = await api.auth.estado();
 const telaInicial = new URLSearchParams(window.location.search).get("tela") || null;
 
-createRoot(document.getElementById("raiz")).render(
-  <Gestao sessao={sessao} atualizarSessao={async () => sessao} telaInicial={telaInicial} />
-);
+/**
+ * A sessão fica em estado, e não numa constante, porque telas que ESCREVEM no
+ * perfil ou na empresa pedem a sessão de volta depois de salvar. Com uma
+ * constante, salvar o nome funcionava no banco e a bancada continuava
+ * mostrando o valor velho — a tela parecia quebrada justamente onde não
+ * estava.
+ */
+function Bancada() {
+  const [sessao, setSessao] = useState(sessaoInicial);
+  const atualizarSessao = useCallback(async (novo) => {
+    const proximo = novo === undefined ? await api.auth.estado() : novo;
+    setSessao(proximo);
+    return proximo;
+  }, []);
+
+  return <Gestao sessao={sessao} atualizarSessao={atualizarSessao} telaInicial={telaInicial} />;
+}
+
+createRoot(document.getElementById("raiz")).render(<Bancada />);

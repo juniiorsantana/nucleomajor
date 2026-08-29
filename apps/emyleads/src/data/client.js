@@ -36,6 +36,12 @@ function enviar(mensagem) {
  * resolve; mais que isso esconderia erro de verdade.
  */
 export async function chamar(op, args = {}) {
+  // Bancada visual/e2e: o transporte falso é instalado depois que este
+  // módulo é avaliado, por isso a decisão acontece na chamada. Produção
+  // nunca define esta função e continua obrigatoriamente no provider web.
+  if (typeof globalThis.__EMYLEADS_DEV_CALL__ === "function") {
+    return globalThis.__EMYLEADS_DEV_CALL__(op, args);
+  }
   if (PLATAFORMA_WEB) {
     const { chamarWeb } = await import("../web/operations.js");
     return chamarWeb(op, args);

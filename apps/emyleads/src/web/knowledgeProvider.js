@@ -15,6 +15,10 @@ const mapDocument = (row) => ({
   versao: Number(row.version || 1),
   criadoEm: row.created_at,
   atualizadoEm: row.updated_at,
+  // A lista mostra "há 3 dias · Juniior". O nome não vem daqui: a tela cruza
+  // este id com `organizacoes.membros`, que já traz o perfil. Puxar o join
+  // aqui exigiria a policy de profiles valer para knowledge_documents.
+  atualizadoPor: row.updated_by || null,
 });
 
 export function criarOperacoesConhecimento({ supabase = obterSupabaseWeb(), area = webArea } = {}) {
@@ -31,51 +35,55 @@ export function criarOperacoesConhecimento({ supabase = obterSupabaseWeb(), area
     "conhecimento.listar": async () => {
       const ctx = await contexto();
       const { data, error } = await supabase.from("knowledge_documents")
-        .select("id,organization_id,scope_type,scope_user_id,path,title,content_markdown,status,audience,published_at,version,created_at,updated_at")
+        .select("id,organization_id,scope_type,scope_user_id,path,title,content_markdown,status,audience,published_at,version,created_at,updated_at,updated_by")
         .eq("organization_id", ctx.organizationId).is("deleted_at", null)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return (data || []).map(mapDocument);
     },
 
-    "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "", audiencia = "internal", colecoesIds = null }) => {
+    /** Documento e coleções são salvos pela mesma transação no banco. */
+    "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "", audiencia = "internal", colecoesIds = null, publicado = false }) => {
       const ctx = await contexto();
-      const external = audiencia === "external";
-      const payload = {
-        scope_type: escopo,
-        scope_user_id: escopo === "personal" ? ctx.userId : null,
-        path: String(caminho || "").trim(),
-        title: String(titulo || "").trim(),
-        content_markdown: String(conteudo || ""),
-        status: "active",
-        audience: external ? "external" : "internal",
-        published_at: external ? new Date().toISOString() : null,
-        published_by: external ? ctx.userId : null,
-        updated_by: ctx.userId,
-      };
-      const query = id
-        ? supabase.from("knowledge_documents").update(payload)
-          .eq("organization_id", ctx.organizationId).eq("id", id)
-        : supabase.from("knowledge_documents").insert({
-          ...payload, organization_id: ctx.organizationId, created_by: ctx.userId,
-        });
-      const { data, error } = await query.select("*").single();
+      const { data, error } = await supabase.rpc("nucleo_knowledge_save", {
+        target_organization: ctx.organizationId,
+        target_document: id,
+        document_scope: escopo,
+        document_path: String(caminho || "").trim(),
+        document_title: String(titulo || "").trim(),
+        document_content: String(conteudo || ""),
+        document_audience: audiencia === "external" ? "external" : "internal",
+        collection_ids: Array.isArray(colecoesIds) ? [...new Set(colecoesIds)] : [],
+        publish_document: Boolean(publicado),
+      });
       if (error) throw error;
-      if (Array.isArray(colecoesIds)) {
-        const { error: clearError } = await supabase.from("knowledge_document_collections")
-          .delete().eq("organization_id", ctx.organizationId).eq("document_id", data.id);
-        if (clearError) throw clearError;
-        if (colecoesIds.length) {
-          const { error: bindError } = await supabase.from("knowledge_document_collections").insert(
-            [...new Set(colecoesIds)].map((collectionId) => ({
-              organization_id: ctx.organizationId, collection_id: collectionId,
-              document_id: data.id, added_by: ctx.userId,
-            })),
-          );
-          if (bindError) throw bindError;
-        }
-      }
       return mapDocument(data);
+    },
+
+    /**
+     * A prévia da etapa de revisão.
+     *
+     * Não passa pela busca real de propósito: o documento em teste ainda é
+     * rascunho, e desde 20260828170000 rascunho não é encontrado. A RPC recebe
+     * o texto que está na tela — inclusive o que nunca foi salvo — e responde
+     * com o mesmo Postgres, o mesmo dicionário e os mesmos pesos que a busca
+     * de verdade usaria depois de publicado.
+     */
+    "conhecimento.testar": async ({ titulo = "", caminho = "", conteudo = "", pergunta = "" }) => {
+      await contexto();
+      const { data, error } = await supabase.rpc("nucleo_knowledge_preview", {
+        document_title: String(titulo || ""),
+        document_path: String(caminho || ""),
+        document_text: String(conteudo || ""),
+        question: String(pergunta || ""),
+      });
+      if (error) throw error;
+      return {
+        consulta: data?.consulta || "",
+        casou: Boolean(data?.casou),
+        trecho: data?.trecho || "",
+        relevancia: Number(data?.relevancia || 0),
+      };
     },
 
     "conhecimento.versoes": async ({ id }) => {

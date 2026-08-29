@@ -1,11 +1,13 @@
 import { obterSupabaseWeb } from "./supabaseClient.js";
 import { webArea } from "./storage.js";
+import { normalizarErroAgenda } from "../domain/agendaErrors.js";
 
 const WORKSPACE_KEY = "emyleads.workspace.atual";
 
 function erroAgenda(error, codigo = "agenda-falhou") {
-  const erro = new Error(error?.message || "Não foi possível acessar a agenda.");
-  erro.codigo = codigo;
+  const traduzido = normalizarErroAgenda(error, codigo);
+  const erro = new Error(traduzido.mensagem);
+  erro.codigo = traduzido.codigo;
   return erro;
 }
 

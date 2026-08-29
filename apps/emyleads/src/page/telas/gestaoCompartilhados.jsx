@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef } from "react";
 import { Check, X } from "lucide-react";
 import { fmtMoeda } from "../../lib/formato";
 
@@ -34,14 +35,67 @@ export function dataParaTimestamp(valor) {
 }
 
 export function ModalGestao({ titulo, children, aoFechar }) {
+  const tituloId = useId();
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const focoAnterior = document.activeElement;
+    const focaveis = () => Array.from(dialog?.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) || []);
+    focaveis()[0]?.focus();
+
+    const aoTeclar = (evento) => {
+      if (evento.key === "Escape") {
+        evento.preventDefault();
+        aoFechar();
+        return;
+      }
+      if (evento.key !== "Tab") return;
+      const elementos = focaveis();
+      if (!elementos.length) {
+        evento.preventDefault();
+        dialog?.focus();
+        return;
+      }
+      const primeiro = elementos[0];
+      const ultimo = elementos[elementos.length - 1];
+      if (evento.shiftKey && document.activeElement === primeiro) {
+        evento.preventDefault();
+        ultimo.focus();
+      } else if (!evento.shiftKey && document.activeElement === ultimo) {
+        evento.preventDefault();
+        primeiro.focus();
+      }
+    };
+
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.removeEventListener("keydown", aoTeclar);
+      focoAnterior?.focus?.();
+    };
+  }, [aoFechar]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] border border-line bg-bg shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+      onMouseDown={(evento) => evento.target === evento.currentTarget && aoFechar()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={tituloId}
+        tabIndex={-1}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] border border-line bg-bg shadow-2xl"
+      >
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <h2 className="min-w-0 flex-1 text-[16px] font-semibold text-fg">{titulo}</h2>
+          <h2 id={tituloId} className="min-w-0 flex-1 text-[16px] font-semibold text-fg">{titulo}</h2>
           <button
             type="button"
             onClick={aoFechar}
+            aria-label="Fechar"
             title="Fechar"
             className="cursor-pointer rounded-[8px] p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
           >

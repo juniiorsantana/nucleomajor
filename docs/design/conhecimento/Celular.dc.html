@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    .tela { width: 380px; height: 800px; background: #f5f6f8; border: 1px solid #d3d8de; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
+    .eti { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3; }
+    .chip { border-radius: 999px; border: 1px solid #e6e9ed; background: #ffffff; padding: 6px 13px; font-size: 12px; font-weight: 500; color: #667085; white-space: nowrap; }
+    .chipon { border-color: #4f3cfc; background: #eeebff; color: #3d29db; font-weight: 600; }
+    .doc { border-radius: 11px; border: 1px solid #e6e9ed; background: #ffffff; padding: 12px 13px; }
+    .tit { font-size: 13.5px; font-weight: 600; color: #121730; }
+    .des { margin-top: 3px; font-size: 11.5px; line-height: 16px; color: #667085; }
+    .pub { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 9px; font-size: 10.5px; font-weight: 600; }
+    .opc { display: flex; align-items: flex-start; gap: 11px; border-radius: 12px; border: 1px solid #e6e9ed; background: #ffffff; padding: 14px; min-height: 44px; box-sizing: border-box; }
+    .opcon { border-color: #4f3cfc; background: #f7f6ff; box-shadow: 0 0 0 3px rgba(79,60,252,.08); }
+    .oi { display: flex; width: 34px; height: 34px; flex: none; align-items: center; justify-content: center; border-radius: 9px; }
+    .ot { font-size: 13.5px; font-weight: 600; color: #121730; }
+    .od { margin-top: 3px; font-size: 11.5px; line-height: 17px; color: #667085; text-wrap: pretty; }
+  </style>
+</helmet>
+
+<div style="width: 860px; height: 900px; background: #eceef2; box-sizing: border-box; padding: 24px; display: flex; gap: 36px; align-items: flex-start;">
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span class="eti">Celular — a lista</span>
+    <div class="tela">
+      <div style="flex: none; background: #ffffff; border-bottom: 1px solid #e6e9ed; padding: 14px 16px;">
+        <h1 style="margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.015em; color: #121730;">Base de conhecimento</h1>
+        <p style="margin: 4px 0 0; font-size: 12px; line-height: 17px; color: #667085; text-wrap: pretty;">Ensine seus assistentes a responder usando informações confiáveis da sua empresa.</p>
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #e6e9ed; border-radius: 10px; padding: 11px 12px; font-size: 12.5px; color: #98a2b3; min-height: 44px; box-sizing: border-box;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar no conhecimento...
+        </div>
+      </div>
+
+      <div style="flex: none; display: flex; gap: 6px; overflow: hidden; padding: 11px 16px; background: #ffffff; border-bottom: 1px solid #e6e9ed;">
+        <span class="chip chipon">Todos 6</span>
+        <span class="chip">Clientes 3</span>
+        <span class="chip">Equipe 2</span>
+        <span class="chip">Pes…</span>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 9px; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px; border-radius: 11px; border: 1px solid #e7cfae; background: #fdf8f2; padding: 10px 12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round" style="flex: none;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          <span style="flex-grow: 1; font-size: 11.5px; color: #b45309;"><strong>1</strong> precisa de revisão · <strong>2</strong> rascunhos</span>
+        </div>
+
+        <div class="doc">
+          <div style="display: flex; align-items: flex-start; gap: 9px;">
+            <span style="min-width: 0; flex-grow: 1;"><span class="tit">Sobre a Major Hub</span><span class="des" style="display: block;">Quem somos, como trabalhamos e o que não fazemos</span></span>
+          </div>
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span class="pub" style="background: #E0F2FE; color: #0369a1;">Clientes</span>
+            <span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span>
+            <span style="margin-left: auto; font-size: 10.5px; color: #98a2b3;">há 3 dias · Juniior</span>
+          </div>
+        </div>
+
+        <div class="doc">
+          <div style="display: flex; align-items: flex-start; gap: 9px;">
+            <span style="min-width: 0; flex-grow: 1;"><span class="tit">Produtos e serviços</span><span class="des" style="display: block;">Pacotes, prazos e o que está incluído</span></span>
+          </div>
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span class="pub" style="background: #E0F2FE; color: #0369a1;">Clientes</span>
+            <span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span>
+            <span style="margin-left: auto; font-size: 10.5px; color: #98a2b3;">há 1 sem · Aliine</span>
+          </div>
+        </div>
+
+        <div class="doc" style="background: #fdfcf9;">
+          <div style="display: flex; align-items: flex-start; gap: 9px;">
+            <span style="min-width: 0; flex-grow: 1;"><span class="tit">Perguntas frequentes</span><span class="des" style="display: block;">14 perguntas e respostas do atendimento</span></span>
+          </div>
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span class="pub" style="background: #E0F2FE; color: #0369a1;">Clientes</span>
+            <span class="pub" style="border: 1px dashed #d99341; color: #b45309;">Rascunho</span>
+            <span style="margin-left: auto; font-size: 10.5px; color: #98a2b3;">há 2 h · Juniior</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex: none; border-top: 1px solid #e6e9ed; background: #ffffff; padding: 12px 16px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; background: #4f3cfc; color: #ffffff; border-radius: 11px; padding: 14px; font-size: 14px; font-weight: 600; min-height: 44px; box-sizing: border-box;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Adicionar conhecimento
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span class="eti">Celular — uma etapa por tela</span>
+    <div class="tela" style="background: #ffffff;">
+      <div style="flex: none; border-bottom: 1px solid #e6e9ed; padding: 14px 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: #667085;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg></span>
+          <span style="flex-grow: 1; font-size: 12px; font-weight: 600; color: #667085;">Etapa 3 de 5</span>
+          <span style="color: #98a2b3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+        </div>
+        <div style="margin-top: 11px; display: flex; gap: 4px;">
+          <span style="flex: 1; height: 4px; border-radius: 999px; background: #4f3cfc;"></span>
+          <span style="flex: 1; height: 4px; border-radius: 999px; background: #4f3cfc;"></span>
+          <span style="flex: 1; height: 4px; border-radius: 999px; background: #4f3cfc;"></span>
+          <span style="flex: 1; height: 4px; border-radius: 999px; background: #eef0f3;"></span>
+          <span style="flex: 1; height: 4px; border-radius: 999px; background: #eef0f3;"></span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; padding: 18px 16px; display: flex; flex-direction: column; gap: 11px; overflow: hidden;">
+        <div>
+          <h2 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.015em; color: #121730; text-wrap: balance;">Quem poderá usar este conteúdo?</h2>
+          <p style="margin: 6px 0 0; font-size: 12.5px; line-height: 18px; color: #667085; text-wrap: pretty;">Isto decide quem vê a informação — inclusive se o assistente pode repeti-la para um cliente.</p>
+        </div>
+
+        <div class="opc opcon">
+          <span class="oi" style="background: #E0F2FE; color: #0369a1;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"></path></svg></span>
+          <span style="min-width: 0;"><span class="ot">Clientes</span><span class="od">O assistente <strong style="color: #121730;">pode repetir isto para quem escrever no WhatsApp</strong>.</span></span>
+        </div>
+
+        <div class="opc">
+          <span class="oi" style="background: #eeebff; color: #3d29db;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M15 20a6 6 0 00-12 0"></path><circle cx="9" cy="8" r="3.4"></circle><path d="M17 20a5 5 0 00-3-4.6"></path></svg></span>
+          <span style="min-width: 0;"><span class="ot">Toda a equipe</span><span class="od">Só para os profissionais autorizados. O assistente de cliente não usa.</span></span>
+        </div>
+
+        <div class="opc">
+          <span class="oi" style="background: #f5f6f8; color: #667085;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg></span>
+          <span style="min-width: 0;"><span class="ot">Somente eu</span><span class="od">Só você vê. Nem administradores leem.</span></span>
+        </div>
+      </div>
+
+      <div style="flex: none; display: flex; gap: 9px; border-top: 1px solid #e6e9ed; padding: 12px 16px;">
+        <span style="flex: none; display: flex; align-items: center; justify-content: center; border: 1px solid #d3d8de; border-radius: 11px; padding: 13px 20px; font-size: 13.5px; font-weight: 600; color: #667085; min-height: 44px; box-sizing: border-box;">Voltar</span>
+        <span style="flex-grow: 1; display: flex; align-items: center; justify-content: center; background: #4f3cfc; color: #ffffff; border-radius: 11px; padding: 13px; font-size: 14px; font-weight: 600; min-height: 44px; box-sizing: border-box;">Continuar</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

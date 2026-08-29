@@ -44,7 +44,21 @@ export function Marca({ tamanho = 36, texto = true }) {
   );
 }
 
-export function Iniciais({ nome, tamanho = 34 }) {
+/**
+ * Avatar de iniciais.
+ *
+ * `cor` só é passada para GENTE da organização, não para contato. A diferença
+ * é proposital: a cor serve para reconhecer de relance quem da equipe está
+ * naquela linha, e vale porque são três ou quatro pessoas que se repetem o dia
+ * todo. Espalhar cor por milhares de contatos não distingue ninguém — vira
+ * ruído colorido, e ainda apagaria o sinal que a cor tem no funil, onde ela já
+ * quer dizer estágio.
+ *
+ * Colorida, o fundo é sólido e a letra é branca. A alternativa — fundo claro
+ * com a letra na cor — sai ilegível no tema escuro, onde a paleta de pessoa é
+ * escura por natureza.
+ */
+export function Iniciais({ nome, tamanho = 34, cor = null }) {
   // Só letras: contato importado sem nome vira "+5511987654321", e a inicial
   // dele sairia como "+".
   const partes = String(nome || "")
@@ -57,8 +71,15 @@ export function Iniciais({ nome, tamanho = 34 }) {
     : "#";
   return (
     <div
-      className="flex flex-none items-center justify-center rounded-full bg-accent-soft font-semibold text-accent-forte"
-      style={{ width: tamanho, height: tamanho, fontSize: tamanho * 0.38 }}
+      className={`flex flex-none items-center justify-center rounded-full font-semibold ${
+        cor ? "text-white" : "bg-accent-soft text-accent-forte"
+      }`}
+      style={{
+        width: tamanho,
+        height: tamanho,
+        fontSize: tamanho * 0.38,
+        ...(cor ? { background: cor } : {}),
+      }}
     >
       {letras.toUpperCase()}
     </div>

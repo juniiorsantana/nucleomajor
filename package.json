@@ -17,6 +17,9 @@
     "test": "npm run test:server && npm run test:app",
     "test:server": "node --test test/*.test.mjs",
     "test:app": "npm test --workspace @nucleomajor/emyleads",
+    "test:e2e": "playwright test",
+    "test:mvp": "npm run test:server && npm run test:app && npm run test:e2e",
+    "check:knowledge-rpc": "node scripts/check-knowledge-rpc.mjs",
     "intelligence:validate": "node scripts/intelligence-skills.mjs validate",
     "intelligence:publish": "node scripts/intelligence-skills.mjs publish",
     "docs:check": "node scripts/check-docs.mjs",
@@ -28,5 +31,8 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "nodemailer": "^9.0.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

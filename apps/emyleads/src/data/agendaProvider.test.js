@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { criarOperacoesAgenda } from "./agendaProvider";
 
-function dependencias({ role = "member", evento = null, rpcData = [] } = {}) {
+function dependencias({ role = "member", evento = null, insertError = null, rpcData = [] } = {}) {
   const valores = { "emyleads.workspace.atual": "org-1" };
   const auth = { getSession: vi.fn(async () => ({ data: { session: { user: { id: "user-1" } } }, error: null })) };
   const membro = {
@@ -24,7 +24,7 @@ function dependencias({ role = "member", evento = null, rpcData = [] } = {}) {
   };
   categorias.insert = vi.fn(() => categorias);
   categorias.update = vi.fn(() => categorias);
-  const inserted = { data: evento || { id: "event-1", title: "Reunião", description: "", starts_at: "2026-08-21T12:00:00.000Z", ends_at: "2026-08-21T13:00:00.000Z", all_day: false, kind: "appointment", visibility: "personal", owner_id: "user-1", organization_id: "org-1" }, error: null };
+  const inserted = { data: evento || { id: "event-1", title: "Reunião", description: "", starts_at: "2026-08-21T12:00:00.000Z", ends_at: "2026-08-21T13:00:00.000Z", all_day: false, kind: "appointment", visibility: "personal", owner_id: "user-1", organization_id: "org-1" }, error: insertError };
   const eventos = {
     select: () => eventos,
     single: async () => inserted,
@@ -102,6 +102,39 @@ describe("provider da Agenda compartilhada", () => {
       kind: "block",
       visibility: "personal",
     }));
+  });
+
+  it("permite evento pessoal das 20h às 22h fora do expediente visual", async () => {
+    const deps = dependencias();
+    const operacoes = criarOperacoesAgenda(deps);
+
+    await operacoes["agenda.criar"]({
+      titulo: "Compromisso pessoal noturno",
+      inicio: "2026-08-31T20:00:00-03:00",
+      fim: "2026-08-31T22:00:00-03:00",
+      tipo: "appointment",
+      visibilidade: "personal",
+      categoryId: "category-1",
+    });
+
+    expect(deps.eventos.insert).toHaveBeenCalledWith(expect.objectContaining({
+      starts_at: "2026-08-31T23:00:00.000Z",
+      ends_at: "2026-09-01T01:00:00.000Z",
+      visibility: "personal",
+    }));
+  });
+
+  it("explica quando o horário se sobrepõe a outro compromisso", async () => {
+    const deps = dependencias({ insertError: { code: "23P01", message: "exclusion constraint" } });
+    const operacoes = criarOperacoesAgenda(deps);
+
+    await expect(operacoes["agenda.criar"]({
+      titulo: "Conflito",
+      inicio: "2026-08-31T20:00:00-03:00",
+      fim: "2026-08-31T22:00:00-03:00",
+      visibilidade: "personal",
+      categoryId: "category-1",
+    })).rejects.toMatchObject({ codigo: "agenda-conflito" });
   });
 
   it("recusa evento da empresa para membro comum antes do RLS", async () => {

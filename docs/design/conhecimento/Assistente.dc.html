@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    .modal { width: 540px; border-radius: 16px; border: 1px solid #e6e9ed; background: #ffffff; box-shadow: 0 12px 34px rgba(18,23,48,.12); overflow: hidden; display: flex; flex-direction: column; }
+    .passo { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; color: #98a2b3; }
+    .bola { display: flex; width: 17px; height: 17px; align-items: center; justify-content: center; border-radius: 999px; background: #eef0f3; font-size: 9.5px; font-weight: 700; color: #98a2b3; }
+    .bolaon { background: #4f3cfc; color: #ffffff; }
+    .bolafeita { background: #dcfce7; color: #16a34a; }
+    .opc { display: flex; align-items: flex-start; gap: 10px; border-radius: 11px; border: 1px solid #e6e9ed; background: #ffffff; padding: 11px 12px; }
+    .opcon { border-color: #4f3cfc; background: #f7f6ff; box-shadow: 0 0 0 3px rgba(79,60,252,.08); }
+    .oi { display: flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; border-radius: 8px; background: #f5f6f8; color: #667085; }
+    .oion { background: #eeebff; color: #3d29db; }
+    .ot { font-size: 12.5px; font-weight: 600; color: #121730; }
+    .od { margin-top: 2px; font-size: 10.5px; line-height: 15px; color: #667085; text-wrap: pretty; }
+    .rot { font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: #121730; }
+    .sub { margin-top: 3px; font-size: 12px; color: #667085; text-wrap: pretty; }
+    .bt { border-radius: 9px; padding: 9px 15px; font-size: 12.5px; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 1180px; height: 800px; background: #eceef2; box-sizing: border-box; padding: 24px; display: flex; gap: 32px; align-items: flex-start;">
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span style="font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Etapa 1</span>
+    <div class="modal">
+      <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e6e9ed; padding: 12px 18px;">
+        <span class="passo"><span class="bola bolaon">1</span>O quê</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">2</span>Como</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">3</span>Quem usa</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">4</span>Onde</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">5</span>Revisar</span>
+        <span style="margin-left: auto; color: #98a2b3;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+      </div>
+
+      <div style="padding: 18px;">
+        <div class="rot">O que você quer ensinar?</div>
+        <p class="sub">Escolha o assunto. A partir dele o modelo já vem com as perguntas certas — você só preenche.</p>
+
+        <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px;">
+          <div class="opc opcon">
+            <span class="oi oion"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Sobre a empresa</span><span class="od">Quem vocês são, como trabalham e o que não fazem</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 7l9-4 9 4-9 4z"></path><path d="M3 12l9 4 9-4M3 17l9 4 9-4"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Produtos e serviços</span><span class="od">Pacotes, prazos e o que está incluído</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.6 2.6 0 015 .9c0 1.7-2.5 2.1-2.5 3.6M12 17h.01"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Perguntas frequentes</span><span class="od">O que os clientes mais perguntam, com a resposta pronta</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h6v5H4zM14 13h6v5h-6z"></path><path d="M7 11v4a2 2 0 002 2h5"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Processo de atendimento</span><span class="od">Do primeiro contato até o encaminhamento</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3l8 3v6c0 4.5-3.2 7.9-8 9-4.8-1.1-8-4.5-8-9V6z"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Regras comerciais</span><span class="od">Descontos, prazos de pagamento e limites</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 18v-6a7 7 0 0114 0v6"></path><rect x="3" y="14" width="4" height="6" rx="1.5"></rect><rect x="17" y="14" width="4" height="6" rx="1.5"></rect></svg></span>
+            <span style="min-width: 0;"><span class="ot">Suporte</span><span class="od">Problemas comuns e como resolver</span></span>
+          </div>
+          <div class="opc" style="grid-column: span 2; border-style: dashed;">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"></path><path d="M14 3v5h5"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Documento personalizado</span><span class="od">Comece do zero, sem modelo</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed; background: #fafbfc; padding: 12px 18px;">
+        <span style="margin-left: auto; font-size: 12.5px; font-weight: 500; color: #667085;">Cancelar</span>
+        <span class="bt" style="background: #4f3cfc; color: #ffffff;">Continuar</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 9px;">
+    <span style="font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Etapa 2</span>
+    <div class="modal">
+      <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e6e9ed; padding: 12px 18px;">
+        <span class="passo" style="color: #16a34a;"><span class="bola bolafeita"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg></span>O quê</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola bolaon">2</span>Como</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">3</span>Quem usa</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">4</span>Onde</span>
+        <span style="width: 14px; height: 1px; background: #e6e9ed;"></span>
+        <span class="passo"><span class="bola">5</span>Revisar</span>
+        <span style="margin-left: auto; color: #98a2b3;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+      </div>
+
+      <div style="padding: 18px;">
+        <div class="rot">Como você quer escrever?</div>
+        <p class="sub">Todos os caminhos chegam no mesmo lugar. Se nunca escreveu nada assim, o modelo guiado é o mais fácil.</p>
+
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 9px;">
+          <div class="opc opcon">
+            <span class="oi oion"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 8h8M8 12h8M8 16h4"></path></svg></span>
+            <span style="min-width: 0; flex-grow: 1;"><span class="ot">Usar modelo guiado <span style="margin-left: 5px; border-radius: 999px; background: #dcfce7; padding: 1px 7px; font-size: 9.5px; font-weight: 700; color: #16a34a;">RECOMENDADO</span></span><span class="od">Campos prontos: nome da empresa, o que vocês fazem, o que não fazem, tom de voz. Você preenche e pronto.</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Escrever ou colar texto</span><span class="od">Um campo em branco. Cole de um documento que já existe, se preferir.</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 16V4M8 8l4-4 4 4"></path><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Enviar arquivo Markdown</span><span class="od">Já tem um <code style="font-family: inherit; background: #f5f6f8; padding: 0 4px; border-radius: 4px;">.md</code> pronto? Arraste aqui.</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 10-5.7-5.7L11.5 6.8"></path><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 105.7 5.7l1.5-1.5"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Importar documento ou link</span><span class="od">De uma página, PDF ou Google Doc. Trazemos o texto e você revisa.</span></span>
+          </div>
+          <div class="opc">
+            <span class="oi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 10h8M8 14h5"></path><path d="M21 12a8 8 0 01-8 8H7l-4 3v-5.5A8 8 0 1121 12z"></path></svg></span>
+            <span style="min-width: 0;"><span class="ot">Criar perguntas e respostas</span><span class="od">Uma pergunta por vez, com a resposta ao lado. Bom para dúvidas repetidas.</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed; background: #fafbfc; padding: 12px 18px;">
+        <span style="font-size: 12.5px; font-weight: 500; color: #667085;">Voltar</span>
+        <span style="margin-left: auto; font-size: 12.5px; font-weight: 500; color: #667085;">Cancelar</span>
+        <span class="bt" style="background: #4f3cfc; color: #ffffff;">Continuar</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

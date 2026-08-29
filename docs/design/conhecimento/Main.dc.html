@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    .tile { border-radius: 11px; border: 1px solid #e6e9ed; background: #ffffff; padding: 11px 13px; box-sizing: border-box; }
+    .tlab { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 500; color: #667085; }
+    .tval { font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: -.02em; color: #121730; font-variant-numeric: tabular-nums; }
+    .pnt { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+    .chip { border-radius: 999px; border: 1px solid #e6e9ed; background: #ffffff; padding: 5px 12px; font-size: 11.5px; font-weight: 500; color: #667085; }
+    .chipon { border-color: #4f3cfc; background: #eeebff; color: #3d29db; font-weight: 600; }
+    .pub { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 9px; font-size: 10.5px; font-weight: 600; }
+    .lin { display: grid; grid-template-columns: minmax(0, 1.9fr) 132px 116px minmax(0, 1fr) 128px 96px; align-items: center; gap: 14px; padding: 11px 18px; border-top: 1px solid #eef0f3; }
+    .cab { font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; }
+    .tit { font-size: 13px; font-weight: 600; color: #121730; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .des { margin-top: 2px; font-size: 11px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .skill { border-radius: 5px; background: #f5f6f8; padding: 2px 7px; font-size: 10px; color: #667085; white-space: nowrap; }
+    .ic { display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 7px; color: #667085; }
+  </style>
+</helmet>
+
+<div style="width: 1180px; height: 880px; background: #f5f6f8; box-sizing: border-box; display: flex; flex-direction: column;">
+
+  <div style="background: #ffffff; border-bottom: 1px solid #e6e9ed; padding: 18px 24px;">
+    <div style="display: flex; align-items: flex-start; gap: 20px;">
+      <div style="min-width: 0; flex-grow: 1;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; color: #121730;">Base de conhecimento</h1>
+        <p style="margin: 5px 0 0; font-size: 13px; color: #667085; text-wrap: pretty;">Ensine seus assistentes a responder usando informações confiáveis da sua empresa.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; flex: none;">
+        <div style="display: flex; align-items: center; gap: 8px; width: 260px; border: 1px solid #e6e9ed; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; color: #98a2b3;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Buscar no conhecimento...
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; background: #4f3cfc; color: #ffffff; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Adicionar conhecimento
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 0; padding: 16px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+      <div class="tile"><span class="tlab"><span class="pnt" style="background: #0EA5E9;"></span>Conteúdo para clientes</span><div style="margin-top: 7px;"><strong class="tval">3</strong></div></div>
+      <div class="tile"><span class="tlab"><span class="pnt" style="background: #4F3CFC;"></span>Conteúdo interno</span><div style="margin-top: 7px;"><strong class="tval">2</strong></div></div>
+      <div class="tile"><span class="tlab"><span class="pnt" style="background: #667085;"></span>Conteúdo pessoal</span><div style="margin-top: 7px;"><strong class="tval">1</strong></div></div>
+      <div class="tile"><span class="tlab"><span class="pnt" style="background: #b45309;"></span>Rascunhos</span><div style="margin-top: 7px;"><strong class="tval">2</strong></div></div>
+      <div class="tile" style="border-color: #e7cfae; background: #fdf8f2;"><span class="tlab" style="color: #b45309;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Precisam de revisão</span><div style="margin-top: 7px; display: flex; align-items: baseline; gap: 7px;"><strong class="tval" style="color: #b45309;">1</strong><span style="font-size: 10.5px; color: #b45309;">sem alteração há 30 d</span></div></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <span class="chip chipon">Todos <span style="opacity: .7;">6</span></span>
+      <span class="chip">Clientes <span style="opacity: .6;">3</span></span>
+      <span class="chip">Equipe <span style="opacity: .6;">2</span></span>
+      <span class="chip">Pessoal <span style="opacity: .6;">1</span></span>
+      <span style="width: 1px; height: 18px; background: #e6e9ed; margin: 0 3px;"></span>
+      <span class="chip">Rascunhos <span style="opacity: .6;">2</span></span>
+      <span class="chip">Publicados <span style="opacity: .6;">4</span></span>
+      <span style="margin-left: auto; font-size: 11px; color: #98a2b3;">6 documentos</span>
+    </div>
+
+    <div style="flex-grow: 1; min-height: 0; border-radius: 12px; border: 1px solid #e6e9ed; background: #ffffff; overflow: hidden;">
+      <div class="lin" style="border-top: 0; background: #f5f6f8; padding-top: 9px; padding-bottom: 9px;">
+        <span class="cab">Documento</span>
+        <span class="cab">Quem pode usar</span>
+        <span class="cab">Situação</span>
+        <span class="cab">Usado por</span>
+        <span class="cab">Atualizado</span>
+        <span class="cab" style="text-align: right;">Ações</span>
+      </div>
+
+      <div class="lin">
+        <span style="min-width: 0;"><span class="tit">Sobre a Major Hub</span><span class="des">Quem somos, como trabalhamos e o que não fazemos</span></span>
+        <span><span class="pub" style="background: #E0F2FE; color: #0369a1;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"></path></svg>Clientes</span></span>
+        <span><span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span></span>
+        <span style="display: flex; gap: 4px; min-width: 0;"><span class="skill">Atendimento</span><span class="skill">Comercial</span></span>
+        <span style="font-size: 11.5px; color: #667085;">há 3 dias <span style="color: #98a2b3;">· Juniior</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+
+      <div class="lin">
+        <span style="min-width: 0;"><span class="tit">Produtos e serviços</span><span class="des">Pacotes, prazos e o que está incluído em cada um</span></span>
+        <span><span class="pub" style="background: #E0F2FE; color: #0369a1;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"></path></svg>Clientes</span></span>
+        <span><span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span></span>
+        <span style="display: flex; gap: 4px; min-width: 0;"><span class="skill">Atendimento</span></span>
+        <span style="font-size: 11.5px; color: #667085;">há 1 semana <span style="color: #98a2b3;">· Aliine</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+
+      <div class="lin" style="background: #fdfcf9;">
+        <span style="min-width: 0;"><span class="tit">Perguntas frequentes</span><span class="des">14 perguntas e respostas do atendimento</span></span>
+        <span><span class="pub" style="background: #E0F2FE; color: #0369a1;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"></path></svg>Clientes</span></span>
+        <span><span class="pub" style="border: 1px dashed #d99341; color: #b45309;">Rascunho</span></span>
+        <span style="font-size: 10.5px; color: #98a2b3;">nenhuma skill ainda</span>
+        <span style="font-size: 11.5px; color: #667085;">há 2 horas <span style="color: #98a2b3;">· Juniior</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+
+      <div class="lin">
+        <span style="min-width: 0;"><span class="tit">Processo de atendimento</span><span class="des">Do primeiro contato ao encaminhamento interno</span></span>
+        <span><span class="pub" style="background: #eeebff; color: #3d29db;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 20a6 6 0 00-12 0"></path><circle cx="9" cy="8" r="3.4"></circle><path d="M17 20a5 5 0 00-3-4.6"></path></svg>Equipe</span></span>
+        <span><span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span></span>
+        <span style="display: flex; gap: 4px; min-width: 0;"><span class="skill">Atendimento</span><span class="skill">Suporte</span></span>
+        <span style="font-size: 11.5px; color: #667085;">há 12 dias <span style="color: #98a2b3;">· Aliine</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+
+      <div class="lin" style="background: #fdf8f2;">
+        <span style="min-width: 0;"><span class="tit" style="display: flex; align-items: center; gap: 6px;">Regras comerciais e descontos <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span><span class="des" style="color: #b45309;">sem alteração há 34 dias — vale revisar antes de continuar em uso</span></span>
+        <span><span class="pub" style="background: #eeebff; color: #3d29db;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 20a6 6 0 00-12 0"></path><circle cx="9" cy="8" r="3.4"></circle><path d="M17 20a5 5 0 00-3-4.6"></path></svg>Equipe</span></span>
+        <span><span class="pub" style="background: #dcfce7; color: #16a34a;">Publicado</span></span>
+        <span style="display: flex; gap: 4px; min-width: 0;"><span class="skill">Comercial</span></span>
+        <span style="font-size: 11.5px; color: #667085;">há 1 mês <span style="color: #98a2b3;">· Juniior</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+
+      <div class="lin">
+        <span style="min-width: 0;"><span class="tit">Modelo de proposta</span><span class="des">Rascunho pessoal, ainda sem revisão</span></span>
+        <span><span class="pub" style="background: #f5f6f8; color: #667085;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg>Somente eu</span></span>
+        <span><span class="pub" style="border: 1px dashed #d99341; color: #b45309;">Rascunho</span></span>
+        <span style="font-size: 10.5px; color: #98a2b3;">nenhuma skill ainda</span>
+        <span style="font-size: 11.5px; color: #667085;">ontem <span style="color: #98a2b3;">· Juniior</span></span>
+        <span style="display: flex; justify-content: flex-end; gap: 1px;">
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L20 8l-4-4L4 16z"></path></svg></span>
+          <span class="ic" style="color: #3d29db;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg></span>
+          <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r=".6"></circle><circle cx="12" cy="12" r=".6"></circle><circle cx="19" cy="12" r=".6"></circle></svg></span>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

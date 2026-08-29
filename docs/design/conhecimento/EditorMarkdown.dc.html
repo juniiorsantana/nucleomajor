@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    .sec { font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #667085; }
+    .modo { padding: 5px 13px; font-size: 11.5px; font-weight: 600; border-radius: 7px; }
+    .md { font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; line-height: 20px; }
+    .lnum { color: #c3c9d4; user-select: none; }
+    .h1 { color: #3d29db; font-weight: 500; }
+    .neg { color: #b45309; }
+    .item { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 7px 9px; font-size: 11.5px; color: #667085; }
+    .iteon { background: #eeebff; color: #3d29db; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 1180px; height: 760px; background: #f5f6f8; box-sizing: border-box; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; gap: 12px; background: #ffffff; border-bottom: 1px solid #e6e9ed; padding: 11px 20px;">
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #667085;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>
+      Base de conhecimento
+    </span>
+    <span style="width: 1px; height: 18px; background: #e6e9ed;"></span>
+    <span style="font-size: 14px; font-weight: 600; color: #121730; letter-spacing: -.01em;">Sobre a Major Hub</span>
+    <span style="display: flex; align-items: center; gap: 2px; background: #f5f6f8; border-radius: 9px; padding: 3px; margin-left: 12px;">
+      <span class="modo" style="color: #667085;">Editor simples</span>
+      <span class="modo" style="background: #ffffff; color: #121730; box-shadow: 0 1px 2px rgba(18,23,48,.1);">Markdown</span>
+    </span>
+    <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #16a34a;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12l5 5L20 6"></path></svg>
+      salvo há 8 s
+    </span>
+    <span style="display: flex; align-items: center; gap: 7px; border: 1px solid #d3d8de; border-radius: 9px; padding: 8px 13px; font-size: 12.5px; font-weight: 600; color: #121730;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-14 9z"></path></svg>
+      Testar
+    </span>
+    <span style="background: #4f3cfc; color: #ffffff; border-radius: 9px; padding: 9px 15px; font-size: 12.5px; font-weight: 600;">Publicar</span>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 0; display: flex;">
+
+    <div style="width: 236px; flex: none; border-right: 1px solid #e6e9ed; background: #ffffff; padding: 12px 10px; display: flex; flex-direction: column; gap: 3px;">
+      <span class="sec" style="padding: 0 9px 6px;">Clientes</span>
+      <span class="item iteon">Sobre a Major Hub</span>
+      <span class="item">Produtos e serviços</span>
+      <span class="item">Perguntas frequentes</span>
+      <span class="sec" style="padding: 14px 9px 6px;">Equipe</span>
+      <span class="item">Processo de atendimento</span>
+      <span class="item">Regras comerciais</span>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0; display: flex;">
+
+      <div style="flex: 1; min-width: 0; border-right: 1px solid #e6e9ed; background: #ffffff; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eef0f3; padding: 8px 14px;">
+          <span class="sec">Markdown</span>
+          <span style="margin-left: auto; font-size: 10px; color: #98a2b3;">o que é salvo</span>
+        </div>
+        <div style="padding: 12px 14px; overflow: hidden;">
+          <pre class="md" style="margin: 0; white-space: pre-wrap; color: #121730;"><span class="lnum">1  </span><span class="h1"># Sobre a Major Hub</span>
+<span class="lnum">2  </span>
+<span class="lnum">3  </span><span class="h1">## Quem é a empresa</span>
+<span class="lnum">4  </span>
+<span class="lnum">5  </span>A Major Hub é uma agência de marketing e
+<span class="lnum">6  </span>tecnologia em Cuiabá. Cuidamos de marca,
+<span class="lnum">7  </span>tráfego e dos sistemas que sustentam o
+<span class="lnum">8  </span>atendimento dos nossos clientes.
+<span class="lnum">9  </span>
+<span class="lnum">10 </span><span class="h1">## O que vocês fazem</span>
+<span class="lnum">11 </span>
+<span class="lnum">12 </span>- Identidade visual e rebranding
+<span class="lnum">13 </span>- Gestão de tráfego pago
+<span class="lnum">14 </span>- Social media
+<span class="lnum">15 </span>- Sites e landing pages
+<span class="lnum">16 </span>- Sistemas sob medida
+<span class="lnum">17 </span>
+<span class="lnum">18 </span><span class="h1">## O que vocês não fazem</span>
+<span class="lnum">19 </span>
+<span class="lnum">20 </span>Não fazemos assessoria de imprensa, nem
+<span class="lnum">21 </span>produção de vídeo em estúdio próprio, nem
+<span class="lnum">22 </span>gestão de e-commerce.</pre>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-width: 0; background: #fafbfc; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eef0f3; padding: 8px 14px;">
+          <span class="sec">Pré-visualização</span>
+          <span style="margin-left: auto; font-size: 10px; color: #98a2b3;">como fica lido</span>
+        </div>
+        <div style="padding: 14px 16px; overflow: hidden;">
+          <h1 style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.015em; color: #121730;">Sobre a Major Hub</h1>
+          <h2 style="margin: 15px 0 0; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #667085;">Quem é a empresa</h2>
+          <p style="margin: 6px 0 0; font-size: 12.5px; line-height: 19px; color: #121730; text-wrap: pretty;">A Major Hub é uma agência de marketing e tecnologia em Cuiabá. Cuidamos de marca, tráfego e dos sistemas que sustentam o atendimento dos nossos clientes.</p>
+          <h2 style="margin: 15px 0 0; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #667085;">O que vocês fazem</h2>
+          <ul style="margin: 6px 0 0; padding-left: 17px; font-size: 12.5px; line-height: 21px; color: #121730;">
+            <li>Identidade visual e rebranding</li>
+            <li>Gestão de tráfego pago</li>
+            <li>Social media</li>
+            <li>Sites e landing pages</li>
+            <li>Sistemas sob medida</li>
+          </ul>
+          <h2 style="margin: 15px 0 0; font-size: 12.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #667085;">O que vocês não fazem</h2>
+          <p style="margin: 6px 0 0; font-size: 12.5px; line-height: 19px; color: #121730; text-wrap: pretty;">Não fazemos assessoria de imprensa, nem produção de vídeo em estúdio próprio, nem gestão de e-commerce.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid #e6e9ed; background: #ffffff; padding: 9px 20px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01M11 12h1v4h1"></path></svg>
+    <span style="font-size: 11px; color: #667085; text-wrap: pretty;">
+      <strong style="color: #121730;">Título, público, situação, skills e campanhas não entram neste texto.</strong> São dados à parte — o assistente recebe só o conteúdo, sem os metadados.
+    </span>
+    <span style="margin-left: auto; font-size: 10.5px; color: #98a2b3; font-variant-numeric: tabular-nums;">1.240 palavras · 22 linhas</span>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

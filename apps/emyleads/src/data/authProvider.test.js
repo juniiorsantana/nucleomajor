@@ -1,16 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import { criarOperacoesAuth } from "./authProvider";
 
-function dependencias({ sessao = null, membros = [] } = {}) {
+/**
+ * O mock precisa distinguir a tabela: desde que o estado da sessão lê o perfil,
+ * um `from()` que devolve a mesma linha para tudo faria o perfil da pessoa vir
+ * preenchido com uma linha de participação — e o teste passaria descrevendo
+ * algo que o Supabase nunca devolveria.
+ */
+function dependencias({ sessao = null, membros = [], perfil = null, erroDoPerfil = null } = {}) {
   const valores = {};
-  const consulta = {
-    select: vi.fn(() => consulta),
-    eq: vi.fn(() => consulta),
-    order: vi.fn(() => consulta),
-    maybeSingle: vi.fn(async () => ({ data: membros[0] || null, error: null })),
-    then(resolve) {
-      return Promise.resolve({ data: membros, error: null }).then(resolve);
-    },
+  const consultas = {};
+  const criarConsulta = (tabela) => {
+    const consulta = {
+      select: vi.fn(() => consulta),
+      eq: vi.fn(() => consulta),
+      order: vi.fn(() => consulta),
+      update: vi.fn(() => consulta),
+      maybeSingle: vi.fn(async () =>
+        tabela === "profiles"
+          ? { data: perfil, error: erroDoPerfil }
+          : { data: membros[0] || null, error: null }
+      ),
+      then(resolve) {
+        return Promise.resolve({ data: membros, error: null }).then(resolve);
+      },
+    };
+    return consulta;
   };
   const supabase = {
     auth: {
@@ -19,8 +34,12 @@ function dependencias({ sessao = null, membros = [] } = {}) {
       signUp: vi.fn(async () => ({ data: { session: sessao, user: sessao?.user }, error: null })),
       signOut: vi.fn(async () => ({ error: null })),
     },
-    from: vi.fn(() => consulta),
+    from: vi.fn((tabela) => {
+      consultas[tabela] = consultas[tabela] || criarConsulta(tabela);
+      return consultas[tabela];
+    }),
     rpc: vi.fn(async () => ({ data: "org-nova", error: null })),
+    consultas,
   };
   const area = {
     get: vi.fn(async (chave) => ({ [chave]: valores[chave] })),
@@ -52,9 +71,98 @@ describe("operações de autenticação", () => {
 
     const estado = await operacoes["auth.estado"]();
 
-    expect(estado.usuario).toEqual({ id: "user-1", email: "ana@empresa.com", nome: "Ana" });
+    expect(estado.usuario).toMatchObject({ id: "user-1", email: "ana@empresa.com", nome: "Ana" });
     expect(estado.organizacaoAtual.id).toBe("org-1");
     expect(deps.valores["emyleads.workspace.atual"]).toBe("org-1");
+  });
+
+  it("prefere o nome do perfil ao nome digitado no cadastro", async () => {
+    const sessao = {
+      user: { id: "user-1", email: "ana@empresa.com", user_metadata: { full_name: "Ana Errado" } },
+    };
+    const deps = dependencias({
+      sessao,
+      membros: [
+        { role: "owner", status: "active", organization: { id: "org-1", name: "Acme", slug: "acme" } },
+      ],
+      perfil: { id: "user-1", full_name: "Ana Corrigido", display_name: "Ana", color: "#0369a1" },
+    });
+
+    const estado = await criarOperacoesAuth(deps)["auth.estado"]();
+
+    expect(estado.usuario.nome).toBe("Ana Corrigido");
+    expect(estado.usuario.perfil).toMatchObject({ display_name: "Ana", color: "#0369a1" });
+  });
+
+  it("mantém a sessão de pé quando o perfil não pode ser lido", async () => {
+    const sessao = {
+      user: { id: "user-1", email: "ana@empresa.com", user_metadata: { full_name: "Ana" } },
+    };
+    const deps = dependencias({
+      sessao,
+      membros: [
+        { role: "owner", status: "active", organization: { id: "org-1", name: "Acme", slug: "acme" } },
+      ],
+      erroDoPerfil: { message: "permission denied" },
+    });
+
+    const estado = await criarOperacoesAuth(deps)["auth.estado"]();
+
+    expect(estado.organizacaoAtual.id).toBe("org-1");
+    expect(estado.usuario.nome).toBe("Ana");
+    expect(estado.usuario.perfil).toMatchObject({ display_name: "", color: null });
+  });
+
+  it("recusa nome curto acima do limite antes de escrever", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({ sessao });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await expect(
+      operacoes["perfil.salvar"]({ nomeCurto: "a".repeat(41) })
+    ).rejects.toMatchObject({ codigo: "perfil-nome-curto-longo" });
+    expect(deps.supabase.consultas.profiles?.update).toBeUndefined();
+  });
+
+  it("recusa cor fora do formato e normaliza a válida", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({
+      sessao,
+      perfil: { id: "user-1", full_name: "Ana", display_name: "Ana", color: "#0369a1" },
+    });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await expect(operacoes["perfil.salvar"]({ cor: "azul" })).rejects.toMatchObject({
+      codigo: "perfil-cor-invalida",
+    });
+
+    await operacoes["perfil.salvar"]({ cor: "#0369A1" });
+    expect(deps.supabase.consultas.profiles.update).toHaveBeenCalledWith({ color: "#0369a1" });
+  });
+
+  it("limpa a cor quando a escolha é desfeita", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({ sessao, perfil: { id: "user-1", full_name: "Ana" } });
+
+    await criarOperacoesAuth(deps)["perfil.salvar"]({ cor: null });
+
+    expect(deps.supabase.consultas.profiles.update).toHaveBeenCalledWith({ color: null });
+  });
+
+  it("recusa nome de empresa fora do tamanho aceito pelo banco", async () => {
+    const sessao = { user: { id: "user-1", email: "ana@empresa.com", user_metadata: {} } };
+    const deps = dependencias({
+      sessao,
+      membros: [
+        { role: "owner", status: "active", organization: { id: "org-1", name: "Acme", slug: "acme" } },
+      ],
+    });
+    const operacoes = criarOperacoesAuth(deps);
+
+    await expect(operacoes["organizacoes.atualizar"]({ nome: " A " })).rejects.toMatchObject({
+      codigo: "organizacao-nome-invalido",
+    });
+    expect(deps.supabase.consultas.organizations?.update).toBeUndefined();
   });
 
   it("vincula a migração ao dono e persiste o adiamento por organização", async () => {

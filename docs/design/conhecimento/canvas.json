@@ -1,0 +1,114 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 880,
+      "title": "A tela — lista e resumo"
+    },
+    {
+      "file": "Vazio.dc.html",
+      "x": 1300,
+      "y": 0,
+      "w": 1180,
+      "h": 540,
+      "title": "Primeiro acesso"
+    },
+    {
+      "file": "Assistente.dc.html",
+      "x": 0,
+      "y": 1010,
+      "w": 1180,
+      "h": 800,
+      "title": "Adicionar — etapas 1 e 2"
+    },
+    {
+      "file": "Publicar.dc.html",
+      "x": 1300,
+      "y": 1010,
+      "w": 1740,
+      "h": 830,
+      "title": "Adicionar — etapas 3, 4 e 5"
+    },
+    {
+      "file": "Editor.dc.html",
+      "x": 0,
+      "y": 1960,
+      "w": 1180,
+      "h": 880,
+      "title": "Editor simples"
+    },
+    {
+      "file": "EditorMarkdown.dc.html",
+      "x": 1300,
+      "y": 1960,
+      "w": 1180,
+      "h": 760,
+      "title": "Editor — modo Markdown"
+    },
+    {
+      "file": "Celular.dc.html",
+      "x": 2600,
+      "y": 1960,
+      "w": 860,
+      "h": 900,
+      "title": "Celular"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "n-tela",
+      "x": 0,
+      "y": -190,
+      "w": 380,
+      "text": "A NAVEGAÇÃO MUDOU DE EIXO.\n\nSaíram as abas Organização / Equipe / Meu espaço. Entram o público (Clientes, Equipe, Somente eu) e a situação (Rascunho, Publicado) como filtros — a hierarquia técnica continua no banco, só deixa de ser a porta de entrada.\n\nCada linha responde de uma vez: quem pode usar, se está no ar, quais skills consultam, quando mudou e por quem."
+    },
+    {
+      "id": "n-vazio",
+      "x": 1300,
+      "y": -190,
+      "w": 380,
+      "text": "PRIMEIRO ACESSO — nenhuma tela vazia. Três documentos cobrem a maior parte do que chega no WhatsApp, e o texto diz quanto tempo leva.\n\nO card \"o que vocês NÃO fazem\" é o que mais evita o assistente prometer serviço que não existe — por isso ele aparece já na descrição."
+    },
+    {
+      "id": "n-fluxo",
+      "x": 0,
+      "y": 1880,
+      "w": 380,
+      "text": "O ASSISTENTE DE CRIAÇÃO — cinco etapas, uma pergunta por vez, em português de gente.\n\nEtapa 1 escolhe o assunto (e com ele o modelo já vem com as perguntas certas). Etapa 2 escolhe o caminho — \"modelo guiado\" é o recomendado justamente para quem não escreve Markdown."
+    },
+    {
+      "id": "n-permissao",
+      "x": 1300,
+      "y": 1880,
+      "w": 420,
+      "text": "AS CONSEQUÊNCIAS ESTÃO ESCRITAS, não subentendidas: \"o assistente pode repetir isto para quem escrever no WhatsApp\" é diferente de \"externo\".\n\nA etapa 5 mostra o resumo das permissões, quais assistentes vão consultar, e um campo de teste real — com a resposta E o trecho que a IA usou para chegar nela. É o que deixa publicar sem medo."
+    },
+    {
+      "id": "n-editor",
+      "x": 0,
+      "y": 2890,
+      "w": 420,
+      "text": "DOIS MODOS, MESMO ARQUIVO. O simples é feito de blocos com pergunta e ajuda; o Markdown é o texto cru com pré-visualização ao lado. O conteúdo salvo é sempre Markdown.\n\nTítulo, público, situação, skills e campanhas ficam FORA do texto — são metadados, e o assistente recebe só o conteúdo. Está escrito no rodapé do modo Markdown."
+    },
+    {
+      "id": "n-celular",
+      "x": 2600,
+      "y": 2890,
+      "w": 380,
+      "text": "CELULAR — uma etapa por tela, com barra de progresso em vez de trilha. Nada de três colunas.\n\nOs alvos de toque ficam em 44px."
+    },
+    {
+      "id": "n-dado",
+      "x": 2600,
+      "y": 0,
+      "w": 440,
+      "text": "O QUE JÁ EXISTE NO BANCO — conferi antes de desenhar.\n\nknowledge_documents tem: scope_type (organization|team|personal), audience (internal|external), status (active|archived), version, updated_at/updated_by, e — a surpresa — published_at e published_by.\n\nEntão \"Rascunho vs Publicado\" é published_at is null. NÃO precisa de migration.\n\nO mapa completo:\nClientes = audience external\nEquipe = audience internal\nSomente eu = scope_type personal\nRascunho = published_at nulo\nSkills e campanhas = knowledge_document_collections\nHistórico = knowledge_document_versions\n\nA única coisa do briefing sem lastro é o aviso de \"texto repetitivo\": exige comparar trechos entre documentos, que hoje não existe."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
