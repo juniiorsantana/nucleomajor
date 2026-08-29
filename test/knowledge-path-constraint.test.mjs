@@ -33,19 +33,50 @@ test("nenhuma migration nova volta a escrever regex com duas barras invertidas",
   assert.deepEqual(reincidentes, [], `regex com ${DUAS_BARRAS} voltou em: ${reincidentes.join(", ")}`);
 });
 
-test("a correção derruba os checks pelo defeito, não pelo nome presumido", async () => {
+test("a correção derruba os checks pela forma, não pelo nome presumido", async () => {
   const sql = await readFile(CORRECAO, "utf8");
+  const corpo = sql.replace(/--[^\n]*/g, "");
 
   // Derrubar por `knowledge_documents_path_check2` deixaria a migration passar
-  // sem fazer nada se a numeração automática do Postgres divergir da contagem.
-  assert.match(sql, /from pg_constraint/i);
-  assert.match(sql, /strpos\(pg_get_constraintdef\([^)]*\), chr\(92\) \|\| chr\(92\)\)/i);
-  assert.match(sql, /drop constraint %I/i);
+  // sem fazer nada se a numeração automática do Postgres divergir da contagem
+  // — e ainda criaria uma segunda constraint ao lado da que barra tudo.
+  assert.match(corpo, /from pg_constraint/i);
+  assert.match(corpo, /drop constraint %I/i);
+  assert.ok(
+    !/drop constraint if exists knowledge_documents_path_check\d/i.test(corpo),
+    "não derrubar pelo nome anônimo presumido",
+  );
+
+  // A varredura é pelos dois operadores de regex sobre `path`. Só `!~` não
+  // bastaria: deixaria a constraint de extensão, que é a que bloqueia tudo.
+  assert.match(corpo, /strpos\(pg_get_constraintdef\([^)]*\), 'path ~'\)/i);
+  assert.match(corpo, /strpos\(pg_get_constraintdef\([^)]*\), 'path !~'\)/i);
 
   // `like` tem a própria barra invertida como escape — foi esse tipo de camada
   // que produziu o bug. A busca precisa ser por strpos.
-  const corpo = sql.replace(/--[^\n]*/g, "");
-  assert.ok(!/pg_get_constraintdef\([^)]*\)\s+like/i.test(corpo), "não usar like para achar a barra invertida");
+  assert.ok(!/pg_get_constraintdef\([^)]*\)\s+like/i.test(corpo), "não usar like na varredura");
+});
+
+test("a varredura não alcança os outros checks da tabela", async () => {
+  // `pg_get_constraintdef` devolve a forma deparseada. Estes são os outros
+  // checks de 20260823010000 sobre a mesma coluna; nenhum pode casar com o
+  // filtro, senão a migration removeria regra que não veio substituir.
+  const sql = await readFile(CORRECAO, "utf8");
+  const alvos = ["path ~", "path !~"];
+  const outros = [
+    "CHECK (((length(path) >= 4) AND (length(path) <= 500)))",
+    "CHECK ((path = btrim(path)))",
+    "CHECK (((audience = 'internal'::text) OR (scope_type = ANY (ARRAY['organization'::text, 'team'::text]))))",
+  ];
+  for (const definicao of outros) {
+    for (const alvo of alvos) {
+      assert.ok(!definicao.includes(alvo), `${definicao} não pode casar com "${alvo}"`);
+    }
+  }
+  // E os dois que ela substitui têm de casar.
+  assert.ok("CHECK ((path ~ '^[^/].*.md$'::text))".includes("path ~"));
+  assert.ok("CHECK (((path !~ '(^|/).{1,2}(/|$)'::text) AND (path !~ '//'::text)))".includes("path !~"));
+  assert.ok(sql.includes("strpos"));
 });
 
 test("as duas constraints são recriadas com nome próprio e uma barra só", async () => {

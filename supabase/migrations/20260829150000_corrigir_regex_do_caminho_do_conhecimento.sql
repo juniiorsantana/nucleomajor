@@ -34,28 +34,49 @@ begin;
 -- Os checks originais são anônimos, e o nome que o Postgres deu a eles depende
 -- da ordem de declaração (`..._path_check2` e `..._path_check3`, pela
 -- contagem). Derrubar pelo nome presumido deixaria a migration passar sem
--- fazer nada se a numeração real divergir. Então derrubamos pelo DEFEITO: toda
--- constraint de check da tabela cuja definição contenha duas barras
--- invertidas. `strpos` é usado de propósito no lugar de `like` — `like` tem a
--- própria barra invertida como caractere de escape, e foi exatamente esse tipo
--- de camada de escape que produziu o bug.
+-- fazer nada se a numeração real divergir — e, pior, criaria uma segunda
+-- constraint ao lado da que continuaria barrando tudo.
+--
+-- Então a varredura é pela FORMA, não pelo nome nem pelo defeito: toda
+-- constraint de check desta tabela que aplique um operador de regex sobre
+-- `path`. São exatamente as duas que esta migration substitui, quaisquer que
+-- sejam seus nomes e sua expressão atual. Os outros checks da tabela não
+-- casam: `length(path) between 4 and 500` vira `length(path) >= 4`,
+-- `path = trim(path)` vira `path = btrim(path)`, e nenhum dos dois contém
+-- `path ~`.
+--
+-- `strpos` é usado de propósito no lugar de `like` — `like` tem a própria
+-- barra invertida como caractere de escape, e foi exatamente esse tipo de
+-- camada de escape que produziu o bug.
+--
+-- O `raise notice` imprime a definição inteira: aplicada pelo SQL Editor, esta
+-- migration é o próprio diagnóstico. Duas linhas com `\\` confirmam a causa;
+-- nenhuma linha significa que a tabela já estava diferente do repositório e o
+-- caso precisa ser reaberto.
 do $$
 declare
-  defeituosa record;
+  antiga record;
+  removidas integer := 0;
 begin
-  for defeituosa in
-    select constraint_row.conname
+  for antiga in
+    select constraint_row.conname,
+           pg_get_constraintdef(constraint_row.oid) as definicao
     from pg_constraint constraint_row
     where constraint_row.conrelid = 'public.knowledge_documents'::regclass
       and constraint_row.contype = 'c'
-      and strpos(pg_get_constraintdef(constraint_row.oid), chr(92) || chr(92)) > 0
+      and (
+        strpos(pg_get_constraintdef(constraint_row.oid), 'path ~') > 0
+        or strpos(pg_get_constraintdef(constraint_row.oid), 'path !~') > 0
+      )
   loop
-    raise notice 'removendo check defeituoso: %', defeituosa.conname;
+    raise notice 'removendo check de caminho: % => %', antiga.conname, antiga.definicao;
     execute format(
       'alter table public.knowledge_documents drop constraint %I',
-      defeituosa.conname
+      antiga.conname
     );
+    removidas := removidas + 1;
   end loop;
+  raise notice 'checks de caminho removidos: %', removidas;
 end;
 $$;
 
