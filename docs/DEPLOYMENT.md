@@ -42,6 +42,29 @@ variáveis de produção estão corretas.
 - nunca aplicar `service_role` no portal;
 - validar função e policy, não apenas a mensagem “Success”.
 
+### O histórico remoto não está íntegro
+
+Em 29/08/2026, `supabase migration list --linked` mostra registro remoto
+somente até `20260819180000`. Tudo a partir de `20260821120000` foi aplicado
+pelo SQL Editor e não consta em `supabase_migrations.schema_migrations`.
+
+Portanto **não execute `supabase db push`**. Ele tentaria reaplicar mais de
+trinta migrations já aplicadas, e `20260823010000_nucleo_conhecimento.sql`
+começa com `create table public.knowledge_documents` sem `if not exists`.
+
+Enquanto o histórico não for reconciliado:
+
+1. aplicar a migration pelo SQL Editor, uma por vez;
+2. conferir o efeito com uma consulta, não com a mensagem de sucesso;
+3. registrar em `STATUS.md`, seção “Banco aplicado”;
+4. opcionalmente marcar como aplicada com
+   `supabase migration repair --status applied <versão>`, que só escreve na
+   tabela de histórico e não executa SQL da migration.
+
+Reconciliar o histórico com `migration repair` para todas as pendentes é o que
+devolve o `db push` ao fluxo. Até lá, o CLI serve para inspecionar, não para
+aplicar.
+
 ## Runtime da VPS
 
 O runtime não possui remoto próprio. O procedimento atual gera um pacote com

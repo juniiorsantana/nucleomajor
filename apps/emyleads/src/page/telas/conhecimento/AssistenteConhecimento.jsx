@@ -17,6 +17,7 @@ import {
   motivoParaNaoPublicarAgora,
   voltar,
 } from "./assistenteEstado";
+import { ETAPA_DO_CAMPO } from "./erroDeGravacao";
 
 function Trilha({ etapa }) {
   return (
@@ -79,7 +80,7 @@ function Opcao({ ativo, titulo, descricao, etiqueta, aviso, onClick, children })
 }
 
 export default function AssistenteConhecimento({
-  modeloId = null, inteligencia, aoFechar, aoSalvar, salvando, somentePessoal = false,
+  modeloId = null, inteligencia, aoFechar, aoSalvar, salvando, falha = null, somentePessoal = false,
 }) {
   const [estado, setEstado] = useState(() => estadoInicial(modeloId));
   const [erroArquivo, setErroArquivo] = useState("");
@@ -88,6 +89,8 @@ export default function AssistenteConhecimento({
   const [testando, setTestando] = useState(false);
   const arquivoRef = useRef(null);
   const dialogoRef = useRef(null);
+  const tituloRef = useRef(null);
+  const caminhoRef = useRef(null);
   const estadoOriginal = useRef(estado);
   const estadoAtual = useRef(estado);
   const focoAnterior = useRef(typeof document === "undefined" ? null : document.activeElement);
@@ -112,6 +115,26 @@ export default function AssistenteConhecimento({
       focoAnterior.current?.focus?.();
     };
   }, []);
+
+  /**
+   * A falha de gravação leva a pessoa até o campo que a causou.
+   *
+   * Só a frase não bastaria: o caminho do arquivo mora na etapa 5 e o público
+   * na etapa 3, então "o caminho não é válido" lido na etapa 5 depois de uma
+   * publicação recusada ainda deixaria a pessoa procurando. `sinal` muda a
+   * cada falha, inclusive quando a mensagem se repete — sem ele, errar duas
+   * vezes no mesmo campo moveria o foco só na primeira.
+   */
+  useEffect(() => {
+    if (!falha?.campo) return;
+    const etapa = ETAPA_DO_CAMPO[falha.campo];
+    if (etapa) setEstado((atual) => (atual.etapa === etapa ? atual : { ...atual, etapa }));
+    // Depois da pintura: na etapa nova o campo ainda não existe no DOM.
+    const alvo = { titulo: tituloRef, caminho: caminhoRef }[falha.campo];
+    if (!alvo) return;
+    const id = requestAnimationFrame(() => alvo.current?.focus?.());
+    return () => cancelAnimationFrame(id);
+  }, [falha?.sinal, falha?.campo]);
 
   const colecoes = useMemo(() => {
     const desejada = estado.publico === "clientes" ? "external" : "internal";
@@ -441,16 +464,24 @@ export default function AssistenteConhecimento({
 
               <div className="mt-4 rounded-[11px] border border-line p-3.5">
                 <input
+                  ref={tituloRef}
                   value={estado.titulo}
                   onChange={(e) => mudar({ titulo: e.target.value })}
                   placeholder="Título do documento"
+                  aria-label="Título do documento"
+                  aria-invalid={falha?.campo === "titulo" || undefined}
                   className="w-full bg-transparent text-[15px] font-semibold text-fg outline-none placeholder:text-faint"
                 />
                 <input
+                  ref={caminhoRef}
                   value={estado.caminho}
                   onChange={(e) => mudar({ caminho: e.target.value })}
                   placeholder="empresa/sobre.md"
-                  className="mt-1.5 w-full rounded-[7px] border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
+                  aria-label="Caminho do arquivo"
+                  aria-invalid={falha?.campo === "caminho" || undefined}
+                  className={`mt-1.5 w-full rounded-[7px] border bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent ${
+                    falha?.campo === "caminho" ? "border-danger" : "border-line"
+                  }`}
                 />
                 <dl className="mt-3 grid gap-2 border-t border-line pt-3 text-[11.5px] sm:grid-cols-2">
                   <div>
@@ -516,6 +547,19 @@ export default function AssistenteConhecimento({
             </>
           )}
         </div>
+
+        {/* Fora da área que rola, e acima do rodapé: em falha de gravação a
+            pessoa está com o dedo no botão, e uma mensagem que exige rolar
+            para ser lida é uma mensagem que não foi lida. */}
+        {falha?.mensagem && (
+          <div
+            role="alert"
+            className="flex flex-none items-start gap-2 border-t border-danger/25 bg-danger/10 px-5 py-3 text-[12px] leading-4 text-danger"
+          >
+            <AlertTriangle size={15} className="mt-px flex-none" />
+            <span className="min-w-0">{falha.mensagem}</span>
+          </div>
+        )}
 
         <footer className="flex flex-none flex-wrap items-center gap-2 border-t border-line px-5 py-3.5">
           {estado.etapa > 1 && (

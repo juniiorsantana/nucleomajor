@@ -8,6 +8,7 @@ import PrimeiroAcesso from "./conhecimento/PrimeiroAcesso";
 import ResumoConhecimento from "./conhecimento/ResumoConhecimento";
 import { filtrar, resumo, situacaoDoDocumento } from "./conhecimento/conhecimentoDados";
 import { exigeColecaoExterna, motivoParaNaoPublicar } from "./conhecimento/conhecimentoRegras";
+import { mensagemDeGravacao } from "./conhecimento/erroDeGravacao";
 
 export default function Conhecimento({ sessao, inteligencia = null, embedded = false }) {
   const [documentos, setDocumentos] = useState([]);
@@ -25,6 +26,13 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   const [rascunhoAlterado, setRascunhoAlterado] = useState(false);
   const [inteligenciaLocal, setInteligenciaLocal] = useState(null);
   const [erro, setErro] = useState("");
+  // A falha de gravação viaja separada do `erro` da página porque o assistente
+  // é um overlay: o banner do corpo fica ATRÁS dele. Antes disto, publicar com
+  // erro não mostrava nada — o modal seguia aberto, na mesma etapa, e o único
+  // sinal era "Salvando…" voltar a "Publicar". Era isso que fazia a pessoa
+  // clicar de novo, e era isso que aparecia como retentativa na aba de rede.
+  // `sinal` existe para o mesmo erro duas vezes seguidas reposicionar o foco.
+  const [falha, setFalha] = useState(null);
 
   const dadosInteligencia = inteligencia || inteligenciaLocal;
   const papel = sessao?.organizacaoAtual?.papel;
@@ -92,16 +100,18 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
     setRascunhoAlterado(false);
     setSalvoEm(documento.atualizadoEm || null);
     setVersoes(null);
-    setErro("");
+    setErro(""); setFalha(null);
   };
 
   const criar = (modeloId = "") => {
     if (!podeDescartar()) return;
-    setAssistente(modeloId); setRascunho(null); setRascunhoAlterado(false); setVersoes(null); setErro("");
+    setAssistente(modeloId); setRascunho(null); setRascunhoAlterado(false); setVersoes(null);
+    setErro(""); setFalha(null);
   };
   const voltar = () => {
     if (!podeDescartar()) return;
-    setRascunho(null); setRascunhoAlterado(false); setSalvoEm(null); setVersoes(null); setErro("");
+    setRascunho(null); setRascunhoAlterado(false); setSalvoEm(null); setVersoes(null);
+    setErro(""); setFalha(null);
   };
 
   const mudarRascunho = (proximo) => {
@@ -109,14 +119,24 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
     setRascunhoAlterado(true);
   };
 
+  /** Registra a falha nos dois lugares: banner da página e banner do modal. */
+  const registrarFalha = (mensagem, campo = null) => {
+    setErro(mensagem);
+    setFalha({ mensagem, campo, sinal: Date.now() });
+  };
+
   /** A única porta de gravação: o editor e o assistente passam os dois por aqui. */
   const persistir = async (documento, publicar) => {
     const caminho = String(documento.caminho || "").trim();
-    if (!String(documento.titulo || "").trim() || !caminho) {
-      setErro("Informe o título e o caminho do documento.");
+    const semTitulo = !String(documento.titulo || "").trim();
+    if (semTitulo || !caminho) {
+      registrarFalha(
+        semTitulo ? "Dê um título ao documento." : "Informe o caminho do arquivo.",
+        semTitulo ? "titulo" : "caminho",
+      );
       return;
     }
-    setSalvando(true); setErro("");
+    setSalvando(true); setErro(""); setFalha(null);
     try {
       const salvo = await api.conhecimento.salvar({
         id: documento.id,
@@ -132,14 +152,17 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
       setAssistente(null);
       abrir({ ...salvo, colecoesIds: documento.colecoesIds }, { forcar: true });
       setSalvoEm(salvo.atualizadoEm || new Date().toISOString());
-    } catch (e) { setErro(e.message); }
+    } catch (e) {
+      const { mensagem, campo } = mensagemDeGravacao(e);
+      registrarFalha(mensagem, campo);
+    }
     finally { setSalvando(false); }
   };
 
   const salvar = (publicar) => {
     // A coleção externa só é exigida para publicar. Guardar rascunho de
     // conteúdo de cliente sem coleção é legítimo: ele ainda não está no ar.
-    if (publicar && impedimento) { setErro(impedimento); return; }
+    if (publicar && impedimento) { registrarFalha(impedimento, "colecoes"); return; }
     return persistir(rascunho, publicar);
   };
 
@@ -259,7 +282,8 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
           modeloId={assistente || null}
           inteligencia={dadosInteligencia}
           salvando={salvando}
-          aoFechar={() => setAssistente(null)}
+          falha={falha}
+          aoFechar={() => { setAssistente(null); setFalha(null); }}
           aoSalvar={persistir}
           somentePessoal={!ehAdmin}
         />
