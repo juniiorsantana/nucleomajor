@@ -9,6 +9,8 @@ import ResumoConhecimento from "./conhecimento/ResumoConhecimento";
 import { filtrar, resumo, situacaoDoDocumento } from "./conhecimento/conhecimentoDados";
 import { exigeColecaoExterna, motivoParaNaoPublicar } from "./conhecimento/conhecimentoRegras";
 import { mensagemDeGravacao } from "./conhecimento/erroDeGravacao";
+import { limparRascunho } from "./conhecimento/rascunhoLocal";
+import { useConfirmacao } from "./conhecimento/Confirmacao";
 
 export default function Conhecimento({ sessao, inteligencia = null, embedded = false }) {
   const [documentos, setDocumentos] = useState([]);
@@ -33,6 +35,8 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   // clicar de novo, e era isso que aparecia como retentativa na aba de rede.
   // `sinal` existe para o mesmo erro duas vezes seguidas reposicionar o foco.
   const [falha, setFalha] = useState(null);
+
+  const [dialogoDeConfirmacao, confirmar] = useConfirmacao();
 
   const dadosInteligencia = inteligencia || inteligenciaLocal;
   const papel = sessao?.organizacaoAtual?.papel;
@@ -87,10 +91,15 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   const impedimento = motivoParaNaoPublicar(rascunho, dadosInteligencia?.collections);
   const exigeColecao = exigeColecaoExterna(rascunho);
 
-  const podeDescartar = () => !rascunhoAlterado || confirm("Descartar as alterações que ainda não foram salvas?");
+  const podeDescartar = async () => rascunhoAlterado === false || confirmar({
+    titulo: "Descartar as alterações?",
+    mensagem: "O que você mudou neste documento e ainda não salvou será perdido.",
+    acao: "Descartar",
+    destrutivo: true,
+  });
 
-  const abrir = (documento, { forcar = false } = {}) => {
-    if (!forcar && !podeDescartar()) return;
+  const abrir = async (documento, { forcar = false } = {}) => {
+    if (!forcar && !(await podeDescartar())) return;
     const colecoesIds = Array.isArray(documento.colecoesIds)
       ? documento.colecoesIds
       : (dadosInteligencia?.documentCollections || [])
@@ -103,13 +112,13 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
     setErro(""); setFalha(null);
   };
 
-  const criar = (modeloId = "") => {
-    if (!podeDescartar()) return;
+  const criar = async (modeloId = "") => {
+    if (!(await podeDescartar())) return;
     setAssistente(modeloId); setRascunho(null); setRascunhoAlterado(false); setVersoes(null);
     setErro(""); setFalha(null);
   };
-  const voltar = () => {
-    if (!podeDescartar()) return;
+  const voltar = async () => {
+    if (!(await podeDescartar())) return;
     setRascunho(null); setRascunhoAlterado(false); setSalvoEm(null); setVersoes(null);
     setErro(""); setFalha(null);
   };
@@ -148,6 +157,9 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
         colecoesIds: documento.colecoesIds,
         publicado: publicar,
       });
+      // O documento existe no Supabase: o rascunho local perdeu a função e
+      // continuar oferecendo "retomar" faria a pessoa recriar o que salvou.
+      limparRascunho();
       await carregar();
       setAssistente(null);
       abrir({ ...salvo, colecoesIds: documento.colecoesIds }, { forcar: true });
@@ -173,7 +185,14 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   };
 
   const arquivar = async () => {
-    if (!rascunho?.id || !confirm(`Arquivar “${rascunho.titulo}”?`)) return;
+    if (!rascunho?.id) return;
+    const confirmado = await confirmar({
+      titulo: `Arquivar “${rascunho.titulo}”?`,
+      mensagem: "Ele sai das buscas dos assistentes. O histórico de versões continua guardado.",
+      acao: "Arquivar",
+      destrutivo: true,
+    });
+    if (!confirmado) return;
     try { await api.conhecimento.arquivar({ id: rascunho.id }); await carregar(); voltar(); }
     catch (e) { setErro(e.message); }
   };
@@ -281,6 +300,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
         <AssistenteConhecimento
           modeloId={assistente || null}
           inteligencia={dadosInteligencia}
+          documentos={documentos}
           salvando={salvando}
           falha={falha}
           aoFechar={() => { setAssistente(null); setFalha(null); }}
@@ -317,6 +337,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
           </section>
         </div>
       )}
+      {dialogoDeConfirmacao}
     </div>
   );
 }

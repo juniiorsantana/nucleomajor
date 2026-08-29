@@ -7,16 +7,31 @@
  * árvore inteira.
  */
 
+import { derivarCaminho } from "./caminhoDoDocumento";
 import { colecaoAutomatica, motivoParaNaoPublicar } from "./conhecimentoRegras";
 import { MODELO_POR_ID, montarMarkdown } from "./modelosConhecimento";
 
+/**
+ * Quatro etapas, não cinco.
+ *
+ * A etapa "Onde" só tinha conteúdo quando o público era Clientes: para Equipe
+ * e Somente eu, `escolherPublico` já forçava "em qualquer lugar" e
+ * `documentoDoEstado` zerava as coleções de novo. Em dois dos três públicos
+ * era uma tela inteira que não escrevia nada.
+ *
+ * Onde ela tinha conteúdo, a pergunta não era de organização e sim de
+ * autorização: sem coleção externa o documento é salvo, aparece na lista de
+ * quem escreveu, e o atendimento nunca o encontra. Isso pertence à mesma
+ * decisão de "quem pode usar", e é onde ela agora mora.
+ */
 export const ETAPAS = [
   { numero: 1, rotulo: "O quê" },
-  { numero: 2, rotulo: "Como" },
+  { numero: 2, rotulo: "Conteúdo" },
   { numero: 3, rotulo: "Quem usa" },
-  { numero: 4, rotulo: "Onde" },
-  { numero: 5, rotulo: "Revisar" },
+  { numero: 4, rotulo: "Revisar" },
 ];
+
+export const ULTIMA_ETAPA = ETAPAS.length;
 
 export const CAMINHOS_DE_ESCRITA = [
   {
@@ -49,7 +64,14 @@ export function estadoInicial(modeloId = null) {
     modeloId: modeloId || null,
     caminhoDeEscrita: modelo?.perguntasERespostas ? "perguntas" : null,
     titulo: modelo?.rotulo || "",
-    caminho: modelo?.caminho || "",
+    // Derivado do título por `sincronizarCaminho`. Fica vazio aqui e não com o
+    // caminho do modelo porque dois documentos do mesmo assunto colidiriam:
+    // todo "Sobre a empresa" queria ser `empresa/sobre.md`.
+    caminho: "",
+    // Vira `true` no instante em que alguém digita no campo avançado. A partir
+    // daí o título deixa de mandar no caminho — trocar o título não pode
+    // apagar uma escolha explícita.
+    caminhoManual: false,
     // Preserve `lista`, `importante` e futuros metadados do modelo. Sem isso,
     // um campo "um item por linha" virava parágrafo corrido no Markdown.
     blocos: (modelo?.blocos || []).map((bloco) => ({ ...bloco, texto: "" })),
@@ -85,6 +107,23 @@ export function conteudoDoEstado(estado) {
 
 export function temConteudo(estado) {
   return conteudoDoEstado(estado).replace(/^#.*$/gm, "").trim().length > 0;
+}
+
+/**
+ * Mantém o caminho colado no título, enquanto ninguém o tiver escolhido à mão.
+ *
+ * Passa por aqui toda mudança de estado do assistente. É de propósito: se a
+ * derivação acontecesse só ao salvar, a etapa de revisão mostraria um caminho
+ * e o banco receberia outro depois de a pessoa corrigir o título.
+ */
+export function sincronizarCaminho(estado, ocupados = []) {
+  if (!estado || estado.caminhoManual) return estado;
+  const caminho = derivarCaminho({
+    titulo: estado.titulo,
+    modeloId: estado.modeloId,
+    ocupados,
+  });
+  return caminho === estado.caminho ? estado : { ...estado, caminho };
 }
 
 const PUBLICO_PARA_DOCUMENTO = {
@@ -127,18 +166,17 @@ export function motivoParaNaoAvancar(estado) {
     case 2:
       if (!estado.caminhoDeEscrita) return "Escolha como você quer escrever.";
       // Escrever acontece aqui, logo abaixo da escolha. Deixar passar vazio
-      // só adiaria a mesma reclamação para a etapa 5, três telas depois.
+      // só adiaria a mesma reclamação para a etapa 4, duas telas depois.
       return temConteudo(estado) ? null : "Escreva o conteúdo antes de continuar.";
     case 3:
+      // A coleção externa NÃO trava o avanço, embora trave a publicação.
+      // Guardar rascunho de conteúdo de cliente sem coleção é legítimo — ele
+      // ainda não está no ar — e é o que `nucleo_knowledge_save` permite. A
+      // versão de cinco etapas travava aqui e por isso esse caminho nunca era
+      // alcançável pelo assistente, só pelo editor.
       if (!estado.publico) return "Escolha quem poderá usar este conteúdo.";
       return null;
     case 4:
-      if (estado.publico === "clientes" && !(estado.colecoesIds || []).length) {
-        return "Escolha ao menos uma coleção externa para o atendimento encontrar este conteúdo.";
-      }
-      if (estado.ondeTodos) return null;
-      return (estado.colecoesIds || []).length ? null : "Escolha ao menos um lugar, ou volte para “em qualquer lugar”.";
-    case 5:
       if (!String(estado.titulo || "").trim()) return "Dê um título ao documento.";
       if (!String(estado.caminho || "").trim()) return "Informe o caminho do arquivo.";
       if (!temConteudo(estado)) return "O documento está vazio.";
@@ -156,13 +194,13 @@ export function motivoParaNaoAvancar(estado) {
  * encontra, o que é pior do que continuar rascunho.
  */
 export function motivoParaNaoPublicarAgora(estado, colecoes = []) {
-  const pendente = motivoParaNaoAvancar({ ...estado, etapa: 5 });
+  const pendente = motivoParaNaoAvancar({ ...estado, etapa: ULTIMA_ETAPA });
   if (pendente) return pendente;
   return motivoParaNaoPublicar(documentoDoEstado(estado), colecoes);
 }
 
 export function avancar(estado) {
-  return { ...estado, etapa: Math.min(5, estado.etapa + 1) };
+  return { ...estado, etapa: Math.min(ULTIMA_ETAPA, estado.etapa + 1) };
 }
 
 export function voltar(estado) {
@@ -205,7 +243,9 @@ export function escolherModelo(estado, modeloId) {
     ...estado,
     modeloId,
     titulo: tocouNoTitulo ? estado.titulo : modelo.rotulo,
-    caminho: modelo.caminho || estado.caminho,
+    // O caminho não vem mais do modelo: `sincronizarCaminho` o recalcula a
+    // partir do título e da pasta do novo assunto. Copiar aqui faria todo
+    // documento de "Sobre a empresa" disputar `empresa/sobre.md`.
     blocos: modelo.blocos.map((bloco) => ({ ...bloco, texto: "" })),
     caminhoDeEscrita: modelo.perguntasERespostas
       ? "perguntas"
