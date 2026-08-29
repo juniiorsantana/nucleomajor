@@ -1,6 +1,6 @@
 # Estado atual
 
-Última revisão documental: **28/08/2026**.
+Última revisão documental: **29/08/2026**.
 
 ## Produção confirmada
 
@@ -40,6 +40,9 @@ Skills conferidas no Supabase em 28/08/2026:
   renovação concorrente da credencial técnica.
 - Logs novos do Bridge não registram conteúdo, nome ou telefone completo das
   conversas.
+- Correção do caminho do conhecimento publicada na `main` em 29/08/2026:
+  `8cf75d9`. Inclui a migration corretiva e a exibição da falha de gravação
+  dentro do assistente.
 
 ## Banco aplicado
 
@@ -50,9 +53,35 @@ Skills conferidas no Supabase em 28/08/2026:
 - Consulta segura de disponibilidade externa aplicada.
 - Proteção de eventos pessoais aplicada.
 - Migration H.5 de prontidão do modelo aplicada em 28/08/2026.
+- Prévia de busca do conhecimento e publicação atômica aplicadas: a RPC
+  `nucleo_knowledge_save` responde em produção.
+- `20260829150000_corrigir_regex_do_caminho_do_conhecimento.sql` aplicada em
+  29/08/2026 e conferida por `pg_get_constraintdef`.
+- `20260829120000_perfil_pessoal.sql` aplicada em 29/08/2026.
 
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
+
+O histórico remoto **não** está íntegro: `supabase migration list --linked`
+registra somente até `20260819180000`, porque o restante foi aplicado pelo SQL
+Editor. Não execute `supabase db push`. O procedimento e a reconciliação estão
+em [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+### Correção do caminho do conhecimento
+
+`20260823010000` declarou os dois checks de `knowledge_documents.path` com duas
+barras invertidas. Com `standard_conforming_strings = on`, o motor de regex lê
+`\\` como uma barra invertida literal, e não como um ponto escapado:
+
+- o check de extensão passou a exigir `\` antes de `.md` e **nenhum documento
+  jamais pôde ser gravado** — `select count(*)` devolveu 0 em 29/08/2026;
+- o check de travessia procurava `\` onde procurava `.` e `..`, nunca casava, e
+  a negação era sempre verdadeira: a guarda contra `../` existia no arquivo e
+  não existia no banco.
+
+O primeiro encobria o segundo. Os dois foram corrigidos na mesma transação e
+voltaram com nome próprio, `knowledge_documents_path_extensao` e
+`knowledge_documents_path_travessia`.
 
 ## Tarefas internas
 
