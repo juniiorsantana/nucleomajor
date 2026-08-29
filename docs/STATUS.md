@@ -17,15 +17,21 @@
 - Skills oficiais versionadas e roteamento contextual H.3 disponíveis.
 - Repositório privado do runtime disponível no GitHub, branch `hardening`.
 
-Skills conferidas no Supabase em 28/08/2026:
+Skills conferidas no Supabase em 29/08/2026:
 
-- `agenda` v4 · `bad26124f521`;
+- `agenda` v5 · `b12fd526d039`;
 - `pre-qualificacao` v3 · `ce02e9fb83a6`;
 - `recepcao` v1 · `205e418dca0c`;
 - `solicitacao-agenda` v1 · `716f673fbc9d`;
 - `suporte` v3 · `7d87526e2f78`;
-- `tarefas` v2 · `36327474cacf`;
+- `tarefas` v3 · `982acb24fd28`;
 - `vendas` v3 · `9ee6e4a1ac4a`.
+
+`agenda` e `tarefas` subiram de versão em 29/08/2026 para receber
+`knowledge.search`. Sem ela, as duas únicas skills internas não podiam
+consultar a base de conhecimento, e um operador verificado que perguntasse
+sobre a empresa pelo WhatsApp recebia que o assistente não consegue acessar o
+conhecimento. O lado interno continua sem skill de fallback.
 
 ## Versões implantadas
 
