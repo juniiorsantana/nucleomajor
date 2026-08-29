@@ -9,6 +9,7 @@
     { "id": "compromisso", "input": "Tenho algum compromisso hoje?", "expected": { "shouldActivate": true, "stage": "entender" } },
     { "id": "duvida-de-preco", "input": "Qual é o preço do plano completo?", "expected": { "shouldActivate": false, "stage": "entender" } },
     { "id": "erro-produto", "input": "O sistema travou ao entrar.", "expected": { "shouldActivate": false, "stage": "entender" } },
-    { "id": "negativo-agenda", "input": "Apareceu um erro na agenda do sistema.", "expected": { "shouldActivate": false, "stage": "entender" } }
+    { "id": "negativo-agenda", "input": "Apareceu um erro na agenda do sistema.", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "pergunta-sobre-a-empresa", "input": "Quero saber mais sobre a Major Hub.", "expected": { "shouldActivate": false, "stage": "entender" } }
   ]
 }

@@ -15,7 +15,7 @@
   "workflow": {
     "initialStage": "entender",
     "stages": [
-      { "id": "entender", "objective": "Identificar se o profissional quer consultar ou criar uma tarefa interna.", "requiredFields": [], "allowedTools": ["task.read"], "completion": "A intenção relacionada à tarefa está clara." },
+      { "id": "entender", "objective": "Identificar se o profissional quer consultar ou criar uma tarefa interna, ou se está apenas perguntando algo que o conhecimento da empresa responde.", "requiredFields": [], "allowedTools": ["task.read", "knowledge.search"], "completion": "A intenção relacionada à tarefa está clara." },
       { "id": "coletar", "objective": "Coletar título e vencimento e identificar responsável, contato e negócio quando mencionados.", "requiredFields": ["title", "due_at"], "allowedTools": ["task.read"], "completion": "Os dados obrigatórios foram informados e os vínculos foram resolvidos." },
       { "id": "preparar", "objective": "Persistir uma proposta idempotente e apresentar o resumo antes de qualquer criação.", "requiredFields": ["title", "due_at"], "allowedTools": ["task.read", "task.prepare"], "completion": "A proposta foi persistida e aguarda confirmação em outra mensagem." },
       { "id": "confirmar", "objective": "Validar a confirmação separada e criar exatamente uma tarefa no CRM.", "requiredFields": ["confirmation"], "allowedTools": ["task.read", "task.confirm"], "completion": "O banco confirmou a tarefa criada ou já existente." }
@@ -24,7 +24,7 @@
   },
   "requiredFields": ["title", "due_at"],
   "questions": ["Qual é o prazo da tarefa?", "A tarefa fica para você ou para outro profissional?"],
-  "allowedTools": ["task.read", "task.prepare", "task.confirm"],
+  "allowedTools": ["task.read", "task.prepare", "task.confirm", "knowledge.search"],
   "guardrails": ["operator_only", "explicit_confirmation", "separate_confirmation_turn", "idempotency", "no_calendar_substitution"],
   "handoff": ["tool_unavailable", "permission_denied", "ambiguous_contact"]
 }

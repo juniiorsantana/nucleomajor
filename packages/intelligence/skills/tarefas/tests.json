@@ -5,6 +5,7 @@
     { "id": "criar-equipe", "input": "Adicione uma tarefa para o Lucas fazer o follow-up na sexta.", "expected": { "shouldActivate": true, "stage": "coletar" } },
     { "id": "pendencia", "input": "Registre esta pendência para segunda-feira.", "expected": { "shouldActivate": true, "stage": "coletar" } },
     { "id": "agenda", "input": "Agende uma reunião às 14h.", "expected": { "shouldActivate": false, "stage": "entender" } },
-    { "id": "erro-interface", "input": "Apareceu um erro na tela de tarefas.", "expected": { "shouldActivate": false, "stage": "entender" } }
+    { "id": "erro-interface", "input": "Apareceu um erro na tela de tarefas.", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "pergunta-sobre-a-empresa", "input": "Quero saber mais sobre a Major Hub.", "expected": { "shouldActivate": false, "stage": "entender" } }
   ]
 }
