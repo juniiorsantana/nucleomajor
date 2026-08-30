@@ -8,12 +8,14 @@ on:
 jobs:
   portal:
     runs-on: ubuntu-latest
+    # Só o que o servidor Node precisa para subir. As variáveis `VITE_` e
+    # `PUBLIC_ORIGIN` foram removidas de propósito: variável de processo vence
+    # sobre `apps/emyleads/.env.test`, que é versionado justamente para dar
+    # ambiente aos testes, e sobre o padrão de `src/server.mjs`. Repor aqui
+    # quebra `supabaseClient.test.js` e `server.test.mjs`.
     env:
       SUPABASE_URL: https://example.supabase.co
       SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
-      VITE_SUPABASE_URL: https://example.supabase.co
-      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
-      PUBLIC_ORIGIN: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
