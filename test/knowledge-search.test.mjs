@@ -295,3 +295,25 @@ test("documento inacessível vira erro de ferramenta, não derruba a conversa", 
   assert.equal(resultado.is_error, true);
   assert.equal(completion.content[0].text, "não tenho acesso a esse documento");
 });
+
+test("o relógio do prompt é o mesmo em todas as rodadas de ferramenta", async () => {
+  // Com `new Date()` dentro de `callAnthropic`, o bloco `system` mudava a cada
+  // rodada: o modelo via o relógio andar no meio do próprio raciocínio, e
+  // nenhum prefixo se repetia entre as chamadas da mesma resposta.
+  const instantes = [];
+  await assistantCompletion({
+    organization: "Major",
+    context: {},
+    messages: [{ role: "user", content: "qual o protocolo?" }],
+    readDocument: async () => ({ titulo: "Protocolo", conteudo: "texto inteiro" }),
+    ask: async ({ agora }) => {
+      instantes.push(agora);
+      return instantes.length === 1 ? pedeLeitura("doc-1") : texto("resposta final");
+    },
+  });
+
+  assert.equal(instantes.length, 2);
+  assert.ok(instantes[0] instanceof Date, "o instante precisa chegar ao construtor do prompt");
+  assert.equal(instantes[0].getTime(), instantes[1].getTime());
+  assert.equal(instantes[0], instantes[1], "é o mesmo objeto, não duas leituras do relógio");
+});
