@@ -64,6 +64,9 @@ conhecimento. O lado interno continua sem skill de fallback.
 - `20260829150000_corrigir_regex_do_caminho_do_conhecimento.sql` aplicada em
   29/08/2026 e conferida por `pg_get_constraintdef`.
 - `20260829120000_perfil_pessoal.sql` aplicada em 29/08/2026.
+- `20260829170000_conhecimento_externo_visivel_para_equipe.sql` aplicada em
+  29/08/2026 e conferida por `pg_proc.prosrc`: os dois leitores internos
+  ampliados, o ramo do cliente intacto.
 
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
@@ -88,6 +91,22 @@ barras invertidas. Com `standard_conforming_strings = on`, o motor de regex lê
 O primeiro encobria o segundo. Os dois foram corrigidos na mesma transação e
 voltaram com nome próprio, `knowledge_documents_path_extensao` e
 `knowledge_documents_path_travessia`.
+
+### Conteúdo publicado para clientes vale também para a equipe
+
+Havia assimetria entre os dois leitores internos: o assistente do portal lia
+interno e externo publicado, e o operador no WhatsApp lia só interno. A tabela
+de preços publicada para clientes aparecia para quem perguntasse pelo portal e
+sumia para quem atendesse pelo celular.
+
+Desde 29/08/2026, `external` significa "também visível para clientes", e não
+"deixou de ser da equipe". O ramo do cliente não mudou: continua exigindo
+`audience = 'external'`, coleção externa ativa e, quando a coleção é de
+campanha, vínculo com a campanha do contexto.
+
+Consequência prática: **não duplique documento por audiência**. Um documento
+externo publicado já é lido pelos dois públicos. As duas cópias de "Sobre a
+empresa" que existem hoje são anteriores a esta migration.
 
 ## Tarefas internas
 
