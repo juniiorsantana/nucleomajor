@@ -325,7 +325,17 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
                   <div className="flex items-center gap-2">
                     <strong className="text-[12.5px] text-fg">Versão {versao.version}</strong>
                     <span className="text-[10.5px] text-faint">{new Date(versao.created_at).toLocaleString("pt-BR")}</span>
-                    <span className="ml-auto text-[10.5px] text-faint">
+                    {/* `knowledge_document_versions` guarda `audience` e
+                        `changed_by` por versão desde a fase H, então já existe
+                        registro de quem tornou um documento externo — e a tela
+                        não mostrava. Uma coluna transforma um dado persistido
+                        em governança que alguém consegue auditar. */}
+                    <span
+                      className={`ml-auto text-[10.5px] ${versao.audience === "external" ? "font-semibold text-warning" : "text-faint"}`}
+                    >
+                      {versao.audience === "external" ? "clientes" : "equipe"}
+                    </span>
+                    <span className="text-[10.5px] text-faint">
                       {situacaoDoDocumento({ publicadoEm: versao.published_at }) === "publicado" ? "publicado" : "rascunho"}
                     </span>
                   </div>

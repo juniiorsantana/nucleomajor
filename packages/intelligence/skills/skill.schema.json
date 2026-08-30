@@ -2,7 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nucleomajor.com/schemas/intelligence-skill-v1.json",
   "title": "Núcleo Major official skill",
+  "description": "Espelha `validateSkillPackage` em packages/intelligence/src/catalog.mjs, que é o validador de verdade. Este arquivo existe para o editor apontar o erro enquanto se digita; quem decide se a skill publica é o catálogo. Mudou lá, mude aqui.",
   "type": "object",
+  "unevaluatedProperties": false,
   "required": [
     "schemaVersion",
     "slug",
@@ -17,27 +19,104 @@
     "handoff"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "$schema": { "type": "string" },
+    "schemaVersion": { "enum": ["1.0", "1.1"] },
     "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "name": { "type": "string", "minLength": 2, "maxLength": 120 },
-    "description": { "type": "string", "maxLength": 1200 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 1200 },
     "audience": { "enum": ["internal", "customer", "both"] },
     "status": { "enum": ["draft", "published", "archived"] },
-    "objective": { "type": "string", "minLength": 10 },
+    "objective": { "type": "string", "minLength": 10, "maxLength": 1200 },
     "activation": {
       "type": "object",
       "required": ["keywords"],
+      "additionalProperties": false,
       "properties": {
-        "keywords": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true }
-      },
-      "additionalProperties": false
+        "keywords": { "$ref": "#/$defs/listaDeTextos", "minItems": 1 },
+        "negativeKeywords": { "$ref": "#/$defs/listaDeTextos" }
+      }
     },
-    "requiredFields": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-    "questions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-    "allowedTools": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-    "guardrails": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
-    "handoff": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true }
+    "routing": {
+      "type": "object",
+      "required": ["intent", "priority", "fallback"],
+      "additionalProperties": false,
+      "properties": {
+        "intent": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "priority": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "fallback": { "type": "boolean" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["initialStage", "stages"],
+      "additionalProperties": false,
+      "properties": {
+        "initialStage": { "$ref": "#/$defs/idDeEtapa" },
+        "delegatesTo": { "$ref": "#/$defs/listaDeTextos" },
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "objective", "completion"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/$defs/idDeEtapa" },
+              "objective": { "type": "string", "minLength": 10, "maxLength": 500 },
+              "requiredFields": { "$ref": "#/$defs/listaDeTextos" },
+              "allowedTools": { "$ref": "#/$defs/ferramentas" },
+              "completion": { "type": "string", "minLength": 3, "maxLength": 300 }
+            }
+          }
+        }
+      }
+    },
+    "requiredFields": { "$ref": "#/$defs/listaDeTextos" },
+    "questions": { "$ref": "#/$defs/listaDeTextos" },
+    "allowedTools": { "$ref": "#/$defs/ferramentas", "minItems": 1 },
+    "guardrails": { "$ref": "#/$defs/listaDeTextos", "minItems": 1 },
+    "handoff": { "$ref": "#/$defs/listaDeTextos", "minItems": 1 }
   },
-  "additionalProperties": false
+  "allOf": [
+    {
+      "$comment": "No schema 1.1 o roteamento e o workflow deixam de ser opcionais.",
+      "if": { "properties": { "schemaVersion": { "const": "1.1" } }, "required": ["schemaVersion"] },
+      "then": { "required": ["routing", "workflow"] }
+    }
+  ],
+  "$defs": {
+    "listaDeTextos": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "idDeEtapa": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,63}$"
+    },
+    "ferramentas": {
+      "$comment": "Lista fechada. RUNTIME_TOOLS em catalog.mjs e a mesma lista repetida em nucleo_intelligence_context_resolve_v2. Markdown pode orientar o uso de uma ferramenta destas; não pode criar outra nem liberar permissão.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "knowledge.search",
+          "crm.contact.read",
+          "crm.contact.upsert",
+          "crm.tag.apply",
+          "crm.deal.qualify",
+          "conversation.handoff",
+          "calendar.read",
+          "calendar.availability",
+          "calendar.prepare",
+          "calendar.confirm",
+          "calendar.request.prepare",
+          "calendar.request.submit",
+          "task.read",
+          "task.prepare",
+          "task.confirm"
+        ]
+      }
+    }
+  }
 }
-

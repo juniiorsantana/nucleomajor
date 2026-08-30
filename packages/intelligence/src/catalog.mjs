@@ -25,10 +25,10 @@ export const RUNTIME_TOOLS = new Set([
   "task.prepare",
   "task.confirm",
 ]);
-const SCHEMA_VERSIONS = new Set(["1.0", "1.1"]);
+export const SCHEMA_VERSIONS = new Set(["1.0", "1.1"]);
 const STAGE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const ALLOWED_FIELDS = new Set([
+export const ALLOWED_FIELDS = new Set([
   "$schema", "schemaVersion", "slug", "name", "description", "audience", "status",
   "objective", "activation", "routing", "workflow", "requiredFields", "questions", "allowedTools", "guardrails", "handoff",
 ]);
@@ -254,10 +254,48 @@ export async function loadSkillCatalog({ skillsDir = DEFAULT_SKILLS_DIR, slug = 
   return catalog;
 }
 
+/**
+ * Ciclos de delegação, que nenhuma skill consegue enxergar sozinha.
+ *
+ * `delegatesTo` é declarado por skill, e a validação por pacote não tem como
+ * ver o outro lado. Duas skills apontando uma para a outra viram um laço em
+ * produção: cada rodada troca a skill ativa, o modelo recomeça o fluxo, e a
+ * conversa nunca chega ao fim — gastando tokens e a paciência de quem escreveu.
+ *
+ * Percurso em profundidade com três cores. `cinza` é o caminho em exploração:
+ * reencontrá-lo é a definição de ciclo. Delegação para skill inexistente não é
+ * erro aqui — o catálogo pode ser publicado por partes, e uma referência que
+ * ainda não existe apenas não é seguida.
+ */
+export function detectarCiclosDeDelegacao(catalog) {
+  const porSlug = new Map(catalog.map((entry) => [entry.skill?.slug, entry.skill]));
+  const cor = new Map();
+  const ciclos = [];
+
+  const visitar = (slug, caminho) => {
+    if (cor.get(slug) === "preto") return;
+    if (cor.get(slug) === "cinza") {
+      const inicio = caminho.indexOf(slug);
+      ciclos.push([...caminho.slice(inicio), slug].join(" → "));
+      return;
+    }
+    cor.set(slug, "cinza");
+    for (const destino of porSlug.get(slug)?.workflow?.delegatesTo || []) {
+      if (porSlug.has(destino)) visitar(destino, [...caminho, slug]);
+    }
+    cor.set(slug, "preto");
+  };
+
+  for (const slug of porSlug.keys()) if (slug) visitar(slug, []);
+  return [...new Set(ciclos)];
+}
+
 export function assertValidCatalog(catalog) {
   const failures = catalog.flatMap((entry) => entry.errors.map((error) => `${entry.skill?.slug || path.basename(entry.directory)}: ${error}`));
   if (failures.length) throw new Error(`Catálogo inválido:\n- ${failures.join("\n- ")}`);
   const slugs = catalog.map((entry) => entry.record.slug);
   if (new Set(slugs).size !== slugs.length) throw new Error("O catálogo contém slugs duplicados");
+  const ciclos = detectarCiclosDeDelegacao(catalog);
+  if (ciclos.length) throw new Error(["Delegação em ciclo:", ...ciclos.map((ciclo) => `- ${ciclo}`)].join("\n"));
   return catalog;
 }

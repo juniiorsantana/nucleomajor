@@ -32,7 +32,19 @@ export function criarOperacoesInteligencia({ supabase = obterSupabaseWeb(), area
         executar(supabase.from("assistant_templates").select("*").order("audience")),
         executar(supabase.from("assistant_profiles").select("*").eq("organization_id", org).order("audience")),
         executar(supabase.from("skill_definitions").select("*").or(`owner_type.eq.platform,organization_id.eq.${org}`).order("owner_type").order("name")),
-        executar(supabase.from("skill_versions").select("*").order("created_at", { ascending: false }).limit(200)),
+        // Sem o `spec`. A tela usa apenas `id`, `skill_id` e `version` para
+        // montar os botões de rollback — a restauração acontece na RPC
+        // `intelligence_skill_rollback`, que lê o spec no banco. Trazer
+        // `select("*")` carregava a especificação completa de até 200 versões,
+        // com o `instructionsMarkdown` de cada uma, para o navegador.
+        //
+        // Não há filtro de organização porque `skill_versions` não tem essa
+        // coluna: o isolamento vem da policy `skill_versions_read`, que junta
+        // com `skill_definitions` e exige plataforma publicada ou participação
+        // na organização dona.
+        executar(supabase.from("skill_versions")
+          .select("id,skill_id,version,name,description,audience,status,changed_by,created_at")
+          .order("created_at", { ascending: false }).limit(200)),
         executar(supabase.from("assistant_profile_skills").select("*").eq("organization_id", org).order("priority")),
         executar(supabase.from("knowledge_collections").select("*").eq("organization_id", org).order("audience").order("name")),
         executar(supabase.from("knowledge_document_collections").select("*").eq("organization_id", org)),
