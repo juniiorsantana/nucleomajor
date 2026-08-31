@@ -39,7 +39,10 @@ conhecimento. O lado interno continua sem skill de fallback.
 - Portal H.5 publicado na branch `main`; commit operacional `618b623` e
   registro de implantação `e64000f`. O endereço público respondeu `HTTP 200`
   após o disparo automático da Hostinger.
-- Runtime H.5 da VPS: `461ca8a` na branch `hardening`, implantado em 28/08/2026.
+- Runtime da VPS: `92d3217` na branch `hardening`, mais a entrada de cliente no
+  Bridge (`customer_inbound` e janela de resposta), implantada em 30/08/2026.
+  O registro anterior dizia `461ca8a`; a VPS já estava um commit à frente.
+  `327a77b` continua **não** implantado.
 - Bridge e assistente permaneceram ativos depois da implantação; a sessão do
   WhatsApp não foi recriada.
 - O runtime aceita o formato atual de refresh token do Supabase e protege a
@@ -67,6 +70,16 @@ conhecimento. O lado interno continua sem skill de fallback.
 - `20260829170000_conhecimento_externo_visivel_para_equipe.sql` aplicada em
   29/08/2026 e conferida por `pg_proc.prosrc`: os dois leitores internos
   ampliados, o ramo do cliente intacto.
+- `20260829190000_topicos_realtime_do_piloto.sql` aplicada em 30/08/2026 e
+  conferida por `pg_get_constraintdef`: uma única constraint de check na tabela,
+  `portal_realtime_events_topico`, com os quatro tópicos que os gatilhos
+  realmente emitem.
+- `20260830060000_ferramentas_de_solicitacao_de_agenda.sql` aplicada em
+  30/08/2026: a validação de skill da `_v2` passou a aceitar
+  `calendar.request.prepare` e `calendar.request.submit`.
+- `20260830070000_operador_opcional_no_contexto.sql` aplicada em 30/08/2026:
+  `nucleo_operator_context` devolve vazio para não-operador em vez de levantar.
+  Conferida pelo atendimento externo respondendo de ponta a ponta.
 
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
@@ -107,6 +120,59 @@ campanha, vínculo com a campanha do contexto.
 Consequência prática: **não duplique documento por audiência**. Um documento
 externo publicado já é lido pelos dois públicos. As duas cópias de "Sobre a
 empresa" que existem hoje são anteriores a esta migration.
+
+### Tópicos do canal de tempo real do portal
+
+`20260823030000` criou `portal_realtime_events.topic` com a lista fechada
+`('connections', 'operators')`. `20260826150000` (piloto externo H) pendurou
+mais dois gatilhos na mesma função `private.portal_realtime_notify`, passando
+`'intelligence'` e `'handoffs'`, e não ampliou a lista.
+
+Nada no banco liga o argumento do gatilho ao check da coluna. E como os
+gatilhos são `after insert or update or delete`, o insert do aviso acontece
+dentro da transação de quem escreveu na tabela de origem: a violação **derruba
+a escrita original**, não só o aviso. Selecionar um contato no modo piloto
+falhava com `violates check constraint "portal_realtime_events_topic_check"` —
+e a linha citada no erro nunca foi a que o portal tentou gravar. Abrir e fechar
+atendimento humano (`customer_handoff_requests`) estava quebrado pelo mesmo
+motivo, sem que ninguém tivesse chegado nesse fluxo.
+
+Desde 30/08/2026 o check aceita os quatro tópicos e tem nome próprio,
+`portal_realtime_events_topico`. Constraint anônima é o que torna a mensagem de
+erro ilegível: `_topic_check` é numeração por ordem de declaração, não nome.
+
+**Ao criar um gatilho novo de `portal_realtime_notify`, amplie o check na mesma
+migration.** `supabase/test_portal_realtime_topics_migration.py` cruza os dois
+lados e falha se divergirem.
+
+### Atendimento a cliente: três defeitos empilhados
+
+Em 30/08/2026 o piloto externo respondeu pela primeira vez. Até ali ele nunca
+tinha funcionado — nem uma vez, desde que a fase H existe. Eram três defeitos
+em série, e cada um escondia o seguinte:
+
+1. **`shouldNotify`, no Bridge**, recusava toda mensagem de quem não fosse dono
+   ou operador. A seleção de contatos do painel nunca teve efeito: a mensagem
+   era gravada e a conversa encerrava ali, sem erro e sem log. Corrigido com
+   `assistant.customer_inbound` e a janela de resposta por conversa — ver a
+   seção 9 do `HARDENING.md` no runtime.
+2. **A lista de ferramentas de `nucleo_intelligence_context_resolve_v2`** não
+   incluía `calendar.request.*`, que a H.4 deu à skill `solicitacao-agenda`.
+3. **`nucleo_operator_context` levantava exceção** para quem não fosse
+   operador, onde os resolvedores de contexto esperavam zero linhas. Este é o
+   mais antigo e o que de fato quebrava todo turno de cliente.
+
+Duas lições que ficaram no repositório como teste, não como texto:
+`test/skill-tools-whitelist.test.mjs` cruza a lista de ferramentas do SQL com o
+catálogo canônico, e `test/operator-context-optional.test.mjs` exige que todo
+chamador de `nucleo_operator_context` tenha a própria guarda `if not found`.
+
+**Pendência conhecida:** `operator_verification.py:406`, no runtime, descarta o
+corpo da resposta quando o Supabase devolve 4xx e registra apenas
+`"Supabase recusou <rótulo>"`. O texto real do Postgres —
+`sender is not a verified operator for this connection` — esteve disponível
+desde o começo e nunca chegou a nenhum log. Foi o que fez o diagnóstico custar
+três rodadas de tentativa e erro.
 
 ## Tarefas internas
 

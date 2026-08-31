@@ -30,6 +30,21 @@ Não cole tokens ou mensagens completas ao compartilhar logs.
 
 ## Assistente não responde
 
+Antes dos passos abaixo, rode
+[`scripts/sql/diagnostico-piloto-atendimento.sql`](../scripts/sql/diagnostico-piloto-atendimento.sql)
+no SQL Editor com o telefone de teste. Ele é somente leitura e diz em qual das
+nove etapas da guarda o atendimento parou — em particular, a etapa 8 separa
+"o runtime não recebeu a mensagem" de "o runtime recebeu e não respondeu", que
+é a bifurcação que decide se o problema está no portal/banco ou na VPS.
+
+**Atendimento externo exige um interruptor na Bridge.** A guarda do banco e a
+seleção de contatos no painel não bastam: `shouldNotify`, no Bridge, decide
+antes de tudo se a mensagem pode sequer ser perguntada ao runner. Até
+30/08/2026 ela recusava todo não-operador, e o piloto ficava mudo — sem erro,
+sem log, sem resposta. Confira `assistant.customer_inbound` e
+`assistant.customer_reply_window_seconds` no `config.json` da conexão antes de
+investigar o resto.
+
 1. confirmar que somente a VPS está ativa;
 2. conferir assistente e Bridge separadamente;
 3. procurar `customer_rollout`, `credential`, `intelligence` e `run.completed`;
