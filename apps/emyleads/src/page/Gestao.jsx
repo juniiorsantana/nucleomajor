@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
@@ -12,6 +12,7 @@ import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Assistente = lazy(() => import("./telas/Assistente"));
+const Conversas = lazy(() => import("./telas/Conversas"));
 const Inteligencia = lazy(() => import("./telas/Inteligencia"));
 const Chatbots = lazy(() => import("./telas/Chatbots"));
 const ChatbotEditor = lazy(() => import("./telas/ChatbotEditor"));
@@ -23,7 +24,18 @@ const MinhaConta = lazy(() => import("./telas/MinhaConta"));
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
 const TELAS = [
-  ...(PLATAFORMA_WEB ? [{ id: "assistente", rotulo: "Assistente", icone: Sparkles }] : []),
+  ...(PLATAFORMA_WEB
+    ? [
+        { id: "assistente", rotulo: "Assistente", icone: Sparkles },
+        // Logo abaixo do Assistente, e não dentro de Contatos: é por onde o dia
+        // começa, não uma sub-tela de quem já está cadastrado.
+        //
+        // Só no portal. Dentro da extensão a conversa já está na tela — é o
+        // WhatsApp com o painel do EmyLeads do lado. Uma caixa de entrada
+        // dentro dela seria a mesma conversa duas vezes.
+        { id: "conversas", rotulo: "Conversas", icone: MessageSquare },
+      ]
+    : []),
   { id: "contatos", rotulo: "Contatos", icone: Users },
   { id: "funil", rotulo: "Funil", icone: Filter },
   { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig },
@@ -484,6 +496,15 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         ) : tela === "assistente" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando assistente…</div>}>
             <Assistente />
+          </Suspense>
+        ) : tela === "conversas" ? (
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conversas…</div>}>
+            <Conversas
+              dados={dados}
+              recarregar={carregar}
+              aoAbrirContato={abrirFicha}
+              sessao={sessao}
+            />
           </Suspense>
         ) : tela === "conhecimento" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conhecimento…</div>}>

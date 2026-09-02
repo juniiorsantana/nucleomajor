@@ -1,3 +1,4 @@
+import { criarOperacoesConversas } from "../data/conversasMock.js";
 import { criarOperacoesAgenda } from "./agendaProvider.js";
 import { criarOperacoesAuth } from "./authProvider.js";
 import { obterSupabaseWeb } from "./supabaseClient.js";
@@ -13,14 +14,18 @@ let operacoes;
 export function obterOperacoesWeb() {
   if (operacoes) return operacoes;
   const supabase = obterSupabaseWeb();
+  const dados = criarOperacoesDadosWeb({ supabase, area: webArea });
   operacoes = {
-    ...criarOperacoesDadosWeb({ supabase, area: webArea }),
+    ...dados,
     ...criarOperacoesAuth({ supabase, area: webArea }),
     ...criarOperacoesAgenda({ supabase, area: webArea }),
     ...criarOperacoesConhecimento({ supabase, area: webArea }),
     ...criarOperacoesAssistente({ supabase, area: webArea }),
     ...criarOperacoesInteligencia({ supabase, area: webArea }),
     ...criarOperacoesGateway(),
+    // Histórico de conversa é de demonstração — o gateway não expõe mensagens
+    // para a Gestão. Os contatos saem do provider de dados de verdade.
+    ...criarOperacoesConversas({ listarContatos: () => dados["contatos.listar"]({}) }),
   };
   return operacoes;
 }
