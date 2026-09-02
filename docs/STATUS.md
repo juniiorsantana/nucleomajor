@@ -80,6 +80,14 @@ conhecimento. O lado interno continua sem skill de fallback.
 - `20260830070000_operador_opcional_no_contexto.sql` aplicada em 30/08/2026:
   `nucleo_operator_context` devolve vazio para não-operador em vez de levantar.
   Conferida pelo atendimento externo respondendo de ponta a ponta.
+- `20260902120000_conversas_espelhadas_do_bridge.sql` aplicada em 02/09/2026 e
+  conferida por consulta ao catálogo: RLS ligada nas duas tabelas, uma única
+  policy de `select` em cada e `authenticated` sem nenhum grant de escrita — quem
+  grava é a RPC `nucleo_conversation_sync`, `security definer` com
+  `search_path=""`. O check `portal_realtime_events_topico` continua sendo a
+  única constraint de check da tabela, agora com os cinco tópicos, e o gatilho
+  `whatsapp_conversations_portal_realtime` ficou só em `whatsapp_conversations`,
+  a tabela da lista.
 
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.

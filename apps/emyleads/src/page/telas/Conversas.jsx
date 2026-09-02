@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MailOpen, PanelRight, Plus, Search } from "lucide-react";
-import { CATEGORIAS_DE_MODELO } from "../../data/conversasMock";
+import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
 import { formatPhone } from "../../lib/phone";
@@ -23,10 +23,15 @@ import { useConversas } from "./conversas/useConversas";
  * Conversas — a caixa de entrada da equipe.
  *
  * Desenhada em `docs/design/conversas/` antes de existir back-end de
- * mensagens, e é assim que ela roda hoje: os CONTATOS são os de verdade, o
- * histórico é de demonstração (`data/conversasMock.js`) e a ficha ao lado lê
- * os mesmos negócios, tarefas e notas que a tela de Contatos lê. No dia em que
- * existir a rota de mensagens, troca-se o provider e esta tela não muda.
+ * mensagens, e subiu com histórico de demonstração. Hoje o portal lê conversas
+ * de verdade do espelho que a VPS publica (`web/conversasProvider.js`), e a
+ * ficha ao lado lê os mesmos negócios, tarefas e notas que a tela de Contatos
+ * lê. A tela não mudou na travessia: trocou-se o provider, como estava
+ * previsto. O mock (`data/conversasMock.js`) continua servindo a bancada.
+ *
+ * Ler já funciona; escrever ainda não — mandar mensagem e trocar quem atende
+ * dependem da fila de comandos do runtime. Até lá as duas falham com um aviso,
+ * que aparece acima da caixa sem derrubar a conversa.
  *
  * Três colunas, duas somem: a ficha fecha pelo botão do cabeçalho e o menu
  * lateral recolhe na Gestão. Juntas devolvem espaço para a conversa, que é o
@@ -76,10 +81,11 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
     setAtual,
     mensagens,
     erro,
+    aviso,
     enviar,
     trocarDono,
     guardarBaralho,
-  } = useConversas();
+  } = useConversas(sessao?.organizacaoAtual?.id);
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("tudo");
@@ -141,9 +147,14 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
   };
 
   const mandar = async (texto) => {
-    await enviar(texto);
-    setRascunho("");
-    setAba(null);
+    try {
+      await enviar(texto);
+      setRascunho("");
+      setAba(null);
+    } catch {
+      // O texto fica na caixa de propósito: quem escreveu não deve perder o que
+      // escreveu porque o envio falhou. O motivo aparece abaixo dela.
+    }
   };
 
   const abrirAtalho = (qual) => {
@@ -348,9 +359,10 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
               aba={aba}
               aoAlternarAba={alternarAba}
               aviso={
-                conversa.dono !== "humano"
+                aviso ||
+                (conversa.dono !== "humano"
                   ? "Esta conversa está num automatismo — assuma antes de escrever para não sair resposta dobrada."
-                  : null
+                  : null)
               }
             />
           </>
