@@ -80,14 +80,21 @@ const CONTATOS = [
   },
 ];
 
+/**
+ * Como o banco responde: da mais nova para a mais velha.
+ *
+ * A ordem desta bancada é parte do que ela afirma. A consulta pede
+ * `ascending: false`, e escrever a lista aqui em ordem de tela esconderia
+ * justamente o passo que a conversa depende — a inversão.
+ */
 const MENSAGENS = [
   {
-    message_id: "wa-1",
-    content: "Bom dia!",
-    sent_at: "2026-08-31T13:00:00.000Z",
-    is_from_me: false,
-    media_type: "",
-    media_filename: "",
+    message_id: "wa-3",
+    content: "",
+    sent_at: "2026-09-01T13:06:00.000Z",
+    is_from_me: true,
+    media_type: "ptt",
+    media_filename: "audio.ogg",
   },
   {
     message_id: "wa-2",
@@ -98,12 +105,12 @@ const MENSAGENS = [
     media_filename: "foto.jpg",
   },
   {
-    message_id: "wa-3",
-    content: "",
-    sent_at: "2026-09-01T13:06:00.000Z",
-    is_from_me: true,
-    media_type: "ptt",
-    media_filename: "audio.ogg",
+    message_id: "wa-1",
+    content: "Bom dia!",
+    sent_at: "2026-08-31T13:00:00.000Z",
+    is_from_me: false,
+    media_type: "",
+    media_filename: "",
   },
 ];
 
@@ -224,6 +231,36 @@ describe("conversas.mensagens", () => {
     // Teto por conversa: anos de histórico de uma vez travariam o navegador de
     // quem conversa todo dia.
     expect(consulta.limite).toBe(300);
+  });
+
+  /**
+   * O teto corta pelo fim da conversa, e não pelo começo.
+   *
+   * Foi o defeito relatado em 03/09/2026: com `ascending: true`, o `limit`
+   * devolvia as 300 mensagens MAIS ANTIGAS, e quem passou desse número via a
+   * conversa parada no passado para sempre. A lateral continuava certa, porque
+   * a prévia vem de `whatsapp_conversations` — o que fazia o defeito parecer
+   * coisa da tela, e não da consulta.
+   *
+   * Ordem e teto são uma decisão só; por isso as duas afirmações moram juntas.
+   */
+  it("o teto guarda as mensagens mais NOVAS, e a tela as recebe em ordem", async () => {
+    const { operacoes, chamadas } = bancada();
+    const linhas = await operacoes["conversas.mensagens"]({
+      id: `${CONNECTION_ID}:5511987654321`,
+    });
+
+    expect(consultaDe(chamadas, "whatsapp_messages").ordem).toEqual([
+      "sent_at",
+      { ascending: false },
+    ]);
+    // E chega à tela na ordem de leitura, apesar disso.
+    const bolhas = linhas.filter((l) => l.tipo === "mensagem");
+    expect(bolhas.map((b) => b.texto)).toEqual([
+      "Bom dia!",
+      "📎 Imagem\nSegue a foto do dente",
+      "🎤 Áudio",
+    ]);
   });
 
   it("id estranho devolve vazio em vez de consultar", async () => {

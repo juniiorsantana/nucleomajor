@@ -234,7 +234,17 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
         .eq("contact_phone", alvo.chat)
-        .order("sent_at", { ascending: true })
+        // Da mais nova para a mais velha, e a lista é invertida depois.
+        //
+        // O teto e a ordem são uma decisão só, e ler a ordem sem o teto é o
+        // que estragou esta consulta: com `ascending: true`, o `limit` corta
+        // pelo COMEÇO, e a conversa passada de 300 mensagens ficava presa nas
+        // 300 mais antigas. Nada errava — a consulta respondia depressa e
+        // sempre a mesma coisa. A lateral acompanhava, porque a prévia vem da
+        // outra tabela, e só a conversa aberta ficava no passado.
+        //
+        // Descendente também é a ordem do índice `whatsapp_messages_thread_idx`.
+        .order("sent_at", { ascending: false })
         // Teto por conversa: a tela rola até o fim, e trazer anos de histórico
         // de uma vez travaria o navegador em quem conversa todo dia.
         .limit(300),
@@ -245,7 +255,8 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     // não numa coluna que precisaria ser mantida em dia.
     const saida = [];
     let diaAnterior = null;
-    for (const linha of linhas) {
+    // A tela lê de cima para baixo; o banco entregou ao contrário.
+    for (const linha of [...linhas].reverse()) {
       const dia = new Date(linha.sent_at).toDateString();
       if (dia !== diaAnterior) {
         saida.push({ tipo: "data", texto: fmtDiaDaConversa(linha.sent_at) });
