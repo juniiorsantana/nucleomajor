@@ -14,15 +14,25 @@ import { WORKSPACE_KEY } from "./storage.js";
  * Este provider substitui `data/conversasMock.js` no portal. O mock continua
  * servindo a bancada de desenvolvimento, que roda sem Supabase.
  *
- * Escrever — mandar mensagem, trocar o dono — não passa por aqui: vai pela fila
- * de comandos do runtime, e é a Leva 2. Enquanto não existe, as duas operações
- * falham com um código que a tela sabe traduzir, em vez de fingir que
- * funcionaram.
+ * Escrever — mandar mensagem, atribuir quem atende — também não abre porta na
+ * VPS. Vai pela fila de comandos que já existia para a verificação de operador
+ * e para a fila humana (`connection_runtime_commands`): o portal enfileira, o
+ * runtime reivindica com a credencial de robô da conexão e executa em loopback.
+ *
+ * Duas consequências que a tela precisa respeitar, e que não são defeito:
+ *
+ * 1. Enfileirar NÃO é enviar. O comando volta como `pending`, e quem sabe se a
+ *    mensagem saiu é o desfecho, alguns segundos depois. Por isso existe
+ *    `conversas.desfecho`.
+ * 2. A mensagem enviada aparece na conversa quando a sincronia a trouxer de
+ *    volta do WhatsApp — a mesma volta que qualquer mensagem dá. Nada é escrito
+ *    direto na tabela de mensagens daqui: o espelho tem uma fonte só, e é o
+ *    aparelho.
  */
 
 const CAMPOS_CONVERSA =
-  "connection_id,contact_phone,contact_name,last_message_preview," +
-  "last_message_at,last_message_from_me,unread_count,owner";
+  "connection_id,contact_phone,chat_kind,contact_name,last_message_preview," +
+  "last_message_at,last_message_from_me,unread_count,owner,attendant_id,attendant_name";
 
 const CAMPOS_MENSAGEM =
   "message_id,content,sent_at,is_from_me,media_type,media_filename";
@@ -49,16 +59,60 @@ function erroConversas(mensagem, codigo) {
   return erro;
 }
 
-/** O id de uma conversa na tela: conexão e telefone, que juntos a identificam. */
-const idDaConversa = (connectionId, telefone) => `${connectionId}:${telefone}`;
+/**
+ * As recusas da RPC, em português.
+ *
+ * A RPC levanta em inglês de propósito — é a língua do banco, e a mensagem
+ * também vai para log e para o Postgres. Traduzir aqui é o que impede um
+ * atendente de ler "conversation is not mirrored for this connection" no meio
+ * de um atendimento; o texto que sobra sem tradução é devolvido como veio, que
+ * é melhor que engolir uma falha desconhecida.
+ */
+const RECUSAS = [
+  [
+    "organization membership required",
+    "Você não faz parte desta empresa.",
+  ],
+  [
+    "conversation is not mirrored",
+    "Esta conversa ainda não chegou da VPS. Aguarde a sincronia e tente de novo.",
+  ],
+  [
+    "message text is invalid",
+    "A mensagem está vazia ou passa de 4000 caracteres.",
+  ],
+  [
+    "attendant is not an active member",
+    "Quem você escolheu não está mais ativo nesta empresa.",
+  ],
+  ["conversation owner is invalid", "Quem atende só pode ser o robô, a IA ou alguém da equipe."],
+  ["conversation command is invalid", "Comando desconhecido para esta conversa."],
+  ["conversation command not found", "Este envio não existe mais."],
+];
+
+function traduzir(mensagem) {
+  const cru = String(mensagem || "");
+  const achado = RECUSAS.find(([trecho]) => cru.includes(trecho));
+  return achado ? achado[1] : cru;
+}
+
+/**
+ * O id de uma conversa na tela: conexão e o identificador do chat.
+ *
+ * O identificador é o telefone quando é gente e o id do grupo quando é grupo —
+ * o mesmo campo, e é `grupo` que diz como lê-lo. O traço sobrevive porque grupo
+ * antigo (`<telefone>-<carimbo>`) o usa; tirá-lo aqui faria o id não casar com
+ * a linha do banco, e a conversa abriria vazia.
+ */
+const idDaConversa = (connectionId, chat) => `${connectionId}:${chat}`;
 
 function separarId(id) {
   const cru = String(id || "");
   const corte = cru.indexOf(":");
   if (corte < 1) return null;
   const connectionId = cru.slice(0, corte);
-  const telefone = cru.slice(corte + 1).replace(/\D/g, "");
-  return telefone ? { connectionId, telefone } : null;
+  const chat = cru.slice(corte + 1).replace(/[^0-9-]/g, "");
+  return chat ? { connectionId, chat } : null;
 }
 
 /**
@@ -136,9 +190,14 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
 
     const indice = indicePorTelefone(contatos);
     return conversas.map((linha) => {
-      const contato = acharContato(indice, linha.contact_phone);
+      const grupo = linha.chat_kind === "grupo";
+      // Grupo não procura contato: o identificador dele não é telefone de
+      // ninguém, e deixá-lo cair no índice acharia um contato por coincidência
+      // de dígitos e penduraria a ficha da pessoa errada ao lado da conversa.
+      const contato = grupo ? null : acharContato(indice, linha.contact_phone);
       return {
         id: idDaConversa(linha.connection_id, linha.contact_phone),
+        grupo,
         // Sem contato no CRM a conversa continua aparecendo: quem chegou agora
         // ainda não foi cadastrado, e é justamente essa a pessoa que não pode
         // sumir da caixa de entrada.
@@ -146,8 +205,12 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         nome: contato?.name || linha.contact_name || linha.contact_phone,
         empresa: contato?.company || "",
         cargo: contato?.job_title || "",
-        telefone: linha.contact_phone,
+        // O grupo não tem telefone para mostrar. Formatar o id dele como se
+        // fosse um daria à tela um número de dezoito dígitos com DDD inventado.
+        telefone: grupo ? "" : linha.contact_phone,
         dono: linha.owner,
+        atendenteId: linha.attendant_id || null,
+        atendenteNome: linha.attendant_name || "",
         hora: fmtHoraDaLista(linha.last_message_at),
         naoLidas: linha.unread_count || 0,
         previa: linha.last_message_preview || "",
@@ -170,7 +233,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         .select(CAMPOS_MENSAGEM)
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
-        .eq("contact_phone", alvo.telefone)
+        .eq("contact_phone", alvo.chat)
         .order("sent_at", { ascending: true })
         // Teto por conversa: a tela rola até o fim, e trazer anos de histórico
         // de uma vez travaria o navegador em quem conversa todo dia.
@@ -205,11 +268,27 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     return saida;
   };
 
-  const aindaNaoEscreve = (acao) => async () => {
-    throw erroConversas(
-      `${acao} ainda não está ligado nesta tela — a VPS não recebe comando do portal por enquanto.`,
-      "conversas-escrita-indisponivel"
-    );
+  /**
+   * Enfileira um comando e devolve o identificador dele.
+   *
+   * `clientId` é gerado por chamada e é o que torna o reenvio seguro: a RPC
+   * chaveia a idempotência por ele, e não pelo texto. Sem isso, a segunda
+   * mensagem "ok" da mesma conversa seria engolida como repetição da primeira —
+   * e "ok" é o que mais se digita duas vezes num atendimento.
+   */
+  const enfileirar = async (id, comando, carga) => {
+    const alvo = separarId(id);
+    if (!alvo) throw erroConversas("Conversa inválida.", "conversas-id-invalido");
+    const organizationId = await organizacao();
+    const { data, error } = await supabase.rpc("nucleo_conversation_command_enqueue", {
+      target_organization: organizationId,
+      target_connection: alvo.connectionId,
+      target_chat: alvo.chat,
+      requested_command: comando,
+      command_payload: { ...carga, clientId: crypto.randomUUID() },
+    });
+    if (error) throw erroConversas(traduzir(error.message), "conversas-comando-falhou");
+    return { comandoId: data?.commandId || null, situacao: data?.status || "pending" };
   };
 
   return {
@@ -224,7 +303,43 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       return { id, baralho };
     },
 
-    "conversas.enviar": aindaNaoEscreve("Enviar mensagem"),
-    "conversas.trocarDono": aindaNaoEscreve("Trocar quem atende"),
+    /**
+     * Manda a mensagem para a fila do runtime.
+     *
+     * Não devolve bolha. A mensagem entra na conversa quando a sincronia a
+     * trouxer de volta do aparelho, como qualquer outra — inventar a bolha aqui
+     * faria a tela afirmar que saiu antes de alguém ter enviado nada. Quem
+     * mostra "enviando" é a tela, a partir do comando que volta daqui.
+     */
+    "conversas.enviar": async ({ id, texto }) =>
+      enfileirar(id, "conversation_send", { text: String(texto || "").trim() }),
+
+    /**
+     * Atribui a conversa: ao robô, à IA, ou a uma pessoa da equipe.
+     *
+     * O nome de quem assume é resolvido no banco, a partir do perfil — daqui
+     * vai só o id. Mandar o nome junto deixaria a faixa dizer "Atendente ·
+     * Lucas" numa conversa que outra pessoa pegou.
+     */
+    "conversas.trocarDono": async ({ id, dono, atendenteId = null }) =>
+      enfileirar(id, "conversation_owner", {
+        owner: dono,
+        attendantId: dono === "humano" && atendenteId ? String(atendenteId) : "",
+      }),
+
+    /** O desfecho de um comando, para a tela parar de dizer "enviando". */
+    "conversas.desfecho": async ({ comandoId }) => {
+      if (!comandoId) return null;
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("nucleo_conversation_command_status", {
+        target_organization: organizationId,
+        target_command: comandoId,
+      });
+      if (error) throw erroConversas(traduzir(error.message), "conversas-desfecho-falhou");
+      return {
+        situacao: data?.status || "pending",
+        motivo: data?.errorCode || "",
+      };
+    },
   };
 }

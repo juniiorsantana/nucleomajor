@@ -124,6 +124,30 @@ const PADROES = [
   { hora: "seg", naoLidas: 0, dono: "humano", saiu: true, lido: true, fixado: false },
 ];
 
+/**
+ * O grupo da bancada.
+ *
+ * O identificador tem a forma do de verdade — dezoito dígitos, sem servidor —
+ * porque é ele que o portal usa como chave, e um "grupo-1" esconderia que a
+ * chave de grupo e a de pessoa moram no mesmo campo.
+ */
+const GRUPO = {
+  id: "120363001122334455",
+  nome: "Comercial · Núcleo Major",
+  previa: "Marina: fechamos o mês com 12 propostas em aberto",
+  roteiro: [
+    { tipo: "data", texto: "Ontem" },
+    { tipo: "mensagem", direcao: "entra", hora: "16:02", texto: "Alguém falou com a clínica?" },
+    { tipo: "mensagem", direcao: "sai", hora: "16:10", texto: "Falei agora, mando o resumo" },
+    {
+      tipo: "mensagem",
+      direcao: "entra",
+      hora: "16:31",
+      texto: "Marina: fechamos o mês com 12 propostas em aberto",
+    },
+  ],
+};
+
 /** A última linha da conversa, que é o que a lista mostra como prévia. */
 function previaDoRoteiro(roteiro, contato) {
   const ultima = [...roteiro].reverse().find((m) => m.tipo === "mensagem");
@@ -152,6 +176,7 @@ const horaDeAgora = () => {
 export function criarOperacoesConversas({ listarContatos }) {
   const extras = new Map();
   const donos = new Map();
+  const atendentes = new Map();
   const lidas = new Set();
   const baralhos = new Map();
 
@@ -167,18 +192,21 @@ export function criarOperacoesConversas({ listarContatos }) {
   const listar = async () => {
     const contatos = await listarContatos();
     const ordenados = [...contatos].sort((a, b) => (b.ultimaEm || 0) - (a.ultimaEm || 0));
-    return ordenados.map((contato, i) => {
+    const linhas = ordenados.map((contato, i) => {
       const padrao = PADROES[i % PADROES.length];
       const acrescimos = extras.get(contato.id) || [];
       const ultima = [...acrescimos].reverse().find((m) => m.tipo === "mensagem");
       return {
         id: contato.id,
         contactId: contato.id,
+        grupo: false,
         nome: contato.nome || contato.telefone || "Sem nome",
         empresa: contato.empresa || "",
         cargo: contato.cargo || "",
         telefone: contato.telefone || "",
         dono: donos.get(contato.id) || padrao.dono,
+        atendenteId: atendentes.get(contato.id)?.id || null,
+        atendenteNome: atendentes.get(contato.id)?.nome || "",
         hora: ultima ? ultima.hora : padrao.hora,
         naoLidas: lidas.has(contato.id) ? 0 : padrao.naoLidas,
         fixado: padrao.fixado,
@@ -187,6 +215,30 @@ export function criarOperacoesConversas({ listarContatos }) {
         previa: ultima ? ultima.texto : previaDoRoteiro(roteiroDe(contato, i), contato),
       };
     });
+
+    // Um grupo na bancada, porque grupo é 56% da caixa de entrada de verdade e
+    // desenhar a lista sem um deixaria a linha do grupo sem prova visual.
+    // Grupo não tem telefone, não tem ficha e não tem atendente.
+    return linhas.concat([
+      {
+        id: GRUPO.id,
+        contactId: null,
+        grupo: true,
+        nome: GRUPO.nome,
+        empresa: "",
+        cargo: "",
+        telefone: "",
+        dono: donos.get(GRUPO.id) || "bot",
+        atendenteId: null,
+        atendenteNome: "",
+        hora: "ontem",
+        naoLidas: lidas.has(GRUPO.id) ? 0 : 4,
+        fixado: false,
+        saiu: false,
+        lido: false,
+        previa: GRUPO.previa,
+      },
+    ]);
   };
 
   const posicaoDe = async (id) => {
@@ -200,27 +252,38 @@ export function criarOperacoesConversas({ listarContatos }) {
     "conversas.listar": listar,
 
     "conversas.mensagens": async ({ id }) => {
+      lidas.add(id);
+      if (id === GRUPO.id) return GRUPO.roteiro.concat(extras.get(id) || []);
       const { contato, indice } = await posicaoDe(id);
       if (!contato) return [];
-      lidas.add(id);
       return roteiroDe(contato, indice).concat(extras.get(id) || []);
     },
 
-    // Mock: a mensagem entra na tela e não sai do navegador. Quando existir a
-    // rota de envio, é aqui que ela entra — e o resto da tela não muda.
+    /**
+     * Mock: a mensagem entra na tela e não sai do navegador.
+     *
+     * Devolve `comandoId: null`, e é isso que diz à tela que aqui não há fila
+     * para acompanhar — no portal, o envio volta pendente e só o desfecho diz
+     * se saiu. A bancada executa na hora de propósito: ela existe para
+     * desenhar a tela, não para simular a latência da VPS.
+     */
     "conversas.enviar": async ({ id, texto }) => {
       const limpo = String(texto || "").trim();
       if (!limpo) return null;
-      const mensagem = {
-        tipo: "mensagem",
-        direcao: "sai",
-        hora: horaDeAgora(),
-        tom: "humano",
-        lido: false,
-        texto: limpo,
-      };
-      extras.set(id, (extras.get(id) || []).concat([mensagem]));
-      return mensagem;
+      extras.set(
+        id,
+        (extras.get(id) || []).concat([
+          {
+            tipo: "mensagem",
+            direcao: "sai",
+            hora: horaDeAgora(),
+            tom: "humano",
+            lido: false,
+            texto: limpo,
+          },
+        ])
+      );
+      return { comandoId: null, situacao: "completed" };
     },
 
     /**
@@ -230,19 +293,30 @@ export function criarOperacoesConversas({ listarContatos }) {
      * contato receber duas respostas para a mesma mensagem: sem registro, a
      * próxima pessoa a abrir a conversa não tem como saber o que mudou.
      */
-    "conversas.trocarDono": async ({ id, dono }) => {
+    "conversas.trocarDono": async ({ id, dono, atendenteId = null }) => {
       const textos = {
         bot: "Devolvido ao Robô do CRM — as regras dos chatbots voltam a responder",
         ia: "Passado para o Agente de IA — ele responde esta conversa",
         humano: "Assumido por um atendente — nenhum automatismo responde até devolver",
       };
       donos.set(id, dono);
+      // A identidade só vale enquanto o dono é humano — a mesma regra do
+      // árbitro na VPS. Guardá-la depois faria a faixa dizer que alguém atende
+      // uma conversa que voltou para a IA.
+      if (dono === "humano" && atendenteId) {
+        atendentes.set(id, { id: atendenteId, nome: "Você" });
+      } else {
+        atendentes.delete(id);
+      }
       extras.set(
         id,
         (extras.get(id) || []).concat([{ tipo: "sistema", dono, texto: textos[dono] || "" }])
       );
-      return { id, dono };
+      return { comandoId: null, situacao: "completed" };
     },
+
+    /** Na bancada nada fica pendente: o comando já terminou quando foi pedido. */
+    "conversas.desfecho": async () => ({ situacao: "completed", motivo: "" }),
 
     "conversas.modelos": async () =>
       MODELOS.map((m) => ({ ...m, baralho: baralhos.get(m.id) || [] })),

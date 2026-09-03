@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MailOpen, PanelRight, Plus, Search } from "lucide-react";
+import { MailOpen, PanelRight, Plus, Search, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
@@ -29,9 +29,15 @@ import { useConversas } from "./conversas/useConversas";
  * lê. A tela não mudou na travessia: trocou-se o provider, como estava
  * previsto. O mock (`data/conversasMock.js`) continua servindo a bancada.
  *
- * Ler já funciona; escrever ainda não — mandar mensagem e trocar quem atende
- * dependem da fila de comandos do runtime. Até lá as duas falham com um aviso,
- * que aparece acima da caixa sem derrubar a conversa.
+ * Ler e escrever funcionam. Escrever não abre porta na VPS: mandar mensagem e
+ * atribuir quem atende viram comando na fila que o runtime já consome. Isso
+ * tem uma consequência visível, e ela é honesta — enfileirar não é enviar. A
+ * bolha nasce com um relógio, ganha o tique quando a mensagem volta do
+ * aparelho, e vira alerta com motivo quando o Bridge recusa.
+ *
+ * Grupo entra na lista com o nome do grupo, e só. Não tem telefone, não tem
+ * ficha, não tem dono de atendimento — as três coisas que uma conversa de
+ * grupo não tem mesmo, e fingir que tem seria pior que não mostrá-lo.
  *
  * Três colunas, duas somem: a ficha fecha pelo botão do cabeçalho e o menu
  * lateral recolhe na Gestão. Juntas devolvem espaço para a conversa, que é o
@@ -44,24 +50,38 @@ import { useConversas } from "./conversas/useConversas";
 
 const maiuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
-/** Os filtros são os três donos, mais o não lido. */
+/**
+ * Os filtros: os três donos, o não lido, e os grupos.
+ *
+ * "Grupos" não é conveniência — em produção grupo é mais da metade da caixa de
+ * entrada, e sem uma forma de separá-los a lista de atendimento fica soterrada
+ * pelas conversas internas da equipe. É o mesmo filtro lido dos dois lados:
+ * quem quer atender esconde grupo, quem quer o assunto do time só vê grupo.
+ */
 const FILTROS = [
   { id: "tudo", rotulo: "Tudo" },
   { id: "naolidas", rotulo: "Não lidas" },
   { id: "humano", rotulo: maiuscula(DONOS_CURTOS.humano) },
   { id: "ia", rotulo: maiuscula(DONOS_CURTOS.ia) },
   { id: "bot", rotulo: maiuscula(DONOS_CURTOS.bot) },
+  { id: "grupos", rotulo: "Grupos" },
 ];
 
 function passaFiltro(conversa, filtro) {
   if (filtro === "naolidas") return conversa.naoLidas > 0;
   if (filtro === "tudo") return true;
-  return conversa.dono === filtro;
+  if (filtro === "grupos") return conversa.grupo === true;
+  // Grupo não tem dono de atendimento: ele sobe com o dono padrão da conexão,
+  // que é quase sempre "bot". Deixá-lo passar pelos filtros de dono faria a
+  // aba do robô virar a lista dos grupos.
+  return !conversa.grupo && conversa.dono === filtro;
 }
 
 function passaBusca(conversa, termo) {
   if (!termo) return true;
-  const alvo = `${conversa.nome} ${conversa.empresa} ${conversa.previa}`.toLowerCase();
+  const alvo =
+    `${conversa.nome} ${conversa.empresa} ${conversa.previa} ${conversa.atendenteNome || ""}`
+      .toLowerCase();
   return alvo.includes(termo);
 }
 
@@ -80,6 +100,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
     atual,
     setAtual,
     mensagens,
+    equipe,
     erro,
     aviso,
     enviar,
@@ -265,15 +286,30 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
         ) : (
           <>
             <header className="flex h-[62px] flex-none items-center gap-2.5 border-b border-line px-3.5">
-              <AvatarComDono nome={conversa.nome} dono={conversa.dono} tamanho={38} />
+              <AvatarComDono
+                nome={conversa.nome}
+                dono={conversa.dono}
+                grupo={conversa.grupo}
+                tamanho={38}
+              />
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-[14.5px] font-semibold text-fg">{conversa.nome}</span>
                 <span className="flex items-center gap-1.5 text-[11.5px] text-sub">
-                  {conversa.telefone && (
+                  {/* Grupo não tem telefone. Formatar o identificador dele como
+                      se tivesse daria um número de dezoito dígitos com DDD
+                      inventado no cabeçalho da conversa. */}
+                  {conversa.grupo ? (
                     <>
-                      <SeloWhatsApp tamanho={12} />
-                      {formatPhone(conversa.telefone)}
+                      <Users size={12} strokeWidth={2} className="text-faint" />
+                      Grupo
                     </>
+                  ) : (
+                    conversa.telefone && (
+                      <>
+                        <SeloWhatsApp tamanho={12} />
+                        {formatPhone(conversa.telefone)}
+                      </>
+                    )
                   )}
                   {conversa.empresa && <span className="truncate">· {conversa.empresa}</span>}
                 </span>
@@ -286,17 +322,19 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
                 >
                   <MailOpen size={17} strokeWidth={1.9} />
                 </button>
-                <button
-                  onClick={() => setFichaAberta((v) => !v)}
-                  title="Ficha do contato"
-                  className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-[9px] transition-colors ${
-                    fichaAberta
-                      ? "bg-accent-soft text-accent-forte"
-                      : "text-sub hover:bg-surface-hover hover:text-fg"
-                  }`}
-                >
-                  <PanelRight size={17} strokeWidth={1.9} />
-                </button>
+                {!conversa.grupo && (
+                  <button
+                    onClick={() => setFichaAberta((v) => !v)}
+                    title="Ficha do contato"
+                    className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-[9px] transition-colors ${
+                      fichaAberta
+                        ? "bg-accent-soft text-accent-forte"
+                        : "text-sub hover:bg-surface-hover hover:text-fg"
+                    }`}
+                  >
+                    <PanelRight size={17} strokeWidth={1.9} />
+                  </button>
+                )}
               </span>
             </header>
 
@@ -350,7 +388,13 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
               />
             )}
 
-            <FaixaAtendimento dono={conversa.dono} aoTrocar={trocarDono} />
+            <FaixaAtendimento
+              dono={conversa.dono}
+              atendenteNome={conversa.atendenteNome}
+              equipe={equipe}
+              grupo={conversa.grupo}
+              aoTrocar={trocarDono}
+            />
 
             <Composer
               rascunho={rascunho}
@@ -360,7 +404,10 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
               aoAlternarAba={alternarAba}
               aviso={
                 aviso ||
-                (conversa.dono !== "humano"
+                // O aviso de automatismo não vale para grupo: grupo não tem
+                // dono de atendimento, e mandar "assuma antes de escrever"
+                // apontaria para um botão que a faixa nem oferece ali.
+                (!conversa.grupo && conversa.dono !== "humano"
                   ? "Esta conversa está num automatismo — assuma antes de escrever para não sair resposta dobrada."
                   : null)
               }
@@ -369,8 +416,10 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
         )}
       </section>
 
-      {/* Coluna 3 — a ficha */}
-      {conversa && fichaAberta && (
+      {/* Coluna 3 — a ficha.
+          Grupo não tem ficha: ela é do CONTATO, e um grupo não é um. Mostrá-la
+          vazia ao lado de um grupo só ocuparia 296px para dizer "nada aqui". */}
+      {conversa && !conversa.grupo && fichaAberta && (
         <FichaLateral
           conversa={conversa}
           contato={contato}

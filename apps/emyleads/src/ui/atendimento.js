@@ -63,3 +63,35 @@ export const OPCOES_DE_DONO = ["bot", "ia", "humano"].map((id) => ({
   rotulo: DONOS[id],
   curto: DONOS_CURTOS[id],
 }));
+
+/**
+ * Por que um envio do portal não saiu.
+ *
+ * Mesma separação de sempre: o slug é do runtime e é estável — ele viaja pela
+ * fila e entra no log —, e o texto é da interface.
+ *
+ * O que estes textos precisam fazer é dizer o QUE FAZER AGORA. "Falhou" manda
+ * quem está atendendo abrir o WhatsApp no celular sem saber se vale tentar de
+ * novo; "o Bridge está fora do ar, tente em um minuto" e "este contato não
+ * pode receber" levam a ações opostas, e é essa distinção que o slug carrega.
+ */
+export const MOTIVOS_DE_ENVIO = {
+  recipient_not_allowed:
+    "Este contato não está liberado para receber. Números da equipe e clientes" +
+    " que escreveram nos últimos 15 minutos passam; os demais precisam ser" +
+    " liberados na conexão.",
+  bridge_unavailable: "O WhatsApp da empresa está fora do ar. Tente de novo em um minuto.",
+  sending_disabled: "Esta conexão não está configurada para enviar pelo portal.",
+  bridge_credentials_unavailable: "O runtime perdeu a credencial da conexão.",
+  connection_not_registered: "Esta conexão não existe mais no runtime.",
+  owner_not_supported_for_group: "Grupo não tem atendimento atribuído a alguém.",
+  invalid_payload: "O runtime recusou o formato deste pedido.",
+  unsupported_command: "O runtime desta VPS ainda não conhece este comando.",
+  send_failed: "O WhatsApp recusou o envio.",
+  expired:
+    "O runtime não pegou este pedido a tempo. Confira se o assistente da VPS" +
+    " está de pé e tente de novo.",
+};
+
+export const textoDoMotivoDeEnvio = (motivo) =>
+  MOTIVOS_DE_ENVIO[motivo] || (motivo ? `O envio falhou (${motivo}).` : "O envio falhou.");

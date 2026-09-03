@@ -13,8 +13,36 @@ describe("conversas mockadas", () => {
   it("lista uma conversa por contato, da mais recente para a mais antiga", async () => {
     const ops = criar();
     const lista = await ops["conversas.listar"]();
-    expect(lista.map((c) => c.id)).toEqual(["a", "b"]);
+    expect(lista.filter((c) => !c.grupo).map((c) => c.id)).toEqual(["a", "b"]);
     expect(lista[0].nome).toBe("Mariana Costa");
+  });
+
+  /**
+   * Grupo é 56% da caixa de entrada de verdade. A bancada tem um para a lista
+   * ser desenhada com o que ela realmente vai conter — e para prender as três
+   * coisas que um grupo não tem: telefone, ficha e atendente.
+   */
+  it("a bancada tem um grupo, sem telefone, sem ficha e sem atendente", async () => {
+    const ops = criar();
+    const grupo = (await ops["conversas.listar"]()).find((c) => c.grupo);
+    expect(grupo).toBeTruthy();
+    expect(grupo.telefone).toBe("");
+    expect(grupo.contactId).toBeNull();
+    expect(grupo.atendenteId).toBeNull();
+    expect((await ops["conversas.mensagens"]({ id: grupo.id })).length).toBeGreaterThan(0);
+  });
+
+  it("atribuir a alguém guarda quem assumiu, e devolver para a IA apaga", async () => {
+    const ops = criar();
+    await ops["conversas.trocarDono"]({ id: "a", dono: "humano", atendenteId: "u1" });
+    let linha = (await ops["conversas.listar"]()).find((c) => c.id === "a");
+    expect(linha.atendenteId).toBe("u1");
+
+    // A identidade só vale enquanto o dono é humano — a regra do árbitro.
+    await ops["conversas.trocarDono"]({ id: "a", dono: "ia" });
+    linha = (await ops["conversas.listar"]()).find((c) => c.id === "a");
+    expect(linha.atendenteId).toBeNull();
+    expect(linha.atendenteNome).toBe("");
   });
 
   it("resolve {nome} e {empresa} no roteiro, e não entrega o texto cru", async () => {
@@ -82,9 +110,10 @@ describe("conversas mockadas", () => {
     expect(modelos.find((m) => m.id === "t1").baralho).toEqual(["t1b"]);
   });
 
-  it("sem contatos, não há conversa nenhuma", async () => {
+  it("sem contatos, sobra só o grupo da bancada", async () => {
     const ops = criar([]);
-    expect(await ops["conversas.listar"]()).toEqual([]);
+    const lista = await ops["conversas.listar"]();
+    expect(lista.every((c) => c.grupo)).toBe(true);
     expect(await ops["conversas.mensagens"]({ id: "a" })).toEqual([]);
   });
 });

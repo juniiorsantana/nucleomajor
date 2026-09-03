@@ -58,6 +58,16 @@ conhecimento. O lado interno continua sem skill de fallback.
   três vias para não reverter `327a77b`. Consequência: o repositório agora está
   **à frente** de produção nesse arquivo, e o próximo deploy dele leva junto o
   bloco de expediente do `327a77b` — o que é o desejado, mas não é silencioso.
+- Leva 2 das Conversas (`a48e1e2` e `56d5f5d` na `hardening`) implantada em
+  03/09/2026, de novo de forma cirúrgica: só `chat_identity.py` (novo),
+  `conversation_sync.py`, `runtime_commands.py`, `main.py` e os dois testes.
+  Antes de copiar, os cinco arquivos existentes em produção foram conferidos
+  por hash contra os commits candidatos e batiam todos com `2808f6e` — nenhuma
+  edição manual de produção nos arquivos tocados. Backup em
+  `~/backups/pre-conversas-leva2-20260903-083108`. `worker.py` e
+  `whatsapp-mcp-server/nucleo.py` **não** foram tocados. Suíte na VPS com o
+  Python do serviço: 353 testes, verde. O Bridge não foi reiniciado — segue de
+  pé desde 30/08/2026.
 - Suíte do assistente na VPS: 332 testes, tudo verde, com o Python do serviço.
   `check-runtime.sh` limpo, `NRestarts=0`, portas ainda só em loopback (8080 e
   8090). O Bridge não foi reiniciado.
@@ -107,8 +117,29 @@ conhecimento. O lado interno continua sem skill de fallback.
   `whatsapp_conversations_portal_realtime` ficou só em `whatsapp_conversations`,
   a tabela da lista.
 
+- `20260902200000_conversas_escrita_grupos_e_nomes.sql` aplicada em 03/09/2026 e
+  conferida por consulta ao catálogo: o check estrito de `contact_phone` caiu
+  nas duas tabelas e sobrou **um** por tabela, com o regex novo
+  (`^[0-9][0-9-]{5,39}$`); `connection_runtime_commands_command_type_check`
+  passou a listar os cinco tipos; `chat_kind`, `attendant_id` e
+  `attendant_name` existem; e `nucleo_conversation_command_enqueue` e
+  `nucleo_conversation_command_status` existem, `security definer` com
+  `search_path=""`. Nenhuma tabela nova e nenhuma policy de escrita — quem
+  escreve continua sendo RPC.
+
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
+
+### Observação sobre `anon` nas RPCs
+
+Todas as funções `nucleo_*` aparecem no catálogo com `anon=X` — herança do
+privilégio padrão que o Supabase aplica a função nova em `public`, e não algo
+que uma migration específica tenha concedido: `revoke ... from public` não
+remove uma concessão explícita a `anon`. Não é brecha em nenhuma delas, porque
+a guarda está no corpo (`auth.uid() is null` levanta antes de qualquer
+trabalho), mas é um padrão do projeto inteiro, e não uma decisão por função.
+Revogar `anon` em bloco é decisão pendente, e vale para as ~30 funções, não só
+para as duas da Leva 2.
 
 O histórico remoto **não** está íntegro: `supabase migration list --linked`
 registra somente até `20260819180000`, porque o restante foi aplicado pelo SQL
@@ -242,6 +273,55 @@ recusa e confirmação pelo WhatsApp ainda não serão enviados. A ativação re
 será feita posteriormente, alterando o modo de simulação e reiniciando somente
 o assistente, sem mexer na sessão do WhatsApp.
 
+## Conversas: o que a Leva 2 mudou, com números
+
+Implantada em 03/09/2026. Três medições feitas contra o SQLite do Bridge em
+produção, sobre 169 conversas, explicam por que cada parte existe:
+
+- **94 eram grupos**, e nenhuma chegava ao portal — a Leva 1 os recusava pelo
+  check do identificador. Uma caixa de entrada que esconde 56% do que chega não
+  é uma caixa de entrada. Entra o grupo e entra o nome dele; não entra quem
+  falou dentro dele, que exigiria guardar identidade de terceiro.
+- **69 chegavam por `<número>@lid`.** LID é identificador interno do WhatsApp,
+  não telefone: o espelho subia um número que não é de ninguém, que nunca
+  casava com contato do CRM e que a tela ainda formatava como telefone. Agora
+  `whatsmeow_lid_map` (6341 pares) traduz.
+- **65 das 75 individuais tinham `chats.name` igual ao próprio número.** O
+  Bridge grava o nome uma vez e `GetChatName` retorna cedo para sempre, então o
+  número carimbado antes de a agenda do WhatsApp sincronizar nunca mais era
+  revisitado. `whatsmeow_contacts` (1966 contatos, 1340 com `push_name`)
+  responde. Depois do deploy: **1** conversa individual ainda mostra número.
+
+Escrever passou pela fila que já existia (`connection_runtime_commands`), com
+dois tipos novos. Nenhuma porta nova na VPS, e `ASSISTANT_HOST` segue em
+127.0.0.1.
+
+### O ciclo do espelho levava 134 segundos
+
+Descoberto ao medir o deploy, e anterior a ele. `SQL_CONVERSAS` perguntava
+quatro coisas por conversa, cada uma varrendo `messages` inteira — a tabela do
+Bridge não tem índice por `chat_jid` nem por `timestamp`. Com 75 conversas já
+custava perto de um minuto por ciclo, num ciclo de 15 segundos, e ninguém tinha
+medido; o grupo dobrou a lista e tornou o custo visível. Nada falhava: só
+demorava, e o trabalhador só registra falha. Reescrita em passadas, caiu para
+**0,2s** com resultado idêntico.
+
+### Limpeza única das linhas órfãs
+
+Traduzir o LID mudou a chave natural de 69 conversas, e as linhas antigas
+viraram cópias congeladas que nunca mais seriam atualizadas. Antes de apagá-las
+a marca d'água do sincronizador foi recuada para 04/08/2026, para a história
+voltar sob a chave certa — o que é inócuo, porque a RPC é idempotente pela
+chave natural. Resultado: 15.112 mensagens republicadas, depois 69 conversas e
+1404 mensagens órfãs removidas. Estado final: 165 conversas (71 diretas, 94
+grupos), zero órfãs.
+
+**O espelho não poda conversa que sumiu da origem.** A sincronia é `upsert` sem
+`delete`, e o teto de 200 conversas por ciclo impede a regra óbvia ("apague o
+que não veio neste lote") de ser segura. Hoje isso só importa quando a chave
+natural muda, que foi o caso desta vez e foi resolvido à mão. Fica registrado
+como pendência.
+
 ## Limitações e pendências conhecidas
 
 - O limite de uso do Claude pode impedir respostas geradas pelo modelo, mesmo
@@ -253,6 +333,15 @@ o assistente, sem mexer na sessão do WhatsApp.
 - Falta validar a ferramenta de tarefas de ponta a ponta na VPS.
 - Falta validar conhecimento externo publicado em uma jornada real controlada.
 - Falta ativar e testar as notificações reais da aprovação externa.
+- **Responder pelo portal esbarra na allowlist do Bridge**, e isso é a barreira
+  funcionando, não defeito. `allow_unlisted` é `false`, e `allowed_recipients`
+  tem quatro números — a equipe. Passam: esses quatro; qualquer cliente cuja
+  conversa o Bridge liberou na entrada e que escreveu nos últimos 15 minutos
+  (`customer_reply_window_seconds`); e o único grupo em `allowed_groups`. Fora
+  disso o envio volta `recipient_not_allowed`, com o texto dizendo o porquê.
+  Ampliar isso é decisão de `HARDENING.md`, exige mexer no Bridge em Go, e
+  recompilá-lo derruba o canal do WhatsApp — precisa de janela combinada.
+- O espelho de conversas não poda linha órfã; ver a seção de Conversas.
 - A integração não oficial com WhatsApp pode exigir manutenção quando o
   WhatsApp Web mudar e possui risco operacional de bloqueio.
 - A API Oficial do WhatsApp e o Google Calendar permanecem para etapas futuras.

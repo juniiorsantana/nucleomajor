@@ -53,6 +53,21 @@ const CONVERSAS = [
     unread_count: 0,
     owner: "bot",
   },
+  {
+    connection_id: CONNECTION_ID,
+    // Identificador de grupo: dezoito dígitos, no mesmo campo do telefone. É
+    // `chat_kind` que diz como lê-lo — e é por isso que ele precisa de teste.
+    contact_phone: "120363001122334455",
+    chat_kind: "grupo",
+    contact_name: "Comercial · Núcleo Major",
+    last_message_preview: "fechamos o mês com 12 propostas",
+    last_message_at: AGORA,
+    last_message_from_me: false,
+    unread_count: 4,
+    owner: "bot",
+    attendant_id: null,
+    attendant_name: "",
+  },
 ];
 
 const CONTATOS = [
@@ -92,20 +107,27 @@ const MENSAGENS = [
   },
 ];
 
-function bancada({ workspace = ORGANIZATION_ID } = {}) {
+function bancada({ workspace = ORGANIZATION_ID, rpc = null } = {}) {
   const chamadas = [];
   const respostas = {
     whatsapp_conversations: CONVERSAS,
     contacts: CONTATOS,
     whatsapp_messages: MENSAGENS,
   };
+  const rpcs = [];
   const supabase = {
     from: vi.fn((tabela) =>
       criarConsulta(tabela, { data: respostas[tabela], error: null }, chamadas)
     ),
+    rpc: vi.fn(async (nome, argumentos) => {
+      rpcs.push([nome, argumentos]);
+      return rpc
+        ? rpc(nome, argumentos)
+        : { data: { commandId: "cmd-1", status: "pending" }, error: null };
+    }),
   };
   const area = { get: vi.fn(async () => (workspace ? { [WORKSPACE_KEY]: workspace } : {})) };
-  return { operacoes: criarOperacoesConversasWeb({ supabase, area }), chamadas, supabase };
+  return { operacoes: criarOperacoesConversasWeb({ supabase, area }), chamadas, supabase, rpcs };
 }
 
 const consultaDe = (chamadas, tabela) => chamadas.find((c) => c.tabela === tabela);
@@ -211,16 +233,140 @@ describe("conversas.mensagens", () => {
   });
 });
 
-describe("o que ainda não escreve", () => {
-  it("recusa envio e troca de dono com um código que a tela traduz", async () => {
+describe("grupo na lista", () => {
+  it("entra com o nome do grupo, sem telefone e sem ficha", async () => {
     const { operacoes } = bancada();
-    // A Leva 2 é a fila de comandos do runtime. Enquanto ela não existe, fingir
-    // que funcionou faria alguém mandar a mesma mensagem duas vezes.
-    for (const acao of ["conversas.enviar", "conversas.trocarDono"]) {
-      await expect(operacoes[acao]({ id: "x", texto: "oi" })).rejects.toMatchObject({
-        codigo: "conversas-escrita-indisponivel",
-      });
-    }
+    const grupo = (await operacoes["conversas.listar"]()).find((c) => c.grupo);
+
+    expect(grupo).toMatchObject({
+      id: `${CONNECTION_ID}:120363001122334455`,
+      nome: "Comercial · Núcleo Major",
+      // Um grupo não tem telefone. Formatá-lo daria um número de dezoito
+      // dígitos com DDD inventado no cabeçalho da conversa.
+      telefone: "",
+      // E não procura contato: o índice acharia alguém por coincidência de
+      // dígitos e penduraria a ficha da pessoa errada ao lado da conversa.
+      contactId: null,
+      naoLidas: 4,
+    });
+  });
+
+  it("o identificador de grupo sobrevive à volta pelo id da tela", async () => {
+    const { operacoes, chamadas } = bancada();
+    const grupo = (await operacoes["conversas.listar"]()).find((c) => c.grupo);
+    await operacoes["conversas.mensagens"]({ id: grupo.id });
+
+    // Se o id fosse limpo como telefone, a consulta procuraria por outra chave
+    // e a conversa abriria vazia — sem erro nenhum.
+    expect(consultaDe(chamadas, "whatsapp_messages").filtros).toContainEqual([
+      "contact_phone",
+      "120363001122334455",
+    ]);
+  });
+});
+
+describe("escrever pela fila do runtime", () => {
+  it("enfileira a mensagem com a conexão e o chat separados do id da tela", async () => {
+    const { operacoes, rpcs } = bancada();
+    const resposta = await operacoes["conversas.enviar"]({
+      id: `${CONNECTION_ID}:5511987654321`,
+      texto: "  Bom dia, Marina!  ",
+    });
+
+    const [nome, argumentos] = rpcs[0];
+    expect(nome).toBe("nucleo_conversation_command_enqueue");
+    expect(argumentos).toMatchObject({
+      target_organization: ORGANIZATION_ID,
+      target_connection: CONNECTION_ID,
+      target_chat: "5511987654321",
+      requested_command: "conversation_send",
+    });
+    expect(argumentos.command_payload.text).toBe("Bom dia, Marina!");
+    expect(resposta).toEqual({ comandoId: "cmd-1", situacao: "pending" });
+  });
+
+  /**
+   * A idempotência sai do clique, e não do texto.
+   *
+   * Chavear pelo conteúdo faria a segunda mensagem "ok" da mesma conversa ser
+   * engolida como repetição da primeira — e "ok" é o que mais se digita duas
+   * vezes num atendimento.
+   */
+  it("cada envio leva um clientId próprio", async () => {
+    const { operacoes, rpcs } = bancada();
+    const id = `${CONNECTION_ID}:5511987654321`;
+    await operacoes["conversas.enviar"]({ id, texto: "ok" });
+    await operacoes["conversas.enviar"]({ id, texto: "ok" });
+
+    const [primeiro, segundo] = rpcs.map(([, a]) => a.command_payload.clientId);
+    expect(primeiro).toBeTruthy();
+    expect(primeiro).not.toBe(segundo);
+  });
+
+  it("atribuir manda o id de quem assume, e nunca o nome", async () => {
+    const { operacoes, rpcs } = bancada();
+    await operacoes["conversas.trocarDono"]({
+      id: `${CONNECTION_ID}:5511987654321`,
+      dono: "humano",
+      atendenteId: "6f1d3e0c-9a2b-4c1e-8f77-2b0a5d4e9c31",
+    });
+
+    const [nome, argumentos] = rpcs[0];
+    expect(nome).toBe("nucleo_conversation_command_enqueue");
+    expect(argumentos.requested_command).toBe("conversation_owner");
+    expect(argumentos.command_payload).toMatchObject({
+      owner: "humano",
+      attendantId: "6f1d3e0c-9a2b-4c1e-8f77-2b0a5d4e9c31",
+    });
+    // O nome é resolvido do perfil, dentro do banco. Aceitá-lo daqui deixaria
+    // a faixa dizer "Atendente · Lucas" numa conversa que outra pessoa pegou.
+    expect(argumentos.command_payload.attendantName).toBeUndefined();
+  });
+
+  it("quem não é humano não carrega atendente", async () => {
+    const { operacoes, rpcs } = bancada();
+    await operacoes["conversas.trocarDono"]({
+      id: `${CONNECTION_ID}:5511987654321`,
+      dono: "ia",
+      atendenteId: "6f1d3e0c-9a2b-4c1e-8f77-2b0a5d4e9c31",
+    });
+    expect(rpcs[0][1].command_payload.attendantId).toBe("");
+  });
+
+  it("a recusa da RPC chega em português", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({
+        data: null,
+        error: { message: "conversation is not mirrored for this connection" },
+      }),
+    });
+    await expect(
+      operacoes["conversas.enviar"]({ id: `${CONNECTION_ID}:5511987654321`, texto: "oi" })
+    ).rejects.toMatchObject({
+      codigo: "conversas-comando-falhou",
+      message: /ainda não chegou da VPS/,
+    });
+  });
+
+  it("id estranho não vira comando", async () => {
+    const { operacoes, supabase } = bancada();
+    await expect(
+      operacoes["conversas.enviar"]({ id: "sem-chat:", texto: "oi" })
+    ).rejects.toMatchObject({ codigo: "conversas-id-invalido" });
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("o desfecho traz a situação e o motivo, para a tela parar de dizer enviando", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({
+        data: { status: "failed", errorCode: "recipient_not_allowed" },
+        error: null,
+      }),
+    });
+    expect(await operacoes["conversas.desfecho"]({ comandoId: "cmd-1" })).toEqual({
+      situacao: "failed",
+      motivo: "recipient_not_allowed",
+    });
   });
 });
 

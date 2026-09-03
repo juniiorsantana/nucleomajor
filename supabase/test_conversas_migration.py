@@ -113,7 +113,15 @@ class ConversasMigrationTest(unittest.TestCase):
         self.assertIn("limit 500", self.sql)
         self.assertIn("create index if not exists whatsapp_messages_retention_idx", self.sql)
 
-    def test_grupo_nao_entra_na_lista(self):
+    def test_grupo_nao_entrava_nesta_leva(self):
+        """Histórico: era assim, e deixou de ser em 20260902200000.
+
+        A Leva 1 recusava grupo pelo check do identificador. A conta medida em
+        produção — 94 das 169 conversas do Bridge são grupos — derrubou a
+        decisão, e a Leva 2 afrouxou o check para caber o traço do grupo antigo.
+        O teste fica porque este arquivo descreve ESTA migration; quem guarda o
+        estado atual é `test_conversas_escrita_migration.py`.
+        """
         self.assertIn("contact_phone ~ '^[0-9]{6,20}$'", self.sql)
 
     def test_o_realtime_avisa_pela_lista_e_nao_por_mensagem(self):
