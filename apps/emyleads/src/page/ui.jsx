@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 
 /**
@@ -238,6 +239,15 @@ export function CartaoIndicador({ icone: Icone, rotulo, valor, nota, tomNota = "
   );
 }
 
+/**
+ * `rotuloVazio` é opcional, e é essa a diferença entre filtrar e escolher.
+ *
+ * Num filtro a opção vazia é o estado natural — "todos os status" é uma
+ * resposta legítima, e sem ela não há como voltar de um filtro aplicado. Já
+ * onde o seletor edita um valor obrigatório (o papel de alguém na equipe),
+ * vazio não é resposta: é o campo em branco chegando ao banco. Quando ninguém
+ * passa `rotuloVazio`, o seletor só oferece as opções de verdade.
+ */
 export function Seletor({ valor, aoMudar, opcoes, rotuloVazio, compacto = false }) {
   return (
     <div className="relative">
@@ -246,7 +256,7 @@ export function Seletor({ valor, aoMudar, opcoes, rotuloVazio, compacto = false 
         onChange={(e) => aoMudar(e.target.value)}
         className={`cursor-pointer appearance-none rounded-[9px] border border-line bg-bg font-medium text-sub outline-none transition-colors hover:border-line-strong focus:border-accent ${compacto ? "py-1.5 pl-3 pr-8 text-[12px]" : "py-2.5 pl-4 pr-10 text-[13.5px]"}`}
       >
-        <option value="">{rotuloVazio}</option>
+        {rotuloVazio && <option value="">{rotuloVazio}</option>}
         {opcoes.map((o) => (
           <option key={o.id} value={o.id}>
             {o.rotulo}
@@ -338,6 +348,55 @@ export function Paginacao({ pagina, paginas, aoIr }) {
       <Botao disabled={pagina === paginas} onClick={() => aoIr(pagina + 1)}>
         ›
       </Botao>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Confirmação no lugar do `confirm()` nativo.
+ *
+ * O nativo bloqueia a thread, ignora o tema e, dentro da extensão, aparece
+ * ancorado no topo do navegador — longe do botão que se acabou de apertar.
+ * Nasceu na Agenda; mora aqui desde que a Equipe passou a precisar do mesmo
+ * diálogo para remover pessoa, cancelar convite e revogar operador.
+ *
+ * `pedido` é `null` quando não há nada a confirmar — quem chama guarda o
+ * pedido num estado e o diálogo se encarrega de aparecer e sumir. O `useId`
+ * dá o rótulo acessível: dois diálogos na mesma tela (a Equipe tem o dela e o
+ * bloco de operadores tem o seu) não podem dividir o mesmo `id`.
+ */
+export function DialogoConfirmar({ pedido, aoFechar }) {
+  const botaoRef = useRef(null);
+  const tituloId = useId();
+  useEffect(() => {
+    if (!pedido) return undefined;
+    botaoRef.current?.focus();
+    const teclado = (e) => { if (e.key === "Escape") aoFechar(); };
+    window.addEventListener("keydown", teclado);
+    return () => window.removeEventListener("keydown", teclado);
+  }, [aoFechar, pedido]);
+  if (!pedido) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
+      <section role="alertdialog" aria-modal="true" aria-labelledby={tituloId} className="w-full max-w-sm rounded-[15px] border border-line bg-bg p-5 shadow-2xl">
+        <h2 id={tituloId} className="text-[15px] font-semibold text-fg">{pedido.titulo}</h2>
+        <p className="mt-2 text-[12px] text-sub">{pedido.descricao}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg">
+            Cancelar
+          </button>
+          <button
+            ref={botaoRef}
+            type="button"
+            onClick={() => { pedido.confirmar(); aoFechar(); }}
+            className="cursor-pointer rounded-[9px] bg-danger px-3.5 py-2 text-[12px] font-semibold text-white hover:brightness-95"
+          >
+            {pedido.rotulo || "Confirmar"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

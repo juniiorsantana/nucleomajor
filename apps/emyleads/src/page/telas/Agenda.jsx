@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
-import { BotaoPrimario, CabecalhoTela, CampoBusca } from "../ui";
+import { BotaoPrimario, CabecalhoTela, CampoBusca, DialogoConfirmar } from "../ui";
 import DialogoEvento from "./agenda/DialogoEvento";
 import GradeAgenda from "./agenda/GradeAgenda";
 import VisaoLista from "./agenda/VisaoLista";
@@ -175,45 +175,6 @@ function Aviso({ aviso, aoFechar }) {
           <X size={13} />
         </button>
       </div>
-    </div>
-  );
-}
-
-/**
- * Confirmação no lugar do `confirm()` nativo.
- *
- * O nativo bloqueia a thread, ignora o tema e, dentro da extensão, aparece
- * ancorado no topo do navegador - longe do evento que se está apagando.
- */
-function DialogoConfirmar({ pedido, aoFechar }) {
-  const botaoRef = useRef(null);
-  useEffect(() => {
-    if (!pedido) return undefined;
-    botaoRef.current?.focus();
-    const teclado = (e) => { if (e.key === "Escape") aoFechar(); };
-    window.addEventListener("keydown", teclado);
-    return () => window.removeEventListener("keydown", teclado);
-  }, [aoFechar, pedido]);
-  if (!pedido) return null;
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
-      <section role="alertdialog" aria-modal="true" aria-labelledby="agenda-confirmar-titulo" className="w-full max-w-sm rounded-[15px] border border-line bg-bg p-5 shadow-2xl">
-        <h2 id="agenda-confirmar-titulo" className="text-[15px] font-semibold text-fg">{pedido.titulo}</h2>
-        <p className="mt-2 text-[12px] text-sub">{pedido.descricao}</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg">
-            Cancelar
-          </button>
-          <button
-            ref={botaoRef}
-            type="button"
-            onClick={() => { pedido.confirmar(); aoFechar(); }}
-            className="cursor-pointer rounded-[9px] bg-danger px-3.5 py-2 text-[12px] font-semibold text-white hover:brightness-95"
-          >
-            {pedido.rotulo || "Confirmar"}
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
