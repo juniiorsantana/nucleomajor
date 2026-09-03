@@ -51,8 +51,13 @@ conhecimento. O lado interno continua sem skill de fallback.
   estão em nenhum commit (avisos de falha reescritos; `_safe_error_detail` na
   auditoria de ferramentas), e o pacote as teria apagado. Backup em
   `~/backups/pre-conversation-sync-20260902-212401`. Por isso `327a77b`
-  continua não implantado, e as duas alterações de produção continuam fora do
-  repositório: **é dívida aberta**.
+  continua não implantado.
+- As duas alterações que só existiam na VPS foram recuperadas para o
+  repositório em 02/09/2026 (`2808f6e` na `hardening`), com teste para a parte
+  da auditoria, que tinha chegado sem nenhum. O `worker.py` entrou por merge de
+  três vias para não reverter `327a77b`. Consequência: o repositório agora está
+  **à frente** de produção nesse arquivo, e o próximo deploy dele leva junto o
+  bloco de expediente do `327a77b` — o que é o desejado, mas não é silencioso.
 - Suíte do assistente na VPS: 332 testes, tudo verde, com o Python do serviço.
   `check-runtime.sh` limpo, `NRestarts=0`, portas ainda só em loopback (8080 e
   8090). O Bridge não foi reiniciado.
