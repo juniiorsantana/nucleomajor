@@ -43,6 +43,19 @@ conhecimento. O lado interno continua sem skill de fallback.
   Bridge (`customer_inbound` e janela de resposta), implantada em 30/08/2026.
   O registro anterior dizia `461ca8a`; a VPS já estava um commit à frente.
   `327a77b` continua **não** implantado.
+- Espelho de conversas (`84781dc` na `hardening`) implantado em 02/09/2026, de
+  forma cirúrgica: só `conversation_sync.py`, seu teste, `config.py`,
+  `main.py`, `operator_verification.py` e a documentação de ambiente. A
+  extração do pacote inteiro **não** foi feita de propósito — `worker.py` e
+  `whatsapp-mcp-server/nucleo.py` carregam, em produção, alterações que não
+  estão em nenhum commit (avisos de falha reescritos; `_safe_error_detail` na
+  auditoria de ferramentas), e o pacote as teria apagado. Backup em
+  `~/backups/pre-conversation-sync-20260902-212401`. Por isso `327a77b`
+  continua não implantado, e as duas alterações de produção continuam fora do
+  repositório: **é dívida aberta**.
+- Suíte do assistente na VPS: 332 testes, tudo verde, com o Python do serviço.
+  `check-runtime.sh` limpo, `NRestarts=0`, portas ainda só em loopback (8080 e
+  8090). O Bridge não foi reiniciado.
 - Bridge e assistente permaneceram ativos depois da implantação; a sessão do
   WhatsApp não foi recriada.
 - O runtime aceita o formato atual de refresh token do Supabase e protege a
