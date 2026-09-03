@@ -306,6 +306,51 @@ medido; o grupo dobrou a lista e tornou o custo visível. Nada falhava: só
 demorava, e o trabalhador só registra falha. Reescrita em passadas, caiu para
 **0,2s** com resultado idêntico.
 
+### As duas portas de envio do Bridge
+
+Corrigido em 03/09/2026, no mesmo dia em que a Leva 2 subiu. Durante algumas
+horas, responder pelo portal só alcançava os quatro números de
+`allowed_recipients` e quem tivesse escrito nos últimos 15 minutos; o resto da
+caixa de entrada devolvia 403.
+
+Isso era uma confusão entre dois assuntos:
+
+- **quem o AGENTE pode procurar sozinho.** É para isso que
+  `allowed_recipients`, `allow_unlisted` e a janela de resposta existem, e
+  continuam valendo integralmente em `/api/send` — nada mudou aí, e o modo
+  piloto do assistente externo não foi tocado;
+- **quem uma PESSOA pode responder.** Quem abriu a conversa, digitou e clicou
+  em enviar já decidiu. Barrá-la não protege ninguém: ela responderia pelo
+  celular um minuto depois, e a única consequência real era a caixa de entrada
+  do portal não servir para atender.
+
+Agora são duas portas. `POST /api/send/human`, com bearer próprio
+(`WHATSAPP_HUMAN_SEND_TOKEN`), não consulta `allowed_recipients` e alcança
+qualquer conversa e qualquer grupo. Mesmo desenho de `/api/notify`, que já
+existia pela mesma razão. Sem o token configurado, a rota nem é registrada.
+
+O que segura a porta nova: o bearer não é o que o agente usa (ele fala com o
+Bridge pelo MCP, com o token genérico — conferido em produção: o token genérico
+recebe **401** nessa rota); o bloqueio por identidade divergente continua
+valendo; e, do lado do Supabase, a RPC só enfileira comando para conversa que
+já existe no espelho e só para membro ativo da organização.
+
+Essa última guarda é a estreita, e mora de propósito na camada barata de mudar.
+Quando o portal ganhar "nova conversa", mudam a RPC e o portal — não o binário
+do Bridge, cuja recompilação derruba o canal do WhatsApp.
+
+O deploy do Bridge custou **menos de um segundo** de canal fora do ar:
+reconectou pela sessão já pareada, sem QR. Binário anterior preservado em
+`~/backups/bridge-pre-envio-manual-20260903-095014` e em
+`whatsapp-bridge/whatsapp-bridge.anterior`.
+
+**Atenção ao toolchain de Go.** O binário de produção foi compilado com
+`go1.26.5`, de `/usr/local/go`, que é o que está no PATH do serviço — e não com
+o `go1.25.14` de `~/.local/go`. `go.mod` pede `go 1.25.0`, então os dois
+compilam, mas trocar a versão do binário de produção sem querer é o tipo de
+diferença que só aparece depois. Compile com `/usr/local/go/bin/go` e confira
+com `go version -m` antes de trocar.
+
 ### Limpeza única das linhas órfãs
 
 Traduzir o LID mudou a chave natural de 69 conversas, e as linhas antigas
@@ -333,14 +378,6 @@ como pendência.
 - Falta validar a ferramenta de tarefas de ponta a ponta na VPS.
 - Falta validar conhecimento externo publicado em uma jornada real controlada.
 - Falta ativar e testar as notificações reais da aprovação externa.
-- **Responder pelo portal esbarra na allowlist do Bridge**, e isso é a barreira
-  funcionando, não defeito. `allow_unlisted` é `false`, e `allowed_recipients`
-  tem quatro números — a equipe. Passam: esses quatro; qualquer cliente cuja
-  conversa o Bridge liberou na entrada e que escreveu nos últimos 15 minutos
-  (`customer_reply_window_seconds`); e o único grupo em `allowed_groups`. Fora
-  disso o envio volta `recipient_not_allowed`, com o texto dizendo o porquê.
-  Ampliar isso é decisão de `HARDENING.md`, exige mexer no Bridge em Go, e
-  recompilá-lo derruba o canal do WhatsApp — precisa de janela combinada.
 - O espelho de conversas não poda linha órfã; ver a seção de Conversas.
 - A integração não oficial com WhatsApp pode exigir manutenção quando o
   WhatsApp Web mudar e possui risco operacional de bloqueio.

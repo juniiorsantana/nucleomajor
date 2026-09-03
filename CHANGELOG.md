@@ -8,6 +8,10 @@ sendo a fonte detalhada.
 - Conversas passa a responder e a atribuir. Enfileirar não é enviar, e a tela
   diz isso: a bolha nasce com relógio, ganha o tique quando a mensagem volta do
   aparelho, e vira alerta com motivo quando o Bridge recusa;
+- responder alcança **todas** as conversas. A allowlist do WhatsApp guarda quem
+  o agente pode procurar sozinho, e passou a não valer para mensagem escrita
+  por gente — são dois assuntos, e tratá-los como um só fazia a caixa de
+  entrada recusar quase tudo. A resposta automática não mudou em nada;
 - atribuir o atendimento a uma PESSOA da equipe, e não só a "atendente" — numa
   equipe de duas pessoas o rótulo genérico responde a pergunta errada. O nome
   de quem assumiu aparece na própria linha da lista;
