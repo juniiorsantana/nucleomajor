@@ -11,7 +11,7 @@ import {
   formatarDuracao,
   fundoDoEvento,
   horaLocal,
-  idDoResponsavel,
+  idsDosResponsaveis,
   iniciaisDoNome,
   inicioDoDia,
   minutosVisiveis,
@@ -116,6 +116,7 @@ function BlocoEvento({
   inicioMinuto,
   alturaPorMinuto,
   modoCor,
+  cores,
   mostrarResponsavel,
   indiceCascata = 0,
   totalCascata = 1,
@@ -133,7 +134,7 @@ function BlocoEvento({
   const tarefa = tipo.id === "task";
   const apagado = tipo.id === "block" || tipo.id === "unavailable";
   const provisorio = evento.status === "tentative";
-  const cor = corDoEvento(evento, modoCor);
+  const cor = corDoEvento(evento, modoCor, cores);
   const editavel = podeMover(evento);
   const densidade = densidadeDoBloco(altura);
 
@@ -222,6 +223,7 @@ export default function GradeAgenda({
   fimExpediente,
   alturaHora,
   modoCor = "tipo",
+  cores,
   agruparPorPessoa = false,
   membros = [],
   podeMover,
@@ -444,7 +446,7 @@ export default function GradeAgenda({
                 {coluna.pessoaId && (
                   <span
                     className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-[9.5px] font-bold text-white"
-                    style={{ backgroundColor: corDaPessoa(coluna.pessoaId) }}
+                    style={{ backgroundColor: corDaPessoa(coluna.pessoaId, cores) }}
                   >
                     {iniciaisDoNome(coluna.titulo)}
                   </span>
@@ -472,11 +474,11 @@ export default function GradeAgenda({
             const inteiros = eventos.filter((evento) => evento.diaInteiro
               && new Date(evento.inicio) < fim
               && new Date(evento.fim) > inicio
-              && (!coluna.pessoaId || idDoResponsavel(evento) === coluna.pessoaId));
+              && (!coluna.pessoaId || idsDosResponsaveis(evento).includes(coluna.pessoaId)));
             return (
               <div key={coluna.chave} className="min-h-9 border-r border-line p-1 last:border-r-0">
                 {inteiros.map((evento) => {
-                  const cor = corDoEvento(evento, modoCor);
+                  const cor = corDoEvento(evento, modoCor, cores);
                   return (
                     <button
                       key={`${evento.sourceType}-${evento.id}`}
@@ -536,7 +538,10 @@ export default function GradeAgenda({
                     // profissional pareceria transferir o evento. Trocar
                     // responsável tem consequência de permissão e não pode
                     // acontecer como efeito colateral de um arraste.
-                    if (coluna.pessoaId && payload.ownerId && payload.ownerId !== coluna.pessoaId) return;
+                    if (coluna.pessoaId
+                      && Array.isArray(payload.ownerIds)
+                      && payload.ownerIds.length
+                      && !payload.ownerIds.includes(coluna.pessoaId)) return;
                     aoMover(payload, coluna.dia, minutosNoPonteiro(e, e.currentTarget));
                   } catch { /* arraste externo não pertence à agenda */ }
                 }}
@@ -576,6 +581,7 @@ export default function GradeAgenda({
                     inicioMinuto={inicioMinuto}
                     alturaPorMinuto={alturaPorMinuto}
                     modoCor={modoCor}
+                    cores={cores}
                     mostrarResponsavel={!coluna.pessoaId && modoCor === "pessoa"}
                     indiceCascata={indiceCascata}
                     totalCascata={mostrados.length}
@@ -589,7 +595,10 @@ export default function GradeAgenda({
                         sourceType: evento.sourceType,
                         inicio: evento.inicio,
                         fim: evento.fim,
-                        ownerId: idDoResponsavel(evento),
+                        // A lista inteira, e não só o principal: soltar
+                        // numa faixa onde a tarefa JÁ aparece é mover o
+                        // horário, não transferir responsável.
+                        ownerIds: idsDosResponsaveis(evento),
                       });
                       e.dataTransfer.setData("application/x-emyleads-agenda", payload);
                       e.dataTransfer.setData("text/plain", payload);
@@ -612,7 +621,7 @@ export default function GradeAgenda({
                           <span
                             key={`${item.evento.sourceType}-${item.evento.id}`}
                             className="h-[5px] w-[5px] flex-none rounded-full"
-                            style={{ backgroundColor: corDoEvento(item.evento, modoCor) }}
+                            style={{ backgroundColor: corDoEvento(item.evento, modoCor, cores) }}
                           />
                         ))}
                         +{excedente.length} às {horaLocal(mostrados[0].evento.inicio)}

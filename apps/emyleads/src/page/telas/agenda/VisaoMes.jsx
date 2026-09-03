@@ -10,7 +10,7 @@ function eventosNoDia(eventos, dia) {
     .sort((a, b) => new Date(a.inicio) - new Date(b.inicio));
 }
 
-export default function VisaoMes({ dias, referencia, eventos, aoAbrir, aoCriar, aoVerDia, modoCor = "tipo" }) {
+export default function VisaoMes({ dias, referencia, eventos, aoAbrir, aoCriar, aoVerDia, modoCor = "tipo", cores }) {
   const hoje = chaveDia(new Date());
   return (
     <div className="scrollbar-fina min-h-0 flex-1 overflow-auto rounded-[14px] border border-line bg-bg">
@@ -32,7 +32,7 @@ export default function VisaoMes({ dias, referencia, eventos, aoAbrir, aoCriar, 
                       "por pessoa" recolorira a semana e deixava o mês como
                       estava, como se fossem duas agendas. */}
                   {itens.slice(0, 4).map((evento) => {
-                    const cor = corDoEvento(evento, modoCor);
+                    const cor = corDoEvento(evento, modoCor, cores);
                     return (
                       <button
                         key={`${evento.sourceType}-${evento.id}`}

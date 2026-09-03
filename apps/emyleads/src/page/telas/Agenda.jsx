@@ -29,6 +29,7 @@ import {
   ZOOM_PADRAO,
   adicionarDias,
   chaveDia,
+  coresDaEquipe,
   dataLocal,
   diasDoIntervalo,
   eventoEditavel,
@@ -38,6 +39,7 @@ import {
   faixaVisivel,
   formatarDuracao,
   horaLocal,
+  idsDosResponsaveis,
   inicioDaSemana,
   intervaloDaVisao,
   isoLocal,
@@ -341,13 +343,30 @@ function PainelNotificacoes({ contexto, notificacoes, aoAtualizar, aoMarcarLida 
       <section className="p-4">
         <h3 className="text-[12px] font-semibold text-fg">Histórico</h3>
         <div className="mt-3 space-y-2">
-          {notificacoes.map((item) => (
-            <button key={item.id} type="button" onClick={() => aoMarcarLida(item)} className={`w-full cursor-pointer rounded-[9px] border p-3 text-left ${item.lidaEm ? "border-line" : "border-accent/35 bg-accent-soft/45"}`}>
-              <span className="block text-[11.5px] font-medium text-fg">{item.titulo}</span>
-              <span className="mt-1 block text-[10px] text-faint">{item.canal === "whatsapp" ? "WhatsApp" : "EmyLeads"} · {formatarDataHora(item.lembrarEm)} · {item.erro ? `Falhou: ${item.erro}` : item.status}</span>
-            </button>
-          ))}
-          {!notificacoes.length && <p className="py-8 text-center text-[11.5px] text-faint">Nenhum lembrete neste período.</p>}
+          {notificacoes.map((item) => {
+            // Atribuição não tem horário para anunciar. Antes de `kind`, o
+            // painel só sabia dizer "às 14:30", e um aviso de "você entrou
+            // nesta tarefa" saía com o vencimento colado como se fosse a
+            // hora do aviso.
+            const atribuicao = item.tipo === "assignment";
+            return (
+              <button key={item.id} type="button" onClick={() => aoMarcarLida(item)} className={`w-full cursor-pointer rounded-[9px] border p-3 text-left ${item.lidaEm ? "border-line" : "border-accent/35 bg-accent-soft/45"}`}>
+                {atribuicao && (
+                  <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent-forte">
+                    <UserRound size={9} />Colocaram você
+                  </span>
+                )}
+                <span className="block text-[11.5px] font-medium text-fg">{item.titulo}</span>
+                <span className="mt-1 block text-[10px] text-faint">
+                  {item.canal === "whatsapp" ? "WhatsApp" : "EmyLeads"} · {formatarDataHora(item.lembrarEm)} · {item.erro ? `Falhou: ${item.erro}` : item.status}
+                </span>
+                {atribuicao && (
+                  <span className="mt-1 block text-[10px] text-sub">Responda em Tarefas: assumir ou recusar.</span>
+                )}
+              </button>
+            );
+          })}
+          {!notificacoes.length && <p className="py-8 text-center text-[11.5px] text-faint">Nenhum aviso neste período.</p>}
         </div>
       </section>
     </div>
@@ -579,6 +598,10 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
 
   const categorias = contexto?.categories || [];
   const membros = contexto?.members || [];
+  // A cor de cada pessoa sai do perfil (`profiles.color`), montada uma vez
+  // por carga: a grade pinta um bloco por vez e não pode consultar a lista
+  // inteira de membros a cada desenho.
+  const cores = useMemo(() => coresDaEquipe(membros), [membros]);
   const usuarioId = contexto?.userId;
   const papel = contexto?.papel || "member";
   const contatos = dados.contatos || [];
@@ -609,8 +632,8 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
   // A legenda acompanha o que está pintado: colorindo por pessoa, somar por
   // categoria daria uma legenda que não explica nenhuma cor da tela.
   const totais = useMemo(
-    () => (modoCor === "pessoa" ? somarPorPessoa(filtrados) : somarPorTipo(filtrados)),
-    [filtrados, modoCor],
+    () => (modoCor === "pessoa" ? somarPorPessoa(filtrados, cores, membros) : somarPorTipo(filtrados)),
+    [cores, filtrados, membros, modoCor],
   );
   const naoLidas = notificacoes.filter((item) => !item.lidaEm && item.status === "sent").length;
   const solicitacoesPendentes = solicitacoes.filter((item) => item.status === "awaiting_team_approval").length;
@@ -912,9 +935,9 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
         {carregando ? (
           <EsqueletoAgenda />
         ) : estreito && visualizacao !== "month" ? (
-          <VisaoLista dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)} eventos={filtrados} modoCor={modoCor} aoAbrir={abrirEvento} aoCriar={abrirNovo} />
+          <VisaoLista dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)} eventos={filtrados} modoCor={modoCor} cores={cores} aoAbrir={abrirEvento} aoCriar={abrirNovo} />
         ) : visualizacao === "month" ? (
-          <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} modoCor={modoCor} />
+          <VisaoMes dias={dias} referencia={referencia} eventos={filtrados} aoAbrir={abrirEvento} aoCriar={abrirNovo} aoVerDia={(dia) => { setReferencia(dia); setVisualizacao("day"); }} modoCor={modoCor} cores={cores} />
         ) : (
           <GradeAgenda
             dias={visualizacao === "day" ? [referencia] : dias.slice(0, 7)}
@@ -925,9 +948,12 @@ export default function Agenda({ dados = {}, aoAbrirContato = () => {}, aoAbrirT
             fimExpediente={fimExpediente}
             alturaHora={alturaHora}
             modoCor={modoCor}
+            cores={cores}
             agruparPorPessoa={porPessoa}
             membros={membros}
-            podeMover={(evento) => evento.sourceType === "task" ? evento.ownerId === usuarioId : eventoEditavel(evento, usuarioId, papel)}
+            podeMover={(evento) => evento.sourceType === "task"
+              ? idsDosResponsaveis(evento).includes(usuarioId)
+              : eventoEditavel(evento, usuarioId, papel)}
             aoAbrir={abrirEvento}
             aoCriar={abrirNovo}
             aoMover={mover}

@@ -127,6 +127,91 @@ conhecimento. O lado interno continua sem skill de fallback.
   `search_path=""`. Nenhuma tabela nova e nenhuma policy de escrita — quem
   escreve continua sendo RPC.
 
+- `20260903190000_agenda_e_tarefas_da_equipe.sql` aplicada em 03/09/2026 e
+  conferida por consulta ao catálogo. Antes de aplicar, o corpo em produção
+  de `calendar_context` e `calendar_events_list` foi comparado com o do
+  repositório: as duas apareceram maiores em produção — 2684 contra 2617 e
+  3249 contra 3164 —, e a diferença era **só CRLF**, uma quebra a mais por
+  linha, do arquivo que subiu pelo SQL Editor a partir do Windows.
+  Normalizando, o texto é idêntico: nada foi editado direto em produção e o
+  `create or replace` não apagou medida nenhuma.
+
+  Depois de aplicar: `task_assignees` existe com RLS ligada e uma policy
+  (`task_assignees_all`, `for all`); o backfill gravou 3 linhas e **nenhuma**
+  tarefa viva ficou sem responsável; `calendar_events_insert` não menciona
+  mais `can_manage_org` e segue exigindo `created_by = auth.uid()`;
+  `calendar_events_update` e `_delete` passaram a aceitar
+  `created_by = auth.uid() or can_manage_org`, e `personal` continua pareado
+  apenas com `owner_id = auth.uid()` — cargo gerencial segue sem tocar em
+  evento pessoal alheio. `calendar_events_list` devolve `assignee_ids uuid[]`
+  por `left join lateral`, e as três tarefas existentes voltam com exatamente
+  um responsável cada. `calendar_context` devolve `color`. As duas seguem
+  `security definer` com `search_path=""`.
+
+  `calendar_events_list` foi recriada (o tipo de retorno mudou) e nasceu com
+  `anon=EXECUTE`, como `calendar_context`, `calendar_preferences_update` e
+  `nucleo_conversation_sync` — é o padrão do projeto descrito logo abaixo, e
+  não algo que esta migration concedeu. A guarda continua no corpo:
+  `private.is_org_member` levanta antes de qualquer trabalho.
+
+  A migration **não** foi registrada em `supabase_migrations.schema_migrations`:
+  o histórico remoto já estava incompleto desde `20260819180000`, e reconciliar
+  uma linha de mais de trinta faria `db push` parecer viável quando não é.
+
+- `20260903210000_aviso_de_atribuicao_de_tarefa.sql` **escrita e ainda não
+  aplicada** em 03/09/2026. Colocar alguém numa tarefa passa a avisar essa
+  pessoa, e ela assume ou recusa.
+
+  O que ela conserta antes de acrescentar qualquer coisa: o índice único de
+  `calendar_reminders` era `(task_id, channel, remind_at)`, **sem o dono**, e
+  `private.task_reschedule_reminders` só enfileirava para
+  `coalesce(owner_id, created_by)`. Ou seja: depois de `20260903190000`, uma
+  tarefa de três responsáveis lembrava **um**, e os outros dois nem
+  caberiam na tabela. O índice passa a incluir `owner_id` e `kind`.
+
+  O que ela acrescenta: `task_assignees` ganha `notified_at`, `accepted_at`,
+  `declined_at` e `decline_reason`; `calendar_reminders` ganha `kind`
+  (`reminder` ou `assignment`), porque um aviso de atribuição não tem
+  horário para anunciar; gatilhos em `task_assignees` avisam quem entrou —
+  nunca quem escreveu, e nunca duas vezes a mesma pessoa; e
+  `public.task_assignment_respond` deixa **só** quem foi colocado responder
+  por si (`auth.uid()`), sem apagar o vínculo ao recusar.
+
+  Tudo que já existia entra como assumido. Ninguém foi perguntado, e marcar
+  as tarefas de ontem como pendentes ensinaria a equipe a ignorar a pílula
+  antes de ela significar alguma coisa.
+
+  Comportamento verificado em produção em 03/09/2026 com escrita real
+  revertida (bloco `do` que termina em `raise exception`, o que desfaz tudo e
+  devolve o relatório na mensagem de erro; conferido depois: 3 vínculos, 3
+  assumidos, 28 lembretes, **0** avisos de atribuição — nada sobrou). Os cinco
+  invariantes bateram: colocar outra pessoa gera 1 aviso com `notified_at`
+  preenchido e `accepted_at` vazio; colocar a si mesmo gera 0 e já consta como
+  assumido; sair cancela o aviso ainda não entregue; voltar reavisa; e **quem
+  já viu não é reavisado** quando a lista é regravada.
+
+  Esse último merece atenção de quem for mexer. A guarda dentro do gatilho só
+  protege quem insere sem apagar antes — apagar cancela o aviso, e a
+  reinserção passaria direto por ela. Quem fecha o furo é o provider, que
+  grava a diferença. E o corte cai no lugar certo porque o cancelamento só
+  alcança `pending`, `processing` e `failed`: um aviso já `sent` sobrevive e
+  bloqueia a repetição. Incluir `sent` no cancelamento faria a equipe receber
+  a mesma mensagem a cada ida e volta.
+
+  Cuidado com `now()` ao escrever teste: é o horário da TRANSAÇÃO, não do
+  comando, então todo aviso criado no mesmo bloco nasce com o mesmo
+  `remind_at` e o índice único os trata como o mesmo aviso.
+
+  **A ordem importa no canal de WhatsApp.**
+  `notification_worker_claim_reminders` passou a devolver `kind` no fim do
+  retorno, mas quem redige a mensagem é o `whatsapp-assistant` na VPS, que
+  ainda não olha esse campo. Hoje isso não causa dano porque **zero membros
+  verificaram telefone** (`calendar_member_preferences`: 3 com `in_app`, 0
+  com `whatsapp`), então nenhuma linha de canal `whatsapp` chega a existir.
+  Verificar telefone antes de o worker aprender `kind` é o que faria a
+  primeira mensagem sair redigida como lembrete — e, em tarefa sem
+  vencimento, anunciando como prazo o instante do enfileiramento.
+
 As migrations continuam versionadas no repositório para permitir a criação de
 ambientes novos e recuperação de desastre.
 
@@ -379,6 +464,19 @@ como pendência.
 - Falta validar conhecimento externo publicado em uma jornada real controlada.
 - Falta ativar e testar as notificações reais da aprovação externa.
 - O espelho de conversas não poda linha órfã; ver a seção de Conversas.
+- A extensão não sincroniza `task_assignees`: uma tarefa criada por ela leva
+  para o Supabase apenas `owner_label`, como já acontecia com `owner_id`. Uma
+  tarefa com vários responsáveis criada no portal continua correta; criada na
+  extensão, chega ao banco sem responsável nenhum e a agenda a atribui a quem
+  a criou. A lista de colunas de `data/remoteProvider.js` é onde isso se
+  resolve, e é trabalho de outra leva.
+- A caixa de avisos do portal é **puxada, não empurrada**:
+  `calendar_notifications_list` só marca o aviso como entregue quando a
+  pessoa abre o painel da Agenda. Enquanto o WhatsApp não estiver ligado,
+  quem não abrir o portal não fica sabendo de nada.
+- O `whatsapp-assistant` da VPS precisa aprender `kind` para redigir aviso
+  de atribuição diferente de lembrete. Só depois disso vale verificar os
+  telefones da equipe na Agenda.
 - A integração não oficial com WhatsApp pode exigir manutenção quando o
   WhatsApp Web mudar e possui risco operacional de bloqueio.
 - A API Oficial do WhatsApp e o Google Calendar permanecem para etapas futuras.

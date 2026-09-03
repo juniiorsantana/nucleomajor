@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   adicionarDias,
   corDaPessoa,
+  coresDaEquipe,
   corDoEvento,
   densidadeDoBloco,
+  eventoVisivelNoFiltro,
   faixaVisivel,
   faixasPorPessoa,
+  idsDosResponsaveis,
   iniciaisDoNome,
   intervaloDaVisao,
   passoParaAltura,
@@ -166,12 +169,81 @@ describe("faixas por pessoa na visão de equipe", () => {
   });
 });
 
+describe("tarefa com mais de um responsável", () => {
+  const as = (hora, minuto = 0) => new Date(2026, 8, 3, hora, minuto).toISOString();
+  const compartilhada = {
+    id: "tarefa-1",
+    sourceType: "task",
+    titulo: "Fechar a proposta",
+    inicio: as(10),
+    fim: as(10, 30),
+    diaInteiro: false,
+    ownerId: "ana",
+    ownerName: "Ana Prado",
+    assigneeIds: ["ana", "bruno", "carla"],
+    visibilidade: "organization",
+  };
+
+  it("cai no responsável principal quando a lista não veio", () => {
+    // O RPC antigo não devolve `assignee_ids`. Enquanto a migration não sobe,
+    // a agenda tem de continuar desenhando com o que existe.
+    expect(idsDosResponsaveis({ ownerId: "ana" })).toEqual(["ana"]);
+    expect(idsDosResponsaveis({ ownerId: "ana", assigneeIds: [] })).toEqual(["ana"]);
+    expect(idsDosResponsaveis({})).toEqual([]);
+  });
+
+  it("ocupa a faixa de cada responsável, e não só a do principal", () => {
+    // É o que faz a faixa vazia significar "essa pessoa está livre". Se a
+    // tarefa aparecesse só na faixa da Ana, Bruno e Carla pareceriam
+    // disponíveis às 10h — e alguém marcaria reunião por cima.
+    const faixas = faixasPorPessoa([compartilhada], new Date(2026, 8, 3), [
+      { id: "ana", name: "Ana Prado" },
+      { id: "bruno", name: "Bruno Lima" },
+      { id: "carla", name: "Carla Dias" },
+      { id: "davi", name: "Davi Souza" },
+    ]);
+    const ocupadas = faixas.filter((faixa) => faixa.segmentos.length).map((faixa) => faixa.id);
+    expect(ocupadas).toEqual(["ana", "bruno", "carla"]);
+    expect(faixas.find((faixa) => faixa.id === "davi").segmentos).toHaveLength(0);
+  });
+
+  it("conta os minutos de cada responsável no resumo da equipe", () => {
+    const totais = somarPorPessoa([compartilhada]);
+    expect(totais.map((item) => item.id).sort()).toEqual(["ana", "bruno", "carla"]);
+    expect(totais.every((item) => item.minutos === 30)).toBe(true);
+  });
+
+  it("mostra a tarefa ao filtrar por qualquer um dos responsáveis", () => {
+    expect(eventoVisivelNoFiltro(compartilhada, "carla", "davi")).toBe(true);
+  });
+});
+
+describe("a cor da pessoa é a do perfil", () => {
+  it("usa a cor escolhida na Equipe em vez de derivar do id", () => {
+    // A agenda tinha uma paleta própria e a mesma pessoa saía de uma cor aqui
+    // e de outra na Equipe. Escolher a cor não servia de nada.
+    const cores = coresDaEquipe([{ id: "ana", color: "#0369A1" }]);
+    expect(corDaPessoa("ana", cores)).toBe("#0369a1");
+    expect(corDoEvento({ sourceType: "event", ownerId: "ana", tipo: "appointment" }, "pessoa", cores))
+      .toBe("#0369a1");
+  });
+
+  it("deriva do id quem ainda não escolheu, e quem já saiu da equipe", () => {
+    const cores = coresDaEquipe([{ id: "ana", color: null }]);
+    expect(corDaPessoa("ana", cores)).toMatch(/^#[0-9a-f]{6}$/);
+    // "zoe" não está no mapa: derivar mantém o bloco antigo com a cor de
+    // sempre em vez de apagá-lo.
+    expect(corDaPessoa("zoe", cores)).toBe(corDaPessoa("zoe", cores));
+    expect(corDaPessoa("zoe", cores)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
 describe("identidade visual do bloco", () => {
   it("mantém a cor da pessoa estável e independente da posição na lista", () => {
     const antes = corDaPessoa("ana");
     const depois = corDaPessoa("ana");
     expect(antes).toBe(depois);
-    expect(antes).toMatch(/^#[0-9A-F]{6}$/i);
+    expect(antes).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
   it("troca a dimensão pintada conforme o modo escolhido", () => {

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { Check, X } from "lucide-react";
 import { fmtMoeda } from "../../lib/formato";
+import { corDaPessoa, nomeCurto } from "../../ui/perfil";
 
 export const ENTRADA_GESTAO =
   "w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
@@ -140,6 +141,53 @@ export function EstadoVazio({ titulo, descricao }) {
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
       <p className="text-[14px] font-medium text-fg">{titulo}</p>
       {descricao && <p className="mt-1 max-w-sm text-[13px] text-sub">{descricao}</p>}
+    </div>
+  );
+}
+
+/**
+ * Quem responde pela tarefa — gente da equipe, e não texto livre.
+ *
+ * O campo era um `input` de texto, e o nome digitado ali nunca chegava a
+ * `tasks.owner_id`: a tarefa caía inteira no criador e a agenda mostrava o
+ * dono errado, sem nada na tela dizendo isso. Escolher da lista fecha o furo
+ * na origem, porque só existe id.
+ *
+ * Aceita mais de uma pessoa. Uma tarefa de três aparece na faixa das três na
+ * agenda — que é o que faz a faixa vazia significar "essa pessoa está livre".
+ * A PRIMEIRA escolhida é a principal, e é dela o lembrete: um lembrete por
+ * responsável viraria três mensagens para a mesma tarefa.
+ */
+export function SeletorResponsaveis({ membros = [], valores = [], aoMudar, rotulo = "Responsáveis" }) {
+  const escolhidos = new Set(valores);
+  return (
+    <div>
+      <span className="mb-1 block text-[12px] font-medium text-sub">{rotulo}</span>
+      <div className="flex flex-wrap gap-1.5 rounded-[9px] border border-line bg-bg p-2">
+        {membros.length === 0 && <span className="text-[12px] text-faint">Nenhuma pessoa na equipe.</span>}
+        {membros.map((membro) => {
+          const id = membro.user_id || membro.profile?.id;
+          if (!id) return null;
+          const marcado = escolhidos.has(id);
+          const principal = valores[0] === id && valores.length > 1;
+          return (
+            <button
+              key={id}
+              type="button"
+              title={principal ? "Responsável principal — recebe o lembrete" : undefined}
+              onClick={() => aoMudar(marcado ? valores.filter((item) => item !== id) : [...valores, id])}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-1 text-[11.5px] transition-colors ${
+                marcado ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong hover:text-fg"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: corDaPessoa(membro.profile || { id }) }} />
+              {nomeCurto(membro.profile)}
+              {principal && <span className="text-[9.5px] uppercase tracking-wide text-faint">1º</span>}
+              {marcado && <Check size={12} />}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

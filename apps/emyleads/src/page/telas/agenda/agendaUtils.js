@@ -1,3 +1,5 @@
+import { corDaPessoa as corDoPerfil, nomeCurto } from "../../../ui/perfil";
+
 export const PASSO_MINUTOS = 30;
 
 /**
@@ -11,27 +13,6 @@ export const PASSO_MINUTOS = 30;
 export const NIVEIS_ZOOM = [32, 44, 64, 96, 144];
 export const ZOOM_PADRAO = 2;
 export const ALTURA_HORA = NIVEIS_ZOOM[ZOOM_PADRAO];
-
-/**
- * Paleta de identidade por pessoa.
- *
- * Separada da cor de categoria de propósito: um evento tem as duas dimensões
- * e o usuário escolhe qual delas quer ver pintada. Os valores foram escolhidos
- * para manter contraste aceitável tanto sobre o fundo claro quanto o escuro,
- * já que o bloco é preenchido e a cor do texto é calculada por luminância.
- */
-export const CORES_PESSOA = [
-  "#4F3CFC",
-  "#0EA5E9",
-  "#059669",
-  "#D97706",
-  "#DC2626",
-  "#DB2777",
-  "#7C3AED",
-  "#0891B2",
-  "#65A30D",
-  "#EA580C",
-];
 
 export function inicioDoDia(valor) {
   const data = new Date(valor);
@@ -198,7 +179,7 @@ export function eventoPessoalDeOutro(evento, usuarioId) {
 
 export function eventoVisivelNoFiltro(evento, filtro, usuarioId) {
   if (filtro === "team") return true;
-  if (filtro && filtro !== "mine") return evento.ownerId === filtro || evento.visibilidade === "organization";
+  if (filtro && filtro !== "mine") return idsDosResponsaveis(evento).includes(filtro) || evento.visibilidade === "organization";
   return evento.ownerId === usuarioId || evento.visibilidade === "organization";
 }
 
@@ -330,6 +311,28 @@ export function idDoResponsavel(evento) {
 }
 
 /**
+ * Todos os responsáveis do compromisso, e não só o principal.
+ *
+ * Uma tarefa pode ser de três pessoas ao mesmo tempo, e é `assignee_ids` que
+ * diz quais. Evento tem dono único, então a lista vem com um só — a tela
+ * pergunta "de quem é este bloco" de um jeito só e nunca precisa saber se
+ * está olhando para tarefa ou para evento.
+ *
+ * Cai no responsável principal quando a lista não veio: enquanto a migration
+ * `20260903190000` não estiver aplicada, o RPC devolve as colunas antigas e a
+ * agenda tem de continuar desenhando.
+ */
+export function idsDosResponsaveis(evento) {
+  const lista = evento?.assigneeIds || evento?.assignee_ids;
+  if (Array.isArray(lista)) {
+    const limpos = lista.filter(Boolean);
+    if (limpos.length) return limpos;
+  }
+  const principal = idDoResponsavel(evento);
+  return principal ? [principal] : [];
+}
+
+/**
  * Agrupa o dia em uma faixa por profissional.
  *
  * É o que torna a visão de equipe utilizável: sem isto, quatro pessoas em
@@ -345,9 +348,15 @@ export function faixasPorPessoa(eventos, dia, membros = [], { incluirVazias = tr
   const recortados = recortarSegmentosDoDia(eventos, dia);
   const porPessoa = new Map();
   for (const segmento of recortados) {
-    const chave = idDoResponsavel(segmento.evento) || "sem-responsavel";
-    if (!porPessoa.has(chave)) porPessoa.set(chave, []);
-    porPessoa.get(chave).push(segmento);
+    // O MESMO segmento entra na faixa de cada responsável. É o que faz a
+    // faixa vazia significar "essa pessoa está livre": uma tarefa de três
+    // pessoas que aparecesse só na faixa de uma deixaria as outras duas
+    // parecendo disponíveis no horário em que estão ocupadas.
+    const chaves = idsDosResponsaveis(segmento.evento);
+    for (const chave of chaves.length ? chaves : ["sem-responsavel"]) {
+      if (!porPessoa.has(chave)) porPessoa.set(chave, []);
+      porPessoa.get(chave).push(segmento);
+    }
   }
 
   const faixas = [];
@@ -387,20 +396,35 @@ export function iniciaisDoNome(nome) {
 }
 
 /**
- * Cor estável por pessoa, derivada do id.
+ * A cor de cada pessoa da equipe, indexada pelo id.
  *
- * Estável entre sessões e entre máquinas porque sai do id, não da posição na
- * lista: se fosse pelo índice, entrar um membro novo repintaria a agenda
- * inteira e a memória visual de quem já usa o produto iria junto.
+ * A agenda tinha uma paleta própria, derivada do id, que ignorava a cor
+ * escolhida em `profiles.color` — a mesma pessoa era roxa na Equipe e nas
+ * Conversas e verde aqui. Escolher a própria cor não serve de nada se cada
+ * tela decidir a sua, então a agenda passa a ler a mesma identidade que o
+ * resto do produto (`ui/perfil`), e a derivação por id continua valendo
+ * apenas para quem ainda não escolheu.
+ *
+ * Vem dos membros do `calendar_context`, e é montada uma vez por carga em
+ * vez de a cada bloco desenhado.
  */
-export function corDaPessoa(id) {
-  const texto = String(id || "");
-  if (!texto) return CORES_PESSOA[0];
-  let hash = 0;
-  for (let i = 0; i < texto.length; i += 1) {
-    hash = (hash * 31 + texto.charCodeAt(i)) >>> 0;
+export function coresDaEquipe(membros = []) {
+  const mapa = new Map();
+  for (const membro of membros || []) {
+    if (!membro?.id) continue;
+    mapa.set(membro.id, corDoPerfil(membro));
   }
-  return CORES_PESSOA[hash % CORES_PESSOA.length];
+  return mapa;
+}
+
+/**
+ * A cor de uma pessoa: a escolhida, ou a derivada do id enquanto não houver.
+ *
+ * Quem já saiu da equipe não está no mapa e ainda tem evento no passado —
+ * derivar do id mantém o bloco com a mesma cor de sempre em vez de apagá-lo.
+ */
+export function corDaPessoa(id, cores) {
+  return cores?.get?.(id) || corDoPerfil({ id });
 }
 
 /**
@@ -453,10 +477,10 @@ export function tipoDoEvento(evento) {
  * migração: a preferência antiga continua válida e passa a significar "a cor
  * padrão", que agora é o tipo.
  */
-export function corDoEvento(evento, modo = "tipo") {
+export function corDoEvento(evento, modo = "tipo", cores) {
   if (!evento) return TIPO_POR_ID.get("appointment").cor;
   if (evento.titulo === "Indisponível") return TIPO_POR_ID.get("unavailable").cor;
-  if (modo === "pessoa") return corDaPessoa(idDoResponsavel(evento));
+  if (modo === "pessoa") return corDaPessoa(idDoResponsavel(evento), cores);
   return tipoDoEvento(evento).cor;
 }
 
@@ -519,19 +543,28 @@ export function somarPorTipo(eventos) {
 
 /**
  * Total ocupado por profissional, para o resumo da visão de equipe.
+ *
+ * Conta a tarefa compartilhada uma vez para CADA responsável, e não uma vez
+ * só. A soma deixa de bater com o total do dia e passa a bater com o que a
+ * grade desenha, que é o que a legenda explica — meia hora bloqueada na
+ * agenda de três pessoas custa uma hora e meia da equipe.
  */
-export function somarPorPessoa(eventos) {
+export function somarPorPessoa(eventos, cores, membros = []) {
+  const nomes = new Map((membros || []).filter((m) => m?.id).map((m) => [m.id, m]));
   const mapa = new Map();
   eventos.filter((evento) => !evento.diaInteiro).forEach((evento) => {
-    const chave = idDoResponsavel(evento) || "sem-responsavel";
-    const atual = mapa.get(chave) || {
-      id: chave,
-      nome: evento.ownerName || "Sem responsável",
-      cor: corDaPessoa(chave),
-      minutos: 0,
-    };
-    atual.minutos += minutosVisiveis(evento);
-    mapa.set(chave, atual);
+    const chaves = idsDosResponsaveis(evento);
+    for (const chave of chaves.length ? chaves : ["sem-responsavel"]) {
+      const membro = nomes.get(chave);
+      const atual = mapa.get(chave) || {
+        id: chave,
+        nome: nomeCurto(membro, evento.ownerName || "Sem responsável"),
+        cor: corDaPessoa(chave, cores),
+        minutos: 0,
+      };
+      atual.minutos += minutosVisiveis(evento);
+      mapa.set(chave, atual);
+    }
   });
   return [...mapa.values()].sort((a, b) => b.minutos - a.minutos);
 }

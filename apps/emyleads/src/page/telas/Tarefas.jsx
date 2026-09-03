@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, Clock3, Hourglass, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 import { api } from "../../data/client";
 import { tarefaAtrasada } from "../../domain/types";
 import { fmtVencimento } from "../../lib/formato";
@@ -20,7 +20,49 @@ import {
   EstadoVazio,
   ModalGestao,
   nomeDoContato,
+  SeletorResponsaveis,
 } from "./gestaoCompartilhados";
+import { nomeCurto } from "../../ui/perfil";
+
+/** Os ids de quem responde pela tarefa, com o principal como reserva. */
+function idsDosResponsaveis(tarefa) {
+  if (tarefa.responsaveis?.length) return tarefa.responsaveis;
+  return tarefa.ownerId ? [tarefa.ownerId] : [];
+}
+
+/**
+ * Assumiu, recusou, ou ainda não respondeu.
+ *
+ * Devolve `null` quando a tarefa não carrega `respostas` — é o caso da
+ * extensão, que não sincroniza os vínculos. Ali a tela não pode afirmar
+ * "aguardando": ninguém está aguardando nada, o dado é que não veio. Estado
+ * inventado é pior que estado ausente, porque parece verdade.
+ */
+function respostaDoResponsavel(tarefa, id) {
+  if (!tarefa.respostas) return null;
+  const resposta = tarefa.respostas[id];
+  if (!resposta) return null;
+  if (resposta.recusadoEm) return { estado: "recusou", motivo: resposta.motivo };
+  if (resposta.aceitoEm) return { estado: "assumiu", motivo: "" };
+  return { estado: "aguardando", motivo: "" };
+}
+
+/**
+ * Como os responsáveis aparecem em uma linha da lista.
+ *
+ * Resolve pelo id contra a equipe, e só cai no `owner_label` gravado quando
+ * o id não é de ninguém da equipe hoje — tarefa antiga, feita quando o campo
+ * era texto livre, ou de alguém que já saiu. O rótulo é uma fotografia do
+ * nome no dia em que se gravou; o id é a pessoa.
+ */
+function nomesDosResponsaveis(tarefa, porId) {
+  const nomes = idsDosResponsaveis(tarefa)
+    .map((id) => porId.get(id))
+    .filter(Boolean)
+    .map((membro) => nomeCurto(membro.profile));
+  if (nomes.length) return nomes;
+  return tarefa.responsavel ? [tarefa.responsavel] : [];
+}
 
 const FILTROS_STATUS = [
   { id: "abertas", rotulo: "Abertas" },
@@ -51,39 +93,38 @@ function grupoDaTarefa(tarefa, agora = Date.now()) {
   return "proximas";
 }
 
-function FormularioTarefa({ tarefa, contatoIdInicial, contatos, negocios, aoFechar, recarregar }) {
-  const contatoInicial = tarefa?.contactId || contatoIdInicial || contatos[0]?.id || "";
-  const negociosDoContato = (contactId) => negocios.filter((n) => n.contactId === contactId);
+function FormularioTarefa({ tarefa, contatoIdInicial, contatos, equipe, aoFechar, recarregar }) {
+  // Sem contato pré-selecionado. O contato é o do CLIENTE e deixou de ser
+  // obrigatório: escolher o primeiro da lista por conta própria prendia a
+  // tarefa a quem estivesse no topo do alfabeto, e ninguém reparava.
   const [form, setForm] = useState(() => ({
-    contactId: contatoInicial,
-    dealId: tarefa?.dealId || "",
+    contactId: tarefa?.contactId || contatoIdInicial || "",
     titulo: tarefa?.titulo || "",
     venceEm: dataInput(tarefa?.venceEm),
-    responsavel: tarefa?.responsavel || "",
+    responsaveis: tarefa?.responsaveis?.length
+      ? [...tarefa.responsaveis]
+      : (tarefa?.ownerId ? [tarefa.ownerId] : []),
   }));
   const [erro, setErro] = useState(null);
   const [salvando, setSalvando] = useState(false);
-  const deals = negociosDoContato(form.contactId);
 
   const alterar = (campo, valor) => setForm((atual) => ({ ...atual, [campo]: valor }));
-  const alterarContato = (valor) =>
-    setForm((atual) => ({
-      ...atual,
-      contactId: valor,
-      dealId: negociosDoContato(valor).some((n) => n.id === atual.dealId) ? atual.dealId : "",
-    }));
 
   const enviar = async (event) => {
     event.preventDefault();
     setSalvando(true);
     setErro(null);
     try {
+      const principal = equipe.find((membro) => membro.user_id === form.responsaveis[0]);
       const dados = {
-        contactId: form.contactId,
-        dealId: form.dealId || null,
+        contactId: form.contactId || null,
         titulo: form.titulo.trim(),
         venceEm: dataParaTimestamp(form.venceEm),
-        responsavel: form.responsavel.trim(),
+        responsaveis: form.responsaveis,
+        // `owner_label` continua sendo gravado: é dele que a agenda e o
+        // assistente leem o nome enquanto o perfil não é carregado, e o
+        // banco o tem como `not null`.
+        responsavel: principal ? nomeCurto(principal.profile, "") : "",
       };
       if (tarefa?.id) await api.tarefas.atualizar({ id: tarefa.id, patch: dados });
       else await api.tarefas.criar(dados);
@@ -122,14 +163,13 @@ function FormularioTarefa({ tarefa, contatoIdInicial, contatos, negocios, aoFech
               placeholder="Ex.: Retornar para o cliente"
             />
           </CampoFormulario>
-          <CampoFormulario rotulo="Contato" className="col-span-2">
+          <CampoFormulario rotulo="Contato do cliente" className="col-span-2">
             <select
-              required
               value={form.contactId}
-              onChange={(e) => alterarContato(e.target.value)}
+              onChange={(e) => alterar("contactId", e.target.value)}
               className={`${ENTRADA_GESTAO} cursor-pointer`}
             >
-              <option value="">Selecione um contato</option>
+              <option value="">Nenhum</option>
               {contatos
                 .slice()
                 .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
@@ -138,17 +178,7 @@ function FormularioTarefa({ tarefa, contatoIdInicial, contatos, negocios, aoFech
                 ))}
             </select>
           </CampoFormulario>
-          <CampoFormulario rotulo="Negócio relacionado">
-            <select
-              value={form.dealId}
-              onChange={(e) => alterar("dealId", e.target.value)}
-              className={`${ENTRADA_GESTAO} cursor-pointer`}
-            >
-              <option value="">Nenhum</option>
-              {deals.map((n) => <option key={n.id} value={n.id}>{n.titulo || "Sem título"}</option>)}
-            </select>
-          </CampoFormulario>
-          <CampoFormulario rotulo="Vencimento">
+          <CampoFormulario rotulo="Vencimento" className="col-span-2">
             <input
               type="date"
               value={form.venceEm}
@@ -156,14 +186,13 @@ function FormularioTarefa({ tarefa, contatoIdInicial, contatos, negocios, aoFech
               className={ENTRADA_GESTAO}
             />
           </CampoFormulario>
-          <CampoFormulario rotulo="Responsável" className="col-span-2">
-            <input
-              value={form.responsavel}
-              onChange={(e) => alterar("responsavel", e.target.value)}
-              className={ENTRADA_GESTAO}
-              placeholder="Quem ficará responsável?"
+          <div className="col-span-2">
+            <SeletorResponsaveis
+              membros={equipe}
+              valores={form.responsaveis}
+              aoMudar={(valores) => alterar("responsaveis", valores)}
             />
-          </CampoFormulario>
+          </div>
           {erro && <p className="col-span-2 text-[13px] text-danger">{erro}</p>}
         </div>
         <div className="flex items-center gap-2 border-t border-line px-5 py-3">
@@ -191,9 +220,61 @@ function FormularioTarefa({ tarefa, contatoIdInicial, contatos, negocios, aoFech
   );
 }
 
-function LinhaTarefa({ tarefa, contato, negocio, aoAlternar, aoEditar, aoRemover, aoAbrirContato }) {
+/**
+ * Recusar pede um motivo, e não obriga.
+ *
+ * Obrigar transformaria "não é comigo" em três minutos de redação, e a
+ * pessoa simplesmente não recusaria — ficaria pendente para sempre, que é o
+ * estado pior. Pedir aumenta a chance de vir, e vazio continua sendo uma
+ * resposta melhor que silêncio.
+ */
+function DialogoRecusa({ tarefa, aoFechar, aoConfirmar }) {
+  const [motivo, setMotivo] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  return (
+    <ModalGestao titulo="Recusar a tarefa" aoFechar={aoFechar}>
+      <div className="px-5 py-4">
+        <p className="text-[13px] text-fg">{tarefa.titulo || "Sem título"}</p>
+        <p className="mt-1 text-[11.5px] text-sub">
+          A tarefa não some: ela volta para quem atribuiu, com o que você escrever aqui.
+        </p>
+        <CampoFormulario rotulo="Motivo (opcional)" className="mt-3 block">
+          <textarea
+            rows={3}
+            maxLength={280}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            className={ENTRADA_GESTAO}
+            placeholder="Ex.: estou fora esta semana"
+          />
+        </CampoFormulario>
+      </div>
+      <div className="flex items-center justify-end gap-2 border-t border-line px-5 py-3">
+        <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          disabled={salvando}
+          onClick={async () => { setSalvando(true); await aoConfirmar(motivo); }}
+          className="cursor-pointer rounded-[8px] bg-danger px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-95 disabled:opacity-40"
+        >
+          {salvando ? "Recusando…" : "Recusar"}
+        </button>
+      </div>
+    </ModalGestao>
+  );
+}
+
+function LinhaTarefa({
+  tarefa, contato, negocio, responsaveis, pendencias, minhaResposta,
+  aoAlternar, aoEditar, aoRemover, aoAbrirContato, aoAssumir, aoRecusar,
+}) {
   const vencimento = fmtVencimento(tarefa.venceEm);
   const tons = { faint: "text-faint", sub: "text-sub", warning: "text-warning", danger: "text-danger" };
+  // Silêncio quando está tudo certo. A pílula só aparece quando há algo a
+  // fazer — se ela aparecesse em toda tarefa, deixaria de ser sinal.
+  const precisoResponder = minhaResposta?.estado === "aguardando" && !tarefa.concluida;
   return (
     <div className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
       <Caixa marcada={tarefa.concluida} aoMudar={() => aoAlternar(tarefa)} titulo={tarefa.concluida ? "Reabrir tarefa" : "Concluir tarefa"} />
@@ -202,14 +283,18 @@ function LinhaTarefa({ tarefa, contato, negocio, aoAlternar, aoEditar, aoRemover
           {tarefa.titulo || "Sem título"}
         </p>
         <div className="mt-1 flex min-w-0 items-center gap-2 text-[11.5px] text-sub">
-          <button
-            type="button"
-            onClick={() => aoAbrirContato?.(contato)}
-            className="flex min-w-0 cursor-pointer items-center gap-1.5 truncate hover:text-accent-forte"
-          >
-            <Iniciais nome={contato?.nome} tamanho={19} />
-            <span className="truncate">{contato?.nome || "Contato sem nome"}</span>
-          </button>
+          {contato ? (
+            <button
+              type="button"
+              onClick={() => aoAbrirContato?.(contato)}
+              className="flex min-w-0 cursor-pointer items-center gap-1.5 truncate hover:text-accent-forte"
+            >
+              <Iniciais nome={contato?.nome} tamanho={19} />
+              <span className="truncate">{contato?.nome || "Contato sem nome"}</span>
+            </button>
+          ) : (
+            <span className="truncate text-faint">Sem contato</span>
+          )}
           {negocio && <><span>·</span><span className="truncate">{negocio.titulo}</span></>}
         </div>
       </div>
@@ -218,7 +303,47 @@ function LinhaTarefa({ tarefa, contato, negocio, aoAlternar, aoEditar, aoRemover
           {tarefa.concluida ? "Concluída" : vencimento.texto}
         </span>
       </div>
-      <span className="hidden w-28 truncate text-[11.5px] text-sub md:block">{tarefa.responsavel || "—"}</span>
+      <span className="hidden w-36 flex-none md:block">
+        <span title={responsaveis.join(", ")} className="block truncate text-[11.5px] text-sub">
+          {/* Duas pessoas cabem; a partir da terceira o "+N" é o que mantém a
+              coluna estreita sem esconder que há mais gente na tarefa. */}
+          {responsaveis.length > 2
+            ? `${responsaveis.slice(0, 2).join(", ")} +${responsaveis.length - 2}`
+            : responsaveis.join(", ") || "—"}
+        </span>
+        {pendencias.length > 0 && !tarefa.concluida && (
+          <span
+            title={pendencias.map((p) => p.texto).join(" · ")}
+            className={`mt-0.5 flex items-center gap-1 truncate text-[10px] ${
+              pendencias.some((p) => p.estado === "recusou") ? "text-danger" : "text-warning"
+            }`}
+          >
+            {pendencias.some((p) => p.estado === "recusou")
+              ? <Undo2 size={10} className="flex-none" />
+              : <Hourglass size={10} className="flex-none" />}
+            <span className="truncate">{pendencias[0].texto}</span>
+            {pendencias.length > 1 && <span className="flex-none">+{pendencias.length - 1}</span>}
+          </span>
+        )}
+      </span>
+      {precisoResponder && (
+        <span className="flex flex-none items-center gap-1">
+          <button
+            type="button"
+            onClick={() => aoAssumir(tarefa)}
+            className="flex cursor-pointer items-center gap-1 rounded-[7px] bg-accent px-2 py-1 text-[11px] font-semibold text-white hover:brightness-110"
+          >
+            <Check size={12} strokeWidth={2.6} />Assumir
+          </button>
+          <button
+            type="button"
+            onClick={() => aoRecusar(tarefa)}
+            className="cursor-pointer rounded-[7px] px-2 py-1 text-[11px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
+          >
+            Recusar
+          </button>
+        </span>
+      )}
       <button type="button" onClick={() => aoEditar(tarefa)} title="Editar tarefa" className="cursor-pointer rounded-[7px] p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
         <Pencil size={14} />
       </button>
@@ -229,8 +354,11 @@ function LinhaTarefa({ tarefa, contato, negocio, aoAlternar, aoEditar, aoRemover
   );
 }
 
-export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, aoConsumirComando }) {
+export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, aoConsumirComando, sessao }) {
   const { contatos, negocios, tarefas } = dados;
+  const [equipe, setEquipe] = useState([]);
+  const [recusando, setRecusando] = useState(null);
+  const usuarioId = sessao?.usuario?.id || null;
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("abertas");
   const [filtroPrazo, setFiltroPrazo] = useState("");
@@ -239,6 +367,17 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
   const [erro, setErro] = useState(null);
   const agora = Date.now();
 
+  // A equipe é da tela, e não do carregamento geral: uma falha aqui deixa o
+  // seletor vazio e o resto das tarefas de pé. Foi o que Conhecimento já
+  // fazia, e o motivo é o mesmo — a lista de gente é apoio, não conteúdo.
+  useEffect(() => {
+    let vivo = true;
+    api.organizacoes.membros()
+      .then((lista) => { if (vivo) setEquipe(lista.filter((m) => m.status === "active")); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
   useEffect(() => {
     if (!comando) return;
     if (comando.tipo === "nova-tarefa") setEditando({ contactId: comando.contatoId });
@@ -246,10 +385,48 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
     if (comando.tipo === "nova-tarefa" || comando.tipo === "editar-tarefa") aoConsumirComando?.();
   }, [aoConsumirComando, comando]);
 
-  const responsaveis = useMemo(
-    () => [...new Set(tarefas.map((t) => t.responsavel).filter(Boolean))].sort(),
-    [tarefas]
+  const equipePorId = useMemo(
+    () => new Map(equipe.filter((m) => m.user_id).map((m) => [m.user_id, m])),
+    [equipe]
   );
+  // O filtro passa a listar a EQUIPE, e não os nomes já digitados. Antes ele
+  // se alimentava do próprio `owner_label`, então uma pessoa escrita de três
+  // jeitos virava três filtros e nenhum deles achava tudo dela.
+  const opcoesResponsavel = useMemo(
+    () => equipe
+      .filter((m) => m.user_id)
+      .map((m) => ({ id: m.user_id, rotulo: nomeCurto(m.profile) }))
+      .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR")),
+    [equipe]
+  );
+  const nomesPorTarefa = useMemo(
+    () => new Map(tarefas.map((t) => [t.id, nomesDosResponsaveis(t, equipePorId)])),
+    [equipePorId, tarefas]
+  );
+  // Só o que está em aberto. Quem assumiu não vira linha na tela: a coluna
+  // já diz que a tarefa é dele, e repetir "assumiu" em toda tarefa afogaria
+  // as duas ou três que realmente esperam alguém.
+  const pendenciasPorTarefa = useMemo(() => {
+    const mapa = new Map();
+    for (const t of tarefas) {
+      const abertas = [];
+      for (const id of idsDosResponsaveis(t)) {
+        const resposta = respostaDoResponsavel(t, id);
+        if (!resposta || resposta.estado === "assumiu") continue;
+        const nome = nomeCurto(equipePorId.get(id)?.profile, "alguém");
+        abertas.push({
+          estado: resposta.estado,
+          texto: resposta.estado === "recusou"
+            ? `${nome} recusou${resposta.motivo ? `: ${resposta.motivo}` : ""}`
+            : `aguardando ${nome}`,
+        });
+      }
+      // Recusa primeiro: ela pede uma decisão de quem delegou, e a espera não.
+      abertas.sort((a, b) => Number(b.estado === "recusou") - Number(a.estado === "recusou"));
+      mapa.set(t.id, abertas);
+    }
+    return mapa;
+  }, [equipePorId, tarefas]);
   const contatosPorId = useMemo(
     () => Object.fromEntries(contatos.map((c) => [c.id, c])),
     [contatos]
@@ -268,7 +445,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
         if (filtroStatus === "abertas" && t.concluida) return false;
         if (filtroStatus === "concluidas" && !t.concluida) return false;
         if (filtroPrazo && grupo !== filtroPrazo) return false;
-        if (filtroResponsavel && t.responsavel !== filtroResponsavel) return false;
+        if (filtroResponsavel && !idsDosResponsaveis(t).includes(filtroResponsavel)) return false;
         if (!termo) return true;
         return (
           t.titulo.toLowerCase().includes(termo) ||
@@ -300,6 +477,17 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
       await recarregar();
     } catch (e) {
       setErro(e?.message || String(e));
+    }
+  };
+
+  const responder = async (tarefa, aceitar, motivo = "") => {
+    try {
+      await api.tarefas.responder({ id: tarefa.id, aceitar, motivo });
+      await recarregar();
+      setRecusando(null);
+    } catch (e) {
+      setErro(e?.message || String(e));
+      setRecusando(null);
     }
   };
 
@@ -341,7 +529,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
               valor={filtroResponsavel}
               aoMudar={setFiltroResponsavel}
               rotuloVazio="Todos os responsáveis"
-              opcoes={responsaveis.map((r) => ({ id: r, rotulo: r }))}
+              opcoes={opcoesResponsavel}
             />
             <span className="ml-auto text-[13px] text-sub">{filtradas.length} tarefa{filtradas.length === 1 ? "" : "s"}</span>
           </div>
@@ -358,7 +546,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
                 <span className="w-[18px]" />
                 <span className="flex-1">Tarefa</span>
                 <span className="w-28">Vencimento</span>
-                <span className="w-28">Responsável</span>
+                <span className="w-36">Responsáveis</span>
                 <span className="w-16" />
               </div>
               {grupos.map(([id, titulo]) => {
@@ -373,10 +561,15 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
                         tarefa={tarefa}
                         contato={contatosPorId[tarefa.contactId]}
                         negocio={negociosPorId[tarefa.dealId]}
+                        responsaveis={nomesPorTarefa.get(tarefa.id) || []}
+                        pendencias={pendenciasPorTarefa.get(tarefa.id) || []}
+                        minhaResposta={usuarioId ? respostaDoResponsavel(tarefa, usuarioId) : null}
                         aoAlternar={alternar}
                         aoEditar={setEditando}
                         aoRemover={remover}
                         aoAbrirContato={aoAbrirContato}
+                        aoAssumir={(item) => responder(item, true)}
+                        aoRecusar={setRecusando}
                       />
                     ))}
                   </section>
@@ -387,13 +580,21 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
         </div>
       </div>
 
+      {recusando && (
+        <DialogoRecusa
+          tarefa={recusando}
+          aoFechar={() => setRecusando(null)}
+          aoConfirmar={(motivo) => responder(recusando, false, motivo)}
+        />
+      )}
+
       {editando !== undefined && (
         <FormularioTarefa
           key={editando?.id || "novo"}
           tarefa={editando}
           contatoIdInicial={editando?.contactId}
           contatos={contatos}
-          negocios={negocios}
+          equipe={equipe}
           aoFechar={() => setEditando(undefined)}
           recarregar={recarregar}
         />

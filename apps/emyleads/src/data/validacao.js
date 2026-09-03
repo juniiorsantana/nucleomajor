@@ -84,7 +84,12 @@ export function validarNegocio(negocio, nome = "Negócio") {
 export function validarTarefa(tarefa, nome = "Tarefa") {
   objeto(tarefa, nome);
   id(tarefa.id, `${nome}.id`);
-  id(tarefa.contactId, `${nome}.contactId`);
+  // Tarefa sem contato é válida. `tasks.contact_id` deixou de ser
+  // obrigatório no banco em `20260827130000_ferramenta_tarefas_operador`, e
+  // desde 03/09/2026 a tela também não exige — "ligar para o contador" é
+  // uma tarefa de verdade e não é de cliente nenhum. Só a validação local
+  // ainda cobrava, e cobrava depois de a pessoa ter preenchido o resto.
+  if (tarefa.contactId != null && tarefa.contactId !== "") id(tarefa.contactId, `${nome}.contactId`);
   if (tarefa.dealId !== null) id(tarefa.dealId, `${nome}.dealId`);
   texto(tarefa.titulo, `${nome}.titulo`, { vazio: true });
   if (tarefa.venceEm !== null) data(tarefa.venceEm, `${nome}.venceEm`);

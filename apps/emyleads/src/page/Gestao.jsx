@@ -637,6 +637,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             aoAbrirContato={abrirFicha}
             comando={comando}
             aoConsumirComando={consumirComando}
+            sessao={sessao}
           />
         ) : tela === "agenda" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando agenda…</div>}>

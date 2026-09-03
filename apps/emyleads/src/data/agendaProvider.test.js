@@ -137,19 +137,26 @@ describe("provider da Agenda compartilhada", () => {
     })).rejects.toMatchObject({ codigo: "agenda-conflito" });
   });
 
-  it("recusa evento da empresa para membro comum antes do RLS", async () => {
+  // Era uma recusa, e virou uma permissão. Membro comum marcar reunião da
+  // empresa era o caso normal, não a exceção: barrado aqui, ele tinha de
+  // pedir a um dono ou administrador que lançasse no lugar dele.
+  it("deixa membro comum criar evento da empresa", async () => {
     const deps = dependencias({ role: "member" });
     const operacoes = criarOperacoesAgenda(deps);
 
-    await expect(operacoes["agenda.criar"]({
+    await operacoes["agenda.criar"]({
       titulo: "Evento corporativo",
       inicio: "2026-08-21T10:00:00-03:00",
       fim: "2026-08-21T11:00:00-03:00",
       tipo: "event",
       visibilidade: "organization",
       categoryId: "category-1",
-    })).rejects.toMatchObject({ codigo: "agenda-organizacional-sem-permissao" });
-    expect(deps.eventos.insert).not.toHaveBeenCalled();
+    });
+
+    expect(deps.eventos.insert).toHaveBeenCalledWith(expect.objectContaining({
+      visibility: "organization",
+      created_by: "user-1",
+    }));
   });
 
   it("não aceita intervalo invertido", async () => {

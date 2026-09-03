@@ -36,11 +36,32 @@ function negocio(row) {
   };
 }
 
-function tarefa(row) {
+/**
+ * `responsaveis` são ids de perfil; `responsavel` é o rótulo gravado.
+ *
+ * Os dois convivem porque respondem coisas diferentes: o id diz QUEM, e é o
+ * que a agenda usa para montar a faixa de cada pessoa; o rótulo é o nome
+ * como estava no dia em que se gravou, e é o que sobra para a tarefa antiga
+ * feita quando o campo era texto livre.
+ *
+ * `respostas` é quem assumiu e quem recusou. Fica separado de `responsaveis`
+ * porque recusar NÃO tira a pessoa da tarefa: some da lista e quem delegou
+ * volta a não saber de nada, que era o problema de origem.
+ */
+function tarefa(row, vinculos) {
+  const lista = vinculos?.length ? vinculos : [];
+  const ids = lista.length
+    ? lista.map((item) => item.userId)
+    : (row.owner_id ? [row.owner_id] : []);
   return {
     id: row.id, remoteId: row.id, contactId: row.contact_id, dealId: row.deal_id || null,
     titulo: row.title || "", venceEm: epoch(row.due_at), concluida: Boolean(row.completed),
     concluidaEm: epoch(row.completed_at), responsavel: row.owner_label || "",
+    ownerId: row.owner_id || null,
+    responsaveis: ids,
+    respostas: Object.fromEntries(lista.map((item) => [item.userId, {
+      aceitoEm: item.aceitoEm, recusadoEm: item.recusadoEm, motivo: item.motivo,
+    }])),
     criadoEm: epoch(row.created_at) || Date.now(), atualizadoEm: epoch(row.updated_at) || Date.now(),
   };
 }
@@ -191,24 +212,103 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
     return negocio(row);
   };
 
+  /**
+   * Quem responde por cada tarefa, em uma consulta só.
+   *
+   * Separada da listagem em vez de embutida (`tasks(...,task_assignees(*))`)
+   * porque a ligação é por chave composta e depender do PostgREST adivinhá-la
+   * trocaria uma consulta previsível por uma que quebra em silêncio.
+   *
+   * Degrada: sem a tabela, a tarefa volta com o responsável principal em vez
+   * de voltar vazia. A tela de tarefas é o registro do próximo passo de cada
+   * cliente e não pode sumir porque uma migration ainda não subiu.
+   */
+  const responsaveisPorTarefa = async (ctx) => {
+    try {
+      const vinculos = await executar(supabase.from("task_assignees")
+        .select("task_id,user_id,accepted_at,declined_at,decline_reason")
+        .eq("organization_id", ctx.organizationId), "tarefas-responsaveis-lista-falhou");
+      const mapa = new Map();
+      for (const vinculo of vinculos || []) {
+        if (!mapa.has(vinculo.task_id)) mapa.set(vinculo.task_id, []);
+        mapa.get(vinculo.task_id).push({
+          userId: vinculo.user_id,
+          aceitoEm: epoch(vinculo.accepted_at),
+          recusadoEm: epoch(vinculo.declined_at),
+          motivo: vinculo.decline_reason || "",
+        });
+      }
+      return mapa;
+    } catch (erro) {
+      console.warn("[EmyLeads] responsáveis de tarefa indisponíveis:", erro?.message || erro);
+      return new Map();
+    }
+  };
+
   const listarTarefas = async () => {
     const ctx = await contexto();
     const rows = await executar(supabase.from("tasks").select("*")
       .eq("organization_id", ctx.organizationId).is("deleted_at", null)
       .order("updated_at", { ascending: false }), "tarefas-lista-falhou");
-    return (rows || []).map(tarefa);
+    const porTarefa = await responsaveisPorTarefa(ctx);
+    return (rows || []).map((row) => tarefa(row, porTarefa.get(row.id)));
   };
+
+  /**
+   * Grava a DIFERENÇA, e não a lista inteira.
+   *
+   * Apagar tudo e regravar era mais curto e destruía duas coisas a cada
+   * salvamento: o aceite de quem já tinha assumido, e a mudez do aviso —
+   * cada `insert` dispara `task_assignees_notify`, então corrigir a data de
+   * uma tarefa mandaria de novo "você entrou nesta tarefa" para todo mundo.
+   * O gatilho tem guarda própria contra isso, mas o aceite não teria como
+   * ter: linha apagada é linha apagada.
+   */
+  const gravarResponsaveis = async (ctx, taskId, ids) => {
+    const atuais = await executar(supabase.from("task_assignees")
+      .select("user_id")
+      .eq("organization_id", ctx.organizationId).eq("task_id", taskId),
+      "tarefa-responsaveis-leitura-falhou");
+    const antes = new Set((atuais || []).map((linha) => linha.user_id));
+    const depois = new Set(ids);
+    const sairam = [...antes].filter((id) => !depois.has(id));
+    const entraram = ids.filter((id) => !antes.has(id));
+
+    if (sairam.length) {
+      await executar(supabase.from("task_assignees").delete()
+        .eq("organization_id", ctx.organizationId).eq("task_id", taskId)
+        .in("user_id", sairam), "tarefa-responsaveis-limpeza-falhou");
+    }
+    if (entraram.length) {
+      await executar(supabase.from("task_assignees").insert(entraram.map((userId) => ({
+        task_id: taskId, organization_id: ctx.organizationId,
+        user_id: userId, created_by: ctx.userId,
+      }))), "tarefa-responsaveis-gravacao-falhou");
+    }
+  };
+
+  /** Sem duplicata e sem vazio; a ordem escolhida na tela é a que fica, e a
+   *  primeira é a principal. */
+  const idsDeResponsaveis = (lista) => [...new Set((lista || []).filter(Boolean))];
 
   const criarTarefa = async (dados = {}) => {
     const ctx = await contexto();
+    const responsaveis = idsDeResponsaveis(dados.responsaveis);
+    // Sem ninguém escolhido, a tarefa é de quem a criou. `owner_id` gravado
+    // como o criador era o defeito silencioso de antes — mas só porque a
+    // escolha da tela nunca chegava aqui, e não porque o padrão esteja errado.
+    const principal = responsaveis[0] || ctx.userId;
     const row = await executar(supabase.from("tasks").insert({
-      organization_id: ctx.organizationId, contact_id: dados.contactId, deal_id: dados.dealId || null,
+      organization_id: ctx.organizationId, contact_id: dados.contactId || null, deal_id: dados.dealId || null,
       title: texto(dados.titulo), due_at: iso(dados.venceEm), completed: Boolean(dados.concluida),
       completed_at: dados.concluida ? new Date().toISOString() : null, owner_label: texto(dados.responsavel),
-      owner_id: ctx.userId, created_by: ctx.userId, updated_by: ctx.userId,
+      owner_id: principal, created_by: ctx.userId, updated_by: ctx.userId,
     }).select("*").single(), "tarefa-criacao-falhou");
+    const gravados = responsaveis.length ? responsaveis : [principal];
+    await gravarResponsaveis(ctx, row.id, gravados);
     await registrarEvento(ctx, { contactId: row.contact_id, tipo: "task.created", entidadeTipo: "tarefa", entidadeId: row.id, carga: { titulo: row.title } });
-    return tarefa(row);
+    // Recém-gravados: ninguém assumiu nem recusou ainda.
+    return tarefa(row, gravados.map((userId) => ({ userId, aceitoEm: null, recusadoEm: null, motivo: "" })));
   };
 
   const atualizarTarefa = async ({ id, patch = {} }) => {
@@ -216,9 +316,27 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
     const campos = { contactId: "contact_id", dealId: "deal_id", titulo: "title", venceEm: "due_at", concluida: "completed", concluidaEm: "completed_at", responsavel: "owner_label" };
     const payload = { updated_by: ctx.userId };
     for (const [campo, coluna] of Object.entries(campos)) if (patch[campo] !== undefined) payload[coluna] = campo === "venceEm" || campo === "concluidaEm" ? iso(patch[campo]) : patch[campo];
+    // `concluir` chega aqui com um patch de duas chaves e nenhuma delas é
+    // `responsaveis`; mexer na lista nesse caso apagaria quem responde pela
+    // tarefa ao marcar a caixinha.
+    const responsaveis = patch.responsaveis === undefined
+      ? null
+      : idsDeResponsaveis(patch.responsaveis);
+    // Lista vazia NÃO passa a tarefa para quem está editando. `owner_id`
+    // fica de fora do payload, o update devolve o dono que já havia, e é
+    // ele quem volta como responsável único — abrir a tarefa de um colega
+    // para corrigir a data não pode transferi-la de mão em silêncio.
+    if (responsaveis?.length) payload.owner_id = responsaveis[0];
     const row = await executar(supabase.from("tasks").update(payload).eq("organization_id", ctx.organizationId).eq("id", id).select("*").single(), "tarefa-atualizacao-falhou");
+    const gravados = responsaveis
+      ? (responsaveis.length ? responsaveis : (row.owner_id ? [row.owner_id] : []))
+      : null;
+    if (gravados) await gravarResponsaveis(ctx, id, gravados);
     await registrarEvento(ctx, { contactId: row.contact_id, tipo: "task.updated", entidadeTipo: "tarefa", entidadeId: id, carga: { campos: Object.keys(patch) } });
-    return tarefa(row);
+    // Relê sempre: o aceite de quem já tinha assumido sobrevive à edição, e
+    // devolver a lista que acabamos de mandar apagaria isso na tela.
+    const porTarefa = await responsaveisPorTarefa(ctx);
+    return tarefa(row, porTarefa.get(row.id));
   };
 
   const listarNotas = async () => {
@@ -374,6 +492,18 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
     "tarefas.atualizar": atualizarTarefa,
     "tarefas.concluir": ({ id, concluida }) => atualizarTarefa({ id, patch: { concluida, concluidaEm: concluida ? Date.now() : null } }),
     "tarefas.remover": async ({ id }) => softDelete("tasks", id, "tarefa-remocao-falhou"),
+    // Só por si mesmo: a RPC filtra por `auth.uid()`, e passar o usuário
+    // aqui daria a impressão de que dá para assumir no lugar de alguém.
+    "tarefas.responder": async ({ id, aceitar, motivo = "" }) => {
+      const ctx = await contexto();
+      const { error } = await supabase.rpc("task_assignment_respond", {
+        target_organization: ctx.organizationId,
+        target_task: id,
+        accept: Boolean(aceitar),
+        reason: texto(motivo),
+      });
+      if (error) throw falha(error, "tarefa-resposta-falhou");
+    },
 
     "notas.listar": listarNotas,
     "notas.porContato": async ({ contactId }) => (await listarNotas()).filter((item) => item.contactId === contactId),

@@ -20,6 +20,13 @@ function normalizarEvento(row) {
     organizationId: row.organization_id,
     ownerId: row.owner_id || null,
     ownerName: row.owner_name || "",
+    // Uma tarefa pode ter mais de um responsável, e aparece na faixa de
+    // cada um. Evento tem dono único e cai no próprio dono, para a tela
+    // ter um caminho só. O insert responde a linha da tabela, sem a coluna
+    // que só o RPC monta — daí a segunda ponta do coalesce.
+    assigneeIds: Array.isArray(row.assignee_ids)
+      ? row.assignee_ids.filter(Boolean)
+      : (row.owner_id ? [row.owner_id] : []),
     titulo: row.title || "",
     descricao: row.description || "",
     inicio: row.starts_at,
@@ -154,9 +161,12 @@ export function criarOperacoesAgenda({ supabase = obterSupabase(), area = chrome
     if (!['personal', 'organization'].includes(payload.visibility)) {
       throw erroAgenda({ message: "Visibilidade de agenda inválida." }, "agenda-visibilidade-invalida");
     }
-    if (payload.visibility === "organization" && !["owner", "admin"].includes(atual.role)) {
-      throw erroAgenda({ message: "Somente donos e administradores criam eventos da empresa." }, "agenda-organizacional-sem-permissao");
-    }
+    // Todo membro cria evento da empresa desde 03/09/2026. A recusa que
+    // morava aqui era mais estreita que o produto pedia: quem não é dono
+    // nem administrador também marca reunião, e barrar a criação obrigava
+    // a pedir para um gestor lançar no lugar. Criar não é editar — a
+    // policy `calendar_events_update` continua deixando só o autor e a
+    // gestão mexerem no que já existe.
 
     const { data, error } = await supabase.from("calendar_events").insert(payload).select("*").single();
     if (error) throw erroAgenda(error);
@@ -322,6 +332,9 @@ export function criarOperacoesAgenda({ supabase = obterSupabase(), area = chrome
         id: item.id,
         sourceType: item.source_type,
         sourceId: item.source_id,
+        // `reminder` enquanto o RPC antigo não subir: o painel degrada
+        // para "falta X" em vez de sumir com o aviso.
+        tipo: item.kind || "reminder",
         titulo: item.title,
         inicio: item.starts_at,
         lembrarEm: item.remind_at,

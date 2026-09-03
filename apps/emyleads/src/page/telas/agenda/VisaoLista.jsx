@@ -20,7 +20,7 @@ import {
  * o eixo do tempo vira ordem de leitura: some a precisão de posição, mas cada
  * evento ganha nome, horário e responsável legíveis sem zoom.
  */
-export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, modoCor = "categoria" }) {
+export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, modoCor = "categoria", cores }) {
   const hoje = chaveDia(new Date());
   const comEventos = dias.map((dia) => {
     const inicio = inicioDoDia(dia);
@@ -66,7 +66,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, modoCor = 
             </header>
             <ul className="divide-y divide-line">
               {itens.map((evento) => {
-                const cor = corDoEvento(evento, modoCor);
+                const cor = corDoEvento(evento, modoCor, cores);
                 return (
                   <li key={`${evento.sourceType}-${evento.id}`}>
                     <button
@@ -95,7 +95,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, modoCor = 
                         <span
                           title={evento.ownerName}
                           className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-[9px] font-bold text-white"
-                          style={{ backgroundColor: corDaPessoa(idDoResponsavel(evento)) }}
+                          style={{ backgroundColor: corDaPessoa(idDoResponsavel(evento), cores) }}
                         >
                           {iniciaisDoNome(evento.ownerName)}
                         </span>

@@ -353,7 +353,7 @@ async function criarNegocioNovo(dados = {}) {
 
 async function criarTarefaNova(dados = {}) {
   const tarefa = criarTarefa(dados);
-  await exigirContato(tarefa.contactId);
+  if (tarefa.contactId) await exigirContato(tarefa.contactId);
   if (tarefa.dealId !== null) await exigirNegocio(tarefa.dealId);
   validarTarefa(tarefa);
   const salvo = await db.gravar(LOJAS.tarefas, tarefa);

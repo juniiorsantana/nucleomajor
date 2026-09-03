@@ -244,12 +244,17 @@ const agendaDev = [
     lembretes: [30],
   },
   {
+    // Tarefa de DUAS pessoas: ela tem de aparecer na faixa de cada uma na
+    // visão por pessoa, e uma vez só no mês e na lista. Sem um caso
+    // compartilhado na bancada, a diferença entre as duas leituras não
+    // aparece em lugar nenhum.
     id: "dev-tarefa-agenda",
     sourceType: "task",
     taskId: "dev-tarefa-agenda",
     organizationId: "dev-org",
     ownerId: "dev-user",
     ownerName: "Usuário de desenvolvimento",
+    assigneeIds: ["dev-user", "dev-atendente"],
     titulo: "Retornar para Mariana Costa",
     descricao: "",
     inicio: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -495,7 +500,7 @@ const operacoesBancada = {
     papel: "owner",
     calendar: { organizationId: "dev-org", displayName: "Agenda compartilhada", timezone: "America/Sao_Paulo", dayStart: "05:00:00", dayEnd: "23:59:00", googleEnabled: false },
     preference: preferenciasAgendaDev,
-    members: membrosDev.filter((m) => m.status === "active").map((m) => ({ id: m.user_id, name: m.profile.full_name, role: m.role, responsibility: m.responsibility, phoneVerified: m.user_id === "dev-user" ? preferenciasAgendaDev.phoneVerified : null })),
+    members: membrosDev.filter((m) => m.status === "active").map((m) => ({ id: m.user_id, name: m.profile.full_name, displayName: m.profile.display_name, color: m.profile.color, role: m.role, responsibility: m.responsibility, phoneVerified: m.user_id === "dev-user" ? preferenciasAgendaDev.phoneVerified : null })),
     categories: categoriasAgendaDev.filter((categoria) => categoria.active),
   }),
   "agenda.listar": async ({ de, ate }) => {
