@@ -122,7 +122,38 @@ let membrosDev = [
     profile: { id: "dev-atendente", full_name: "Bruno Atendente", display_name: "", color: null, avatar_path: null },
   },
 ];
-let convitesDev = [];
+// Um convite pendente semeado: na lista única da Equipe ele é uma linha como
+// as outras, e sem ele a bancada nunca mostra esse estado.
+let convitesDev = [
+  {
+    invite_id: "dev-convite-1",
+    invited_email: "novo.atendente@emyleads.dev",
+    invited_role: "member",
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    sent_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    accepted_at: null,
+    revoked_at: null,
+    delivery_status: "sent",
+    delivery_error: null,
+  },
+];
+
+// Quem já é operador do WhatsApp principal. Só o dono começa vinculado: a
+// Equipe precisa exibir os dois estados da coluna lado a lado, senão o
+// "não vinculado" nunca aparece na bancada.
+let operadoresDev = [
+  {
+    id: "dev-operador-1",
+    user_id: "dev-user",
+    connection_id: "dev-conexao-comercial",
+    organization_id: "dev-org",
+    status: "active",
+    operator_name: "Usuário de desenvolvimento",
+    phone_e164: "+5565999994470",
+    verified_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
 let organizacaoDev = { id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada" };
 
 const customerProfileId = "dev-assistente-clientes";
@@ -350,6 +381,39 @@ const operacoesBancada = {
   "organizacoes.atualizarResponsabilidade": async ({ usuarioId, responsabilidade }) => {
     membrosDev = membrosDev.map((m) => m.user_id === usuarioId ? { ...m, responsibility: String(responsabilidade || "").trim() } : m);
     return membrosDev;
+  },
+  "organizacoes.operadores": async ({ connectionId }) => (
+    operadoresDev.filter((item) => item.connection_id === connectionId)
+  ),
+  // A verificação de verdade é assíncrona: a VPS envia o código e a pessoa
+  // responde do próprio WhatsApp. A bancada devolve o comando pronto e só
+  // vincula na consulta seguinte, para a linha exercitar o estado
+  // intermediário — "código enviado" — em vez de pular direto para o verde.
+  "organizacoes.iniciarVerificacaoOperador": async ({ connectionId, usuarioId, telefone }) => {
+    const alvo = membrosDev.find((m) => m.user_id === usuarioId);
+    if (!alvo) throw new Error("member not found");
+    const comandoId = `dev-comando-${Date.now()}`;
+    window.setTimeout(() => {
+      operadoresDev = [
+        ...operadoresDev.filter((item) => item.user_id !== usuarioId),
+        {
+          id: `dev-operador-${Date.now()}`,
+          user_id: usuarioId,
+          connection_id: connectionId,
+          organization_id: "dev-org",
+          status: "active",
+          operator_name: alvo.profile.full_name,
+          phone_e164: telefone,
+          verified_at: new Date().toISOString(),
+        },
+      ];
+    }, 8000);
+    return { command_id: comandoId };
+  },
+  "organizacoes.statusVerificacaoOperador": async () => ({ status: "completed" }),
+  "organizacoes.revogarOperador": async ({ operadorId }) => {
+    operadoresDev = operadoresDev.filter((item) => item.id !== operadorId);
+    return { revoked: true, operadorId };
   },
   "organizacoes.robos": async () => [{
     connection_id: "dev-conexao-comercial",
