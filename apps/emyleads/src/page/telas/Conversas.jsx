@@ -116,6 +116,10 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
   const [fichaAberta, setFichaAberta] = useState(true);
 
   const fimDaConversa = useRef(null);
+  const rolagem = useRef(null);
+  // Quem estava no fim ANTES da atualização é quem quer ser levado ao fim
+  // depois dela. Medir depois não serve: o conteúdo novo já mudou a altura.
+  const estavaNoFim = useRef(true);
 
   const termo = busca.trim().toLowerCase();
   const visiveis = useMemo(
@@ -126,9 +130,27 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
 
   // A conversa nasce no fim, e não no começo: o que importa é a última
   // mensagem, não a primeira.
+  //
+  // Ao TROCAR de conversa, sempre no fim. Numa conversa já aberta, só se quem
+  // está lendo já estava no fim — desde que a conversa aberta se atualiza
+  // sozinha, rolar sempre puxaria a tela de quem foi procurar o que o cliente
+  // disse ontem, justamente enquanto ele procura.
   useEffect(() => {
+    estavaNoFim.current = true;
     fimDaConversa.current?.scrollIntoView({ block: "end" });
+  }, [atual]);
+
+  useEffect(() => {
+    if (estavaNoFim.current) fimDaConversa.current?.scrollIntoView({ block: "end" });
   }, [mensagens]);
+
+  const aoRolar = () => {
+    const caixa = rolagem.current;
+    if (!caixa) return;
+    // 40px de folga: rolagem com inércia raramente para no pixel exato, e sem
+    // a folga a conversa deixaria de acompanhar por causa de dois pixels.
+    estavaNoFim.current = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 40;
+  };
 
   const contato = dados.contatos.find((c) => c.id === conversa?.contactId) || null;
   const negocio = useMemo(() => {
@@ -341,6 +363,8 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
             {/* O fundo pontilhado é o do desenho, feito com o token de linha —
                 assim ele acompanha o tema escuro em vez de ficar claro nele. */}
             <div
+              ref={rolagem}
+              onScroll={aoRolar}
               className="scrollbar-fina min-h-0 flex-1 overflow-y-auto bg-surface px-4 pb-4 pt-3"
               style={{
                 backgroundImage: "radial-gradient(var(--el-line) 1px, transparent 1px)",
@@ -352,7 +376,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
                 if (m.tipo === "data") return <DivisorData key={chave} texto={m.texto} />;
                 if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
                 if (m.tipo === "sistema")
-                  return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} />;
+                  return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
                 return <Bolha key={chave} mensagem={m} nomeProprio={eu} />;
               })}
               <div ref={fimDaConversa} />

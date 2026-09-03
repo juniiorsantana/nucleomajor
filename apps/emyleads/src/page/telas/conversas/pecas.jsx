@@ -142,13 +142,17 @@ export function FaixaNaoLidas({ texto }) {
   );
 }
 
-export function PilulaSistema({ dono, texto }) {
+export function PilulaSistema({ dono, texto, hora }) {
   const Icone = ICONE_DO_DONO[dono] || Bot;
   return (
     <div className="mb-1 mt-3 flex justify-center">
       <span className="inline-flex max-w-[80%] items-center gap-1.5 rounded-full border border-line bg-bg px-2.5 py-1 text-[10.5px] text-sub">
         <Icone size={12} strokeWidth={2} className={`flex-none ${TEXTO_DO_DONO[dono] || "text-sub"}`} />
         {texto}
+        {/* A hora fica ao lado, e não em linha própria: a pílula existe para
+            ser lida de relance no meio da conversa, e duas linhas a
+            transformariam num aviso. */}
+        {hora && <span className="flex-none tabular-nums text-faint">· {hora}</span>}
       </span>
     </div>
   );

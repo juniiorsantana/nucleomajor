@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../data/client";
 import { textoDoMotivoDeEnvio } from "../../../ui/atendimento";
+import { mesmaConversa, textoDaTransferencia } from "./conversasUtils";
 
 const PLATAFORMA_WEB =
   typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
@@ -19,6 +20,9 @@ const RECARGA_MS = 20000;
  */
 const ESPERA_DO_DESFECHO_MS = 2000;
 const TENTATIVAS_DO_DESFECHO = 20;
+
+const horaDeAgora = () =>
+  new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 /**
  * O estado da tela de Conversas.
@@ -42,6 +46,16 @@ export function useConversas(organizacaoId) {
   const [equipe, setEquipe] = useState([]);
   // As mensagens que saíram daqui e ainda não voltaram do aparelho.
   const [pendentes, setPendentes] = useState([]);
+  /**
+   * As transferências feitas nesta sessão, como pílula dentro da conversa.
+   *
+   * Vive em memória, e some ao recarregar a página. É feedback do que VOCÊ
+   * acabou de fazer, e não histórico da conversa: guardar histórico de
+   * transferência de forma durável exige registrá-lo na VPS, que é onde a
+   * decisão mora — o árbitro hoje sobrescreve o dono da sessão em vez de
+   * versioná-lo, então nem ele sabe dizer o que aconteceu antes.
+   */
+  const [eventos, setEventos] = useState([]);
 
   // Qual conversa está aberta AGORA, para o acompanhamento que roda solto.
   // Sem isto, um comando disparado numa conversa recarregaria as mensagens por
@@ -105,6 +119,27 @@ export function useConversas(organizacaoId) {
     };
   }, [organizacaoId]);
 
+  /**
+   * Recarrega a conversa aberta.
+   *
+   * Existe como função — e não só dentro do efeito que reage a `atual` — porque
+   * era exatamente essa a falta: o realtime e o timer recarregavam só a LISTA.
+   * A lateral mostrava o tique e o dono novo, e a conversa aberta ficava
+   * congelada até a pessoa sair dela e voltar. Quem abriu a conversa é
+   * justamente quem mais precisa vê-la mudar.
+   *
+   * Só escreve no estado quando o conteúdo mudou de verdade. Sem essa guarda,
+   * uma recarga a cada 20 segundos criaria um array novo toda vez, e o efeito
+   * que rola a conversa até o fim puxaria a tela de quem está lendo o
+   * histórico.
+   */
+  const carregarMensagens = useCallback(async (id) => {
+    if (!id) return;
+    const lista = await api.conversas.mensagens({ id });
+    if (id !== atualRef.current) return;
+    setMensagens((antes) => (mesmaConversa(antes, lista) ? antes : lista));
+  }, []);
+
   useEffect(() => {
     if (!atual) {
       setMensagens([]);
@@ -113,9 +148,8 @@ export function useConversas(organizacaoId) {
     let vivo = true;
     (async () => {
       try {
-        const lista = await api.conversas.mensagens({ id: atual });
+        await carregarMensagens(atual);
         if (!vivo) return;
-        setMensagens(lista);
         // Quem decide se a conversa ficou lida é quem entregou as mensagens, e
         // não o clique: na bancada abrir zera o contador, e no portal ele
         // continua sendo o que a VPS reportou — marcar como lida ainda não
@@ -129,19 +163,24 @@ export function useConversas(organizacaoId) {
     return () => {
       vivo = false;
     };
-  }, [atual, carregarLista]);
+  }, [atual, carregarLista, carregarMensagens]);
 
   /**
    * O aviso do Supabase chega pelo tópico `conversas`, emitido pelo gatilho em
-   * `whatsapp_conversations` — a tabela da lista. Mensagem nova mexe a lista, e
-   * é por isso que a lista é o que se recarrega aqui: quem está com a conversa
-   * aberta vê a bolha nova no ciclo seguinte, e quem não está vê a linha subir.
+   * `whatsapp_conversations` — a tabela da lista.
+   *
+   * A lista é o único gatilho, e ainda assim serve para os dois lados: mensagem
+   * nova mexe a prévia da conversa, e trocar quem atende mexe o dono. Nos dois
+   * casos a linha é reescrita, o aviso sai, e aqui recarregamos TAMBÉM a
+   * conversa aberta. É por isso que o tique e a faixa agora aparecem sozinhos,
+   * em vez de esperarem alguém sair da conversa e voltar.
    */
   useEffect(() => {
     if (!PLATAFORMA_WEB || !organizacaoId) return undefined;
     const aoMudar = (evento) => {
       if (evento.detail?.organizationId === organizacaoId && evento.detail?.topic === "conversas") {
         carregarLista().catch(() => {});
+        carregarMensagens(atualRef.current).catch(() => {});
       }
     };
     window.addEventListener("emyleads:connections-changed", aoMudar);
@@ -149,15 +188,16 @@ export function useConversas(organizacaoId) {
       // A recarga periódica permanece como fallback.
     });
     return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
-  }, [organizacaoId, carregarLista]);
+  }, [organizacaoId, carregarLista, carregarMensagens]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       carregarLista().catch(() => {});
+      carregarMensagens(atualRef.current).catch(() => {});
     }, RECARGA_MS);
     return () => window.clearInterval(timer);
-  }, [carregarLista]);
+  }, [carregarLista, carregarMensagens]);
 
   /**
    * Acompanha um comando até ele terminar.
@@ -201,10 +241,7 @@ export function useConversas(organizacaoId) {
       // caixa esvazia e a conversa fica igual por quinze segundos — quem
       // escreveu não tem como saber se o clique pegou, e escreve de novo.
       const chave = `pendente-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const hora = new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const hora = horaDeAgora();
       const conversa = atual;
       setPendentes((antes) => antes.concat([{ chave, conversa, texto: limpo, hora }]));
 
@@ -233,15 +270,13 @@ export function useConversas(organizacaoId) {
       (async () => {
         const desfecho = await acompanhar(comando?.comandoId);
         if (desfecho.situacao === "completed") {
-          // A bolha de verdade chega pela sincronia. Recarregar aqui encurta a
-          // espera; a pendente sai quando a real aparecer.
+          // O Bridge confirmou o envio, mas a bolha de verdade só existe quando
+          // a sincronia a trouxer de volta do aparelho — e isso leva mais um
+          // ciclo. Recarregar uma vez aqui quase nunca alcança; quem troca o
+          // relógio pelo tique é o realtime, que dispara quando a linha da
+          // conversa muda. Esta recarga só encurta o caminho quando dá.
           await carregarLista().catch(() => {});
-          if (conversa === atualRef.current) {
-            await api.conversas
-              .mensagens({ id: conversa })
-              .then(setMensagens)
-              .catch(() => {});
-          }
+          await carregarMensagens(conversa).catch(() => {});
           return;
         }
         if (desfecho.situacao === "pending") return;
@@ -249,7 +284,7 @@ export function useConversas(organizacaoId) {
         setAviso(textoDoMotivoDeEnvio(desfecho.motivo));
       })();
     },
-    [atual, acompanhar, carregarLista]
+    [atual, acompanhar, carregarLista, carregarMensagens]
   );
 
   const trocarDono = useCallback(
@@ -257,24 +292,44 @@ export function useConversas(organizacaoId) {
       if (!atual) return;
       setAviso("");
       const conversa = atual;
+      const nome = equipe.find((p) => p.id === atendenteId)?.nome || "";
+      const chave = `evento-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      // A pílula aparece na hora, e não quando a VPS confirmar. Trocar quem
+      // atende é a ação em que a demora mais incomoda: sem sinal nenhum, a
+      // pessoa clica de novo achando que o clique não pegou.
+      setEventos((antes) =>
+        antes.concat([
+          {
+            chave,
+            conversa,
+            dono,
+            texto: textoDaTransferencia(dono, nome),
+            hora: horaDeAgora(),
+          },
+        ])
+      );
+
       try {
         const comando = await api.conversas.trocarDono({ id: conversa, dono, atendenteId });
         const desfecho = await acompanhar(comando?.comandoId);
         if (desfecho.situacao !== "completed" && desfecho.situacao !== "pending") {
           setAviso(textoDoMotivoDeEnvio(desfecho.motivo));
+          // Não aconteceu: a pílula sai, senão a conversa afirmaria uma
+          // transferência que o árbitro recusou.
+          setEventos((antes) => antes.filter((e) => e.chave !== chave));
         }
         // Recarrega em qualquer desfecho: quem manda em quem atende é o árbitro
         // da VPS, e a lista mostra o que ele respondeu — inclusive quando a
         // resposta foi "não mudei nada".
         await carregarLista();
-        if (conversa === atualRef.current) {
-          setMensagens(await api.conversas.mensagens({ id: conversa }));
-        }
+        await carregarMensagens(conversa);
       } catch (falha) {
+        setEventos((antes) => antes.filter((e) => e.chave !== chave));
         setAviso(falha.message);
       }
     },
-    [atual, acompanhar, carregarLista]
+    [atual, equipe, acompanhar, carregarLista, carregarMensagens]
   );
 
   /**
@@ -314,8 +369,14 @@ export function useConversas(organizacaoId) {
         motivo: p.motivo || "",
         lido: false,
       }));
-    return provisorias.length ? mensagens.concat(provisorias) : mensagens;
-  }, [mensagens, pendentes, atual]);
+    const pilulas = eventos
+      .filter((e) => e.conversa === atual)
+      .map((e) => ({ tipo: "sistema", dono: e.dono, texto: e.texto, hora: e.hora }));
+    if (!provisorias.length && !pilulas.length) return mensagens;
+    // As pílulas antes das bolhas pendentes: quem transfere e escreve em
+    // seguida fez as duas coisas nessa ordem.
+    return mensagens.concat(pilulas, provisorias);
+  }, [mensagens, pendentes, eventos, atual]);
 
   const guardarBaralho = useCallback(async (id, baralho) => {
     await api.conversas.guardarBaralho({ id, baralho }).catch(() => {});
