@@ -8,6 +8,9 @@ import PrimeiroAcesso from "./conhecimento/PrimeiroAcesso";
 import ResumoConhecimento from "./conhecimento/ResumoConhecimento";
 import { filtrar, resumo, situacaoDoDocumento } from "./conhecimento/conhecimentoDados";
 import { exigeColecaoExterna, motivoParaNaoPublicar } from "./conhecimento/conhecimentoRegras";
+import { mensagemDeGravacao } from "./conhecimento/erroDeGravacao";
+import { limparRascunho } from "./conhecimento/rascunhoLocal";
+import { useConfirmacao } from "./conhecimento/Confirmacao";
 
 export default function Conhecimento({ sessao, inteligencia = null, embedded = false }) {
   const [documentos, setDocumentos] = useState([]);
@@ -25,6 +28,15 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   const [rascunhoAlterado, setRascunhoAlterado] = useState(false);
   const [inteligenciaLocal, setInteligenciaLocal] = useState(null);
   const [erro, setErro] = useState("");
+  // A falha de gravação viaja separada do `erro` da página porque o assistente
+  // é um overlay: o banner do corpo fica ATRÁS dele. Antes disto, publicar com
+  // erro não mostrava nada — o modal seguia aberto, na mesma etapa, e o único
+  // sinal era "Salvando…" voltar a "Publicar". Era isso que fazia a pessoa
+  // clicar de novo, e era isso que aparecia como retentativa na aba de rede.
+  // `sinal` existe para o mesmo erro duas vezes seguidas reposicionar o foco.
+  const [falha, setFalha] = useState(null);
+
+  const [dialogoDeConfirmacao, confirmar] = useConfirmacao();
 
   const dadosInteligencia = inteligencia || inteligenciaLocal;
   const papel = sessao?.organizacaoAtual?.papel;
@@ -79,10 +91,15 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   const impedimento = motivoParaNaoPublicar(rascunho, dadosInteligencia?.collections);
   const exigeColecao = exigeColecaoExterna(rascunho);
 
-  const podeDescartar = () => !rascunhoAlterado || confirm("Descartar as alterações que ainda não foram salvas?");
+  const podeDescartar = async () => rascunhoAlterado === false || confirmar({
+    titulo: "Descartar as alterações?",
+    mensagem: "O que você mudou neste documento e ainda não salvou será perdido.",
+    acao: "Descartar",
+    destrutivo: true,
+  });
 
-  const abrir = (documento, { forcar = false } = {}) => {
-    if (!forcar && !podeDescartar()) return;
+  const abrir = async (documento, { forcar = false } = {}) => {
+    if (!forcar && !(await podeDescartar())) return;
     const colecoesIds = Array.isArray(documento.colecoesIds)
       ? documento.colecoesIds
       : (dadosInteligencia?.documentCollections || [])
@@ -92,16 +109,18 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
     setRascunhoAlterado(false);
     setSalvoEm(documento.atualizadoEm || null);
     setVersoes(null);
-    setErro("");
+    setErro(""); setFalha(null);
   };
 
-  const criar = (modeloId = "") => {
-    if (!podeDescartar()) return;
-    setAssistente(modeloId); setRascunho(null); setRascunhoAlterado(false); setVersoes(null); setErro("");
+  const criar = async (modeloId = "") => {
+    if (!(await podeDescartar())) return;
+    setAssistente(modeloId); setRascunho(null); setRascunhoAlterado(false); setVersoes(null);
+    setErro(""); setFalha(null);
   };
-  const voltar = () => {
-    if (!podeDescartar()) return;
-    setRascunho(null); setRascunhoAlterado(false); setSalvoEm(null); setVersoes(null); setErro("");
+  const voltar = async () => {
+    if (!(await podeDescartar())) return;
+    setRascunho(null); setRascunhoAlterado(false); setSalvoEm(null); setVersoes(null);
+    setErro(""); setFalha(null);
   };
 
   const mudarRascunho = (proximo) => {
@@ -109,14 +128,24 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
     setRascunhoAlterado(true);
   };
 
+  /** Registra a falha nos dois lugares: banner da página e banner do modal. */
+  const registrarFalha = (mensagem, campo = null) => {
+    setErro(mensagem);
+    setFalha({ mensagem, campo, sinal: Date.now() });
+  };
+
   /** A única porta de gravação: o editor e o assistente passam os dois por aqui. */
   const persistir = async (documento, publicar) => {
     const caminho = String(documento.caminho || "").trim();
-    if (!String(documento.titulo || "").trim() || !caminho) {
-      setErro("Informe o título e o caminho do documento.");
+    const semTitulo = !String(documento.titulo || "").trim();
+    if (semTitulo || !caminho) {
+      registrarFalha(
+        semTitulo ? "Dê um título ao documento." : "Informe o caminho do arquivo.",
+        semTitulo ? "titulo" : "caminho",
+      );
       return;
     }
-    setSalvando(true); setErro("");
+    setSalvando(true); setErro(""); setFalha(null);
     try {
       const salvo = await api.conhecimento.salvar({
         id: documento.id,
@@ -128,18 +157,24 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
         colecoesIds: documento.colecoesIds,
         publicado: publicar,
       });
+      // O documento existe no Supabase: o rascunho local perdeu a função e
+      // continuar oferecendo "retomar" faria a pessoa recriar o que salvou.
+      limparRascunho();
       await carregar();
       setAssistente(null);
       abrir({ ...salvo, colecoesIds: documento.colecoesIds }, { forcar: true });
       setSalvoEm(salvo.atualizadoEm || new Date().toISOString());
-    } catch (e) { setErro(e.message); }
+    } catch (e) {
+      const { mensagem, campo } = mensagemDeGravacao(e);
+      registrarFalha(mensagem, campo);
+    }
     finally { setSalvando(false); }
   };
 
   const salvar = (publicar) => {
     // A coleção externa só é exigida para publicar. Guardar rascunho de
     // conteúdo de cliente sem coleção é legítimo: ele ainda não está no ar.
-    if (publicar && impedimento) { setErro(impedimento); return; }
+    if (publicar && impedimento) { registrarFalha(impedimento, "colecoes"); return; }
     return persistir(rascunho, publicar);
   };
 
@@ -150,7 +185,14 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
   };
 
   const arquivar = async () => {
-    if (!rascunho?.id || !confirm(`Arquivar “${rascunho.titulo}”?`)) return;
+    if (!rascunho?.id) return;
+    const confirmado = await confirmar({
+      titulo: `Arquivar “${rascunho.titulo}”?`,
+      mensagem: "Ele sai das buscas dos assistentes. O histórico de versões continua guardado.",
+      acao: "Arquivar",
+      destrutivo: true,
+    });
+    if (!confirmado) return;
     try { await api.conhecimento.arquivar({ id: rascunho.id }); await carregar(); voltar(); }
     catch (e) { setErro(e.message); }
   };
@@ -258,8 +300,10 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
         <AssistenteConhecimento
           modeloId={assistente || null}
           inteligencia={dadosInteligencia}
+          documentos={documentos}
           salvando={salvando}
-          aoFechar={() => setAssistente(null)}
+          falha={falha}
+          aoFechar={() => { setAssistente(null); setFalha(null); }}
           aoSalvar={persistir}
           somentePessoal={!ehAdmin}
         />
@@ -281,7 +325,17 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
                   <div className="flex items-center gap-2">
                     <strong className="text-[12.5px] text-fg">Versão {versao.version}</strong>
                     <span className="text-[10.5px] text-faint">{new Date(versao.created_at).toLocaleString("pt-BR")}</span>
-                    <span className="ml-auto text-[10.5px] text-faint">
+                    {/* `knowledge_document_versions` guarda `audience` e
+                        `changed_by` por versão desde a fase H, então já existe
+                        registro de quem tornou um documento externo — e a tela
+                        não mostrava. Uma coluna transforma um dado persistido
+                        em governança que alguém consegue auditar. */}
+                    <span
+                      className={`ml-auto text-[10.5px] ${versao.audience === "external" ? "font-semibold text-warning" : "text-faint"}`}
+                    >
+                      {versao.audience === "external" ? "clientes" : "equipe"}
+                    </span>
+                    <span className="text-[10.5px] text-faint">
                       {situacaoDoDocumento({ publicadoEm: versao.published_at }) === "publicado" ? "publicado" : "rascunho"}
                     </span>
                   </div>
@@ -293,6 +347,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
           </section>
         </div>
       )}
+      {dialogoDeConfirmacao}
     </div>
   );
 }

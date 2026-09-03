@@ -11,6 +11,7 @@
  * nada.
  */
 
+import { criarOperacoesConversas } from "./conversasMock.js";
 import { gerarSeed } from "../domain/seed.js";
 import {
   criarContato,
@@ -1198,4 +1199,9 @@ export const operacoes = {
   "dados.importar": importarTudo,
   "dados.apagar": apagarTudo,
   "dados.semear": semear,
+
+  // Conversas ainda não têm de onde vir: o histórico é de demonstração e mora
+  // em `conversasMock.js`, que sai inteiro no dia em que existir a rota de
+  // mensagens. Os contatos, esses, são os de verdade.
+  ...criarOperacoesConversas({ listarContatos: () => db.todos(LOJAS.contatos) }),
 };

@@ -120,6 +120,47 @@ export function fmtInteracao(ts, agora = Date.now()) {
   });
 }
 
+/**
+ * A hora na linha de uma conversa: "09:41", "ontem", "seg", "12/05".
+ *
+ * Mais curta que `fmtInteracao` porque disputa a linha com o nome e com o
+ * contador de não lidas em 336px — "Hoje, 09:41" empurraria o nome para as
+ * reticências. A escala é a mesma que o WhatsApp usa, e por isso não precisa
+ * ser explicada a ninguém.
+ */
+export function fmtHoraDaLista(entrada, agora = Date.now()) {
+  const ts = entrada == null ? null : instante(entrada);
+  if (ts == null) return "";
+  const d = new Date(ts);
+  const hoje = new Date(agora);
+  if (mesmoDia(hoje, d)) {
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (mesmoDia(new Date(agora - DIA), d)) return "ontem";
+  if (agora - ts < 7 * DIA) {
+    // Sem o ponto final que o pt-BR põe em "seg.": a coluna é estreita e o
+    // ponto não distingue nada.
+    return d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+  }
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+/**
+ * O divisor que separa os dias dentro da conversa: "HOJE", "ONTEM", "12/05".
+ *
+ * Maiúsculas porque na tela ele é rótulo, não frase — o estilo da pílula já
+ * pressupõe isso. Sem o ano porque `fmtData` não o traz e o espelho guarda 90
+ * dias: no máximo a janela atravessa a virada, e aí o dia e o mês bastam.
+ */
+export function fmtDiaDaConversa(entrada, agora = Date.now()) {
+  const ts = entrada == null ? null : instante(entrada);
+  if (ts == null) return "";
+  const d = new Date(ts);
+  if (mesmoDia(new Date(agora), d)) return "HOJE";
+  if (mesmoDia(new Date(agora - DIA), d)) return "ONTEM";
+  return fmtData(ts);
+}
+
 export const TONS = {
   faint: "text-faint",
   sub: "text-sub",

@@ -9,6 +9,7 @@ import {
   estadoFoiAlterado,
   motivoParaNaoAvancar,
   motivoParaNaoPublicarAgora,
+  sincronizarCaminho,
   temConteudo,
   voltar,
 } from "./assistenteEstado";
@@ -18,12 +19,21 @@ const COLECOES = [
   { id: "col-int", name: "Comercial", audience: "internal", scope_type: "organization" },
 ];
 
+/**
+ * Um estado pronto para a revisão, como a tela o entrega.
+ *
+ * Passa por `sincronizarCaminho` porque o componente também passa: `caminho`
+ * não nasce mais do modelo, é derivado do título. O patch vem depois da
+ * sincronização para um teste poder fixar um caminho à mão.
+ */
 const pronto = (patch = {}) => ({
-  ...estadoInicial("empresa"),
-  etapa: 5,
-  caminhoDeEscrita: "guiado",
-  blocos: [{ rotulo: "Quem é a empresa", texto: "Uma agência de Cuiabá." }],
-  publico: "equipe",
+  ...sincronizarCaminho({
+    ...estadoInicial("empresa"),
+    etapa: 4,
+    caminhoDeEscrita: "guiado",
+    blocos: [{ rotulo: "Quem é a empresa", texto: "Uma agência de Cuiabá." }],
+    publico: "equipe",
+  }),
   ...patch,
 });
 
@@ -91,13 +101,16 @@ describe("motivoParaNaoAvancar", () => {
     expect(motivoParaNaoAvancar({ ...pronto(), etapa: 3 })).toBeNull();
   });
 
-  it("etapa 4 só cobra escolha quando a pessoa saiu de “em qualquer lugar”", () => {
-    expect(motivoParaNaoAvancar({ ...pronto(), etapa: 4, ondeTodos: true })).toBeNull();
-    expect(motivoParaNaoAvancar({ ...pronto(), etapa: 4, ondeTodos: false, colecoesIds: [] })).toMatch(/ao menos um lugar/i);
-    expect(motivoParaNaoAvancar({ ...pronto(), etapa: 4, ondeTodos: false, colecoesIds: ["col-int"] })).toBeNull();
+  it("etapa 3 não trava conteúdo de cliente sem coleção — rascunho é legítimo", () => {
+    // `nucleo_knowledge_save` grava rascunho externo sem coleção; só publicar
+    // exige. A versão de cinco etapas travava aqui, e por isso esse caminho
+    // nunca era alcançável pelo assistente.
+    const semColecao = { ...pronto(), etapa: 3, publico: "clientes", ondeTodos: false, colecoesIds: [] };
+    expect(motivoParaNaoAvancar(semColecao)).toBeNull();
+    expect(motivoParaNaoPublicarAgora(semColecao, COLECOES)).toMatch(/coleção externa/i);
   });
 
-  it("etapa 5 recusa documento vazio mesmo com título preenchido", () => {
+  it("etapa 4 recusa documento vazio mesmo com título preenchido", () => {
     // Só o `# Título` não é conteúdo: o documento entraria na busca e não
     // teria o que responder.
     const vazio = { ...pronto(), blocos: [{ rotulo: "Quem é a empresa", texto: "" }] };
@@ -140,6 +153,8 @@ describe("documentoDoEstado", () => {
   });
 
   it("acrescenta .md ao caminho quando falta", () => {
+    // Rede de segurança: `sincronizarCaminho` já entrega com extensão, mas um
+    // caminho digitado à mão no campo avançado pode chegar sem ela.
     expect(documentoDoEstado(pronto({ caminho: "empresa/sobre" })).caminho).toBe("empresa/sobre.md");
     expect(documentoDoEstado(pronto({ caminho: "empresa/sobre.md" })).caminho).toBe("empresa/sobre.md");
   });
@@ -195,7 +210,7 @@ describe("motivoParaNaoPublicarAgora", () => {
     expect(motivoParaNaoPublicarAgora(pronto({ publico: "equipe" }), COLECOES)).toBeNull();
   });
 
-  it("repete a pendência da etapa 5 antes de falar de coleção", () => {
+  it("repete a pendência da revisão antes de falar de coleção", () => {
     // Documento vazio e sem coleção: a frase útil é a do vazio, não a da
     // coleção — resolver a coleção não faria o botão liberar.
     const estado = pronto({ publico: "clientes", blocos: [{ rotulo: "X", texto: "" }] });
@@ -217,6 +232,42 @@ describe("escolherModelo", () => {
 
   it("navegar não passa da primeira nem da última etapa", () => {
     expect(voltar({ ...estadoInicial(), etapa: 1 }).etapa).toBe(1);
-    expect(avancar({ ...estadoInicial(), etapa: 5 }).etapa).toBe(5);
+    expect(avancar({ ...estadoInicial(), etapa: 4 }).etapa).toBe(4);
+  });
+});
+
+describe("sincronizarCaminho", () => {
+  it("deriva o caminho do título enquanto ninguém o escolheu à mão", () => {
+    const estado = sincronizarCaminho(estadoInicial("empresa"));
+    expect(estado.caminho).toBe("empresa/sobre-a-empresa.md");
+  });
+
+  it("acompanha a troca de título", () => {
+    const base = sincronizarCaminho(estadoInicial("empresa"));
+    const renomeado = sincronizarCaminho({ ...base, titulo: "Quem somos" });
+    expect(renomeado.caminho).toBe("empresa/quem-somos.md");
+  });
+
+  it("acompanha a troca de assunto, que muda a pasta", () => {
+    const empresa = sincronizarCaminho(estadoInicial("empresa"));
+    const comercial = sincronizarCaminho(escolherModelo(empresa, "servicos"));
+    expect(comercial.caminho).toBe("comercial/produtos-e-servicos.md");
+  });
+
+  it("desvia dos caminhos já ocupados", () => {
+    const estado = sincronizarCaminho(estadoInicial("empresa"), ["empresa/sobre-a-empresa.md"]);
+    expect(estado.caminho).toBe("empresa/sobre-a-empresa-2.md");
+  });
+
+  it("uma escolha manual não é desfeita por uma troca de título", () => {
+    // Sem isto, quem abre o campo avançado, digita um caminho e depois corrige
+    // uma vírgula do título perde a escolha sem nada avisar.
+    const manual = { ...estadoInicial("empresa"), caminho: "meu/caminho.md", caminhoManual: true };
+    expect(sincronizarCaminho({ ...manual, titulo: "Outro título" }).caminho).toBe("meu/caminho.md");
+  });
+
+  it("devolve o mesmo objeto quando nada muda, para não disparar render à toa", () => {
+    const estado = sincronizarCaminho(estadoInicial("empresa"));
+    expect(sincronizarCaminho(estado)).toBe(estado);
   });
 });

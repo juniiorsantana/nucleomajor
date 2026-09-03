@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, Archive, ArrowLeft, Clock3, Download, FileUp, Loader2,
+  AlertTriangle, Archive, ArrowLeft, ChevronRight, Clock3, Download, FileUp, Loader2,
   Plus, Save, Search, Send, Trash2,
 } from "lucide-react";
 import { api } from "../../../data/client";
@@ -38,6 +38,7 @@ export default function EditorDocumento({
   documentos = [], aoAbrir,
 }) {
   const [modo, setModo] = useState("simples");
+  const [avancado, setAvancado] = useState(false);
   const [confirmandoExterno, setConfirmandoExterno] = useState(false);
   const [reescritaAceita, setReescritaAceita] = useState(false);
   const [pergunta, setPergunta] = useState("");
@@ -212,13 +213,36 @@ export default function EditorDocumento({
             placeholder="Título do documento"
             className="w-full bg-transparent text-[22px] font-semibold tracking-tight text-fg outline-none placeholder:text-faint"
           />
-          <input
-            value={rascunho.caminho}
-            readOnly={!podeEscrever}
-            onChange={(e) => aoMudar({ ...rascunho, caminho: e.target.value })}
-            placeholder="processos/comercial.md"
-            className="mt-1.5 w-full rounded-[8px] border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
-          />
+          {/* O caminho do arquivo é detalhe de armazenamento, não de conteúdo:
+              sai da linha de cima, onde competia com o título, e vira uma
+              gaveta. Quem precisa dele continua alcançando em um clique. */}
+          <div className="mt-1.5">
+            <button
+              type="button"
+              onClick={() => setAvancado((atual) => !atual)}
+              aria-expanded={avancado}
+              className="flex w-full items-center gap-1.5 text-[10.5px] font-semibold text-faint hover:text-sub"
+            >
+              <ChevronRight size={13} className={avancado ? "rotate-90" : ""} />
+              Avançado
+              <span className="ml-auto truncate font-mono text-[10px] font-normal">{rascunho.caminho}</span>
+            </button>
+            {avancado && (
+              <label className="mt-2 block">
+                <span className="text-[10.5px] text-sub">Caminho do arquivo</span>
+                <input
+                  value={rascunho.caminho}
+                  readOnly={!podeEscrever}
+                  onChange={(e) => aoMudar({ ...rascunho, caminho: e.target.value })}
+                  placeholder="processos/comercial.md"
+                  className="mt-1 w-full rounded-[8px] border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
+                />
+                <span className="mt-1 block text-[10px] leading-4 text-faint">
+                  Não pode começar com “/”, precisa terminar em .md e não pode conter “..”.
+                </span>
+              </label>
+            )}
+          </div>
 
           {simplesBloqueado && (
             <div className="mt-4 rounded-[10px] border border-warning/40 bg-warning/10 p-3">

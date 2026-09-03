@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtRelativo } from "./formato";
+import { fmtDiaDaConversa, fmtHoraDaLista, fmtRelativo } from "./formato";
 
 const AGORA = Date.parse("2026-08-12T12:00:00-03:00");
 
@@ -33,5 +33,53 @@ describe("fmtRelativo com data do Supabase", () => {
   it("data ilegível vira travessão, não NaN", () => {
     expect(fmtRelativo("nem data isso é", agora)).toBe("—");
     expect(fmtRelativo(null, agora)).toBe("—");
+  });
+});
+
+/*
+ * As duas escalas da tela de Conversas. Os instantes são montados em hora
+ * local, e não com texto ISO fixo, porque o que se afirma aqui — "é hoje", "é
+ * ontem" — é sobre o dia do calendário de quem lê. Um ISO com fuso cravado
+ * passaria aqui e falharia numa máquina de CI em outro fuso.
+ */
+const QUARTA = new Date(2026, 8, 2, 15, 0).getTime();
+const emPonto = (...partes) => new Date(...partes).getTime();
+
+describe("fmtHoraDaLista", () => {
+  it("hoje é a hora, ontem é palavra", () => {
+    expect(fmtHoraDaLista(emPonto(2026, 8, 2, 9, 41), QUARTA)).toBe("09:41");
+    expect(fmtHoraDaLista(emPonto(2026, 8, 1, 22, 0), QUARTA)).toBe("ontem");
+  });
+
+  it("dentro da semana é o dia, sem o ponto que o pt-BR põe", () => {
+    const domingo = fmtHoraDaLista(emPonto(2026, 7, 30, 10, 0), QUARTA);
+    expect(domingo).not.toContain(".");
+    // A coluna tem 336px e disputa espaço com o nome e o contador de não lidas.
+    expect(domingo).toMatch(/^\p{L}{3}$/u);
+  });
+
+  it("mais velho que a semana é data curta, sem o ano", () => {
+    expect(fmtHoraDaLista(emPonto(2026, 7, 23, 10, 0), QUARTA)).toBe("23/08");
+  });
+
+  it("aceita o texto ISO que vem do Postgres, e vazio não vira NaN", () => {
+    const hoje = new Date(2026, 8, 2, 9, 41).toISOString();
+    expect(fmtHoraDaLista(hoje, QUARTA)).toBe("09:41");
+    expect(fmtHoraDaLista(null, QUARTA)).toBe("");
+    expect(fmtHoraDaLista("nem data isso é", QUARTA)).toBe("");
+  });
+});
+
+describe("fmtDiaDaConversa", () => {
+  it("é rótulo, e por isso vem em maiúsculas", () => {
+    expect(fmtDiaDaConversa(emPonto(2026, 8, 2, 9, 41), QUARTA)).toBe("HOJE");
+    expect(fmtDiaDaConversa(emPonto(2026, 8, 1, 23, 59), QUARTA)).toBe("ONTEM");
+  });
+
+  it("fora dos dois últimos dias mostra dia e mês", () => {
+    // Sem o ano: o espelho guarda 90 dias, então o mais longe que a pílula
+    // chega é a virada do ano, e ali o mês já resolve.
+    expect(fmtDiaDaConversa(emPonto(2026, 4, 12, 10, 0), QUARTA)).toBe("12/05");
+    expect(fmtDiaDaConversa(null, QUARTA)).toBe("");
   });
 });

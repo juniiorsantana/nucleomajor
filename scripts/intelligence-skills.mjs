@@ -1,7 +1,28 @@
 #!/usr/bin/env node
 import "dotenv/config";
+import { config as carregarAmbiente } from "dotenv";
+import { fileURLToPath } from "node:url";
 import { assertValidCatalog, loadSkillCatalog } from "../packages/intelligence/src/catalog.mjs";
 import { publishCatalog, SupabaseSkillRepository } from "../packages/intelligence/src/publisher.mjs";
+
+/**
+ * A chave de publicação não mora no `.env` do portal.
+ *
+ * O `.env` é o ambiente do servidor web, e ele carrega a publishable key de
+ * propósito: `SPEC-DATA-SECURITY` proíbe chave secreta no processo do portal.
+ * Quem publica skill precisa de chave secreta, e ela vive em
+ * `.env.skills.local` — que é ignorado pelo git e só existe na máquina de quem
+ * publica.
+ *
+ * Sem esta linha, `npm run intelligence:publish -- --apply` — o comando que o
+ * `SPEC-INTELLIGENCE.md` documenta — falhava com "chave secreta obrigatória",
+ * e a saída era descobrir sozinho que precisava de `--env-file`.
+ *
+ * O caminho é resolvido a partir deste arquivo, e não do diretório atual, para
+ * o comando funcionar de qualquer pasta. Arquivo ausente é silencioso: quem só
+ * roda `validate` não precisa de credencial nenhuma.
+ */
+carregarAmbiente({ path: fileURLToPath(new URL("../.env.skills.local", import.meta.url)) });
 
 function parseArguments(argv) {
   const [command = "validate", ...rest] = argv;

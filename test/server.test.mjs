@@ -17,7 +17,15 @@ test("publica configuração, a página SaaS, o app e a página de convite", asy
   assert.equal(configResponse.status, 200);
   assert.equal(configResponse.headers.get("cache-control"), "no-store");
   const config = await configResponse.json();
-  assert.equal(config.publicOrigin, "https://nucleomajor.com");
+  // O padrão de produção, e não um literal: cravar "https://nucleomajor.com"
+  // fazia o teste quebrar em qualquer ambiente que definisse PUBLIC_ORIGIN —
+  // era o que mantinha o CI vermelho, porque o workflow injetava um valor
+  // http. `src/server.mjs` lê a variável uma vez, no carregamento do módulo,
+  // então não adianta mexer nela aqui: o jeito honesto é afirmar a mesma
+  // regra de resolução.
+  const origemEsperada = String(process.env.PUBLIC_ORIGIN || "https://nucleomajor.com").replace(/\/$/, "");
+  assert.equal(config.publicOrigin, origemEsperada);
+  assert.ok(!config.publicOrigin.endsWith("/"), "a origem publicada não pode terminar em barra");
 
   const runtimeConfigResponse = await fetch(`${origin}/api/config.js`);
   assert.equal(runtimeConfigResponse.status, 200);

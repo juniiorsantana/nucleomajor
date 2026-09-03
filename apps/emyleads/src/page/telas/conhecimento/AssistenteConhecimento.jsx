@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, FileUp, Loader2, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, FileUp, Loader2, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { api } from "../../../data/client";
-import { PUBLICOS } from "./conhecimentoDados";
+import { PUBLICOS, tempoRelativo } from "./conhecimentoDados";
 import { MODELOS, MODELO_POR_ID } from "./modelosConhecimento";
 import {
   CAMINHOS_DE_ESCRITA,
@@ -14,14 +14,18 @@ import {
   estadoInicial,
   estadoFoiAlterado,
   motivoParaNaoAvancar,
+  ULTIMA_ETAPA,
   motivoParaNaoPublicarAgora,
+  sincronizarCaminho,
   voltar,
 } from "./assistenteEstado";
+import { ETAPA_DO_CAMPO } from "./erroDeGravacao";
+import { gravarRascunho, lerRascunho, limparRascunho } from "./rascunhoLocal";
 
 function Trilha({ etapa }) {
   return (
     <>
-      {/* No celular a trilha vira uma barra: cinco rótulos não cabem em 375px
+      {/* No celular a trilha vira uma barra: quatro rótulos não cabem em 375px
           sem virar sopa de letras. */}
       <div className="sm:hidden">
         <p className="text-[11px] font-semibold text-sub">Etapa {etapa} de {ETAPAS.length}</p>
@@ -79,23 +83,46 @@ function Opcao({ ativo, titulo, descricao, etiqueta, aviso, onClick, children })
 }
 
 export default function AssistenteConhecimento({
-  modeloId = null, inteligencia, aoFechar, aoSalvar, salvando, somentePessoal = false,
+  modeloId = null, inteligencia, documentos = [], aoFechar, aoSalvar, salvando,
+  falha = null, somentePessoal = false,
 }) {
-  const [estado, setEstado] = useState(() => estadoInicial(modeloId));
+  // Os caminhos que já existem, para a derivação desviar de colisão antes de o
+  // banco recusar por índice único — três telas depois de a pessoa ter
+  // digitado o título, e sem saída além de adivinhar outro.
+  const ocupados = useMemo(
+    () => (documentos || []).map((documento) => documento?.caminho).filter(Boolean),
+    [documentos],
+  );
+
+  const [estado, setEstado] = useState(() => sincronizarCaminho(estadoInicial(modeloId), ocupados));
+  const [guardado, setGuardado] = useState(() => lerRascunho());
   const [erroArquivo, setErroArquivo] = useState("");
   const [pergunta, setPergunta] = useState("");
   const [previa, setPrevia] = useState(null);
   const [testando, setTestando] = useState(false);
+  const [avancado, setAvancado] = useState(false);
   const arquivoRef = useRef(null);
   const dialogoRef = useRef(null);
+  const tituloRef = useRef(null);
+  const caminhoRef = useRef(null);
   const estadoOriginal = useRef(estado);
   const estadoAtual = useRef(estado);
   const focoAnterior = useRef(typeof document === "undefined" ? null : document.activeElement);
   estadoAtual.current = estado;
 
+  /**
+   * Fechar não pergunta mais nada.
+   *
+   * O texto vai para o rascunho local a cada mudança, então não há o que
+   * perder — e a pergunta "descartar?" na saída era feita no pior momento, com
+   * a pessoa já a caminho de outra coisa. Ela vira uma oferta na entrada, onde
+   * há contexto para responder.
+   */
   const pedirFechamento = () => {
-    const alterado = estadoFoiAlterado(estadoAtual.current, estadoOriginal.current);
-    if (!alterado || window.confirm("Descartar o conhecimento que ainda não foi salvo?")) aoFechar();
+    if (estadoFoiAlterado(estadoAtual.current, estadoOriginal.current)) {
+      gravarRascunho(estadoAtual.current);
+    }
+    aoFechar();
   };
 
   useEffect(() => {
@@ -113,6 +140,36 @@ export default function AssistenteConhecimento({
     };
   }, []);
 
+  /**
+   * Grava a cada mudança, e não só ao fechar.
+   *
+   * Fechar é o caso fácil. O que apagava documento inteiro era o que não
+   * avisa: recarregar a página, a sessão expirar, o navegador cair.
+   */
+  useEffect(() => {
+    if (estadoFoiAlterado(estado, estadoOriginal.current)) gravarRascunho(estado);
+  }, [estado]);
+
+  /**
+   * A falha de gravação leva a pessoa até o campo que a causou.
+   *
+   * Só a frase não bastaria: o caminho do arquivo mora na revisão e o público
+   * na etapa 3, então "o caminho não é válido" lido na revisão depois de uma
+   * publicação recusada ainda deixaria a pessoa procurando. `sinal` muda a
+   * cada falha, inclusive quando a mensagem se repete — sem ele, errar duas
+   * vezes no mesmo campo moveria o foco só na primeira.
+   */
+  useEffect(() => {
+    if (!falha?.campo) return;
+    const etapa = ETAPA_DO_CAMPO[falha.campo];
+    if (etapa) setEstado((atual) => (atual.etapa === etapa ? atual : { ...atual, etapa }));
+    // Depois da pintura: na etapa nova o campo ainda não existe no DOM.
+    const alvo = { titulo: tituloRef, caminho: caminhoRef }[falha.campo];
+    if (!alvo) return;
+    const id = requestAnimationFrame(() => alvo.current?.focus?.());
+    return () => cancelAnimationFrame(id);
+  }, [falha?.sinal, falha?.campo]);
+
   const colecoes = useMemo(() => {
     const desejada = estado.publico === "clientes" ? "external" : "internal";
     return (inteligencia?.collections || []).filter(
@@ -120,22 +177,27 @@ export default function AssistenteConhecimento({
     );
   }, [inteligencia, estado.publico]);
 
-  // O desenho pedia três listas — Assistentes, Skills e Campanhas. O banco tem
-  // uma tabela só, `knowledge_collections`, e o que distingue campanha é o
-  // `scope_type`. Inventar três seletores criaria a impressão de três controles
-  // independentes que na verdade escrevem no mesmo lugar.
-  const grupos = useMemo(() => ([
-    { titulo: "Coleções", itens: colecoes.filter((item) => item.scope_type !== "campaign") },
-    { titulo: "Campanhas", itens: colecoes.filter((item) => item.scope_type === "campaign") },
-  ].filter((grupo) => grupo.itens.length)), [colecoes]);
-
   const pendencia = motivoParaNaoAvancar(estado);
   const impedimentoParaPublicar = motivoParaNaoPublicarAgora(estado, inteligencia?.collections);
   const conteudo = conteudoDoEstado(estado);
   const palavras = conteudo.trim() ? conteudo.trim().split(/\s+/).length : 0;
   const publicosDisponiveis = somentePessoal ? PUBLICOS.filter((item) => item.id === "pessoal") : PUBLICOS;
 
-  const mudar = (patch) => setEstado((atual) => ({ ...atual, ...patch }));
+  // Toda mudança passa pela sincronização do caminho: se ela acontecesse só ao
+  // salvar, a revisão mostraria um caminho e o banco receberia outro depois de
+  // a pessoa corrigir o título.
+  const mudar = (patch) => setEstado((atual) => sincronizarCaminho({ ...atual, ...patch }, ocupados));
+
+  /** Retoma o que ficou de uma sessão anterior, com as etapas onde estavam. */
+  const retomarRascunho = () => {
+    setEstado(sincronizarCaminho({ ...estadoInicial(null), ...guardado.estado }, ocupados));
+    setGuardado(null);
+  };
+
+  const descartarRascunho = () => {
+    limparRascunho();
+    setGuardado(null);
+  };
 
   const lerArquivo = async (arquivo) => {
     setErroArquivo("");
@@ -178,7 +240,7 @@ export default function AssistenteConhecimento({
         role="dialog"
         aria-modal="true"
         aria-label="Adicionar conhecimento"
-        className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[16px] border border-line bg-bg shadow-2xl sm:max-h-[86vh] sm:rounded-[16px]"
+        className="flex max-h-[92dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[16px] border border-line bg-bg shadow-2xl sm:max-h-[86dvh] sm:rounded-[16px]"
       >
         <header className="flex flex-none items-start gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1"><Trilha etapa={estado.etapa} /></div>
@@ -188,6 +250,33 @@ export default function AssistenteConhecimento({
         </header>
 
         <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          {/* A pergunta que antes era feita na saída ("descartar?"), agora feita
+              na entrada, onde a pessoa tem contexto para responder. Só aparece
+              enquanto ninguém escreveu nada nesta sessão: sobrepor um rascunho
+              antigo ao texto que está sendo digitado seria pior do que perder
+              o antigo. */}
+          {guardado && !estadoFoiAlterado(estado, estadoOriginal.current) && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[10px] border border-accent/30 bg-accent-soft px-3.5 py-2.5">
+              <p className="min-w-0 flex-1 text-[11.5px] leading-4 text-fg">
+                Você deixou <strong className="font-semibold">{guardado.estado?.titulo?.trim() || "um documento"}</strong> pela metade
+                <span className="text-sub"> · {tempoRelativo(new Date(guardado.salvoEm).toISOString())}</span>
+              </p>
+              <button
+                type="button"
+                onClick={retomarRascunho}
+                className="rounded-[8px] bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white"
+              >
+                Retomar
+              </button>
+              <button
+                type="button"
+                onClick={descartarRascunho}
+                className="rounded-[8px] px-2 py-1.5 text-[11.5px] text-sub hover:text-fg"
+              >
+                Descartar
+              </button>
+            </div>
+          )}
           {estado.etapa === 1 && (
             <>
               <h2 className="text-[15px] font-semibold text-fg">O que você quer ensinar?</h2>
@@ -364,6 +453,54 @@ export default function AssistenteConhecimento({
                   />
                 ))}
               </div>
+
+              {/* A coleção externa vive aqui, e não numa etapa própria, porque
+                  não é pergunta de organização e sim de autorização: sem ela o
+                  documento é salvo, aparece na lista de quem escreveu, e o
+                  atendimento nunca o encontra. É a mesma decisão de "quem pode
+                  usar", e só existe para conteúdo de cliente. */}
+              {estado.publico === "clientes" && (
+                <div className="mt-5 border-t border-line pt-4">
+                  <h3 className="text-[12.5px] font-semibold text-fg">Onde o atendimento encontra este texto</h3>
+                  <p className="mt-1 text-[11.5px] leading-4 text-sub">
+                    Escolha ao menos uma coleção. É ela que diz em qual atendimento o assistente pode usar o documento.
+                  </p>
+                  {colecoes.length ? (
+                    <div className="mt-3 grid gap-1.5">
+                      {colecoes.map((item) => {
+                        const marcado = estado.colecoesIds.includes(item.id);
+                        return (
+                          <label key={item.id} className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-[9px] border border-line px-3 text-[12px] text-fg hover:bg-surface-hover">
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={(e) => mudar({
+                                colecoesIds: e.target.checked
+                                  ? [...estado.colecoesIds, item.id]
+                                  : estado.colecoesIds.filter((id) => id !== item.id),
+                              })}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                            {/* Coleção de campanha só alcança quem está naquela
+                                campanha. Sem esta palavra, escolher uma daria a
+                                impressão de alcance geral. */}
+                            {item.scope_type === "campaign" && (
+                              <span className="flex-none text-[9.5px] uppercase tracking-[.06em] text-faint">campanha</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-3 flex items-start gap-2 rounded-[9px] bg-warning-soft p-3 text-[11.5px] leading-4 text-warning">
+                      <AlertTriangle size={15} className="mt-px flex-none" />
+                      Não há nenhuma coleção externa nesta empresa. Dá para salvar como rascunho, mas não para publicar
+                      até alguém criar uma na Central de Inteligência.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <p className="mt-3 text-[11px] leading-4 text-faint">
                 {somentePessoal
                   ? "Profissionais criam referências pessoais. Conteúdo da empresa é administrado por donos e administradores."
@@ -374,66 +511,6 @@ export default function AssistenteConhecimento({
 
           {estado.etapa === 4 && (
             <>
-              <h2 className="text-[15px] font-semibold text-fg">Onde este conteúdo deve ser usado?</h2>
-              <p className="mt-1 text-[12px] leading-5 text-sub">
-                Pode deixar no geral e ajustar depois. Restringir serve quando o texto só faz sentido num contexto.
-              </p>
-              <div className="mt-4 grid gap-2">
-                {estado.publico !== "clientes" && (
-                  <Opcao
-                    ativo={estado.ondeTodos}
-                    titulo="Em qualquer lugar"
-                    descricao="Todos os assistentes e skills desta empresa podem consultar."
-                    onClick={() => mudar({ ondeTodos: true, colecoesIds: [] })}
-                  />
-                )}
-                <Opcao
-                  ativo={!estado.ondeTodos}
-                  titulo={estado.publico === "clientes" ? "Coleção externa" : "Só em lugares específicos"}
-                  descricao={grupos.length
-                    ? (estado.publico === "clientes" ? "Obrigatória para definir qual atendimento ou campanha pode usar o texto." : "Escolha abaixo quais.")
-                    : "Não há nenhuma coleção deste tipo nesta empresa ainda."}
-                  onClick={() => grupos.length && mudar({ ondeTodos: false })}
-                />
-              </div>
-
-              {!estado.ondeTodos && grupos.map((grupo) => (
-                <div key={grupo.titulo} className="mt-4">
-                  <p className="text-[9.5px] font-bold uppercase tracking-[.07em] text-sub">{grupo.titulo}</p>
-                  <div className="mt-2 grid gap-1.5">
-                    {grupo.itens.map((item) => {
-                      const marcado = estado.colecoesIds.includes(item.id);
-                      return (
-                        <label key={item.id} className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-[9px] border border-line px-3 text-[12px] text-fg hover:bg-surface-hover">
-                          <input
-                            type="checkbox"
-                            checked={marcado}
-                            onChange={(e) => mudar({
-                              colecoesIds: e.target.checked
-                                ? [...estado.colecoesIds, item.id]
-                                : estado.colecoesIds.filter((id) => id !== item.id),
-                            })}
-                          />
-                          {item.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-
-              {estado.publico === "clientes" && !colecoes.length && (
-                <p className="mt-4 flex items-start gap-2 rounded-[9px] bg-danger/10 p-3 text-[11.5px] leading-4 text-danger">
-                  <AlertTriangle size={15} className="mt-px flex-none" />
-                  Não há nenhuma coleção externa nesta empresa. Sem ela, o atendimento não encontra este documento —
-                  dá para salvar como rascunho, mas não para publicar.
-                </p>
-              )}
-            </>
-          )}
-
-          {estado.etapa === 5 && (
-            <>
               <h2 className="text-[15px] font-semibold text-fg">Confira antes de publicar</h2>
               <p className="mt-1 text-[12px] leading-5 text-sub">
                 Faça uma pergunta de verdade e veja se este texto responderia.
@@ -441,16 +518,13 @@ export default function AssistenteConhecimento({
 
               <div className="mt-4 rounded-[11px] border border-line p-3.5">
                 <input
+                  ref={tituloRef}
                   value={estado.titulo}
                   onChange={(e) => mudar({ titulo: e.target.value })}
                   placeholder="Título do documento"
+                  aria-label="Título do documento"
+                  aria-invalid={falha?.campo === "titulo" || undefined}
                   className="w-full bg-transparent text-[15px] font-semibold text-fg outline-none placeholder:text-faint"
-                />
-                <input
-                  value={estado.caminho}
-                  onChange={(e) => mudar({ caminho: e.target.value })}
-                  placeholder="empresa/sobre.md"
-                  className="mt-1.5 w-full rounded-[7px] border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
                 />
                 <dl className="mt-3 grid gap-2 border-t border-line pt-3 text-[11.5px] sm:grid-cols-2">
                   <div>
@@ -459,15 +533,53 @@ export default function AssistenteConhecimento({
                     <dd className="mt-0.5 text-[10.5px] leading-4 text-sub">{publicoEscolhido?.consequencia}</dd>
                   </div>
                   <div>
-                    <dt className="text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">Onde</dt>
+                    <dt className="text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">
+                      {estado.publico === "clientes" ? "Coleções" : "Alcance"}
+                    </dt>
                     <dd className="mt-0.5 text-fg">
-                      {estado.ondeTodos && estado.publico !== "clientes"
-                        ? "Em qualquer lugar"
-                        : colecoes.filter((item) => estado.colecoesIds.includes(item.id)).map((item) => item.name).join(", ") || "—"}
+                      {estado.publico === "clientes"
+                        ? colecoes.filter((item) => estado.colecoesIds.includes(item.id)).map((item) => item.name).join(", ") || "nenhuma"
+                        : "Todos os assistentes desta empresa"}
                     </dd>
                     <dd className="mt-0.5 text-[10.5px] text-sub">{palavras} palavras</dd>
                   </div>
                 </dl>
+
+                {/* O caminho do arquivo sai do fluxo básico e não da tela.
+                    Quem escreve um texto sobre a empresa não tem por que saber
+                    que existe um caminho — mas quem precisa mexer nele não pode
+                    ficar sem saída, e é o campo para onde a falha de gravação
+                    manda o foco. */}
+                <div className="mt-3 border-t border-line pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setAvancado((atual) => !atual)}
+                    aria-expanded={avancado || falha?.campo === "caminho"}
+                    className="flex w-full items-center gap-1.5 text-[10.5px] font-semibold text-faint hover:text-sub"
+                  >
+                    <ChevronRight size={13} className={avancado || falha?.campo === "caminho" ? "rotate-90" : ""} />
+                    Avançado
+                    <span className="ml-auto truncate font-mono text-[10px] font-normal">{estado.caminho}</span>
+                  </button>
+                  {(avancado || falha?.campo === "caminho") && (
+                    <label className="mt-2 block">
+                      <span className="text-[10.5px] text-sub">Caminho do arquivo</span>
+                      <input
+                        ref={caminhoRef}
+                        value={estado.caminho}
+                        onChange={(e) => mudar({ caminho: e.target.value, caminhoManual: true })}
+                        placeholder="empresa/sobre.md"
+                        aria-invalid={falha?.campo === "caminho" || undefined}
+                        className={`mt-1 w-full rounded-[7px] border bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent ${
+                          falha?.campo === "caminho" ? "border-danger" : "border-line"
+                        }`}
+                      />
+                      <span className="mt-1 block text-[10px] leading-4 text-faint">
+                        O sistema escolhe sozinho a partir do título. Se você mudar aqui, ele para de acompanhar.
+                      </span>
+                    </label>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4">
@@ -517,6 +629,19 @@ export default function AssistenteConhecimento({
           )}
         </div>
 
+        {/* Fora da área que rola, e acima do rodapé: em falha de gravação a
+            pessoa está com o dedo no botão, e uma mensagem que exige rolar
+            para ser lida é uma mensagem que não foi lida. */}
+        {falha?.mensagem && (
+          <div
+            role="alert"
+            className="flex flex-none items-start gap-2 border-t border-danger/25 bg-danger/10 px-5 py-3 text-[12px] leading-4 text-danger"
+          >
+            <AlertTriangle size={15} className="mt-px flex-none" />
+            <span className="min-w-0">{falha.mensagem}</span>
+          </div>
+        )}
+
         <footer className="flex flex-none flex-wrap items-center gap-2 border-t border-line px-5 py-3.5">
           {estado.etapa > 1 && (
             <button type="button" onClick={() => setEstado(voltar(estado))} className="rounded-[9px] px-3 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
@@ -527,8 +652,8 @@ export default function AssistenteConhecimento({
             Cancelar
           </button>
           <div className="ml-auto flex items-center gap-2">
-            {pendencia && estado.etapa < 5 && <span className="hidden text-[10.5px] text-faint sm:inline">{pendencia}</span>}
-            {estado.etapa < 5 ? (
+            {pendencia && estado.etapa < ULTIMA_ETAPA && <span className="hidden text-[10.5px] text-faint sm:inline">{pendencia}</span>}
+            {estado.etapa < ULTIMA_ETAPA ? (
               <button
                 type="button"
                 onClick={() => setEstado(avancar(estado))}
@@ -561,7 +686,7 @@ export default function AssistenteConhecimento({
               </>
             )}
           </div>
-          {estado.etapa === 5 && impedimentoParaPublicar && (
+          {estado.etapa === ULTIMA_ETAPA && impedimentoParaPublicar && (
             <p className="w-full text-right text-[10.5px] leading-4 text-danger">{impedimentoParaPublicar}</p>
           )}
         </footer>

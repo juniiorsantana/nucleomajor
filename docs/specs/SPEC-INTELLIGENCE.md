@@ -36,8 +36,15 @@ npm run intelligence:publish
 npm run intelligence:publish -- --apply
 ```
 
-O segundo comando é dry-run. `--apply` exige `SUPABASE_SERVICE_ROLE_KEY` apenas
-no processo local e cria versão nova somente quando o hash muda.
+O segundo comando é dry-run. `--apply` cria versão nova somente quando o hash
+muda, e a versão publicada vale na mensagem seguinte: o runtime resolve
+`skill_definitions` a cada mensagem e não precisa ser reiniciado.
+
+A credencial de publicação vem de `.env.skills.local`, não do `.env`. O `.env`
+é o ambiente do portal e carrega a publishable key de propósito — chave secreta
+no processo do portal é proibida por `SPEC-DATA-SECURITY`. O script carrega os
+dois arquivos, então os comandos acima funcionam sem nenhum sinalizador extra;
+quem só roda `validate` não precisa de credencial.
 
 ## Resolução por mensagem
 

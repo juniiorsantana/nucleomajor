@@ -1,3 +1,4 @@
+import { criarOperacoesConversasWeb } from "./conversasProvider.js";
 import { criarOperacoesAgenda } from "./agendaProvider.js";
 import { criarOperacoesAuth } from "./authProvider.js";
 import { obterSupabaseWeb } from "./supabaseClient.js";
@@ -21,6 +22,9 @@ export function obterOperacoesWeb() {
     ...criarOperacoesAssistente({ supabase, area: webArea }),
     ...criarOperacoesInteligencia({ supabase, area: webArea }),
     ...criarOperacoesGateway(),
+    // Conversas vêm do espelho que a VPS publica no Supabase, não do gateway:
+    // o runtime empurra, o portal lê. Ver `conversasProvider.js`.
+    ...criarOperacoesConversasWeb({ supabase, area: webArea }),
   };
   return operacoes;
 }

@@ -8,12 +8,14 @@ on:
 jobs:
   portal:
     runs-on: ubuntu-latest
+    # Só o que o servidor Node precisa para subir. `PUBLIC_ORIGIN` e as `VITE_`
+    # não podem viver aqui: variável de processo vence sobre
+    # `apps/emyleads/.env.test`, versionado justamente para dar ambiente aos
+    # testes, e sobre o padrão de `src/server.mjs`. Repor no nível do job
+    # quebra `supabaseClient.test.js` e `server.test.mjs`.
     env:
       SUPABASE_URL: https://example.supabase.co
       SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
-      VITE_SUPABASE_URL: https://example.supabase.co
-      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
-      PUBLIC_ORIGIN: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,4 +25,12 @@ jobs:
       - run: npm ci
       - run: npm run docs:check
       - run: npm test
+      # A extensão é o único build com guarda de configuração: `vite.config.js`
+      # interrompe se faltar chave pública. `loadEnv` com prefixo vazio lê o
+      # `process.env`, então o valor daqui basta — e fica no passo, não no job,
+      # para não vazar para os testes. O `build:web` não tem essa guarda e
+      # passa sem nada disto.
       - run: npm run build:extension
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
