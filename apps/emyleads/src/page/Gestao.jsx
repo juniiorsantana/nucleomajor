@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
@@ -22,6 +22,29 @@ const Configuracoes = lazy(() => import("./telas/Configuracoes"));
 const MinhaConta = lazy(() => import("./telas/MinhaConta"));
 
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
+
+/**
+ * Recolher o menu é preferência, e preferência atravessa recarga.
+ *
+ * Quem esconde o menu quer espaço para a tela larga — a conversa, o funil, o
+ * editor — e quer isso amanhã de novo. Reabrir sozinho a cada F5 transformaria
+ * a escolha num clique diário.
+ *
+ * Fica no `localStorage` e não no Supabase de propósito: é preferência DESTE
+ * computador. A mesma pessoa num monitor pequeno e num grande quer coisas
+ * diferentes, e sincronizar isso seria sincronizar o incômodo.
+ */
+const CHAVE_DO_MENU = "emyleads.menu.recolhido";
+
+function menuRecolhidoNoInicio() {
+  try {
+    return window.localStorage.getItem(CHAVE_DO_MENU) === "1";
+  } catch {
+    // Janela anônima, cookies bloqueados, extensão sem permissão: o menu
+    // simplesmente abre, que é o padrão. Preferência perdida não é falha.
+    return false;
+  }
+}
 
 const TELAS = [
   ...(PLATAFORMA_WEB
@@ -337,6 +360,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const [notaContato, setNotaContato] = useState(null);
   const [comando, setComando] = useState(null);
   const [chatbotEditando, setChatbotEditando] = useState(undefined); // undefined = lista fechada, null = novo
+  const [menuRecolhido, setMenuRecolhido] = useState(menuRecolhidoNoInicio);
 
   const carregar = useCallback(async () => {
     try {
@@ -376,6 +400,18 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
     aoTrocarTela?.(proxima);
   }, [aoTrocarTela]);
 
+  const alternarMenu = useCallback(() => {
+    setMenuRecolhido((antes) => {
+      const proximo = !antes;
+      try {
+        window.localStorage.setItem(CHAVE_DO_MENU, proximo ? "1" : "0");
+      } catch {
+        // Sem onde guardar, a escolha vale só nesta sessão — e continua valendo.
+      }
+      return proximo;
+    });
+  }, []);
+
   useEffect(() => {
     const sincronizar = () => {
       api.sync.executar().then(carregar).catch(() => {});
@@ -392,17 +428,24 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   }, [carregar]);
 
   // ⌘K / Ctrl+K foca a busca — o atalho está desenhado no campo, então tem
-  // que funcionar de verdade.
+  // que funcionar de verdade. ⌘B / Ctrl+B recolhe o menu, que é o atalho que
+  // todo editor usa para a mesma coisa.
   useEffect(() => {
     const aoTeclar = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const tecla = e.key.toLowerCase();
+      if (tecla === "k") {
         e.preventDefault();
         document.querySelector('input[placeholder^="Buscar"]')?.focus();
+      }
+      if (tecla === "b") {
+        e.preventDefault();
+        alternarMenu();
       }
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, []);
+  }, [alternarMenu]);
 
   const abrirFicha = (contato) => {
     if (contato) setFicha(contato);
@@ -449,7 +492,29 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
 
   return (
     <div className="flex h-screen bg-surface text-fg">
-      {!editorDeChatbotAberto && <Rail
+      {/*
+        O menu recolhe pela LARGURA de quem o envolve, e não deixando de ser
+        desenhado. A diferença importa: `Rail` desenha duas navegações, a de
+        computador e a barra de baixo do celular, e a do celular é
+        `position: fixed` — está fora do fluxo, e por isso continua inteira
+        quando esta caixa fecha para zero. Deixar de desenhar `Rail` levaria a
+        navegação do celular junto, e no celular não há menu lateral para
+        recolher: só a barra de baixo, que é a única forma de navegar.
+
+        `w-0 md:w-64` e não `w-auto`: no celular esta caixa precisa medir zero
+        SEMPRE — lá dentro só há a navegação escondida do computador e a barra
+        fixa de baixo, e uma largura automática que um dia medisse diferente
+        abriria uma coluna vazia de 256px na tela do celular. A largura fixa é
+        também o que torna a animação possível: o CSS não interpola de `auto`
+        para zero.
+      */}
+      {!editorDeChatbotAberto && (
+      <div
+        className={`flex-none overflow-hidden transition-[width] duration-200 ${
+          menuRecolhido ? "w-0" : "w-0 md:w-64"
+        }`}
+      >
+      <Rail
         telas={TELAS}
         ativa={tela}
         aoTrocar={trocarTela}
@@ -481,7 +546,38 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             </div>
           )
         }
-      />}
+      />
+      </div>
+      )}
+
+      {/*
+        O punho que recolhe e traz de volta.
+
+        Coluna estreita e própria, e não um botão flutuante sobre o conteúdo:
+        cada tela desenha o próprio cabeçalho no canto superior esquerdo — o
+        título de Contatos, a lista de Conversas — e um botão por cima
+        acertaria um deles em cheio. Dezesseis pixels custam menos que isso.
+
+        Só em computador: no celular a navegação é a barra de baixo, e não há
+        menu lateral para recolher.
+      */}
+      {!editorDeChatbotAberto && (
+        <div className="hidden flex-none justify-center pt-4 md:flex md:w-4">
+          <button
+            onClick={alternarMenu}
+            title={`${menuRecolhido ? "Mostrar" : "Esconder"} o menu (Ctrl+B)`}
+            aria-label={menuRecolhido ? "Mostrar o menu" : "Esconder o menu"}
+            aria-expanded={!menuRecolhido}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[8px] text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+          >
+            {menuRecolhido ? (
+              <ChevronsRight size={15} strokeWidth={2.2} />
+            ) : (
+              <ChevronsLeft size={15} strokeWidth={2.2} />
+            )}
+          </button>
+        </div>
+      )}
 
       <main className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
         <AvisoMigracao migracao={migracaoPendente} />
