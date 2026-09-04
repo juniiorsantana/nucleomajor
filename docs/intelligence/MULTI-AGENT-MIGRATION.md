@@ -190,6 +190,86 @@ fases importa: a coluna real de default (FASE C) e a troca dos resolvers
 (FASE D) precisam vir **antes** da remoção da UNIQUE (FASE E). Inverter essa
 ordem produz o cenário silencioso descrito acima.
 
+## FASE C: o padrão vira coluna
+
+Migration: `supabase/migrations/20260904190000_agente_padrao_explicito.sql`.
+
+### Três conceitos que não se confundem
+
+| | O que é | Quem decide |
+|---|---|---|
+| `is_default` | Identidade de fallback: "este é o agente padrão desta audience na organização" | Operador, pela UI (FASE F) |
+| `active` | Elegibilidade operacional: se o agente pode atender agora | Operador, pela UI (já existe) |
+| Agent Router selection | Qual agente atende **este turno**, entre os elegíveis | O router (FASE G, não existe) |
+
+`is_default` **não** é seleção do Agent Router, **não** é obrigatoriedade para
+toda conversa, **não** é prioridade comercial e **não** concede permissão
+nenhuma.
+
+### `is_default` é ortogonal a `active`
+
+Pode existir `is_default = true` com `active = false`. Nesse caso o resolvedor
+deve recusar com "sem padrão ativo" — **não** escolher outro agente por conta
+própria.
+
+Isso não é regra nova: é o que o sistema já faz. `private.intelligence_payload`
+filtra `and profile.active` e, não achando, levanta
+`assistant profile is inactive or unavailable`;
+`nucleo_customer_assistant_access` devolve `reason: 'profile_inactive'`. Os
+dois **recusam**. A coluna só dá nome ao que já era verdade — e por isso não
+existe nenhuma constraint amarrando `is_default` a `active`.
+
+### "No máximo um" ≠ "pelo menos um"
+
+Duas invariantes diferentes, em camadas diferentes:
+
+- **Banco**: no máximo um padrão, garantido pelo índice parcial
+  `assistant_profiles_one_default_idx` — `(organization_id, audience) where is_default`.
+- **Aplicação/resolvedor**: quando precisa responder, exige exatamente um
+  padrão ativo. Isso é da FASE D e do fluxo de escrita.
+
+Não há gatilho de eleição automática, de propósito: ele tornaria o banco
+responsável por uma decisão de produto e impediria despromover alguém sem que
+o banco escolhesse um substituto sozinho.
+
+### Precedente do próprio projeto
+
+`organization_campaigns` já resolve exatamente este problema desde agosto:
+`is_default boolean not null default false` mais o índice parcial
+`organization_campaigns_one_default_idx`. A FASE C segue a mesma forma e o
+mesmo padrão de nome.
+
+Com **uma divergência deliberada**: o índice de campanhas é
+`where is_default and status in ('test','active')` — uma campanha padrão
+encerrada libera a vaga. Para agente não filtramos por `active`, porque
+`is_default` e `active` são ortogonais (acima). Filtrar permitiria duas linhas
+`is_default = true` ao mesmo tempo, uma inativa e uma ativa, e tornaria a
+coluna ambígua de ler.
+
+### `unique (organization_id, slug)` entrou
+
+A FASE B mediu zero colisões em produção, então a constraint foi criada.
+Decisão de produto: **dois agentes da mesma organização não podem ter o mesmo
+slug**, independentemente de audience. `display_name` continua livre para
+repetir — dois agentes podem se chamar "Emília"; o que não podem é responder
+pelo mesmo identificador técnico.
+
+A migration reconta as colisões antes de impor e falha com mensagem clara se
+encontrar alguma, em vez de estourar com violação de constraint.
+
+### Provisionamento
+
+`private.provision_intelligence` foi redefinida (a partir da definição **viva**
+em produção, conferida por `pg_get_functiondef`) para informar
+`is_default = true` nos dois inserts de perfil inicial. Sem isso, o
+`default false` da coluna faria toda organização nova nascer sem agente
+padrão — exatamente o que a FASE D precisa encontrar.
+
+**Pendência que a FASE E vai encontrar:** os dois `on conflict
+(organization_id, audience)` dessa função dependem da unique antiga. Quando ela
+for removida, o `ON CONFLICT` fica sem índice correspondente e a função passa a
+falhar. Precisa ser tratado junto com a FASE E, não depois.
+
 ## Agent ↔ Skills
 
 A relação já existe e **não deve ser duplicada** dentro do agente:
@@ -231,7 +311,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 |---|---|---|
 | **A** | Conceito `AgentDefinition` no domínio + adapter puro + validação | ✅ **Feita** |
 | **B** | Colunas novas em `assistant_profiles`, sem remover a unique: `slug`, `role`, `soul_markdown`. Backfill do slug a partir de `display_name` | ✅ **Aplicada em produção** em 04/09/2026 — `20260904160000_identidade_do_agente_em_assistant_profiles.sql` |
-| **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | Pendente |
+| **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Código e migration prontos** — `20260904190000_agente_padrao_explicito.sql` ainda **não aplicada** |
 | **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | Pendente |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | Pendente |
 | **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
@@ -290,3 +370,36 @@ por essa via e a VPS do Bridge está fora deste ambiente
 ([[vps-do-runtime-tem-codigo-fora-do-git]]). O que se verificou foi ausência de
 sinais de erro no estado do banco: projeto `ACTIVE_HEALTHY`, 2 perfis ativos,
 credencial do Bridge ativa.
+
+### FASE C — pronta, não aplicada
+
+`20260904190000_agente_padrao_explicito.sql` existe, passa nos testes
+estáticos e **não foi aplicada em lugar nenhum**. Ela é auto-verificável: o
+bloco de guarda recusa o backfill se já houver mais de um perfil por
+(organização, audience), o de slug recusa a constraint se houver colisão, e o
+bloco final falha se a unique antiga tiver sumido, se o índice parcial não for
+parcial ou se sobrar perfil sem padrão.
+
+O que os testes de `test/agent-default-migration.test.mjs` **não** conseguem
+provar é comportamento: que o índice parcial de fato rejeita o segundo padrão,
+que `default false` de fato vale para insert genérico, que a unicidade de slug
+de fato barra a colisão. Isso exige um Postgres. Está em
+`scripts/sql/prova-agente-padrao.sql`, que termina em `ROLLBACK` e é para banco
+descartável — **nunca produção**, mesmo terminando em rollback: os gatilhos de
+auditoria disparam de qualquer forma.
+
+Ordem sugerida:
+
+1. **Postgres descartável primeiro** (`supabase start`, ou uma cópia
+   restaurada): aplicar a migration e rodar `prova-agente-padrao.sql`.
+2. **Provar organização nova**, que é o caminho de maior risco: a
+   `provision_intelligence` redefinida precisa terminar com os dois perfis
+   iniciais `is_default = true`, e o gatilho de slug continua sendo o que torna
+   `slug not null` seguro para quem nasce sem slug.
+3. **Só então produção**, pelo mesmo fluxo controlado da FASE B.
+
+Rollback: `drop index assistant_profiles_one_default_idx`, `alter table
+public.assistant_profiles drop constraint assistant_profiles_organization_slug_key`,
+`alter table ... drop column is_default`, e restaurar
+`private.provision_intelligence` para a definição sem `is_default`. Nada
+pré-existente é alterado — o backfill só escreve em coluna recém-nascida.
