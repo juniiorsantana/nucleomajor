@@ -1,0 +1,100 @@
+{
+  "description": "Cliente novo, primeira mensagem, skill recepcao no estagio inicial. Payload sanitizado no formato real de nucleo_intelligence_context_resolve_v3 (audience customer). Cobre o caso 'recepcao' das fixtures da ETAPA 4.",
+  "function": "v3",
+  "request": {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "audience": "customer",
+    "channel": "whatsapp",
+    "conversationKeyHash": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "requesterPhone": "+5511900000001",
+    "incomingText": "oi, bom dia",
+    "sourceData": {},
+    "shouldPersist": true
+  },
+  "payload": {
+    "schemaVersion": "fase-h-3",
+    "contextoId": "00000000-0000-4000-8000-0000000000c7",
+    "audiencia": "customer",
+    "assistente": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "nome": "Ana",
+      "tom": "acolhedor e direto",
+      "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+      "processo": { "idiomas": ["pt-BR"] },
+      "templateId": "padrao-clinica"
+    },
+    "campanha": null,
+    "skillAtivo": {
+      "id": "00000000-0000-4000-8000-000000000051",
+      "slug": "recepcao",
+      "nome": "Recepção",
+      "versao": 3,
+      "spec": { "note": "spec completo omitido na fixture; ver packages/intelligence/skills/recepcao/skill.json" }
+    },
+    "skillsPermitidos": [],
+    "colecoesPermitidas": [
+      { "id": "00000000-0000-4000-8000-0000000000k1", "nome": "Perguntas frequentes", "escopo": "organization", "audiencia": "both" }
+    ],
+    "politicas": {
+      "organizacaoDerivada": true,
+      "confirmacaoParaEscrita": true,
+      "documentosComoDados": true,
+      "transferenciaHumana": true
+    },
+    "runtimeContext": {
+      "audience": "customer",
+      "assistant": {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "nome": "Ana",
+        "tom": "acolhedor e direto",
+        "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+        "processo": { "idiomas": ["pt-BR"] },
+        "templateId": "padrao-clinica"
+      },
+      "campaign": null,
+      "activeSkill": {
+        "id": "00000000-0000-4000-8000-000000000051",
+        "slug": "recepcao",
+        "name": "Recepção",
+        "version": 3,
+        "contentHash": "a1b2c3d4e5f60718293a4b5c6d7e8f9001122334455667788990aabbccddee1",
+        "objective": "Iniciar conversas externas com naturalidade, entender o pedido e escolher um único próximo fluxo sem executar escritas prematuras.",
+        "instructions": "# Recepção\n\nConduza a conversa com naturalidade e descubra o motivo do contato.",
+        "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff"],
+        "guardrails": ["no_write_before_purpose", "one_question_at_a_time", "no_internal_knowledge", "no_invented_answer"],
+        "handoff": ["requested_human", "low_confidence", "sensitive_topic", "skill_limit"]
+      },
+      "workflow": {
+        "sessionId": "00000000-0000-4000-8000-000000000061",
+        "revision": 1,
+        "primarySkillId": "00000000-0000-4000-8000-000000000051",
+        "activeSkillId": "00000000-0000-4000-8000-000000000051",
+        "stage": "acolher",
+        "stageSpec": {
+          "id": "acolher",
+          "objective": "Responder de forma natural e descobrir em uma pergunta o motivo do contato.",
+          "requiredFields": [],
+          "allowedTools": [],
+          "completion": "A pessoa informou o que precisa."
+        },
+        "stack": [],
+        "pendingSensitiveAction": false,
+        "expiresAt": "2026-09-04T13:00:00.000Z",
+        "subflowExpiresAt": null,
+        "confirmationMinutes": 10
+      },
+      "allowedCollections": [
+        { "id": "00000000-0000-4000-8000-0000000000k1", "nome": "Perguntas frequentes", "escopo": "organization", "audiencia": "both" }
+      ],
+      "policies": {
+        "organizacaoDerivada": true,
+        "confirmacaoParaEscrita": true,
+        "documentosComoDados": true,
+        "transferenciaHumana": true,
+        "singleOwner": true,
+        "separateConfirmation": true,
+        "chatbotResume": true
+      }
+    }
+  }
+}

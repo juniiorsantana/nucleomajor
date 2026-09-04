@@ -1,0 +1,120 @@
+{
+  "description": "Cliente veio de uma campanha de anuncio e ja esta no estagio de apresentar oferta em vendas, delegado pela recepcao. Cobre os casos 'vendas' e 'com campanha' das fixtures da ETAPA 4.",
+  "function": "v3",
+  "request": {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "audience": "customer",
+    "channel": "whatsapp",
+    "conversationKeyHash": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+    "requesterPhone": "+5511900000002",
+    "incomingText": "quanto custa o plano anual",
+    "sourceData": { "targetMode": "campaign", "targetCampaignId": "00000000-0000-4000-8000-0000000000c1" },
+    "shouldPersist": true
+  },
+  "payload": {
+    "schemaVersion": "fase-h-3",
+    "contextoId": "00000000-0000-4000-8000-0000000000c8",
+    "audiencia": "customer",
+    "assistente": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "nome": "Ana",
+      "tom": "acolhedor e direto",
+      "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+      "processo": { "idiomas": ["pt-BR"] },
+      "templateId": "padrao-clinica"
+    },
+    "campanha": {
+      "id": "00000000-0000-4000-8000-0000000000c1",
+      "nome": "Plano anual - setembro",
+      "objetivo": "Converter leads de anuncio pago em plano anual",
+      "oferta": "20% de desconto no plano anual",
+      "publico": "leads de anuncio pago",
+      "resultadoEsperado": "assinatura do plano anual",
+      "configuracao": { "canal": "meta-ads", "criativoId": "cr-482" }
+    },
+    "skillAtivo": {
+      "id": "00000000-0000-4000-8000-000000000052",
+      "slug": "vendas",
+      "nome": "Vendas",
+      "versao": 5,
+      "spec": { "note": "spec completo omitido na fixture; ver packages/intelligence/skills/vendas/skill.json" }
+    },
+    "skillsPermitidos": [],
+    "colecoesPermitidas": [
+      { "id": "00000000-0000-4000-8000-0000000000k1", "nome": "Perguntas frequentes", "escopo": "organization", "audiencia": "both" },
+      { "id": "00000000-0000-4000-8000-0000000000k2", "nome": "Tabela de precos vigente", "escopo": "campaign", "audiencia": "customer" }
+    ],
+    "politicas": {
+      "organizacaoDerivada": true,
+      "confirmacaoParaEscrita": true,
+      "documentosComoDados": true,
+      "transferenciaHumana": true
+    },
+    "runtimeContext": {
+      "audience": "customer",
+      "assistant": {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "nome": "Ana",
+        "tom": "acolhedor e direto",
+        "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+        "processo": { "idiomas": ["pt-BR"] },
+        "templateId": "padrao-clinica"
+      },
+      "campaign": {
+        "id": "00000000-0000-4000-8000-0000000000c1",
+        "nome": "Plano anual - setembro",
+        "objetivo": "Converter leads de anuncio pago em plano anual",
+        "oferta": "20% de desconto no plano anual",
+        "publico": "leads de anuncio pago",
+        "resultadoEsperado": "assinatura do plano anual",
+        "configuracao": { "canal": "meta-ads", "criativoId": "cr-482" }
+      },
+      "activeSkill": {
+        "id": "00000000-0000-4000-8000-000000000052",
+        "slug": "vendas",
+        "name": "Vendas",
+        "version": 5,
+        "contentHash": "b2c3d4e5f60718293a4b5c6d7e8f9001122334455667788990aabbccddeeff2",
+        "objective": "Conduzir oportunidades comerciais com clareza, sem inventar condições ou pressionar o cliente.",
+        "instructions": "# Vendas\n\nApresente somente a oferta publicada e conduza o proximo passo sem pressao.",
+        "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff"],
+        "guardrails": ["published_offer_only", "no_discount_without_rule", "no_false_urgency"],
+        "handoff": ["commercial_exception", "requested_human", "low_confidence", "skill_limit"]
+      },
+      "workflow": {
+        "sessionId": "00000000-0000-4000-8000-000000000062",
+        "revision": 3,
+        "primarySkillId": "00000000-0000-4000-8000-000000000051",
+        "activeSkillId": "00000000-0000-4000-8000-000000000052",
+        "stage": "apresentar",
+        "stageSpec": {
+          "id": "apresentar",
+          "objective": "Apresentar somente a condição autorizada e propor um próximo passo sem pressão.",
+          "requiredFields": ["need"],
+          "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"],
+          "completion": "O cliente respondeu à oferta ou ao próximo passo."
+        },
+        "stack": [
+          { "skillId": "00000000-0000-4000-8000-000000000051", "skillSlug": "recepcao", "returnStage": "entender" }
+        ],
+        "pendingSensitiveAction": false,
+        "expiresAt": "2026-09-04T13:30:00.000Z",
+        "subflowExpiresAt": "2026-09-04T14:00:00.000Z",
+        "confirmationMinutes": 10
+      },
+      "allowedCollections": [
+        { "id": "00000000-0000-4000-8000-0000000000k1", "nome": "Perguntas frequentes", "escopo": "organization", "audiencia": "both" },
+        { "id": "00000000-0000-4000-8000-0000000000k2", "nome": "Tabela de precos vigente", "escopo": "campaign", "audiencia": "customer" }
+      ],
+      "policies": {
+        "organizacaoDerivada": true,
+        "confirmacaoParaEscrita": true,
+        "documentosComoDados": true,
+        "transferenciaHumana": true,
+        "singleOwner": true,
+        "separateConfirmation": true,
+        "chatbotResume": true
+      }
+    }
+  }
+}

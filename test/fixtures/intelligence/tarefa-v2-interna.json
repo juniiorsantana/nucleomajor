@@ -1,0 +1,74 @@
+{
+  "description": "Profissional interno pede para criar uma tarefa. Payload sanitizado de nucleo_intelligence_context_resolve_v2 (audience internal). v2 nao expoe stage/workflow mesmo a skill tarefas tendo workflow de 4 estagios em skill.json — isso e preservado como null pelo adapter, nao inventado. Cobre o caso 'tarefa' das fixtures da ETAPA 4.",
+  "function": "v2",
+  "request": {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "audience": "internal",
+    "channel": "whatsapp",
+    "conversationKeyHash": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+    "requesterPhone": "+5511900000099",
+    "incomingText": "preciso lembrar de retornar para o cliente amanha",
+    "sourceData": {},
+    "shouldPersist": true
+  },
+  "payload": {
+    "schemaVersion": "fase-h-2",
+    "contextoId": "00000000-0000-4000-8000-0000000000c9",
+    "audiencia": "internal",
+    "assistente": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "nome": "Ana",
+      "tom": "acolhedor e direto",
+      "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+      "processo": { "idiomas": ["pt-BR"] },
+      "templateId": "padrao-clinica"
+    },
+    "campanha": null,
+    "skillAtivo": {
+      "id": "00000000-0000-4000-8000-000000000053",
+      "slug": "tarefas",
+      "nome": "Tarefas",
+      "versao": 2,
+      "spec": { "note": "spec completo omitido na fixture; ver packages/intelligence/skills/tarefas/skill.json" }
+    },
+    "skillsPermitidos": [],
+    "colecoesPermitidas": [],
+    "politicas": {
+      "organizacaoDerivada": true,
+      "confirmacaoParaEscrita": true,
+      "documentosComoDados": true,
+      "transferenciaHumana": false
+    },
+    "runtimeContext": {
+      "audience": "internal",
+      "assistant": {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "nome": "Ana",
+        "tom": "acolhedor e direto",
+        "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+        "processo": { "idiomas": ["pt-BR"] },
+        "templateId": "padrao-clinica"
+      },
+      "campaign": null,
+      "activeSkill": {
+        "id": "00000000-0000-4000-8000-000000000053",
+        "slug": "tarefas",
+        "name": "Tarefas",
+        "version": 2,
+        "contentHash": "c3d4e5f60718293a4b5c6d7e8f9001122334455667788990aabbccddeeff23",
+        "objective": "Organizar os próximos passos da equipe sem perder prazos nem criar duplicidades.",
+        "instructions": "# Tarefas\n\nColete titulo e vencimento antes de preparar a tarefa.",
+        "allowedTools": ["task.read", "task.prepare", "task.confirm", "knowledge.search"],
+        "guardrails": ["operator_only", "explicit_confirmation", "separate_confirmation_turn", "idempotency", "no_calendar_substitution"],
+        "handoff": ["tool_unavailable", "permission_denied", "ambiguous_contact"]
+      },
+      "allowedCollections": [],
+      "policies": {
+        "organizacaoDerivada": true,
+        "confirmacaoParaEscrita": true,
+        "documentosComoDados": true,
+        "transferenciaHumana": false
+      }
+    }
+  }
+}
