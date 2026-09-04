@@ -316,6 +316,43 @@ corpo da resposta quando o Supabase devolve 4xx e registra apenas
 desde o começo e nunca chegou a nenhum log. Foi o que fez o diagnóstico custar
 três rodadas de tentativa e erro.
 
+- `20260904160000_identidade_do_agente_em_assistant_profiles.sql` aplicada em
+  04/09/2026 (FASE B de `docs/intelligence/MULTI-AGENT-MIGRATION.md`) e
+  conferida por consulta ao catálogo, não pela mensagem de sucesso:
+  `assistant_profiles` ganhou `slug` (`not null`), `role` e `soul_markdown`
+  (ambas nullable); `unique (organization_id, audience)` continua existindo e
+  `is_default` continua não existindo — as duas coisas checadas por
+  `pg_constraint`/`pg_attribute`. Os 2 perfis existentes receberam slug pelo
+  backfill, nenhum ficou nulo, e `slug = private.agent_slug(display_name,
+  audience)` vale para 100% das linhas. `role` e `soul_markdown` seguem NULL em
+  todos: nada foi preenchido artificialmente. Zero colisões
+  `(organization_id, slug)` — é o dado que a FASE C precisava para decidir se
+  pode impor `unique (organization_id, slug)`; pode.
+
+  Duas coisas que a aplicação ensinou. A primeira: o bloco de garantias da
+  migration comparava `array_agg(attname)` (`name[]`) com um array de
+  literais (`text[]`), o que o Postgres recusa — descoberto ao rodar a mesma
+  lógica no pré-check, antes de aplicar, e corrigido com cast explícito. A
+  segunda: a equivalência entre a regra de slug em JavaScript
+  (`slugFromAgentName`) e em SQL (`private.agent_slug`) foi provada **no banco
+  de destino, em read-only**, antes de qualquer DDL — 11 de 11 casos do corpus
+  canônico, incluindo acento, cedilha, til e os dois de fallback.
+
+  `private.provision_intelligence` insere perfil sem informar slug, então o
+  gatilho `assistant_profiles_fill_slug` (BEFORE INSERT FOR EACH ROW,
+  conferido por `pg_get_triggerdef`) é o que torna `slug not null` seguro para
+  organização nova. Isso foi verificado por introspecção; nenhuma organização
+  de teste foi criada em produção.
+
+  O backfill é um `UPDATE`, então os dois gatilhos que já existiam na tabela
+  dispararam: `updated_at` subiu nos 2 perfis e `intelligence_audit_log`
+  ganhou 2 linhas `profile`/`update`. Esperado e inofensivo, mas fica
+  registrado para quem for ler a auditoria depois e estranhar duas edições de
+  perfil em 04/09 que ninguém fez pela tela.
+
+  Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
+  estado das demais desde `20260821120000`.
+
 ## Tarefas internas
 
 - Skill `Tarefas` e ferramentas MCP para consultar, preparar e confirmar a
