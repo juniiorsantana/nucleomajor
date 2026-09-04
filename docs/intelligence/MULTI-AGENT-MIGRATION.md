@@ -318,7 +318,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 | **A** | Conceito `AgentDefinition` no domínio + adapter puro + validação | ✅ **Feita** |
 | **B** | Colunas novas em `assistant_profiles`, sem remover a unique: `slug`, `role`, `soul_markdown`. Backfill do slug a partir de `display_name` | ✅ **Aplicada em produção** em 04/09/2026 — `20260904160000_identidade_do_agente_em_assistant_profiles.sql` |
 | **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
-| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Código preparado**, não aplicada — `20260904230000_resolvers_usam_agente_padrao.sql` |
+| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Validada comportamentalmente**, não aplicada em produção — `20260904230000_resolvers_usam_agente_padrao.sql` |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | Pendente |
 | **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
@@ -492,17 +492,33 @@ o v3/preview/provision não foram redefinidos.
 
 Comportamental, em `scripts/sql/prova-resolvedor-agente-padrao.sql`, para
 Postgres descartável — **nunca produção**, e neste caso a advertência é mais
-séria que a de costume: o item E **remove a UNIQUE antiga** dentro da
+séria que a de costume: o item F **remove a UNIQUE antiga** dentro da
 transação para simular o mundo pós-FASE-E. Ele prova o cenário que nenhuma
 leitura de SQL prova sozinha: com Agent A (padrão) e Agent B convivendo na
 mesma audience, resolve A; e com A inativo e **B ativo ao lado**, recusa em vez
-de cair em B. O item F é o controle negativo — mostra que a regra antiga
-*teria* caído em B, ou seja, que o item E não passou por acaso.
+de cair em B, tanto por `intelligence_payload` (F.2) quanto por
+`nucleo_customer_assistant_access` (F.3) — as duas funções alteradas com
+seleção própria. O item G é o controle negativo — mostra que a regra antiga
+*teria* caído em B, ou seja, que o item F não passou por acaso. O item E prova
+`nucleo_customer_assistant_access` fim a fim (default ativo/inativo/ausente),
+via credencial de robô simulada através dos GUCs de JWT que o harness já
+implementa.
 
-> Em 04/09/2026 essa prova comportamental ficou **escrita e não executada**: a
-> máquina de trabalho não tem Postgres, Docker nem `psql`, e o acesso à VPS que
-> hospedou o Postgres descartável da FASE C não estava disponível na sessão.
-> A FASE D está, portanto, no mesmo estágio em que a FASE C esteve antes da
-> prova na VPS: **validada estaticamente**. Rodar
-> `prova-resolvedor-agente-padrao.sql` é pré-requisito para aplicar em
-> produção.
+> **Executada em 04/09/2026, PostgreSQL 17.6 userspace descartável na VPS**
+> (mesmo ambiente e receita da prova da FASE C — ver
+> [[prova-comportamental-da-fase-c-na-vps]]): **A–H, 100% PASS**, incluindo
+> E.1–E.3 (customer access) e F.1–F.3 (cenário de dois agentes, com o padrão
+> inativo recusando nas duas funções). Produção reconferida por hash das 5
+> funções antes e depois: **idêntica**. Ambiente destruído por completo ao
+> final — processo, cluster e diretório em `/tmp`, nada residual na VPS.
+>
+> O que essa prova **não** cobre, por desenho e não por lacuna: `v3` não tem
+> chamada direta, porque ele não tem seleção de agente própria — o item D
+> prova que o mecanismo do qual ele depende (o contexto gravado pelo payload)
+> está correto, e o contrato estático `H` do arquivo de teste trava que ele só
+> pode ler por `assistant_profile_id` pinado. Exercitar v3 ponta a ponta
+> exigiria montar skill de recepção publicada e sessão de skill — máquina da
+> FASE H3, alheia ao que a FASE D mudou.
+>
+> A FASE D está, portanto, **validada comportamentalmente**, no mesmo grau que
+> a FASE C.

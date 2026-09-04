@@ -11,10 +11,10 @@ bloqueia, e as armadilhas de ambiente que já custaram tempo.
 | Coisa | Valor |
 |---|---|
 | Branch canônica | `feature/multi-agent-foundation` |
-| HEAD | `3d2173b` |
-| Próxima ação | rodar a prova comportamental da FASE D |
-| Bloqueio | sem Postgres/Docker/`psql` na máquina de trabalho e sem acesso à VPS na sessão |
-| Produção | FASES B e C aplicadas; **FASE D não aplicada** |
+| HEAD | ver `git log -1` — este arquivo foi atualizado após a prova da FASE D passar |
+| Próxima ação | aplicar a FASE D em produção (prova comportamental já passou, A–H, 04/09/2026) |
+| Bloqueio | nenhum — SSH liberado e prova executada com sucesso |
+| Produção | FASES B e C aplicadas; **FASE D validada, ainda não aplicada** |
 
 ## Histórico da branch
 
@@ -43,7 +43,7 @@ foi trazido por cherry-pick (`37940a9`). Ignore-a.
 | A — `AgentDefinition` no domínio | ✅ feita | `packages/intelligence/src/agent.mjs` |
 | B — `slug`, `role`, `soul_markdown` | ✅ **aplicada em produção** 04/09/2026 | `20260904160000_...sql` |
 | C — `is_default` + índice parcial + unique de slug | ✅ **aplicada em produção** 04/09/2026 | `20260904190000_...sql` |
-| D — resolvedores usam o padrão | ⚠️ **código pronto, NÃO aplicado, prova NÃO executada** | `20260904230000_...sql` |
+| D — resolvedores usam o padrão | ✅ **validada comportamentalmente** (A–H PASS, 04/09/2026), **NÃO aplicada em produção** | `20260904230000_...sql` |
 | E — remover `unique (organization_id, audience)` | pendente | — |
 | F — API/UI para criar agente | pendente | — |
 | G — Agent Router | pendente | — |
@@ -113,40 +113,34 @@ o payload corrige os três. Redefini-los criaria uma segunda semântica de padr�
 
 ## O que falta, na ordem
 
-### 1. Rodar a prova comportamental da FASE D — **este é o bloqueio**
+### 1. Prova comportamental da FASE D — ✅ feita em 04/09/2026
 
-`scripts/sql/prova-resolvedor-agente-padrao.sql`, num **Postgres descartável**.
-É o único item que prova o que a FASE D existe para garantir: com Agent A
-(padrão) e Agent B convivendo na mesma audience, resolve A; e com A inativo e
-**B ativo ao lado**, recusa em vez de cair em B. O item F é o controle negativo
-— mostra que a regra antiga *teria* caído em B.
+`scripts/sql/prova-resolvedor-agente-padrao.sql` rodou num Postgres 17.6
+descartável na VPS (mesma receita da FASE C —
+`scripts/sql/README-prova-agente-padrao.md`) e deu **PASS em A–H**, incluindo:
 
-O script **remove a `unique (organization_id, audience)` dentro da transação**
-para simular o mundo pós-FASE-E. Termina em `ROLLBACK`, mas por isso mesmo:
-**nunca rode contra produção**, nem "só para ver".
+- E.1–E.3: `nucleo_customer_assistant_access` fim a fim (default ativo,
+  inativo, ausente), via credencial de robô simulada por GUCs de JWT.
+- F.1–F.3: o cenário com **dois agentes** na mesma audience e a `unique
+  (organization_id, audience)` removida dentro da transação — o padrão
+  inativo **recusa** em vez de cair no segundo agente ativo, tanto por
+  `intelligence_payload` quanto por `nucleo_customer_assistant_access`.
+- G: controle negativo — a regra antiga *teria* caído no agente B.
+- H: pós-`ROLLBACK`, a unique antiga voltou e nada vazou.
 
-Sequência, num Postgres descartável:
+Produção reconferida por hash das 5 funções antes e depois da prova:
+**idêntica**. Ambiente da VPS destruído por completo ao final (processo,
+cluster, diretório em `/tmp`) — nada residual.
 
-```
-1. scripts/sql/harness-supabase-minimo.sql
-2. migrations do repositório, em ordem, até a FASE C (20260904190000) inclusive
-3. scripts/sql/prova-agente-padrao-seed.sql        <-- fixtures pré-C, COMMIT
-4. migration da FASE D (20260904230000)
-5. scripts/sql/prova-resolvedor-agente-padrao.sql
-```
+`v3` não foi exercitado ponta a ponta de propósito: ele não tem seleção de
+agente própria (lê `context_row.assistant_profile_id`, que o item D prova
+estar correto), e montar o caminho completo exigiria skill de recepção
+publicada e sessão de skill — máquina da FASE H3, alheia ao que a FASE D
+mudou. Coberto pelo item D + pelo contrato estático `H` do arquivo de teste.
 
-Por que não rodou em 04/09/2026: a máquina de trabalho (Windows) não tem
-Postgres, Docker nem `psql`; e o SSH para a VPS que hospedou o Postgres
-descartável da FASE C foi bloqueado pelo classificador de permissões da
-sessão. A receita completa de como montar aquele Postgres **sem root e sem
-Docker** está em `scripts/sql/README-prova-agente-padrao.md` — vale ler antes
-de tentar montar do zero, porque o caminho óbvio (branching do Supabase) **não
-serve**: exige plano Pro, e a organização está fora dele (402
-`entitlement_required`).
+### 2. Aplicar a FASE D em produção — **próximo passo**
 
-### 2. Aplicar a FASE D em produção
-
-Só depois da prova passar. Mesmo fluxo controlado das FASES B e C:
+Mesmo fluxo controlado das FASES B e C:
 
 ```
 supabase db query --linked -f supabase/migrations/20260904230000_resolvers_usam_agente_padrao.sql
