@@ -311,8 +311,8 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 |---|---|---|
 | **A** | Conceito `AgentDefinition` no domínio + adapter puro + validação | ✅ **Feita** |
 | **B** | Colunas novas em `assistant_profiles`, sem remover a unique: `slug`, `role`, `soul_markdown`. Backfill do slug a partir de `display_name` | ✅ **Aplicada em produção** em 04/09/2026 — `20260904160000_identidade_do_agente_em_assistant_profiles.sql` |
-| **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Código e migration prontos** — `20260904190000_agente_padrao_explicito.sql` ainda **não aplicada** |
-| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | Pendente |
+| **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
+| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Código preparado**, não aplicada — `20260904230000_resolvers_usam_agente_padrao.sql` |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | Pendente |
 | **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
@@ -403,3 +403,100 @@ public.assistant_profiles drop constraint assistant_profiles_organization_slug_k
 `alter table ... drop column is_default`, e restaurar
 `private.provision_intelligence` para a definição sem `is_default`. Nada
 pré-existente é alterado — o backfill só escreve em coluna recém-nascida.
+
+## FASE D — código preparado
+
+`20260904230000_resolvers_usam_agente_padrao.sql`, escrita em 04/09/2026 a
+partir da definição **viva** em produção das três funções (`pg_get_functiondef`
+na hora), **não aplicada**.
+
+### A regra
+
+```
+organização + audience + is_default = true   ->   o agente
+depois, e só depois, verifica-se `active`
+```
+
+Em uma frase: **o Default Agent é o fallback explícito daquela audience, e um
+padrão indisponível recusa a operação em vez de passar a vez.**
+
+Três consequências que valem estar escritas, porque são o que distingue esta
+fase de uma troca cosmética de `where`:
+
+- **Default inativo = operação recusada.** `is_default` é identidade;
+  `active` é elegibilidade. As duas são ortogonais desde a FASE C, e agora o
+  código age assim: a seleção pergunta só quem é o padrão, e a checagem de
+  `active` vem depois, separada, para poder recusar.
+- **Outro agente ativo ≠ fallback automático.** Nenhuma das funções procura
+  substituto. Promover agente é ato de pessoa, não consequência de
+  indisponibilidade — senão uma conversa migraria de agente sozinha, sem
+  ninguém ter decidido nada, e ninguém saberia dizer por quê.
+- **A ordem do `where` era o bug latente.** `intelligence_payload` filtrava
+  `and profile.active` dentro da seleção. Com um agente só, isso é
+  indistinguível de checar depois. Com dois, é exatamente a diferença entre
+  recusar e falar pelo outro. A FASE E teria transformado esse detalhe de
+  sintaxe em troca silenciosa de agente.
+
+### O que mudou, e o que deliberadamente não mudou
+
+| Objeto | Mudou? | Por quê |
+|---|---|---|
+| `private.intelligence_payload` | **Sim** | O ponto de resolução de todo o runtime. Seleção por `is_default`, sem `limit 1`, `active` checado depois |
+| `nucleo_customer_assistant_access` | **Sim** | Passa a pedir o padrão de `customer`. Já separava seleção de disponibilidade; faltava dizer *qual* perfil |
+| `nucleo_intelligence_context_resolve_v2` | **Sim** | Tinha seleção implícita própria (entrava por um perfil `internal` qualquer para achar o skill `tarefas`). Agora entra pelo padrão |
+| `nucleo_intelligence_context_resolve_v3` | Não | Nunca escolheu agente: lê `context_row.assistant_profile_id`, gravado pelo payload a cada turno. Corrigir o payload já o corrige |
+| `nucleo_intelligence_context_resolve` (v1) | Não | Delega inteiramente ao payload; só decide a *audience* |
+| `intelligence_context_preview` | Não | Também delega ao payload. Redefinir seria criar uma segunda semântica de padrão |
+| `private.provision_intelligence` | Não | A FASE C já a deixou criando os dois perfis iniciais com `is_default = true` |
+
+O critério aqui foi **uma** semântica de padrão, não várias implementações
+convergentes por coincidência. Onde a função herda a seleção, ela não foi
+tocada — e os testes (`H`, `F` de
+`test/agent-default-resolution-migration.test.mjs`) travam isso: se alguém
+redefinir o v3 ou o preview dentro desta fase, o teste reprova.
+
+### Mensagens públicas preservadas
+
+Nada virou erro genérico para simplificar SQL. `intelligence_payload` continua
+levantando `assistant profile is inactive or unavailable` — agora por dois
+caminhos (não existe padrão / o padrão está inativo), o que já era o caso
+antes, já que o filtro único também colapsava os dois. E
+`nucleo_customer_assistant_access` continua devolvendo `profile_inactive`,
+tanto para padrão inativo quanto para ausência de padrão (fail closed).
+
+### O que a FASE D **não** faz
+
+Não remove a `unique (organization_id, audience)` — a migration inclusive
+**falha** se ela não estiver lá. Não cria agente, não implementa Agent Router,
+não encosta em UI, Portal ou Simulador, e não migra consumidor para o
+Intelligence Core. É só isto: fazer o backend existente resolver o agente
+padrão explicitamente, para que a FASE E possa remover a constraint sem que
+nada passe a sortear agente.
+
+**Dívida repetida da FASE E:** os dois `on conflict (organization_id,
+audience)` de `provision_intelligence` dependem da unique antiga e vão falhar
+quando ela cair. Tratar junto com a FASE E, não depois.
+
+### Provas
+
+Estáticas, em `test/agent-default-resolution-migration.test.mjs` (A–L, 12/12):
+que a migration declara a regra, que a recusa é separada da seleção, que
+nenhum `limit 1` decide qual agente, que a unique antiga continua exigida e que
+o v3/preview/provision não foram redefinidos.
+
+Comportamental, em `scripts/sql/prova-resolvedor-agente-padrao.sql`, para
+Postgres descartável — **nunca produção**, e neste caso a advertência é mais
+séria que a de costume: o item E **remove a UNIQUE antiga** dentro da
+transação para simular o mundo pós-FASE-E. Ele prova o cenário que nenhuma
+leitura de SQL prova sozinha: com Agent A (padrão) e Agent B convivendo na
+mesma audience, resolve A; e com A inativo e **B ativo ao lado**, recusa em vez
+de cair em B. O item F é o controle negativo — mostra que a regra antiga
+*teria* caído em B, ou seja, que o item E não passou por acaso.
+
+> Em 04/09/2026 essa prova comportamental ficou **escrita e não executada**: a
+> máquina de trabalho não tem Postgres, Docker nem `psql`, e o acesso à VPS que
+> hospedou o Postgres descartável da FASE C não estava disponível na sessão.
+> A FASE D está, portanto, no mesmo estágio em que a FASE C esteve antes da
+> prova na VPS: **validada estaticamente**. Rodar
+> `prova-resolvedor-agente-padrao.sql` é pré-requisito para aplicar em
+> produção.

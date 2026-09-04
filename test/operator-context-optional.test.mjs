@@ -18,13 +18,19 @@ import test from "node:test";
 const MIGRATIONS_DIR = new URL("../supabase/migrations/", import.meta.url);
 const CHAMADA = /nucleo_operator_context\s*\(/;
 
-// Os três que tratam operador como OPCIONAL, por desenho. Ficam de fora da
-// exigência de guarda — e são nomeados aqui, um a um, para que incluir um
-// quarto seja uma decisão explícita de quem escrever a migration.
+// Os que tratam operador como OPCIONAL, por desenho. Ficam de fora da
+// exigência de guarda — e são nomeados aqui, um a um, para que incluir mais um
+// seja uma decisão explícita de quem escrever a migration.
 const OPCIONAIS = new Map([
   ["20260823120000_fase_h_inteligencia_contextual.sql", ["nucleo_intelligence_context_resolve"]],
   ["20260828210000_corrigir_roteamento_tarefas_interno.sql", ["nucleo_intelligence_context_resolve_v2"]],
   ["20260830060000_ferramentas_de_solicitacao_de_agenda.sql", ["nucleo_intelligence_context_resolve_v2"]],
+  // FASE D redefine o v2 para alcançar o skill de tarefas pelo agente PADRÃO
+  // interno. O tratamento do operador não muda uma linha: continua dentro de
+  // `if requester_phone <> ''` e consumido por `if operator_user is not null`,
+  // idêntico ao da migration logo acima — quem escreve sem ser operador é
+  // cliente, e aqui isso é resposta normal, não falha aberta.
+  ["20260904230000_resolvers_usam_agente_padrao.sql", ["nucleo_intelligence_context_resolve_v2"]],
 ]);
 
 async function chamadas() {
