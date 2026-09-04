@@ -1,5 +1,11 @@
 # Migração multi-agent: de `assistant_profiles` para Agents
 
+> **Assumindo o trabalho agora?** Comece por
+> [CONTINUACAO-MULTI-AGENT.md](./CONTINUACAO-MULTI-AGENT.md): o que está
+> aplicado em produção, o que está só escrito, o que bloqueia a próxima etapa e
+> as armadilhas de ambiente que já custaram tempo. Este documento é o
+> **desenho**; aquele é o **estado**.
+
 ## O estado de hoje
 
 `assistant_profiles` carrega `unique (organization_id, audience)`
