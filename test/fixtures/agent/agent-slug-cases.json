@@ -1,0 +1,16 @@
+{
+  "description": "Corpus canônico da regra de slug de agente. Esta lista é a ÚNICA fonte de verdade da equivalência entre o algoritmo em JavaScript (slugFromAgentName, packages/intelligence/src/agent.mjs) e o algoritmo em SQL (private.agent_slug, supabase/migrations/20260904160000_identidade_do_agente_em_assistant_profiles.sql). Os dois lados são checados contra ESTES pares: o teste JS roda a função JS, e o bloco de prova dentro da própria migration roda a função SQL no Postgres real no momento em que ela é aplicada — se divergirem, a migration falha em vez de gravar slug errado. Nenhum nome aqui contém aspas simples, para que a extração dos literais SQL pelo teste de equivalência continue trivial.",
+  "cases": [
+    { "name": "Assistente interno", "audience": "internal", "slug": "assistente-interno" },
+    { "name": "Assistente da empresa", "audience": "customer", "slug": "assistente-da-empresa" },
+    { "name": "Recepção — Clínica!", "audience": "customer", "slug": "recepcao-clinica" },
+    { "name": "Emília", "audience": "customer", "slug": "emilia" },
+    { "name": "  Agente   de   Vendas  ", "audience": "customer", "slug": "agente-de-vendas" },
+    { "name": "SDR 2.0", "audience": "internal", "slug": "sdr-2-0" },
+    { "name": "Ação & Reação", "audience": "internal", "slug": "acao-reacao" },
+    { "name": "ÁÉÍÓÚÇÃÕ", "audience": "internal", "slug": "aeioucao" },
+    { "name": "2026", "audience": "internal", "slug": "2026" },
+    { "name": "!!", "audience": "customer", "slug": "agente-customer" },
+    { "name": "??", "audience": "internal", "slug": "agente-internal" }
+  ]
+}
