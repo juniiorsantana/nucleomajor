@@ -143,11 +143,18 @@ export function validateAgentDefinition(agent) {
  * `soul_markdown` não têm fallback nenhum: sem coluna, saem `null`, porque
  * inventar persona é pior do que não ter.
  *
- * `isDefault` continua derivado como `true`: `unique (organization_id,
- * audience)` garante que a única linha daquela audience É a padrão. Esta
- * derivação deixa de valer no instante em que a constraint cair — por isso a
- * FASE C (coluna explícita de default) precisa vir ANTES da FASE E (remoção
- * da unique).
+ * Desde a FASE C (migration `20260904190000_agente_padrao_explicito.sql`),
+ * `is_default` é coluna: o banco é a fonte da verdade de quem é o agente
+ * padrão. O fallback `true` continua apenas como compatibilidade de
+ * transição, para linha de fixture antiga ou banco sem a migration — e ele é
+ * correto só porque `unique (organization_id, audience)` ainda existe, o que
+ * torna a única linha daquela audience necessariamente a padrão. Quando a
+ * FASE E remover essa unique, este fallback deixa de ser defensável e precisa
+ * sair junto.
+ *
+ * `isDefault` é ortogonal a `status`: um agente padrão pode estar inativo.
+ * Quem decide o que fazer nesse caso é o resolvedor (recusar, não escolher
+ * outro), não este adapter.
  *
  * Colunas reais deliberadamente não representadas (registradas, não
  * descartadas em silêncio): `template_id`, `brand_config`, `process_config`
@@ -168,6 +175,6 @@ export function assistantProfileToAgentDefinition(row) {
     tone: typeof row.tone === "string" ? row.tone : null,
     soulMarkdown: typeof row.soul_markdown === "string" ? row.soul_markdown : null,
     status: row.active === false ? "inactive" : "active",
-    isDefault: true,
+    isDefault: typeof row.is_default === "boolean" ? row.is_default : true,
   };
 }
