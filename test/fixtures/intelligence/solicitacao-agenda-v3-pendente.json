@@ -1,0 +1,98 @@
+{
+  "description": "Cliente pediu horario, dados coletados, proposta persistida e aguardando confirmacao explicita — pendingSensitiveAction=true e stack de retorno para a recepcao. Cobre os casos 'solicitacao-agenda' e 'com pending action/subflow' das fixtures da ETAPA 4.",
+  "function": "v3",
+  "request": {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "audience": "customer",
+    "channel": "whatsapp",
+    "conversationKeyHash": "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+    "requesterPhone": "+5511900000003",
+    "incomingText": "confirmo, pode marcar",
+    "sourceData": {},
+    "shouldPersist": true
+  },
+  "payload": {
+    "schemaVersion": "fase-h-3",
+    "contextoId": "00000000-0000-4000-8000-0000000000ca",
+    "audiencia": "customer",
+    "assistente": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "nome": "Ana",
+      "tom": "acolhedor e direto",
+      "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+      "processo": { "idiomas": ["pt-BR"] },
+      "templateId": "padrao-clinica"
+    },
+    "campanha": null,
+    "skillAtivo": {
+      "id": "00000000-0000-4000-8000-000000000054",
+      "slug": "solicitacao-agenda",
+      "nome": "Solicitação de agenda",
+      "versao": 2,
+      "spec": { "note": "spec completo omitido na fixture; ver packages/intelligence/skills/solicitacao-agenda/skill.json" }
+    },
+    "skillsPermitidos": [],
+    "colecoesPermitidas": [],
+    "politicas": {
+      "organizacaoDerivada": true,
+      "confirmacaoParaEscrita": true,
+      "documentosComoDados": true,
+      "transferenciaHumana": true
+    },
+    "runtimeContext": {
+      "audience": "customer",
+      "assistant": {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "nome": "Ana",
+        "tom": "acolhedor e direto",
+        "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+        "processo": { "idiomas": ["pt-BR"] },
+        "templateId": "padrao-clinica"
+      },
+      "campaign": null,
+      "activeSkill": {
+        "id": "00000000-0000-4000-8000-000000000054",
+        "slug": "solicitacao-agenda",
+        "name": "Solicitação de agenda",
+        "version": 2,
+        "contentHash": "d4e5f60718293a4b5c6d7e8f9001122334455667788990aabbccddeeff234",
+        "objective": "Reservar provisoriamente um horário solicitado pelo cliente sem efetivar o compromisso antes da aprovação da equipe.",
+        "instructions": "# Solicitação de agenda\n\nPersista a proposta e peça confirmação explícita antes de submeter.",
+        "allowedTools": ["calendar.availability", "calendar.request.prepare", "calendar.request.submit"],
+        "guardrails": ["customer_only", "pilot_only", "explicit_confirmation", "separate_confirmation_turn", "team_approval", "tentative_hold", "absolute_date", "idempotency", "no_direct_creation"],
+        "handoff": ["less_than_30_minutes", "no_verified_approver", "tool_unavailable", "permission_denied", "conflict", "low_confidence"]
+      },
+      "workflow": {
+        "sessionId": "00000000-0000-4000-8000-000000000063",
+        "revision": 4,
+        "primarySkillId": "00000000-0000-4000-8000-000000000051",
+        "activeSkillId": "00000000-0000-4000-8000-000000000054",
+        "stage": "confirmar_cliente",
+        "stageSpec": {
+          "id": "confirmar_cliente",
+          "objective": "Persistir a proposta e solicitar uma confirmação explícita do cliente em outra mensagem.",
+          "requiredFields": ["title", "date", "time", "duration", "responsible"],
+          "allowedTools": ["calendar.request.prepare"],
+          "completion": "A proposta está persistida e aguarda confirmação do cliente."
+        },
+        "stack": [
+          { "skillId": "00000000-0000-4000-8000-000000000051", "skillSlug": "recepcao", "returnStage": "entender" }
+        ],
+        "pendingSensitiveAction": true,
+        "expiresAt": "2026-09-04T13:45:00.000Z",
+        "subflowExpiresAt": "2026-09-04T14:15:00.000Z",
+        "confirmationMinutes": 10
+      },
+      "allowedCollections": [],
+      "policies": {
+        "organizacaoDerivada": true,
+        "confirmacaoParaEscrita": true,
+        "documentosComoDados": true,
+        "transferenciaHumana": true,
+        "singleOwner": true,
+        "separateConfirmation": true,
+        "chatbotResume": true
+      }
+    }
+  }
+}

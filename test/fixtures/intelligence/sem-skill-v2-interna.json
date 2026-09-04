@@ -1,0 +1,57 @@
+{
+  "description": "Mensagem interna que nao bate keyword de nenhuma skill. Diferente de audience customer (onde recepcao tem routing.fallback=true e sempre casa), nenhuma skill internal (agenda, tarefas) tem fallback=true — entao skillAtivo pode ser null de verdade em producao. Cobre o caso 'sem skill' das fixtures da ETAPA 4.",
+  "function": "v2",
+  "request": {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "audience": "internal",
+    "channel": "whatsapp",
+    "conversationKeyHash": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+    "requesterPhone": "+5511900000098",
+    "incomingText": "bom dia",
+    "sourceData": {},
+    "shouldPersist": true
+  },
+  "payload": {
+    "schemaVersion": "fase-h-2",
+    "contextoId": null,
+    "audiencia": "internal",
+    "assistente": {
+      "id": "00000000-0000-4000-8000-0000000000a1",
+      "nome": "Ana",
+      "tom": "acolhedor e direto",
+      "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+      "processo": { "idiomas": ["pt-BR"] },
+      "templateId": "padrao-clinica"
+    },
+    "campanha": null,
+    "skillAtivo": null,
+    "skillsPermitidos": [],
+    "colecoesPermitidas": [],
+    "politicas": {
+      "organizacaoDerivada": true,
+      "confirmacaoParaEscrita": true,
+      "documentosComoDados": true,
+      "transferenciaHumana": false
+    },
+    "runtimeContext": {
+      "audience": "internal",
+      "assistant": {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "nome": "Ana",
+        "tom": "acolhedor e direto",
+        "marca": { "cores": ["#1c7c54"], "logoUrl": null },
+        "processo": { "idiomas": ["pt-BR"] },
+        "templateId": "padrao-clinica"
+      },
+      "campaign": null,
+      "activeSkill": null,
+      "allowedCollections": [],
+      "policies": {
+        "organizacaoDerivada": true,
+        "confirmacaoParaEscrita": true,
+        "documentosComoDados": true,
+        "transferenciaHumana": false
+      }
+    }
+  }
+}
