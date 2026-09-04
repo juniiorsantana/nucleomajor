@@ -318,7 +318,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 | **A** | Conceito `AgentDefinition` no domínio + adapter puro + validação | ✅ **Feita** |
 | **B** | Colunas novas em `assistant_profiles`, sem remover a unique: `slug`, `role`, `soul_markdown`. Backfill do slug a partir de `display_name` | ✅ **Aplicada em produção** em 04/09/2026 — `20260904160000_identidade_do_agente_em_assistant_profiles.sql` |
 | **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
-| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Validada comportamentalmente**, não aplicada em produção — `20260904230000_resolvers_usam_agente_padrao.sql` |
+| **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Aplicada em produção** em 04/09/2026 — `20260904230000_resolvers_usam_agente_padrao.sql` |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | Pendente |
 | **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
@@ -410,11 +410,13 @@ public.assistant_profiles drop constraint assistant_profiles_organization_slug_k
 `private.provision_intelligence` para a definição sem `is_default`. Nada
 pré-existente é alterado — o backfill só escreve em coluna recém-nascida.
 
-## FASE D — código preparado
+## FASE D — aplicada em produção, 04/09/2026
 
 `20260904230000_resolvers_usam_agente_padrao.sql`, escrita em 04/09/2026 a
 partir da definição **viva** em produção das três funções (`pg_get_functiondef`
-na hora), **não aplicada**.
+na hora), **aplicada em produção em 04/09/2026**. O registro da aplicação, com
+os hashes antes/depois e o que foi e o que não foi verificado, está em
+[`docs/STATUS.md`](../STATUS.md).
 
 ### A regra
 

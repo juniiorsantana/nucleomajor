@@ -11,10 +11,10 @@ bloqueia, e as armadilhas de ambiente que já custaram tempo.
 | Coisa | Valor |
 |---|---|
 | Branch canônica | `feature/multi-agent-foundation` |
-| HEAD | ver `git log -1` — este arquivo foi atualizado após a prova da FASE D passar |
-| Próxima ação | aplicar a FASE D em produção (prova comportamental já passou, A–H, 04/09/2026) |
-| Bloqueio | nenhum — SSH liberado e prova executada com sucesso |
-| Produção | FASES B e C aplicadas; **FASE D validada, ainda não aplicada** |
+| HEAD | ver `git log -1` — este arquivo foi atualizado após a FASE D ser aplicada em produção |
+| Próxima ação | **FASE E**: remover `unique (organization_id, audience)`. Ainda não começou |
+| Bloqueio | nenhum |
+| Produção | FASES B, C e **D aplicadas** (D em 04/09/2026). Multi-agent ainda **não** liberado — a unique antiga continua de pé |
 
 ## Histórico da branch
 

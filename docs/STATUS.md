@@ -400,6 +400,78 @@ três rodadas de tentativa e erro.
   Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
   estado das demais desde `20260821120000`.
 
+- `20260904230000_resolvers_usam_agente_padrao.sql` aplicada em 04/09/2026
+  (FASE D de `docs/intelligence/MULTI-AGENT-MIGRATION.md`) e conferida por
+  introspecção do catálogo antes e depois, não pela mensagem de sucesso. Os
+  resolvedores param de pegar "algum" perfil da audience e passam a pedir o
+  **agente padrão**: `organização + audience + is_default = true`.
+
+  Três funções mudaram, e só três. `md5(pg_get_functiondef)` antes → depois:
+  `private.intelligence_payload` `a50d3dae…` → `7d026211…`;
+  `public.nucleo_customer_assistant_access` `b78b130b…` → `7ac0a815…`;
+  `public.nucleo_intelligence_context_resolve_v2` `59560191…` → `a1110719…`.
+  Hash **idêntico**, como esperado, em `nucleo_intelligence_context_resolve_v3`
+  (`e4aa5c0a…`), em `nucleo_intelligence_context_resolve` v1 (`afbe50a5…`) e em
+  `private.provision_intelligence` (`d9449193…`, o mesmo que a FASE C deixou).
+  O v3 não precisa mudar porque não escolhe agente: ele lê o
+  `assistant_profile_id` que `intelligence_payload` grava a cada turno — uma
+  semântica de padrão, não duas.
+
+  O que muda de verdade é a **ordem**, e é o coração da fase. A seleção do
+  agente deixou de filtrar `active` junto: ela pergunta só quem é o padrão, e o
+  `active` virou checagem seguinte que **recusa**. Com um agente só isso é
+  indistinguível; com dois, é a diferença entre "o padrão está parado, recuse"
+  e "o padrão está parado, então fale pelo outro". Um agente não herda a
+  conversa de outro por acidente de disponibilidade. Confirmado por
+  introspecção do corpo aplicado: a seleção não casa mais
+  `audience = target_audience and profile.active`, e o
+  `if not selected_profile.active then raise exception` está lá.
+
+  Falha fechado nos dois caminhos, com as strings públicas inalteradas:
+  `intelligence_payload` levanta `assistant profile is inactive or unavailable`
+  tanto para "não existe padrão" quanto para "o padrão está inativo", e
+  `nucleo_customer_assistant_access` devolve `profile_inactive` nos mesmos dois
+  casos. Nada virou erro genérico para simplificar SQL.
+
+  Saiu o `limit 1` de onde escolhia agente. O índice parcial da FASE C
+  (`assistant_profiles_one_default_idx`) já garante no máximo um padrão por
+  `(organization_id, audience)`, então ele não protegia nada — escondia a
+  ausência de critério. Sem ele, dois padrões fariam o `select into` falhar
+  alto em vez de sortear. Os outros `limit 1` do arquivo continuam onde estão:
+  escolhem skill e campanha, não agente.
+
+  **Multi-agent continua não liberado.** `unique (organization_id, audience)`
+  segue de pé, o índice parcial de padrão segue de pé,
+  `assistant_profiles_organization_slug_key` segue de pé, e os 2 perfis
+  continuam 2/2 padrão e 2/2 ativos. Nenhuma linha de `assistant_profiles` foi
+  tocada: esta migration é só `CREATE OR REPLACE FUNCTION` (três) mais um bloco
+  `DO` de asserção que lê o catálogo. Por isso, ao contrário das FASES B e C,
+  ela **não** disparou gatilho nem escreveu em `intelligence_audit_log`.
+
+  Os cenários de dois agentes — remover a unique antiga, criar agente
+  adicional, desativar o padrão — foram provados em Postgres 17.6 descartável
+  (`e3de9e2`) e **não** foram executados em produção, de propósito. Nenhum
+  serviço de runtime foi reiniciado (`whatsapp-assistant`, `whatsapp-bridge`,
+  VPS): função SQL é carregada pelo banco. `NUCLEO_INTELLIGENCE_ROUTING_MODE`
+  não foi alterada.
+
+  Ressalva honesta sobre a verificação: o health check **funcional** não foi
+  executado. O único caminho de preview do produto,
+  `public.intelligence_context_preview`, não é read-only — ela insere em
+  `intelligence_simulations` e exige `auth.uid()` —, e o protocolo desta etapa
+  proíbe rodar RPC com efeito colateral só para conferir. E não houve tráfego
+  real entre a aplicação (23:11 UTC) e a conferência: o último turno de
+  conversa ativa é de 22:43 UTC. Portanto **nada foi observado em produção sob
+  carga**; o que sustenta esta fase é a introspecção acima mais a prova
+  comportamental no banco descartável. As 5 conversas ativas seguem todas com
+  `assistant_profile_id` preenchido (zero nulos).
+
+  Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
+  estado das demais desde `20260821120000`.
+
+  Próxima fase: **E** (remover `unique (organization_id, audience)`), que ainda
+  não começou.
+
 ## Tarefas internas
 
 - Skill `Tarefas` e ferramentas MCP para consultar, preparar e confirmar a
