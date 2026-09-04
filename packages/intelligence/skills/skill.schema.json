@@ -95,7 +95,7 @@
       "pattern": "^[a-z][a-z0-9_]{1,63}$"
     },
     "ferramentas": {
-      "$comment": "Lista fechada. RUNTIME_TOOLS em catalog.mjs e a mesma lista repetida em nucleo_intelligence_context_resolve_v2. Markdown pode orientar o uso de uma ferramenta destas; não pode criar outra nem liberar permissão.",
+      "$comment": "Lista fechada. Fonte canônica: TOOL_NAMES em packages/intelligence/src/tools.mjs (ver docs/intelligence/TOOL-REGISTRY.md). JSON Schema não importa JavaScript, então esta enumeração é mantida à mão aqui e conferida por teste de equivalência (test/skill-schema.test.mjs) contra o Registry; a mesma lista também é repetida em SQL, nos resolvedores nucleo_intelligence_context_resolve_v2 e _v3, ainda não integrados ao Registry. Markdown pode orientar o uso de uma ferramenta destas; não pode criar outra nem liberar permissão.",
       "type": "array",
       "uniqueItems": true,
       "items": {
