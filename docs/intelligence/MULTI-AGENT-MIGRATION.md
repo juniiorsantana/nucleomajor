@@ -319,7 +319,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 | **B** | Colunas novas em `assistant_profiles`, sem remover a unique: `slug`, `role`, `soul_markdown`. Backfill do slug a partir de `display_name` | ✅ **Aplicada em produção** em 04/09/2026 — `20260904160000_identidade_do_agente_em_assistant_profiles.sql` |
 | **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
 | **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Aplicada em produção** em 04/09/2026 — `20260904230000_resolvers_usam_agente_padrao.sql` |
-| **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | Pendente |
+| **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | ✅ **Validada comportamentalmente**, não aplicada em produção — `20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql` |
 | **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
 
@@ -524,3 +524,81 @@ implementa.
 >
 > A FASE D está, portanto, **validada comportamentalmente**, no mesmo grau que
 > a FASE C.
+
+## FASE E — pronta, não aplicada
+
+`20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql`, escrita em
+04/09/2026, **não aplicada em produção**. Ela remove
+`unique (organization_id, audience)` de `assistant_profiles` — a constraint que
+até a FASE D era a única razão pela qual o produto acertava o agente: não havia
+critério de escolha, havia impossibilidade de erro.
+
+### Auditoria das dependências da unique antiga
+
+Todo ponto do repositório e do banco cuja semântica dependia de existir no
+máximo um agente por audience, classificado:
+
+| Dependência | Classe | Por quê |
+|---|---|---|
+| `private.provision_intelligence` — 2× `on conflict (organization_id, audience)` | **A** | O árbitro deixa de existir com o DROP e a função passa a falhar (`there is no unique or exclusion constraint matching the ON CONFLICT specification`). Reescrita nesta migration. |
+| `private.provision_intelligence` — 2× `select id into … where audience = …` | **A** | Achado novo, não registrado nas FASES C/D. `select into` sem `strict` pega a **primeira** linha e descarta o resto sem erro: com N agentes, amarra as skills iniciais a um agente sorteado. Passa a exigir `is_default`. |
+| `Inteligencia.jsx` — `profiles.find(item => item.audience === "customer")` | **A** | Caminho de escrita ativo: o `customer.id` vira o `profileId` da campanha. Passa a exigir `is_default`, com guarda para o caso de não haver padrão. |
+| `private.intelligence_payload`, `nucleo_customer_assistant_access`, `resolve_v2` | **B** | A FASE D já os fez pedir `is_default` explicitamente. |
+| `nucleo_intelligence_context_resolve` (v1), `_v3`, `intelligence_context_preview` | **B** | Não têm seleção própria: delegam ao payload, ou leem `context_row.assistant_profile_id` pinado. |
+| RLS de `assistant_profiles` (3 policies) | **B** | `is_org_member` / `can_manage_org` — por organização, nunca por audience. |
+| Gatilhos (`audit`, `fill_slug`, `touch`) | **B** | Row-level, agnósticos de audience. |
+| FKs que apontam para `assistant_profiles` (`assistant_profile_skills`, `conversation_intelligence_contexts`, `customer_assistant_pilot_contacts`, `organization_campaigns`) | **B** | Todas por `id` do agente — é o que impede skill de um agente vazar para outro. |
+| `customer_assistant_rollout_update` | **B** | Opera por `id` recebido do chamador. |
+| `intelligence_scheduling_bindings_sync` | **B** | Opera sobre o **conjunto** de agentes customer, não escolhe um. Com N agentes passa a amarrar a skill de agenda a todos — comportamento inalterado hoje, a revisitar na FASE F. |
+| `Inteligencia.jsx` — `salvarSkill` com `profiles.filter(audience)` | **C** | Amarra a skill nova a todos os agentes daquela audience. É filtro, não escolha arbitrária; a semântica de "para quais agentes publico este skill" é da FASE F. |
+| `Inteligencia.jsx` — rollout por agente | **C** | Só o rollout do **padrão** é lido por `nucleo_customer_assistant_access`. Com N agentes a tela precisa dizer isso. FASE F. |
+| `scripts/sql/diagnostico-*.sql` | **D** | Diagnóstico read-only; passam a listar mais linhas, e isso é o correto. |
+
+Não existe **nenhum** `insert`/`upsert` de `assistant_profiles` no código do
+portal ou do servidor — a única via de criação é `provision_intelligence`. Criar
+um segundo agente pela API é, portanto, FASE F.
+
+### A invariável, depois desta fase
+
+O banco garante **no máximo um** padrão por `(organization_id, audience)`, pelo
+índice parcial da FASE C. Ele **não** garante "pelo menos um": isso não vira
+gatilho aqui, e o resolvedor continua falhando fechado quando não houver padrão.
+
+Mas a migration **exige exatamente um** padrão para toda audience que já existe,
+como guarda de execução. Entrar no multi-agent com uma audience órfã seria
+escolher, em silêncio, que aquele público para de ser atendido. Ela recusa e não
+corrige dado.
+
+### Consequência que precisa estar escrita
+
+Depois do DROP, a policy `assistant_profiles_insert` (`can_manage_org` +
+`created_by = auth.uid()`) passa a permitir que um gestor crie um segundo agente
+pela API REST, sem UI. É o modelo de dados sendo liberado antes da tela, que é o
+objetivo da fase. É seguro porque `is_default` nasce `false`: o agente entra como
+comum e **não** atende ninguém. Promover exige `update` explícito, e o índice
+parcial rejeita o segundo padrão.
+
+### Provas
+
+> Estáticas: `test/agent-multi-audience.test.mjs`, 9 itens — a migration remove
+> uma constraint e só ela, as guardas existem, `provision_intelligence` deixa de
+> inferir a unique removida e passa a ler o padrão, nenhum resolvedor é
+> redefinido, e a UI não escolhe agente por audience arbitrária.
+>
+> Comportamental: `scripts/sql/prova-multi-agente.sql` rodou em PostgreSQL
+> **17.9** userspace descartável na VPS, com **PASS em A–N**, incluindo 3
+> agentes customer + 2 internal na mesma organização; padrão inativo recusando
+> com dois agentes ativos disponíveis; ausência de padrão falhando fechado;
+> `provision_intelligence` idempotente **depois** do DROP; e slug por
+> organização. Controle negativo: devolver o `on conflict` antigo reproduz
+> exatamente `there is no unique or exclusion constraint matching the ON
+> CONFLICT specification`, e remover a FASE D faz a guarda abortar — a prova
+> sabe reprovar.
+>
+> Desvio de versão registrado: a prova da FASE C/D usou 17.6, igual a produção.
+> O 17.6 saiu do pool do PGDG e o mais próximo disponível para noble era o
+> **17.9**. A semântica sob teste — inferência de `ON CONFLICT` por índice
+> parcial, unique, RLS — não varia entre patches do mesmo major. Produção
+> reconferida por hash das 6 funções antes e depois: **idêntica**, e a unique
+> antiga continua de pé lá. Ambiente da VPS destruído por completo ao final;
+> nada foi instalado no sistema (binários extraídos em `/tmp`).
