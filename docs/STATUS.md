@@ -353,6 +353,53 @@ três rodadas de tentativa e erro.
   Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
   estado das demais desde `20260821120000`.
 
+- `20260904190000_agente_padrao_explicito.sql` aplicada em 04/09/2026 (FASE C
+  de `docs/intelligence/MULTI-AGENT-MIGRATION.md`) e conferida por consulta ao
+  catálogo, não pela mensagem de sucesso: `assistant_profiles` ganhou
+  `is_default boolean not null default false`. O `default false` é deliberado —
+  agente novo nasce comum, e só vira padrão por promoção explícita; quem
+  provisiona organização nova é `private.provision_intelligence`, redefinida
+  aqui para inserir os dois perfis iniciais com `is_default = true`.
+  Introspecção antes e depois: das cinco funções observadas, só a dela mudou
+  (`md5(pg_get_functiondef)` `d7291b84…` → `d9449193…`), e a mudança são as
+  duas colunas `is_default` nos inserts. Nenhuma organização de teste foi
+  criada em produção para verificar isso.
+
+  O backfill marcou `is_default = true` nos 2 perfis existentes — 2 de 2, zero
+  perfis sem padrão. Ele só é correto porque todo perfil de hoje é o único da
+  sua audience, e a migration **verifica essa premissa antes** em vez de supor:
+  se houvesse mais de um perfil por `(organization_id, audience)`, ela levanta
+  exceção em vez de marcar todo mundo como padrão em silêncio.
+
+  Entraram duas garantias de unicidade. O índice **parcial**
+  `assistant_profiles_one_default_idx` sobre `(organization_id, audience)`
+  `where is_default` — parcial porque é o `where` que deixa N agentes
+  não-padrão conviverem, e é ele que continuará valendo quando a FASE E
+  remover a unique antiga. E `assistant_profiles_organization_slug_key` sobre
+  `(organization_id, slug)`, que a FASE B tinha medido ser seguro impor: zero
+  colisões, confirmado de novo no pré-check. Nada foi afrouxado —
+  `unique (organization_id, audience)` **continua de pé** (é o que ainda impede
+  dois agentes da mesma audience), e as 5 checks, 4 FKs e a PK da tabela
+  seguem intactas.
+
+  Nenhum resolvedor foi tocado, e isso é o ponto da fase: `is_default` existe
+  no banco mas ninguém decide por ele ainda. `private.intelligence_payload`,
+  `nucleo_intelligence_context_resolve_v2`, `resolve_v3` e
+  `nucleo_customer_assistant_access` têm hash idêntico ao de antes da
+  migration. Uma pegadinha para quem for conferir com `grep`:
+  `intelligence_payload` casa com `is_default`, mas é `campaign.is_default` de
+  `organization_campaigns`, coluna antiga e sem relação — o roteamento por
+  agente padrão é a FASE D, inteira.
+
+  Como na FASE B, o backfill é um `UPDATE` e os gatilhos da tabela dispararam:
+  `updated_at` subiu nos 2 perfis e `intelligence_audit_log` ganhou 2 linhas
+  `profile`/`update` sem ator (51 → 53). Esperado; não é edição feita por
+  ninguém pela tela. Nenhum serviço de runtime foi reiniciado — migration de
+  banco não exige isso nesta fase.
+
+  Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
+  estado das demais desde `20260821120000`.
+
 ## Tarefas internas
 
 - Skill `Tarefas` e ferramentas MCP para consultar, preparar e confirmar a
