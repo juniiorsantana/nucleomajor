@@ -3,28 +3,16 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { TOOL_NAMES, isKnownTool } from "./tools.mjs";
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SKILLS_DIR = path.resolve(HERE, "../skills");
 
 const AUDIENCES = new Set(["internal", "customer", "both"]);
 const STATUSES = new Set(["draft", "published", "archived"]);
-export const RUNTIME_TOOLS = new Set([
-  "knowledge.search",
-  "crm.contact.read",
-  "crm.contact.upsert",
-  "crm.tag.apply",
-  "crm.deal.qualify",
-  "conversation.handoff",
-  "calendar.read",
-  "calendar.availability",
-  "calendar.prepare",
-  "calendar.confirm",
-  "calendar.request.prepare",
-  "calendar.request.submit",
-  "task.read",
-  "task.prepare",
-  "task.confirm",
-]);
+// Mantido pelo nome antigo por compatibilidade: outros módulos e testes
+// importam `RUNTIME_TOOLS` daqui. A lista em si agora vive só em tools.mjs.
+export const RUNTIME_TOOLS = TOOL_NAMES;
 export const SCHEMA_VERSIONS = new Set(["1.0", "1.1"]);
 const STAGE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -113,7 +101,7 @@ function validateWorkflow(skill, errors) {
         requireStringArray(stage.allowedTools ?? [], `${prefix}.allowedTools`, errors);
         if (Array.isArray(stage.allowedTools)) {
           for (const tool of stage.allowedTools) {
-            if (!RUNTIME_TOOLS.has(tool)) errors.push(`${prefix}.allowedTools contém ferramenta desconhecida: ${tool}`);
+            if (!isKnownTool(tool)) errors.push(`${prefix}.allowedTools contém ferramenta desconhecida: ${tool}`);
             if (Array.isArray(skill.allowedTools) && !skill.allowedTools.includes(tool)) errors.push(`${prefix}.allowedTools amplia as ferramentas da skill: ${tool}`);
           }
         }
@@ -148,7 +136,7 @@ export function validateSkillPackage(skill, instructions, tests) {
   requireStringArray(skill.allowedTools, "allowedTools", errors, { min: 1 });
   if (Array.isArray(skill.allowedTools)) {
     for (const tool of skill.allowedTools) {
-      if (typeof tool === "string" && !RUNTIME_TOOLS.has(tool.trim())) {
+      if (typeof tool === "string" && !isKnownTool(tool.trim())) {
         errors.push(`allowedTools contém ferramenta desconhecida: ${tool}`);
       }
     }
