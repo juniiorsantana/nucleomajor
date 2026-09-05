@@ -9,3 +9,6 @@
 *.png binary
 *.jpg binary
 *.woff2 binary
+
+# Espaços finais pertencem aos registros xref de 20 bytes do PDF embutido.
+docs/design/central-premium/central-inteligencia-premium.html -whitespace
