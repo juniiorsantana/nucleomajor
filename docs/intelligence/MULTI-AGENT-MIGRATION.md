@@ -823,7 +823,7 @@ requisito ainda não existe.
 - **Não faz handoff automático.**
 - **Não foi aplicada em produção.**
 
-### Buraco conhecido, registrado
+### Buraco conhecido — FECHADO na ETAPA 11B (ver adiante)
 
 A policy `assistant_profiles_update` permite a um gestor atualizar **qualquer**
 coluna, incluindo `is_default`. A RPC é o caminho **sancionado** de troca de
@@ -848,3 +848,126 @@ que já está introduzindo escrita nova. Fica registrado para a FASE G.
 > Agenda ativa faz o resolvedor RECUSAR, sem usar a Agenda**; desativar não
 > promove; gestor de outra organização é recusado e o padrão daqui não muda; a
 > troca é all-or-nothing; e a relação Agent ↔ Skills continua N:N de verdade.
+
+### Hardening da fronteira de escrita (ETAPA 11B)
+
+Migration `20260905160000_protege_campos_estruturais_dos_agentes.sql`, escrita
+em 05/09/2026, **não aplicada em produção**. Ela fecha o buraco que a própria
+FASE F havia registrado como conhecido, e o fecha mais fundo do que o registro
+previa.
+
+#### O problema, medido antes de corrigir
+
+`assistant_profiles` tem RLS por organização, e ela funciona. Mas **RLS filtra
+linhas, não colunas**: dentro das linhas que um gestor legitimamente
+administra, ele podia escrever em qualquer coluna, porque `authenticated` tem
+`INSERT`/`UPDATE` de tabela inteira (`authenticated=arwdDxtm`, conferido
+read-only em produção — as migrations concedem `select, insert, update`, e o
+Supabase concede `ALL` por cima).
+
+As regras do domínio JS moram no navegador. Quem chama o PostgREST direto não
+passa por elas. `scripts/sql/prova-fronteira-de-escrita.sql` mediu isso
+rodando como `authenticated` — que é exatamente como o PostgREST executa — e
+achou **quatro caminhos com efeito real**:
+
+| Caminho | O que acontecia | Consequência |
+|---|---|---|
+| `update … set is_default = false` | 1 linha | A organização fica **sem padrão**, e sem padrão o resolvedor recusa tudo (FASE D). Um público inteiro para de ser atendido sem nada ter "quebrado". |
+| `update … set audience = 'internal'` | 1 linha | Um agente de clientes, com contexto e campanhas amarrados, passa a ler conhecimento **interno**. |
+| `update … set id = …` | 1 linha | A identidade referenciada por conversas, campanhas e skills muda por baixo. |
+| `insert … is_default = true` | 1 linha | Um agente **nasce padrão** e passa a atender sem ninguém tê-lo promovido. |
+
+Sete outros caminhos testados **já estavam fechados**, e ficam registrados para
+não serem "corrigidos" de novo por engano: criar e editar agente de outra
+organização (RLS), mover agente para outra organização (o `WITH CHECK` da
+policy), amarrar skill a agente de outra organização (a **FK composta**
+`(profile_id, organization_id) → assistant_profiles(id, organization_id)`, que
+é estrutura e não policy), declarar organização alheia no vínculo (RLS), e
+`DELETE` (não existe policy de DELETE, então RLS não casa linha nenhuma).
+
+#### Três cuidados metodológicos que a prova precisou aprender
+
+A primeira versão desta prova estava errada de três formas, e cada uma delas
+teria produzido um relatório de segurança falso. Ficam escritas porque são
+fáceis de repetir:
+
+1. **"Executou" não é "conseguiu".** `update … where organization_id = <org
+   alheia>` não levanta erro: a RLS não casa linha nenhuma e o comando termina
+   com sucesso tendo mudado nada. A primeira versão contou isso como bypass —
+   alarme falso. Agora cada tentativa mede `row_count` e o veredito é sobre
+   **efeito**.
+2. **Testes contaminavam uns aos outros.** Trocar o `id` do agente num item
+   fez um item posterior falhar por FK, e a falha *parecia* proteção. Agora
+   cada tentativa roda isolada e é sempre desfeita.
+3. **O baseline de GRANTs tem de ser o de produção.** O harness reproduz só o
+   que as migrations concedem. Pior: quando a replicação de GRANTs morava
+   dentro da prova, a rodada `depois` reabria — dentro da própria transação —
+   o que a migration acabara de fechar, e o veredito media o teste em vez do
+   produto. Por isso o baseline virou arquivo à parte
+   (`scripts/sql/grants-de-producao-dos-agentes.sql`), aplicado uma vez.
+
+#### A escolha: privilégio de coluna, não gatilho
+
+Um gatilho `before update` comparando `old`/`new` também funcionaria. Privilégio
+de coluna ganhou por três razões: é declarativo e auditável por catálogo (dá
+para perguntar ao banco quem escreve onde, sem ler corpo de função); o
+PostgREST devolve `permission denied for column` sem precisar de tradução e
+antes de qualquer efeito; e gatilho é código de segurança rodando em todo
+UPDATE — mais uma coisa para manter correta, inclusive quando alguém precisar
+de um update legítimo e for tentado a abrir exceção nele.
+
+Resultado no catálogo, depois da migration:
+
+```
+INSERT: active, audience, brand_config, created_by, display_name,
+        organization_id, process_config, role, slug, soul_markdown,
+        template_id, tone, updated_by          (sem id, sem is_default)
+UPDATE: active, brand_config, display_name, process_config, role, slug,
+        soul_markdown, template_id, tone, updated_by
+                                               (sem id, organization_id,
+                                                audience, is_default)
+tabela: REFERENCES, SELECT, TRIGGER            (sem INSERT/UPDATE/DELETE/TRUNCATE)
+```
+
+`audience` e `organization_id` são **inseríveis mas não atualizáveis** — é
+assim que "definido na criação, imutável depois" deixa de ser promessa do
+JavaScript e vira regra do banco. E `is_default` fora do INSERT é o que faz
+"agente nasce comum" ser garantia do **banco**: a coluna tem `default false`.
+
+`TRUNCATE` saiu explicitamente porque é o único caminho que **não passa por
+RLS** — ele apagaria a tabela inteira apesar de todas as policies. Na prova
+`antes`, ele só não teve efeito porque o `cascade` esbarrou noutra tabela; foi
+sorte de topologia, não proteção.
+
+#### A RPC continua funcionando, e vira o único caminho
+
+`nucleo_agent_set_default` é `security definer` e pertence ao owner, então não
+passa pelo privilégio de `authenticated`. Depois desta migration ela é o
+**único** caminho de escrita em `is_default`. Auditada: `security definer` ✓,
+`search_path=""` explícito ✓, `can_manage_org` dentro da função ✓, deriva a
+organização do próprio agente em vez de confiar no cliente ✓, `EXECUTE PUBLIC`
+removido e concedido só a `authenticated` ✓.
+
+A migration se **recusa a rodar** se essa RPC não existir ou não for
+`security definer` — fechar `is_default` sem ela deixaria o produto sem nenhum
+caminho para trocar o padrão, que é hardening virando indisponibilidade.
+
+#### O que continua aberto, de propósito
+
+`active` continua editável, **inclusive no agente padrão**. Desativar o padrão
+é decisão legítima de quem administra; o runtime recusa (FASE D) e nada é
+promovido no lugar. Confundir `active` com `is_default` aqui reintroduziria,
+em nome da segurança, a ambiguidade que a FASE C separou.
+
+#### Provas
+
+> Estáticas: `test/agent-write-boundary.test.mjs`, 9 itens.
+>
+> Comportamental: `scripts/sql/prova-fronteira-de-escrita.sql` rodando como
+> `authenticated` em PostgreSQL 17.9 descartável, **antes e depois** da
+> migration, com o baseline de GRANTs de produção. Antes: 4 caminhos
+> estruturais com efeito real, 6 escritas legítimas funcionando. Depois:
+> **0 de 11 caminhos estruturais com efeito**, e as mesmas **6 escritas
+> legítimas continuam funcionando**. As provas das FASES E e F foram
+> re-executadas depois do hardening e seguem verdes — a troca de padrão pela
+> RPC, a recusa com padrão inativo e o N:N de skills não regrediram.
