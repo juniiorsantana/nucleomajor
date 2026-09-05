@@ -11,10 +11,10 @@ bloqueia, e as armadilhas de ambiente que já custaram tempo.
 | Coisa | Valor |
 |---|---|
 | Branch canônica | `feature/multi-agent-foundation` |
-| HEAD | ver `git log -1` — este arquivo foi atualizado após a FASE E ser validada comportamentalmente |
-| Próxima ação | **aplicar a FASE E em produção** (`20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql`), com o mesmo fluxo controlado das FASES B, C e D |
-| Bloqueio | nenhum — prova A–N passou, com controle negativo |
-| Produção | FASES B, C e **D aplicadas** (D em 04/09/2026). A **E está escrita e provada, não aplicada**: a unique antiga continua de pé em produção, e multi-agent segue **não** liberado |
+| HEAD | ver `git log -1` — este arquivo foi atualizado após a FASE E ser aplicada em produção |
+| Próxima ação | **FASE F**: API/UI multi-agent — criar agente, listar por audience, escolher agente em campanha e no Simulador, rever a semântica de `salvarSkill`. Ainda não começou |
+| Bloqueio | nenhum |
+| Produção | FASES B, C, D e **E aplicadas** (E em 05/09/2026). O **modelo de dados já aceita N agentes por audience**; o índice parcial garante no máximo um padrão. Mas **nenhum segundo agente existe**, e não há rota de criação: os resolvedores continuam falando pelo padrão, e **Agent Router é a FASE G** |
 
 ## Histórico da branch
 

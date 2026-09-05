@@ -472,6 +472,107 @@ três rodadas de tentativa e erro.
   Próxima fase: **E** (remover `unique (organization_id, audience)`), que ainda
   não começou.
 
+- `20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql` aplicada em
+  05/09/2026 (FASE E de `docs/intelligence/MULTI-AGENT-MIGRATION.md`, 00:15
+  UTC) e conferida por introspecção do catálogo antes e depois. **O banco passa
+  a aceitar N agentes por audience**: `unique (organization_id, audience)` foi
+  removida.
+
+  O que passa a segurar a integridade no lugar dela: o índice parcial
+  `assistant_profiles_one_default_idx` sobre `(organization_id, audience)`
+  `where is_default`, que garante **no máximo um padrão** por audience — é o
+  `where` que deixa N agentes comuns conviverem. Conferido presente depois do
+  DROP, junto com `assistant_profiles_organization_slug_key` (a identidade
+  estável de um agente dentro da organização, que com N agentes deixa de ser
+  conveniência), a PK e `assistant_profiles_id_organization_id_key`. As 5
+  checks, as 4 FKs, os 3 gatilhos e as 3 policies seguem intactos, e nenhuma
+  policy passou a citar `audience` — RLS continua por organização.
+
+  Só uma função mudou: `private.provision_intelligence`
+  (`d9449193…` → `2ce57ef0…`). Era o bloqueador registrado desde a FASE C: seus
+  dois `on conflict (organization_id, audience)` apontavam para o índice que o
+  DROP removeu, e sem a reescrita **criar organização passaria a falhar**.
+  Agora eles inferem o índice parcial (`where is_default`), o que continua
+  atômico. Os cinco resolvedores têm hash **idêntico** ao de antes —
+  `intelligence_payload` (`7d026211…`), `nucleo_customer_assistant_access`
+  (`7ac0a815…`), `resolve` v1 (`afbe50a5…`), `resolve_v2` (`a1110719…`) e
+  `resolve_v3` (`e4aa5c0a…`). Quem responde continua sendo o **agente padrão**
+  que a FASE D instalou; **não existe Agent Router** (isso é a FASE G).
+
+  Junto veio um bug que ninguém tinha registrado: os dois `select id into …
+  where audience = …` da mesma função não filtravam o padrão. `select into` sem
+  `strict` pega a primeira linha e descarta o resto sem erro — com N agentes,
+  amarraria as skills iniciais a um agente sorteado. Passa a exigir
+  `is_default`.
+
+  Revisão semântica feita antes de aplicar (ETAPA 10B): a versão viva nunca foi
+  `do update` — reencontrar um perfil sempre significou reutilizar, sem
+  sobrescrever campo nenhum, e assim continua. Isso importa concretamente aqui:
+  o perfil de clientes desta organização chama-se **"Assistente Major"**, não
+  "Assistente da empresa"; um `do update` teria revertido o nome escolhido pela
+  equipe. A única divergência de comportamento é audience povoada **sem**
+  padrão, estado inalcançável pelo único chamador (o gatilho é `AFTER INSERT`
+  em `organizations`, logo roda com a organização vazia).
+
+  Dados existentes **inalterados**, e isso é o ponto: a fase muda a capacidade
+  do modelo, não os dados. Continuam 2 perfis, os mesmos `id`
+  (`de7c940c…` / `d5d26c0a…`), os mesmos slugs (`assistente-major` /
+  `assistente-interno`), as mesmas audiences, 2/2 ativos e 2/2 padrão. Nenhum
+  perfil novo foi criado. Ao contrário das FASES B e C, esta migration não
+  tocou nenhuma linha: `intelligence_audit_log` continua em 53 e o
+  `updated_at` dos perfis continua em 04/09 21:29 UTC.
+
+  **Nenhum segundo agente foi criado em produção**, de propósito. O modelo
+  aceita, a UI e a API ainda não: não existe rota de `insert` de
+  `assistant_profiles` no portal nem no servidor. Criar agente é a próxima
+  fase. A tela de Campanhas já foi corrigida para amarrar a campanha ao agente
+  **padrão** de clientes (antes era `find(audience === "customer")`, que
+  viraria sorteio), mas a Central de Inteligência continua sendo a tela antiga,
+  de dois assistentes.
+
+  Nenhum serviço reiniciado. Os dois processos do runtime seguem de pé como
+  unidades de usuário do `nucleo`
+  (`whatsapp-assistant@8ee1e6d0…` e `whatsapp-bridge@8ee1e6d0…`), com o
+  assistente no ar há ~11h48 e o bridge há ~1d11h no momento da conferência —
+  ambos anteriores a esta migration. `NUCLEO_INTELLIGENCE_ROUTING_MODE` não foi
+  alterada.
+
+  Sobre observação em produção: **continua sem tráfego**. Zero turnos desde a
+  aplicação da FASE D; o último turno de conversa ativa é de 04/09 22:43 UTC,
+  anterior à própria FASE D. Os logs do runtime não têm nenhuma ocorrência de
+  `assistant profile is inactive or unavailable`, `profile_inactive`,
+  `resolve_v2`, `resolve_v3` ou erro de RPC/SQL. Portanto o caminho de
+  resolução **não foi exercitado sob carga** nem pela FASE D nem pela E — o que
+  sustenta as duas é a introspecção mais a prova comportamental em Postgres
+  descartável.
+
+  Não registrada em `supabase_migrations.schema_migrations` — segue o mesmo
+  estado das demais desde `20260821120000`.
+
+  Próxima fase: **F** (API/UI multi-agent: criar agente, listar por audience,
+  escolher agente em campanha e no Simulador, e rever a semântica de
+  `salvarSkill`).
+
+## Dívidas registradas na FASE E
+
+Duas coisas encontradas durante a FASE E que **não** são dela e não foram
+corrigidas junto, para não misturar escopo numa migration de produção:
+
+- **Exposição do schema `private`.** `private.provision_intelligence` é
+  `security definer`, recebe `organization_id` arbitrário e tem `EXECUTE` para
+  `PUBLIC` (o padrão do Postgres); o schema `private` tem `USAGE` para
+  `authenticated`. Hoje ela não é alcançável pela API porque o PostgREST não
+  expõe `private` — mas isso depende de configuração, não de permissão. A
+  verificar em etapa própria de segurança: `PGRST_DB_SCHEMAS`, quais schemas
+  estão expostos, e os `EXECUTE` das funções `private` em geral. É
+  **pré-existente**, anterior a toda a linha multi-agent, e não foi introduzido
+  nem agravado pela FASE E.
+- **`runtime.commands_unavailable`.** O assistente registra, de forma
+  recorrente, `error_code: control_plane_unavailable` — "Supabase recusou
+  reserva de comandos do runtime". Pré-existente e alheio à resolução de
+  agente: 44 ocorrências em 04/09 **antes** da FASE D, e 4 depois. Não é
+  regressão das FASES D/E, mas ninguém abriu para investigar.
+
 ## Tarefas internas
 
 - Skill `Tarefas` e ferramentas MCP para consultar, preparar e confirmar a
