@@ -246,6 +246,25 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
     expect(botaoComTexto("Continuar").disabled).toBe(true);
   });
 
+  it("mostra falha parcial de habilidades sem repetir o cadastro já concluído", async () => {
+    await montar({ inicial: [], catalogoSkills: CATALOGO_VENDAS });
+    await clicar(botaoComTexto("Criar agente"));
+    await clicarCard("Vendas");
+    await clicarCard("Clientes e leads");
+    await digitar(inputPorRotulo("Nome"), "SDR");
+    await clicar(botaoComTexto("Continuar"));
+    await clicar(botaoComTexto("Continuar"));
+    agentsApi.criar.mockResolvedValueOnce(agent({ id: "sdr", name: "SDR" }));
+    agentsApi.definirSkill.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN" }).mockResolvedValueOnce({});
+    agentsApi.listar.mockResolvedValueOnce([agent({ id: "sdr", name: "SDR" })]);
+    await clicar(botaoComTexto("Concluir"));
+    await tick();
+    expect(assistenteAberto()).toBe(false);
+    expect(container.textContent).toContain("O agente foi criado, mas 1 habilidade(s) não foram vinculadas");
+    expect(agentsApi.criar).toHaveBeenCalledTimes(1);
+    expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
+  });
+
   it("o identificador técnico fica em Configurações avançadas, derivado do nome", async () => {
     await montar({ inicial: [] });
     await clicar(botaoComTexto("Criar agente"));

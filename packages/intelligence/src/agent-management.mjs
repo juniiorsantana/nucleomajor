@@ -231,7 +231,7 @@ export function agentCommandToRow(comando, { actor }) {
     tone: comando.tone ?? undefined,
     soul_markdown: comando.soulMarkdown,
     active: comando.active,
-    is_default: false,
+    // O banco aplica DEFAULT false; authenticated não pode escrever esta coluna.
     created_by: actor,
     updated_by: actor,
   };

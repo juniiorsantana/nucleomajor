@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { agentCommandToRow, buildCreateAgentCommand } from "../packages/intelligence/src/agent-management.mjs";
 
 // ETAPA 11B. A migration de hardening tira do alcance de `authenticated` as
 // colunas estruturais do agente. Estes contratos travam a DECLARAÇÃO; a prova
@@ -31,6 +32,14 @@ function listaDe(tipo, tabela) {
     .map((c) => c.trim())
     .filter(Boolean);
 }
+
+test("o payload de criação respeita os grants de authenticated", () => {
+  const row = agentCommandToRow(buildCreateAgentCommand({
+    organizationId: "00000000-0000-0000-0000-000000000001", audience: "customer", name: "SDR", isDefault: true,
+  }), { actor: "00000000-0000-0000-0000-000000000002" });
+  const allowed = listaDe("insert", "assistant_profiles");
+  for (const column of Object.keys(row)) assert.ok(allowed.includes(column), `${column} não pode ser enviada pelo portal`);
+});
 
 test("A: o privilégio de tabela inteira sai das duas tabelas", () => {
   for (const tabela of ["assistant_profiles", "assistant_profile_skills"]) {

@@ -706,14 +706,17 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
   };
 
   const criarAgente = async ({ skillIds, ...campos }) => {
+    setFalha("");
     const criado = await api.agents.criar(campos);
     if (skillIds?.length) {
-      // Melhor esforço: o agente já foi criado, então uma habilidade que não
-      // vinculou não pode travar o fim do assistente — o usuário ainda pode
-      // adicioná-la depois, na aba "O que sabe fazer".
-      await Promise.allSettled(
+      // O cadastro já existe: não reabrir criação nem esconder falha parcial.
+      const resultados = await Promise.allSettled(
         skillIds.map((skillId) => api.agents.definirSkill({ agentId: criado.id, skillId, enabled: true })),
       );
+      const falhas = resultados.filter((resultado) => resultado.status === "rejected");
+      if (falhas.length) {
+        setFalha(`O agente foi criado, mas ${falhas.length} habilidade(s) não foram vinculadas. Tente adicioná-las em “O que sabe fazer”. ${mensagemDeErro(falhas[0].reason)}`);
+      }
     }
     await recarregar();
     setCriando(false);

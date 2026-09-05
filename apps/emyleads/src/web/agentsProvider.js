@@ -92,10 +92,16 @@ export function criarOperacoesAgents({ supabase = obterSupabaseWeb(), area = web
         ...entrada,
         organizationId: ctx.organizationId,
       });
+      const templates = await executar(
+        supabase.from("assistant_templates").select("id")
+          .eq("audience", comando.audience).eq("status", "published")
+          .eq("slug", comando.audience === "internal" ? "assistente-interno" : "assistente-atendimento"),
+      );
+      if (!templates[0]) throw new Error("O template deste público não está disponível. Contate o administrador.");
       const rows = await executar(
         supabase
           .from("assistant_profiles")
-          .insert(agentCommandToRow(comando, { actor: ctx.userId }))
+          .insert({ ...agentCommandToRow(comando, { actor: ctx.userId }), template_id: templates[0].id })
           .select(COLUNAS),
       );
       if (!rows[0]) throw new AgentError(AGENT_ERRORS.FORBIDDEN);
@@ -173,6 +179,11 @@ export function criarOperacoesAgents({ supabase = obterSupabaseWeb(), area = web
      */
     "agents.definirSkill": async ({ agentId, skillId, enabled = true, priority = 100, configuration = {} }) => {
       const ctx = await contexto();
+      const comportamento = {
+        enabled: Boolean(enabled), priority: Number(priority), configuration, updated_by: ctx.userId,
+      };
+      // DO NOTHING não exige UPDATE das chaves protegidas. Se já existir,
+      // atualizamos apenas o comportamento, mantendo o vínculo imutável.
       const rows = await executar(
         supabase
           .from("assistant_profile_skills")
@@ -181,16 +192,20 @@ export function criarOperacoesAgents({ supabase = obterSupabaseWeb(), area = web
               organization_id: ctx.organizationId,
               profile_id: agentId,
               skill_id: skillId,
-              enabled: Boolean(enabled),
-              priority: Number(priority),
-              configuration,
-              updated_by: ctx.userId,
+              ...comportamento,
             },
-            { onConflict: "profile_id,skill_id" },
+            { onConflict: "profile_id,skill_id", ignoreDuplicates: true },
           )
           .select("skill_id, enabled, priority, configuration"),
       );
-      return rows[0] ?? null;
+      if (rows[0]) return rows[0];
+      const updated = await executar(
+        supabase.from("assistant_profile_skills").update(comportamento)
+          .eq("organization_id", ctx.organizationId).eq("profile_id", agentId).eq("skill_id", skillId)
+          .select("skill_id, enabled, priority, configuration"),
+      );
+      if (!updated[0]) throw new AgentError(AGENT_ERRORS.FORBIDDEN);
+      return updated[0];
     },
   };
 }
