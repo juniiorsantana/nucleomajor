@@ -320,7 +320,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 | **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
 | **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Aplicada em produção** em 04/09/2026 — `20260904230000_resolvers_usam_agente_padrao.sql` |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | ✅ **Aplicada em produção** em 05/09/2026 — `20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql` |
-| **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | Pendente |
+| **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | 🟡 **Backend pronto**, não aplicado — `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql`. UI ainda não |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
 
 Ordem inegociável: **C e D antes de E.** Remover a constraint antes de os
@@ -676,3 +676,175 @@ Como o único chamador é bootstrap, não existe nem o caso de uso que justifica
 atualizar. O item `O` da prova trava isso: depois de personalizar o padrão
 (nome, tom, `active`, template, `brand_config`, `process_config`) e chamar a
 função, a linha volta **byte a byte idêntica**.
+
+## FASE F — backend preparado, não aplicado
+
+Migration `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql`, escrita em
+05/09/2026, **não aplicada em produção**. A FASE E liberou o modelo; esta fase
+dá as operações para usá-lo sem reintroduzir na aplicação as ambiguidades que
+as FASES C–E tiraram do banco.
+
+### Security gate (pré-requisito da fase)
+
+Antes de criar qualquer superfície de escrita nova, o achado da FASE E foi
+auditado. Resultado: **PASS**, com a exposição classificada como **B —
+desnecessária, sem acesso externo**.
+
+O PostgREST responde `PGRST106 — "Only the following schemas are exposed:
+public, graphql_public"` a uma chamada com `Content-Profile: private`. O schema
+`private` **não** está exposto, então os `EXECUTE` amplos não são alcançáveis
+pela API. A exposição continua desnecessária e continua registrada como dívida
+de hardening: 37 das 50 funções `private` estão no ACL padrão (`EXECUTE` para
+`PUBLIC`), incluindo `intelligence_payload` e `provision_intelligence`, ambas
+`security definer`. Nenhuma foi alterada aqui — mexer em grants no meio de uma
+fase de produto é como uma correção de segurança passa despercebida.
+
+### A arquitetura que já existia, e que esta fase segue
+
+Auditada antes de desenhar qualquer coisa. A Central de Inteligência escreve
+**frontend → PostgREST, com RLS decidindo**, e usa **RPC** só quando a operação
+precisa ser atômica ou privilegiada (`customer_assistant_rollout_update`,
+`customer_handoff_transition`, `intelligence_skill_rollback`). O servidor Node
+**não participa** desta tela — ele serve `/api/assistant` e `/api/invitations`.
+Padrão: **híbrido, predominantemente frontend-direto, com RPC onde a
+atomicidade exige**.
+
+A FASE F não cria arquitetura paralela: leitura e escrita simples continuam
+diretas com RLS, e a troca de padrão — a única operação multi-linha — vira RPC.
+
+| Camada | Arquivo | Papel |
+|---|---|---|
+| Domínio (puro) | `packages/intelligence/src/agent-management.mjs` | Valida comandos, normaliza entrada, traduz erro de banco em erro de domínio. Não fala com o Supabase. |
+| Acesso | `apps/emyleads/src/web/agentsProvider.js` | As chamadas ao Supabase, no mesmo formato do `intelligenceProvider`. |
+| Banco | `20260905120000_…sql` | `public.nucleo_agent_set_default(uuid)`. |
+
+### Operações
+
+`agents.listar` · `agents.ler` · `agents.criar` · `agents.editar` ·
+`agents.definirAtivo` · `agents.tornarPadrao` · `agents.listarSkills` ·
+`agents.definirSkill`.
+
+Não existe *delete*. Desativar basta nesta fase, e apagar um agente com
+conversas, campanhas e contexto amarrados é decisão com consequências próprias.
+
+### Três regras que a camada não afrouxa
+
+1. **Agente novo nasce comum.** `isDefault` nunca é escolhido por quem cria —
+   `buildCreateAgentCommand` força `false` mesmo que o chamador mande `true`.
+   Promover é ato explícito e separado.
+2. **`active` e `isDefault` são ortogonais.** Desativar o padrão **não** promove
+   ninguém; o runtime recusa (FASE D) até que uma pessoa decida. A tela deve
+   avisar — o backend não escolhe por ela.
+3. **`soulMarkdown` é persona, não permissão.** O comando de criação não tem, e
+   não pode ganhar, campo de ferramenta ou permissão. Skills continuam entidade
+   separada em `assistant_profile_skills`.
+
+### Erros de domínio
+
+`23505` cru não diz nada a uma tela. As duas unicidades que um gestor consegue
+violar significam coisas diferentes e pedem ações diferentes:
+
+| Código | Quando | O que a UI deve oferecer |
+|---|---|---|
+| `AGENT_SLUG_ALREADY_EXISTS` | colisão em `(organization_id, slug)` | renomear o agente |
+| `AGENT_DEFAULT_ALREADY_EXISTS` | colisão no índice parcial de padrão | trocar o padrão, em vez de criar outro |
+| `AGENT_AUDIENCE_IMMUTABLE` | patch tentando mudar `audience` | criar outro agente |
+| `AGENT_ORGANIZATION_IMMUTABLE` | patch tentando mudar `organization_id` | — |
+| `AGENT_FORBIDDEN` | RLS recusou, ou `can_manage_org` falhou | — |
+| `AGENT_NOT_FOUND` / `AGENT_INVALID` | — | — |
+
+Erro que o domínio **não** reconhece não é traduzido: `mapDatabaseError`
+devolve `null` e o original sobe. Traduzir tudo esconderia falha de infra.
+
+### Por que trocar o padrão é RPC, e não dois updates
+
+Duas razões independentes, e as duas estão provadas em
+`scripts/sql/prova-gestao-de-agentes.sql`:
+
+- **Atomicidade.** Promover B exige rebaixar A. Em duas chamadas do navegador
+  existe uma janela real entre elas; se a segunda não acontecer — aba fechada,
+  rede caindo, token expirando — a organização fica **sem padrão** naquela
+  audience, e sem padrão o resolvedor falha fechado: aquele público para de ser
+  atendido por causa de uma promoção que ninguém terminou. O item `I.2` da
+  prova **demonstra essa janela** em vez de argumentar sobre ela.
+- **Ordem.** Promover antes de rebaixar viola o índice parcial e o banco
+  recusa; isso empurraria o frontend a rebaixar primeiro, que é exatamente a
+  ordem que abre a janela.
+
+A função é `security definer`, verifica `can_manage_org`, usa `for update`
+(duas abas promovendo ao mesmo tempo é cenário real), é idempotente
+(`changed: false` quando o alvo já é o padrão, para um duplo clique não virar
+organização sem padrão) e **não toca `active`** de nenhum dos lados.
+
+### `audience` é imutável — a decisão pedida
+
+A ETAPA 11A pediu para reportar antes de decidir. A recomendação é **não
+permitir**, e a razão não é purismo: `audience` não é atributo de exibição.
+Ela decide qual conhecimento o agente enxerga (`internal` vs `external`), quais
+skills podem ser amarradas, se existe transferência humana, e qual índice
+parcial de padrão ele disputa. Um agente de clientes com contexto, skills e
+campanhas amarrados que virasse `internal` levaria tudo isso para um público
+que nunca deveria ver. Trocar audiência é criar outro agente — é mais barato
+dizer isso do que migrar as consequências.
+
+### Dívida da FASE E que esta fase pagou
+
+`assistantProfileToAgentDefinition` derivava `isDefault: true` quando a coluna
+não vinha na linha. O próprio comentário do módulo avisava que isso "deixa de
+ser defensável" quando a FASE E removesse a unique — e a FASE E foi aplicada em
+05/09/2026. O fallback passou a **`false`**: uma linha sem `is_default` legível
+não é promovida a padrão por omissão. É a leitura que falha fechado, e evita o
+erro mais caro do modelo — um agente comum ser tratado como o padrão em
+silêncio.
+
+### Knowledge: o que existe hoje (auditado, não construído)
+
+**Não existe relação Agent ↔ Knowledge.** As coleções pertencem à organização
+(`knowledge_collections.organization_id`) e são escolhidas por **audience** em
+`intelligence_payload`, mais o vínculo por campanha
+(`campaign_knowledge_collections`). Nenhuma FK liga conhecimento a
+`assistant_profiles`.
+
+Consequência prática do multi-agent: **todos os agentes da mesma audience
+enxergam o mesmo conhecimento**. Para o cenário de hoje isso é aceitável — a
+segregação que importa (interno × externo) continua valendo. Quando dois
+agentes de clientes precisarem de bases diferentes, a forma natural é uma
+tabela `agent_knowledge_collections` espelhando
+`campaign_knowledge_collections`. Nenhuma tabela foi criada nesta fase: o
+requisito ainda não existe.
+
+### O que a FASE F deliberadamente NÃO faz
+
+- **Não cria Agent Router.** Continua existindo um padrão por audience e é ele
+  quem responde. Escolher entre os N elegíveis por turno é a FASE G.
+- **Não constrói a Central de Agents.** A tela nova é etapa posterior; a única
+  mudança de UI até aqui foi a correção da FASE E (campanha amarrada ao agente
+  padrão).
+- **Não faz handoff automático.**
+- **Não foi aplicada em produção.**
+
+### Buraco conhecido, registrado
+
+A policy `assistant_profiles_update` permite a um gestor atualizar **qualquer**
+coluna, incluindo `is_default`. A RPC é o caminho **sancionado** de troca de
+padrão, não o único tecnicamente possível: um cliente que fale direto com o
+PostgREST ainda consegue fazer os dois updates soltos. Fechar isso exige
+restrição por coluna ou gatilho que recuse alteração de `is_default` fora da
+função — mudança de comportamento com risco próprio, que não cabe numa fase
+que já está introduzindo escrita nova. Fica registrado para a FASE G.
+
+### Provas
+
+> Domínio: `test/agent-management.test.mjs`, 13 itens — agente nasce comum, o
+> slug vem da regra canônica (não de uma terceira implementação), colisão vira
+> erro de domínio, `organizationId`/`audience`/`isDefault` recusados no patch,
+> RLS vira `FORBIDDEN`, erro desconhecido não é engolido, e persona não carrega
+> permissão.
+>
+> Integração: `scripts/sql/prova-gestao-de-agentes.sql` em PostgreSQL 17.9
+> descartável, **PASS em A–M**, com o elenco do enunciado (Emília/Closer/Agenda
+> e Operações/QA): o resolvedor fala por Emília; a troca para Closer é um ato e
+> o resolvedor acompanha; o padrão interno não é tocado; **Closer inativo com
+> Agenda ativa faz o resolvedor RECUSAR, sem usar a Agenda**; desativar não
+> promove; gestor de outra organização é recusado e o padrão daqui não muda; a
+> troca é all-or-nothing; e a relação Agent ↔ Skills continua N:N de verdade.
