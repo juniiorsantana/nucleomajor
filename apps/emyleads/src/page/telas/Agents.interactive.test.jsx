@@ -516,14 +516,14 @@ describe("MOBILE — navegação de uma tela por vez", () => {
     await tick();
 
     expect(painelMobile().textContent).toContain("Agente principal de clientes");
-    expect(painelMobile().textContent).not.toContain("Seus agentes");
+    expect(painelMobile().textContent).not.toContain("Sua equipe de IA");
 
     const voltar = painelMobile().querySelector('button[aria-label="Voltar"]');
     expect(voltar).toBeTruthy();
     await clicar(voltar);
     await tick();
 
-    expect(painelMobile().textContent).toContain("Seus agentes");
+    expect(painelMobile().textContent).toContain("Sua equipe de IA");
   });
 
   it("assistente de criação no mobile: X fecha sem deixar nada preso", async () => {

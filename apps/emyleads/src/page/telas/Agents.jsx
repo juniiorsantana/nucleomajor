@@ -730,9 +730,9 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
   const lista = (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-none px-4 pt-4 md:px-5">
-        <h2 className="text-[19px] font-semibold tracking-tight">Seus agentes</h2>
+        <h2 className="text-[19px] font-semibold tracking-tight">Sua equipe de IA</h2>
         <p className="mt-1 text-[11.5px] text-sub">
-          Crie agentes especializados para atender seus clientes e ajudar sua equipe.
+          Cada agente atende um público certo e possui responsabilidades específicas.
         </p>
         {canWrite ? (
           <button onClick={() => setCriando(true)}

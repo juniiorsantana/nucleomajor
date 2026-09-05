@@ -31,10 +31,10 @@ const render = (props = {}) => renderToStaticMarkup(
 );
 
 describe("home dos agentes", () => {
-  it("chama pelo nome de produto: 'Seus agentes', não a nomenclatura técnica", () => {
+  it("chama pelo nome de produto: 'Sua equipe de IA', não a nomenclatura técnica", () => {
     const html = render();
-    expect(html).toContain("Seus agentes");
-    expect(html).toContain("Crie agentes especializados para atender seus clientes e ajudar sua equipe.");
+    expect(html).toContain("Sua equipe de IA");
+    expect(html).toContain("Cada agente atende um público certo e possui responsabilidades específicas.");
     // Nada de audience/assistant_profile/is_default no que a pessoa lê.
     expect(html.toLowerCase()).not.toContain("audience");
     expect(html.toLowerCase()).not.toContain("assistant_profile");

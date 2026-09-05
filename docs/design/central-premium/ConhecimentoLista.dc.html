@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#ffffff; --surface:#f5f6f8; --line:#e6e9ed; --line-strong:#d3d8de;
+      --fg:#121730; --sub:#667085; --faint:#98a2b3;
+      --accent:#4f3cfc; --accent-forte:#3d29db;
+      --success:#16a34a; --warning:#b45309; --danger:#dc2626;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#171c24; --surface:#11151b; --line:#262d38; --line-strong:#333c4a;
+        --fg:#e8ecf1; --sub:#9aa5b4; --faint:#6b7686;
+        --accent:#8b7cff; --accent-forte:#a99dff;
+        --success:#3ecf8e; --warning:#d99341; --danger:#e8776c;
+      }
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    .navtab{display:flex;align-items:center;gap:8px;padding:0 0 14px;font-size:13.5px;color:var(--sub);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;}
+    .navtab.on{color:var(--fg);font-weight:600;border-color:var(--accent);}
+    .filt{font-size:13px;color:var(--sub);}
+    .filt.on{color:var(--fg);font-weight:600;text-decoration:underline;text-underline-offset:4px;}
+    .doc{display:flex;gap:16px;padding:20px 4px;border-top:1px solid var(--line);}
+    .doc:first-child{border-top:none;}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;background:var(--surface);box-sizing:border-box;display:flex;flex-direction:column;color:var(--fg);">
+
+  <div style="flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:30px 48px 0;">
+    <div style="display:flex;align-items:flex-start;gap:24px;">
+      <div style="min-width:0;">
+        <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent-forte);">Central de inteligência</p>
+        <h1 style="margin:6px 0 0;font-size:32px;font-weight:600;letter-spacing:-.02em;">Conhecimento</h1>
+        <p style="margin:8px 0 0;max-width:520px;font-size:14.5px;line-height:1.5;color:var(--sub);">O que seus agentes sabem responder — cada documento com um dono e um público claros.</p>
+      </div>
+      <button style="margin-left:auto;flex:none;display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar documento
+      </button>
+    </div>
+
+    <nav style="margin-top:26px;display:flex;gap:34px;overflow-x:auto;">
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/><path d="M12 8V5"/><circle cx="12" cy="3.4" r="1.1" fill="currentColor" stroke="none"/></svg>Agentes</span>
+      <span class="navtab on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>Conhecimento</span>
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z"/><path d="M19 14.5l.7 1.9 1.8.7-1.8.7-.7 1.9-.7-1.9-1.8-.7 1.8-.7z"/></svg>Habilidades</span>
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l6 4V6l-6 4z"/><path d="M16.5 9.2a3 3 0 0 1 0 5.6"/></svg>Campanhas</span>
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6.3a2 2 0 0 1-.4 1.2L4.4 16a2 2 0 0 0 1.6 3.2h12a2 2 0 0 0 1.6-3.2l-4.2-6.5a2 2 0 0 1-.4-1.2V2"/><path d="M8.5 2h7"/><path d="M8 12.5h8"/></svg>Testar agente</span>
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.6 1.6"/><path d="M4.2 8.5A8.6 8.6 0 0 1 6 5.7"/></svg>Histórico</span>
+      <span class="navtab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l7.5 2.8v5.6c0 4.7-3.2 8.4-7.5 10.1-4.3-1.7-7.5-5.4-7.5-10.1V5.3z"/><path d="M8.7 12.2l2.3 2.3 4.3-4.3"/></svg>Acessos</span>
+    </nav>
+  </div>
+
+  <div style="flex:1;min-height:0;padding:32px 48px 0;overflow:hidden;display:flex;flex-direction:column;">
+
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div style="flex:1;max-width:440px;display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;color:var(--faint);background:var(--bg);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <span style="font-size:13.5px;">Buscar no conhecimento…</span>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+        <span class="filt on">Tudo <span style="color:var(--faint);font-weight:400;">5</span></span>
+        <span class="filt">Publicado <span style="color:var(--faint);font-weight:400;">4</span></span>
+        <span class="filt">Rascunho <span style="color:var(--faint);font-weight:400;">1</span></span>
+        <span class="filt" style="color:var(--warning);">Precisa de revisão <span style="font-weight:400;">1</span></span>
+      </div>
+    </div>
+
+    <div style="margin-top:8px;flex:1;min-height:0;overflow-y:auto;">
+
+      <div class="doc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent-forte)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></svg>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <strong style="font-size:15px;font-weight:600;">Sobre a Major</strong>
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--success);flex:none;"></span>
+          </div>
+          <p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Quem somos, como trabalhamos e o que não fazemos.</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--faint);">Para clientes · usado por Recepção Major · atualizado há 3 dias por Juniior</p>
+        </div>
+      </div>
+
+      <div class="doc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent-forte)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></svg>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <strong style="font-size:15px;font-weight:600;">Produtos e serviços</strong>
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--success);flex:none;"></span>
+          </div>
+          <p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Pacotes, prazos e o que está incluído em cada um.</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--faint);">Para clientes · usado por Recepção Major, Vendas Major · atualizado há 1 semana por Aliine</p>
+        </div>
+      </div>
+
+      <div class="doc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></svg>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <strong style="font-size:15px;font-weight:600;">Perguntas frequentes</strong>
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--warning);flex:none;"></span>
+          </div>
+          <p style="margin:2px 0 0;font-size:13px;color:var(--sub);">14 perguntas e respostas do atendimento.</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--faint);">Para clientes · nenhum agente vinculado ainda · atualizado há 2 horas por Juniior</p>
+        </div>
+      </div>
+
+      <div class="doc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></svg>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <strong style="font-size:15px;font-weight:600;">Processo interno de vendas</strong>
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--success);flex:none;"></span>
+          </div>
+          <p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Etapas, valores mínimos e quando dar desconto.</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--faint);">Para a equipe · usado por Vendas Major · atualizado há 2 dias por Aliine</p>
+        </div>
+      </div>
+
+      <div class="doc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5l3 2"/></svg>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <strong style="font-size:15px;font-weight:600;">Política de reagendamento</strong>
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--success);flex:none;"></span>
+          </div>
+          <p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Regras para remarcar sem gerar atrito.</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--warning);">Para clientes · sem alteração há 34 dias — vale revisar antes de continuar em uso</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
