@@ -7,6 +7,7 @@ import { criarOperacoesGateway } from "./gatewayProvider.js";
 import { criarOperacoesConhecimento } from "./knowledgeProvider.js";
 import { criarOperacoesAssistente } from "./assistantProvider.js";
 import { criarOperacoesInteligencia } from "./intelligenceProvider.js";
+import { criarOperacoesAgents } from "./agentsProvider.js";
 import { webArea } from "./storage.js";
 
 let operacoes;
@@ -21,6 +22,7 @@ export function obterOperacoesWeb() {
     ...criarOperacoesConhecimento({ supabase, area: webArea }),
     ...criarOperacoesAssistente({ supabase, area: webArea }),
     ...criarOperacoesInteligencia({ supabase, area: webArea }),
+    ...criarOperacoesAgents({ supabase, area: webArea }),
     ...criarOperacoesGateway(),
     // Conversas vêm do espelho que a VPS publica no Supabase, não do gateway:
     // o runtime empurra, o portal lê. Ver `conversasProvider.js`.

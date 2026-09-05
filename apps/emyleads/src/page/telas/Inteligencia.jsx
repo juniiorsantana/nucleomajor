@@ -8,9 +8,11 @@ import { api } from "../../data/client";
 import { CUSTOMER_ROLLOUT_MODES, maskPhone, rolloutMode } from "../../domain/customerAssistant";
 import { resolverRotaSkill } from "../../domain/intelligenceRouter";
 import Conhecimento from "./Conhecimento";
+import Agents from "./Agents";
 
 const tabs = [
-  ["knowledge", "Conhecimento", BookOpen], ["assistants", "Assistentes", Bot],
+  ["agents", "Agents", Bot],
+  ["knowledge", "Conhecimento", BookOpen], ["assistants", "Assistentes", Sparkles],
   ["skills", "Skills", WandSparkles], ["campaigns", "Campanhas", Megaphone],
   ["simulator", "Simulador", FlaskConical], ["history", "Histórico", History],
 ];
@@ -207,10 +209,16 @@ function Audit({ data, canWrite, reload, fail }) {
 }
 
 export default function Inteligencia({ sessao }) {
-  const [tab, setTab] = useState("knowledge"); const [data, setData] = useState(emptyData); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const [tab, setTab] = useState("agents"); const [data, setData] = useState(emptyData); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const canWrite = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
+  const [agents, setAgents] = useState([]); const [agentsErro, setAgentsErro] = useState("");
   const load = async () => setData(await api.inteligencia.carregar());
+  const carregarAgents = async () => {
+    try { setAgents(await api.agents.listar()); setAgentsErro(""); }
+    catch (falha) { setAgentsErro(falha.message); }
+  };
   useEffect(() => { load().catch((failure) => setError(failure.message)).finally(() => setLoading(false)); }, []);
+  useEffect(() => { carregarAgents(); }, []);
   if (loading) return <div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando inteligência…</div>;
-  return <div className="flex min-h-0 flex-1 flex-col bg-surface"><header className="flex-none border-b border-line bg-bg px-4 pt-4 md:px-7"><div className="flex items-start gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Núcleo de Conhecimento</p><h1 className="text-[22px] font-semibold tracking-tight">Central de Inteligência</h1><p className="mt-1 text-[11px] text-sub">Agentes, habilidades, campanhas e informação com fronteiras claras.</p></div><span className="ml-auto hidden items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-sub md:flex"><ShieldCheck size={14} className="text-success" />Isolada por organização</span></div><nav className="scrollbar-fina mt-4 flex gap-1 overflow-x-auto">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-fit items-center gap-2 border-b-2 px-3 py-2.5 text-[11.5px] font-medium ${tab === id ? "border-accent text-accent-forte" : "border-transparent text-sub"}`}><Icon size={15} />{label}</button>)}</nav></header>{error && <div role="alert" className="mx-4 mt-3 rounded-[9px] bg-danger/10 px-4 py-3 text-[12px] text-danger md:mx-7">{error}</div>}{tab === "knowledge" && <Conhecimento sessao={sessao} inteligencia={data} embedded />}{tab === "assistants" && <Assistants data={data} canWrite={canWrite} reload={load} fail={setError} onTest={() => setTab("simulator")} onManageSkills={() => setTab("skills")} />}{tab === "skills" && <Skills data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "campaigns" && <Campaigns data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "simulator" && <Simulator reload={load} fail={setError} />}{tab === "history" && <Audit data={data} canWrite={canWrite} reload={load} fail={setError} />}</div>;
+  return <div className="flex min-h-0 flex-1 flex-col bg-surface"><header className="flex-none border-b border-line bg-bg px-4 pt-4 md:px-7"><div className="flex items-start gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Núcleo de Conhecimento</p><h1 className="text-[22px] font-semibold tracking-tight">Central de Inteligência</h1><p className="mt-1 text-[11px] text-sub">Agentes, habilidades, campanhas e informação com fronteiras claras.</p></div><span className="ml-auto hidden items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-sub md:flex"><ShieldCheck size={14} className="text-success" />Isolada por organização</span></div><nav className="scrollbar-fina mt-4 flex gap-1 overflow-x-auto">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-fit items-center gap-2 border-b-2 px-3 py-2.5 text-[11.5px] font-medium ${tab === id ? "border-accent text-accent-forte" : "border-transparent text-sub"}`}><Icon size={15} />{label}</button>)}</nav></header>{error && <div role="alert" className="mx-4 mt-3 rounded-[9px] bg-danger/10 px-4 py-3 text-[12px] text-danger md:mx-7">{error}</div>}{tab === "agents" && <Agents agents={agents} catalogoSkills={data.skills} canWrite={canWrite} recarregar={async () => { await carregarAgents(); await load(); }} carregando={false} erro={agentsErro} />}{tab === "knowledge" && <Conhecimento sessao={sessao} inteligencia={data} embedded />}{tab === "assistants" && <Assistants data={data} canWrite={canWrite} reload={load} fail={setError} onTest={() => setTab("simulator")} onManageSkills={() => setTab("skills")} />}{tab === "skills" && <Skills data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "campaigns" && <Campaigns data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "simulator" && <Simulator reload={load} fail={setError} />}{tab === "history" && <Audit data={data} canWrite={canWrite} reload={load} fail={setError} />}</div>;
 }

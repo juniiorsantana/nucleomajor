@@ -26,10 +26,24 @@ import {
   mapDatabaseError,
 } from "../../../../packages/intelligence/src/agent-management.mjs";
 import { assistantProfileToAgentDefinition } from "../../../../packages/intelligence/src/agent.mjs";
+import { obterSupabaseWeb } from "./supabaseClient.js";
+import { webArea, WORKSPACE_KEY } from "./storage.js";
 
 const COLUNAS = "id, organization_id, audience, display_name, slug, role, tone, soul_markdown, active, is_default, created_at, updated_at";
 
-export function criarAgentsProvider({ supabase, contexto }) {
+// A mesma fábrica dos outros providers web (`{ supabase, area }`), para entrar
+// em `web/operations.js` sem exceção — e o mesmo `contexto`, que tira a
+// organização da sessão em vez de aceitá-la do componente.
+export function criarOperacoesAgents({ supabase = obterSupabaseWeb(), area = webArea } = {}) {
+  const contexto = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    const user = data?.session?.user;
+    const organizationId = (await area.get(WORKSPACE_KEY))[WORKSPACE_KEY];
+    if (!user || !organizationId) throw new Error("Entre em uma empresa para gerenciar agentes.");
+    return { userId: user.id, organizationId };
+  };
+
   // Toda resposta do PostgREST passa por aqui: erro de banco vira erro de
   // domínio antes de chegar na UI.
   const executar = async (query) => {
