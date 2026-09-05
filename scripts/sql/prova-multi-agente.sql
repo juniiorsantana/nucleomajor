@@ -32,6 +32,9 @@
 --   G    padrão inativo RECUSA — não cai no não-padrão ativo.
 --   H    sem padrão nenhum, falha fechado.
 --   I-J  provision_intelligence: idempotente e preserva não-padrão.
+--   O-Q  a semântica do reencontro (ETAPA 10B): reencontrar o padrão não
+--        atualiza campo nenhum; o não-padrão fica intacto byte a byte; e a
+--        única divergência entre o árbitro antigo e o novo, com o seu custo.
 --   K    slug com N agentes.
 --   L    RLS não passou a depender de audience.
 --   N    a FASE E não inventou Agent Router.
@@ -495,6 +498,186 @@ begin
 end $$;
 
 -- ===========================================================================
+-- O: reencontrando o padrão, provision_intelligence NÃO atualiza nada.
+--    A versão viva em produção é `do nothing` nos dois inserts — nunca foi
+--    `do update`, e nenhum campo jamais foi sobrescrito. Este item trava isso:
+--    se alguém um dia trocar por `do update set ...`, uma organização que
+--    renomeou o próprio assistente teria o nome revertido no provisionamento.
+-- ===========================================================================
+do $$
+declare
+  ator uuid := 'aaaaaaaa-0000-4000-8000-00000000fa5e';
+  org uuid := 'aaaaaaaa-000a-4000-8000-00000000fa5e';
+  antes jsonb;
+  depois jsonb;
+begin
+  insert into public.organizations (id, name, slug, created_by)
+  values (org, 'Org da semantica de provision', 'org-semantica-provision', ator);
+
+  -- A organização personaliza o padrão que nasceu do gatilho, como um cliente
+  -- real faria pela tela.
+  update public.assistant_profiles
+  set display_name = 'Camila, da recepcao',
+      tone = 'informal, caloroso, direto',
+      active = false,
+      template_id = '10000000-0000-0000-0000-000000000001',
+      brand_config = '{"brandName": "Marca customizada"}'::jsonb,
+      process_config = '{"instructions": "roteiro proprio"}'::jsonb
+  where organization_id = org and audience = 'customer' and is_default;
+
+  select to_jsonb(profile) into antes from public.assistant_profiles profile
+  where organization_id = org and audience = 'customer' and is_default;
+
+  perform private.provision_intelligence(org, ator);
+
+  select to_jsonb(profile) into depois from public.assistant_profiles profile
+  where organization_id = org and audience = 'customer' and is_default;
+
+  if antes is distinct from depois then
+    raise exception
+      'O FALHOU: provision_intelligence alterou o padrao existente. antes=% depois=%',
+      antes, depois;
+  end if;
+  raise notice 'O ok: reencontrar o padrao NAO atualiza campo nenhum (nome, tom, active, template, brand, process)';
+end $$;
+
+-- ===========================================================================
+-- P: com um padrão E um não-padrão customizado, o não-padrão fica intacto.
+-- ===========================================================================
+do $$
+declare
+  ator uuid := 'aaaaaaaa-0000-4000-8000-00000000fa5e';
+  org uuid := 'aaaaaaaa-000a-4000-8000-00000000fa5e';
+  vizinho uuid := 'bbbbbbbb-000b-4000-8000-00000000fa5e';
+  antes jsonb;
+  depois jsonb;
+  total_antes integer;
+  total_depois integer;
+begin
+  insert into public.assistant_profiles (
+    id, organization_id, template_id, audience, display_name, slug, tone,
+    brand_config, process_config, created_by, updated_by, is_default
+  ) values (
+    vizinho, org, '10000000-0000-0000-0000-000000000002', 'customer',
+    'Agente de cobranca', 'agente-de-cobranca', 'seco e formal',
+    '{"brandName": "Cobranca"}'::jsonb, '{"instructions": "so cobranca"}'::jsonb,
+    ator, ator, false
+  );
+
+  select to_jsonb(profile) into antes from public.assistant_profiles profile
+  where id = vizinho;
+  select count(*) into total_antes from public.assistant_profiles where organization_id = org;
+
+  perform private.provision_intelligence(org, ator);
+
+  select to_jsonb(profile) into depois from public.assistant_profiles profile
+  where id = vizinho;
+  select count(*) into total_depois from public.assistant_profiles where organization_id = org;
+
+  if depois is null then
+    raise exception 'P FALHOU: o agente nao-padrao foi APAGADO';
+  end if;
+  if antes is distinct from depois then
+    raise exception 'P FALHOU: o agente nao-padrao mudou. antes=% depois=%', antes, depois;
+  end if;
+  if (depois ->> 'is_default')::boolean then
+    raise exception 'P FALHOU: o agente nao-padrao foi PROMOVIDO a padrao';
+  end if;
+  if total_depois <> total_antes then
+    raise exception 'P FALHOU: o numero de agentes mudou (% -> %)', total_antes, total_depois;
+  end if;
+  raise notice 'P ok: agente nao-padrao intacto byte a byte — nao alterado, nao promovido, nao apagado';
+end $$;
+
+-- ===========================================================================
+-- Q: a ÚNICA divergência de comportamento entre o árbitro antigo e o novo.
+--
+--    Antigo: `on conflict (organization_id, audience)` — a unique INTEIRA.
+--            Conflita se existir QUALQUER agente daquela audience.
+--    Novo:   `... where is_default` — o índice PARCIAL.
+--            Conflita só se existir agente PADRÃO daquela audience.
+--
+--    Diferem num único estado: audience que TEM agente e NÃO tem padrão. O
+--    antigo não fazia nada e deixava a audience órfã (e o resolvedor recusando
+--    tudo, já que ele falha fechado sem padrão); o novo cria o padrão que
+--    faltava, sem tocar em quem já estava lá.
+--
+--    Esse estado é INALCANÇÁVEL pelo único chamador real (gatilho AFTER INSERT
+--    em organizations, que roda com a organização recém-criada e vazia). Fica
+--    provado aqui porque é a diferença que a ETAPA 10B pediu para achar.
+-- ===========================================================================
+do $$
+declare
+  ator uuid := 'aaaaaaaa-0000-4000-8000-00000000fa5e';
+  org uuid := 'aaaaaaaa-000c-4000-8000-00000000fa5e';
+  orfao uuid;
+  padrao_novo uuid;
+  intacto jsonb;
+  antes jsonb;
+begin
+  insert into public.organizations (id, name, slug, created_by)
+  values (org, 'Org sem padrao de clientes', 'org-sem-padrao-clientes', ator);
+
+  -- Desfaz o padrão de customer, deixando a audience órfã mas povoada, e dá a
+  -- ele um nome próprio para não colidir de slug com o que será recriado.
+  update public.assistant_profiles
+  set is_default = false, display_name = 'Agente antigo sem padrao',
+      slug = 'agente-antigo-sem-padrao'
+  where organization_id = org and audience = 'customer';
+
+  select id into orfao from public.assistant_profiles
+  where organization_id = org and audience = 'customer';
+  select to_jsonb(profile) into antes from public.assistant_profiles profile where id = orfao;
+
+  perform private.provision_intelligence(org, ator);
+
+  select id into padrao_novo from public.assistant_profiles
+  where organization_id = org and audience = 'customer' and is_default;
+  select to_jsonb(profile) into intacto from public.assistant_profiles profile where id = orfao;
+
+  if padrao_novo is null then
+    raise exception 'Q FALHOU: a audience continuou sem padrao';
+  end if;
+  if padrao_novo = orfao then
+    raise exception 'Q FALHOU: o agente existente foi PROMOVIDO a padrao (deveria nascer um novo)';
+  end if;
+  if intacto is distinct from antes then
+    raise exception 'Q FALHOU: o agente orfao foi alterado. antes=% depois=%', antes, intacto;
+  end if;
+  raise notice 'Q ok: audience sem padrao ganha um padrao NOVO; o agente que ja estava la nao e promovido nem tocado';
+end $$;
+
+-- Q.2: o custo dessa divergência, registrado em vez de descoberto em produção.
+-- Se o agente órfão tiver o mesmo display_name do que a função insere, o slug
+-- gerado colide e provision_intelligence FALHA — alto, não em silêncio. O
+-- árbitro do ON CONFLICT é o índice de padrão, não o de slug, então essa
+-- violação não é absorvida. Inalcançável pelo gatilho real (organização nova é
+-- vazia); provado aqui para ficar escrito.
+do $$
+declare
+  ator uuid := 'aaaaaaaa-0000-4000-8000-00000000fa5e';
+  org uuid := 'aaaaaaaa-000d-4000-8000-00000000fa5e';
+  falhou boolean := false;
+begin
+  insert into public.organizations (id, name, slug, created_by)
+  values (org, 'Org com colisao de slug', 'org-colisao-slug', ator);
+
+  update public.assistant_profiles set is_default = false
+  where organization_id = org and audience = 'customer';
+
+  begin
+    perform private.provision_intelligence(org, ator);
+  exception when unique_violation then
+    falhou := true;
+  end;
+
+  if not falhou then
+    raise exception 'Q.2 FALHOU: esperava colisao de slug ao recriar o padrao homonimo';
+  end if;
+  raise notice 'Q.2 ok: a colisao de slug falha ALTO (unique_violation), nao em silencio';
+end $$;
+
+-- ===========================================================================
 -- K: slug com N agentes.
 --    K.1 mesmo display_name, slugs diferentes -> permitido
 --    K.2 mesmo slug na mesma organizacao       -> rejeitado
@@ -661,9 +844,13 @@ begin
     raise exception
       'POS-ROLLBACK FALHOU: a organizacao da prova ficou com % agentes (esperado 2)', agentes;
   end if;
-  if exists (select 1 from public.organizations
-             where id = 'aaaaaaaa-0009-4000-8000-00000000fa5e') then
-    raise exception 'POS-ROLLBACK FALHOU: a organizacao nova sobreviveu ao rollback';
+  if exists (select 1 from public.organizations where id in (
+    'aaaaaaaa-0009-4000-8000-00000000fa5e',  -- I.2
+    'aaaaaaaa-000a-4000-8000-00000000fa5e',  -- O e P
+    'aaaaaaaa-000c-4000-8000-00000000fa5e',  -- Q
+    'aaaaaaaa-000d-4000-8000-00000000fa5e'   -- Q.2
+  )) then
+    raise exception 'POS-ROLLBACK FALHOU: alguma organizacao da prova sobreviveu ao rollback';
   end if;
   -- A unique antiga NÃO volta: ela foi removida pela migration, fora desta
   -- transação. Este é o estado esperado do banco descartável pós-FASE-E.

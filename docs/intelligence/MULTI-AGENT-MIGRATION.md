@@ -602,3 +602,75 @@ parcial rejeita o segundo padrão.
 > reconferida por hash das 6 funções antes e depois: **idêntica**, e a unique
 > antiga continua de pé lá. Ambiente da VPS destruído por completo ao final;
 > nada foi instalado no sistema (binários extraídos em `/tmp`).
+
+### Revisão semântica de `provision_intelligence` (ETAPA 10B)
+
+Feita antes de aplicar em produção, contra a definição **viva**
+(`pg_get_functiondef`), não contra o arquivo da FASE C.
+
+**O antigo nunca foi `DO UPDATE`.** Os dois `on conflict (organization_id,
+audience)` da versão em produção são `do nothing`. Nenhum campo — `display_name`,
+`tone`, `active`, `template_id`, `brand_config`, `process_config`, `updated_by`
+— jamais foi atualizado ao reencontrar um perfil existente. Reencontrar sempre
+significou reutilizar.
+
+O diff semântico entre vivo e proposto tem **exatamente as três mudanças
+previstas** e nada mais. (Um `referÃªncias` apareceu no diff textual; conferido
+direto no catálogo, produção tem a acentuação correta — era mojibake do cliente
+Windows, não diferença real.)
+
+#### A única divergência de comportamento observável
+
+O árbitro muda de escopo, e isso importa em um único estado:
+
+| Estado de `(org, audience)` quando a função roda | Árbitro antigo (unique inteira) | Árbitro novo (índice parcial) |
+|---|---|---|
+| Sem nenhum agente | insere | insere |
+| Um agente, `is_default = true` | conflito → nada | conflito → nada |
+| **Agentes, mas nenhum padrão** | **conflito → nada** (audience fica órfã) | **insere o padrão que faltava** |
+| Vários agentes, um padrão (só pós-FASE-E) | n/a | conflito → nada |
+
+Classificação: **A — desejada**. Uma audience povoada e sem padrão é uma
+audience que parou de ser atendida, porque os resolvedores falham fechado sem
+padrão. O novo comportamento repara isso sem violar nenhuma das regras da fase:
+cria um agente **novo**, não promove o que já estava lá, não altera e não apaga
+ninguém (itens `Q` e `P` da prova).
+
+**Esse estado é inalcançável pelo chamador real.** Ver call sites abaixo.
+
+O custo dessa divergência está provado e registrado (item `Q.2`): se o agente
+órfão tiver o mesmo `display_name` que a função insere, o slug gerado colide com
+`unique (organization_id, slug)` e a função **falha alto** (`unique_violation`).
+O árbitro do `ON CONFLICT` é o índice de padrão, não o de slug, então essa
+violação não é absorvida. Falha ruidosa num caminho inalcançável é aceitável;
+fica escrito para a FASE F, que é quem pode tornar o caminho alcançável.
+
+#### Call sites
+
+Um só: o gatilho `organizations_provision_intelligence`, **`AFTER INSERT ON
+public.organizations FOR EACH ROW`**, via
+`private.provision_intelligence_after_organization`, que só faz
+`perform private.provision_intelligence(new.id, new.created_by)`.
+
+`AFTER INSERT`, não `AFTER UPDATE`: a função roda uma vez por organização, com a
+organização recém-criada e **sem nenhum perfil**. É bootstrap puro. Nunca
+reexecuta sobre organização com agentes já configurados — e é por isso que a
+divergência acima não tem como aparecer em produção hoje.
+
+Observação de escopo, **pré-existente e não introduzida pela FASE E**: o schema
+`private` tem `USAGE` para `authenticated` e a função tem `EXECUTE` para
+`PUBLIC` (o padrão do Postgres). Ela só não é chamável pela API porque o
+PostgREST não expõe o schema `private`. Vale conferir `PGRST_DB_SCHEMAS` numa
+etapa própria; se algum dia `private` for exposto, o problema é bem maior que
+esta fase.
+
+#### Decisão: `DO NOTHING`, mantido
+
+Reencontrar o padrão **não** deve atualizar campos de configuração. Trocar por
+`DO UPDATE` seria comportamento novo, não preservação do atual, e criaria uma
+regressão concreta: uma organização que renomeou o próprio assistente pela tela
+teria o nome revertido para `Assistente da empresa` no próximo provisionamento.
+Como o único chamador é bootstrap, não existe nem o caso de uso que justificaria
+atualizar. O item `O` da prova trava isso: depois de personalizar o padrão
+(nome, tom, `active`, template, `brand_config`, `process_config`) e chamar a
+função, a linha volta **byte a byte idêntica**.

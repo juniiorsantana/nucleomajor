@@ -17,6 +17,7 @@ Executado em 04/09/2026, PostgreSQL 17.9 userspace descartável na VPS:
 
 - 48 migrations até a FASE B aplicaram limpas, do zero;
 - itens **A–N** de `prova-multi-agente.sql`: **PASS** em todos;
+- itens **O, P, Q, Q.2** (revisão semântica da ETAPA 10B, ver abaixo): **PASS**;
 - controle negativo: **PASS** — a prova sabe reprovar (ver abaixo);
 - produção: **não alterada**, reconferida por hash das 6 funções antes e
   depois, com a unique antiga ainda de pé lá.
@@ -108,6 +109,19 @@ banco descartável **depois** da prova passar:
 O primeiro é a prova de que a reescrita de `provision_intelligence` era mesmo
 necessária, e não zelo: sem ela, criar organização passaria a falhar no primeiro
 `insert` depois do DROP.
+
+## Itens O–Q: a semântica do reencontro
+
+Acrescentados na ETAPA 10B, antes de aplicar em produção. Eles respondem uma
+pergunta que a prova A–N não fazia: quando `provision_intelligence` reencontra
+um padrão que já existe, o que ela faz com ele?
+
+| Item | O que prova |
+|---|---|
+| `O` | Reencontrar o padrão **não atualiza campo nenhum**. Personaliza nome, tom, `active`, template, `brand_config` e `process_config`; chama a função; a linha volta byte a byte idêntica. Trava a decisão de manter `DO NOTHING` — `DO UPDATE` reverteria o nome escolhido pelo cliente. |
+| `P` | Com padrão **e** não-padrão customizado, o não-padrão fica intacto byte a byte: não alterado, não promovido, não apagado, e a contagem de agentes não muda. |
+| `Q` | A **única** divergência entre o árbitro antigo (unique inteira) e o novo (índice parcial): audience povoada e sem padrão. O antigo não fazia nada; o novo cria o padrão que faltava — sem promover nem tocar em quem já estava lá. Inalcançável pelo gatilho real. |
+| `Q.2` | O custo dessa divergência: se o agente órfão for homônimo, o slug colide e a função **falha alto** (`unique_violation`), não em silêncio. |
 
 ## Onde a prova ainda não chega
 
