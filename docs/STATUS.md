@@ -553,7 +553,101 @@ três rodadas de tentativa e erro.
   escolher agente em campanha e no Simulador, e rever a semântica de
   `salvarSkill`).
 
-## Dívidas registradas na FASE E
+- `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql` e
+  `20260905160000_protege_campos_estruturais_dos_agentes.sql` aplicadas em
+  05/09/2026 (FASE F — fundação de banco/API da gestão de agentes), nesta
+  ordem, e conferidas por introspecção do catálogo. A segunda **se recusa a
+  rodar** sem a primeira, de propósito.
+
+  **O que o banco passa a oferecer.** `public.nucleo_agent_set_default(uuid)`:
+  troca do agente padrão em UM ato. Ela existe porque trocar o padrão exige
+  rebaixar um e promover outro, e em duas chamadas do navegador há uma janela
+  real entre as duas — se a segunda não acontecer, a organização fica **sem
+  padrão**, e sem padrão o resolvedor recusa tudo (FASE D). Um público inteiro
+  pararia de ser atendido por causa de uma promoção que ninguém terminou.
+  Conferida em produção: `security definer`, `search_path=""` explícito,
+  `can_manage_org` dentro da função, organização e audience derivadas do
+  próprio agente (não do cliente), `for update`, e sem tocar `active`, sem
+  criar e sem apagar agente.
+
+  **O que o banco passa a proteger.** RLS filtra linhas, não colunas: até aqui
+  `authenticated` tinha `INSERT`/`UPDATE` de tabela inteira, então dentro das
+  linhas que legitimamente administrava um gestor escrevia em **qualquer**
+  coluna. Medido antes de corrigir, rodando como `authenticated` — que é como o
+  PostgREST executa —, quatro caminhos tinham efeito real: rebaixar o padrão
+  (deixando a organização sem nenhum), trocar a `audience` (um agente de
+  clientes passando a ler conhecimento interno), trocar o `id` (mudando por
+  baixo a identidade que conversas e campanhas referenciam) e criar agente já
+  nascendo padrão.
+
+  A correção é privilégio de **coluna**. Estado final conferido em produção:
+
+  ```
+  assistant_profiles  INSERT: active, audience, brand_config, created_by,
+                              display_name, organization_id, process_config,
+                              role, slug, soul_markdown, template_id, tone,
+                              updated_by            (sem id, sem is_default)
+                      UPDATE: active, brand_config, display_name,
+                              process_config, role, slug, soul_markdown,
+                              template_id, tone, updated_by
+                                                    (sem id, organization_id,
+                                                     audience, is_default)
+  tabela (authenticated): REFERENCES, SELECT, TRIGGER
+  ```
+
+  `audience` e `organization_id` continuam **inseríveis mas não atualizáveis**
+  — é assim que "definido na criação, imutável depois" deixa de ser promessa do
+  JavaScript e vira regra do banco. `is_default` fora do INSERT, somado ao
+  `default false` da coluna, faz "agente nasce comum" ser garantia do banco.
+  **`is_default` agora só muda pela RPC**, que é `security definer` e não passa
+  pelo privilégio de `authenticated`.
+
+  `TRUNCATE` saiu explicitamente: é o único caminho que **não passa por RLS** e
+  apagaria a tabela apesar de todas as policies.
+
+  **`active` continua editável, inclusive no agente padrão**, e isso é
+  deliberado. Desativar o padrão é decisão legítima de quem administra; o
+  runtime recusa (FASE D) e nada é promovido no lugar. Confundir `active` com
+  `is_default` aqui reintroduziria, em nome da segurança, a ambiguidade que a
+  FASE C separou.
+
+  Em `assistant_profile_skills`, o `UPDATE` ficou restrito a `enabled`,
+  `priority`, `configuration` e `updated_by`: um vínculo não muda mais de dono.
+  Cross-org continua impossível pela **FK composta**
+  `(profile_id, organization_id) → assistant_profiles(id, organization_id)`,
+  que é estrutura e não policy, e segue presente.
+
+  `service_role` **não** foi tocada — mantém privilégio pleno, porque é a role
+  dos caminhos servidor.
+
+  **Nada de runtime mudou.** Os seis resolvedores têm hash idêntico ao estado
+  pós-FASE-E; `provision_intelligence` idem. RLS ligada nas duas tabelas, as 3
+  policies de cada uma intactas e com os mesmos nomes. Nenhum serviço
+  reiniciado (bridge e assistente com uptime contínuo), `routing_mode`
+  inalterada.
+
+  **Dados intocados**, que é o ponto: 2 perfis, mesmos `id`, mesmos slugs,
+  mesma audience, 2/2 ativos, 2/2 padrão, `updated_at` ainda em 04/09 21:29
+  UTC e `intelligence_audit_log` ainda em 53. Nenhum agente adicional foi
+  criado — o banco aceita, a UI ainda não existe.
+
+  **O código JS da FASE F está versionado, não ativo.** `agentsProvider.js` não
+  é importado por nenhum caminho do produto e o build de produção não o
+  referencia; só o teste importa `agent-management.mjs`. Nenhum deploy de
+  frontend foi feito, e nenhum é necessário: esses módulos serão consumidos
+  pela Central de Inteligência na próxima fase.
+
+  Sem tráfego para observar: zero turnos desde a FASE D, último turno em 04/09
+  22:43 UTC. Como nas FASES D e E, o que sustenta esta aplicação é introspecção
+  do catálogo mais a prova comportamental em Postgres descartável.
+
+  Não registradas em `supabase_migrations.schema_migrations` — mesmo estado das
+  demais desde `20260821120000`.
+
+  Próxima fase: **Central de Inteligência / UI de Agents**, que passa a
+  consumir esta camada. **Agent Router continua não existindo** (FASE G).
+
+## Dívidas de menor privilégio (FASES E e F)
 
 Duas coisas encontradas durante a FASE E que **não** são dela e não foram
 corrigidas junto, para não misturar escopo numa migration de produção:
@@ -567,6 +661,20 @@ corrigidas junto, para não misturar escopo numa migration de produção:
   estão expostos, e os `EXECUTE` das funções `private` em geral. É
   **pré-existente**, anterior a toda a linha multi-agent, e não foi introduzido
   nem agravado pela FASE E.
+- **`EXECUTE` para `anon` em todas as RPCs do schema `public`.** Achado ao
+  conferir a RPC nova em produção: `nucleo_agent_set_default` saiu com
+  `anon=X`, apesar de a migration fazer `revoke all ... from public`. A causa
+  é `ALTER DEFAULT PRIVILEGES` do Supabase, que concede EXECUTE a
+  `anon`/`authenticated`/`service_role` a toda função criada em `public` — e
+  o Postgres descartável não reproduz isso, então a prova no harness não
+  pegou. **Não é regressão nem é específico da FASE F**: as seis RPCs
+  conferidas (`nucleo_customer_assistant_access`,
+  `customer_assistant_rollout_update`, `intelligence_context_preview`,
+  `resolve_v2`, `nucleo_knowledge_save`) têm exatamente o mesmo ACL. Também
+  não é explorável na RPC nova: ela é `security definer` e `can_manage_org`
+  falha fechado para quem não tem `auth.uid()`. Fica como trilha de menor
+  privilégio, junto com o item acima.
+
 - **`runtime.commands_unavailable`.** O assistente registra, de forma
   recorrente, `error_code: control_plane_unavailable` — "Supabase recusou
   reserva de comandos do runtime". Pré-existente e alheio à resolução de

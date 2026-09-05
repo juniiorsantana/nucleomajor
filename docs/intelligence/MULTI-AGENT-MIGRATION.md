@@ -320,7 +320,7 @@ Registry não concede permissão de uso a nenhum agente, skill ou etapa*.
 | **C** | Coluna explícita de default (`is_default`), com backfill `true` para as linhas existentes e constraint garantindo **no máximo um** default por `(organization_id, audience)` — a unique antiga continua de pé | ✅ **Aplicada em produção** em 04/09/2026 — `20260904190000_agente_padrao_explicito.sql` |
 | **D** | Trocar os resolvers legados (itens 1-4 e 7 da tabela acima) para buscar o agente **padrão** em vez de assumir unicidade. Nenhum comportamento muda enquanto houver um agente só — é justamente por isso que essa fase é segura | ✅ **Aplicada em produção** em 04/09/2026 — `20260904230000_resolvers_usam_agente_padrao.sql` |
 | **E** | Remover `unique (organization_id, audience)`. Só depois de D, e com o `pre-condição` da FASE C ativa | ✅ **Aplicada em produção** em 05/09/2026 — `20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql` |
-| **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | 🟡 **Backend pronto**, não aplicado — `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql`. UI ainda não |
+| **F** | API/UI: criar agente, listar por audience, escolher agente em campanha e no Simulador, revisar a semântica de `salvarSkill` | ✅ **Banco/API aplicados em produção** em 05/09/2026 (`20260905120000` + `20260905160000`). Código de gestão versionado e **não ativo**; UI é a próxima etapa |
 | **G** | Agent Router: escolher entre os N elegíveis por turno (hoje inexistente — o mais próximo é a unicidade de banco). Aqui `IntelligenceResolution.assistant` vira `agent` | Pendente |
 
 Ordem inegociável: **C e D antes de E.** Remover a constraint antes de os
@@ -677,10 +677,12 @@ atualizar. O item `O` da prova trava isso: depois de personalizar o padrão
 (nome, tom, `active`, template, `brand_config`, `process_config`) e chamar a
 função, a linha volta **byte a byte idêntica**.
 
-## FASE F — backend preparado, não aplicado
+## FASE F — aplicada em produção, 05/09/2026
 
-Migration `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql`, escrita em
-05/09/2026, **não aplicada em produção**. A FASE E liberou o modelo; esta fase
+Migrations `20260905120000_trocar_o_agente_padrao_e_um_ato_so.sql` e
+`20260905160000_protege_campos_estruturais_dos_agentes.sql`, escritas em
+05/09/2026 e **aplicadas em produção em 05/09/2026**, nesta ordem. O registro
+da aplicação está em [`docs/STATUS.md`](../STATUS.md). A FASE E liberou o modelo; esta fase
 dá as operações para usá-lo sem reintroduzir na aplicação as ambiguidades que
 as FASES C–E tiraram do banco.
 
@@ -851,8 +853,8 @@ que já está introduzindo escrita nova. Fica registrado para a FASE G.
 
 ### Hardening da fronteira de escrita (ETAPA 11B)
 
-Migration `20260905160000_protege_campos_estruturais_dos_agentes.sql`, escrita
-em 05/09/2026, **não aplicada em produção**. Ela fecha o buraco que a própria
+Migration `20260905160000_protege_campos_estruturais_dos_agentes.sql`,
+**aplicada em produção em 05/09/2026** junto com a RPC. Ela fecha o buraco que a própria
 FASE F havia registrado como conhecido, e o fecha mais fundo do que o registro
 previa.
 

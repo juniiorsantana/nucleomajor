@@ -11,10 +11,10 @@ bloqueia, e as armadilhas de ambiente que já custaram tempo.
 | Coisa | Valor |
 |---|---|
 | Branch canônica | `feature/multi-agent-foundation` |
-| HEAD | ver `git log -1` — este arquivo foi atualizado após a FASE E ser aplicada em produção |
-| Próxima ação | **FASE F**: API/UI multi-agent — criar agente, listar por audience, escolher agente em campanha e no Simulador, rever a semântica de `salvarSkill`. Ainda não começou |
+| HEAD | ver `git log -1` — este arquivo foi atualizado após a FASE F ser aplicada em produção |
+| Próxima ação | **Central de Inteligência / UI de Agents**, consumindo a camada de gestão da FASE F. Ainda não começou |
 | Bloqueio | nenhum |
-| Produção | FASES B, C, D e **E aplicadas** (E em 05/09/2026). O **modelo de dados já aceita N agentes por audience**; o índice parcial garante no máximo um padrão. Mas **nenhum segundo agente existe**, e não há rota de criação: os resolvedores continuam falando pelo padrão, e **Agent Router é a FASE G** |
+| Produção | FASES B, C, D, E e **F aplicadas** (F em 05/09/2026). O banco aceita N agentes por audience, a troca de padrão tem RPC atômica, e os campos estruturais (`id`, `organization_id`, `audience`, `is_default`) estão protegidos por privilégio de coluna — `is_default` só muda pela RPC. Mas **nenhum agente adicional existe**, o código de gestão (`agentsProvider.js`, `agent-management.mjs`) está versionado e **não ativo** — não é importado por nada e não está no build —, e **Agent Router continua sendo a FASE G** |
 
 ## Histórico da branch
 
