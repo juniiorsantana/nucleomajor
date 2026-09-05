@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#ffffff; --surface:#f5f6f8; --line:#e6e9ed; --line-strong:#d3d8de;
+      --fg:#121730; --sub:#667085; --faint:#98a2b3;
+      --accent:#4f3cfc; --accent-forte:#3d29db; --accent-soft:#eeebff;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#171c24; --surface:#11151b; --line:#262d38; --line-strong:#333c4a;
+        --fg:#e8ecf1; --sub:#9aa5b4; --faint:#6b7686;
+        --accent:#8b7cff; --accent-forte:#a99dff; --accent-soft:#1d1940;
+      }
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    .chip{border-radius:999px;border:1px solid var(--line);background:var(--bg);padding:7px 14px;font-size:12.5px;font-weight:500;color:var(--sub);}
+    .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-forte);font-weight:600;}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;background:var(--surface);box-sizing:border-box;display:flex;flex-direction:column;color:var(--fg);">
+
+  <div style="flex:none;position:relative;display:flex;align-items:center;padding:26px 40px 0;">
+    <div style="display:flex;gap:6px;margin:0 auto;">
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--accent);"></span>
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--accent);"></span>
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--accent);"></span>
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--accent);"></span>
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--line-strong);"></span>
+      <span style="width:38px;height:4px;border-radius:2px;background:var(--line-strong);"></span>
+    </div>
+    <button style="position:absolute;right:40px;background:none;border:none;color:var(--faint);cursor:pointer;padding:4px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;padding:44px 40px 0;">
+    <div style="max-width:680px;width:100%;">
+      <p style="margin:0;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);">Novo agente · Etapa 4 de 6</p>
+      <h1 style="margin:10px 0 0;font-size:30px;font-weight:600;letter-spacing:-.02em;">Personalidade e instruções</h1>
+      <p style="margin:8px 0 0;font-size:14.5px;color:var(--sub);">Escolha um ponto de partida para o tom de voz e descreva como ele deve trabalhar.</p>
+
+      <div style="margin-top:24px;display:flex;flex-wrap:wrap;gap:8px;">
+        <span class="chip on">Natural e profissional</span>
+        <span class="chip">Direto e organizado</span>
+        <span class="chip">Consultivo e acolhedor</span>
+      </div>
+
+      <div style="margin-top:28px;">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Tom de voz</p>
+        <div style="border-radius:14px;background:var(--bg);border:1px solid var(--line);padding:18px 20px;font-size:14.5px;line-height:1.65;color:var(--fg);">
+          Cordial, natural, profissional e objetivo. Use linguagem simples, demonstre interesse genuíno e evite respostas robóticas.
+        </div>
+      </div>
+
+      <div style="margin-top:22px;">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Como deve trabalhar</p>
+        <div style="border-radius:14px;background:var(--bg);border:1px solid var(--line);padding:18px 20px;font-size:14.5px;line-height:1.7;color:var(--fg);min-height:150px;">
+          Entenda a necessidade da pessoa antes de apresentar uma solução. Não invente condições comerciais. Transfira para uma pessoa da equipe sempre que perceber uma exceção.
+          <span style="display:inline-block;width:2px;height:16px;background:var(--accent);vertical-align:middle;margin-left:2px;"></span>
+        </div>
+      </div>
+
+      <div style="margin-top:22px;">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Saudação inicial</p>
+        <div style="border-radius:14px;background:var(--bg);border:1px solid var(--line);padding:16px 20px;font-size:14.5px;color:var(--fg);">
+          Olá! Sou a Recepção da Major 👋 Como posso te ajudar hoje?
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="flex:none;border-top:1px solid var(--line);background:var(--bg);padding:18px 40px;display:flex;align-items:center;">
+    <button style="display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--sub);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      Voltar
+    </button>
+    <button style="margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 22px;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;">
+      Continuar
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

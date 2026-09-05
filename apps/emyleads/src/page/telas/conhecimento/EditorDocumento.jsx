@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, Archive, ArrowLeft, ChevronRight, Clock3, Download, FileUp, Loader2,
+  AlertTriangle, Archive, ArrowLeft, ChevronRight, Download, FileUp, Loader2,
   Plus, Save, Search, Send, Trash2,
 } from "lucide-react";
 import { api } from "../../../data/client";
@@ -39,6 +39,7 @@ export default function EditorDocumento({
 }) {
   const [modo, setModo] = useState("simples");
   const [avancado, setAvancado] = useState(false);
+  const [maisOpcoes, setMaisOpcoes] = useState(false);
   const [confirmandoExterno, setConfirmandoExterno] = useState(false);
   const [reescritaAceita, setReescritaAceita] = useState(false);
   const [pergunta, setPergunta] = useState("");
@@ -403,103 +404,122 @@ export default function EditorDocumento({
             </Painel>
           )}
 
-          <Painel titulo="Tamanho">
-            <p className="text-[12px] text-fg">
-              {palavras.toLocaleString("pt-BR")} palavras{" "}
-              <span className="font-semibold" style={{ color: folego.cor }}>· {folego.rotulo}</span>
-            </p>
-            <p className="mt-1 text-[10.5px] leading-4 text-sub">
-              Acima de ~{PALAVRAS_CONFORTAVEIS.toLocaleString("pt-BR")} palavras o assistente começa a perder o fio.
-            </p>
-          </Painel>
+          <section className="border-t border-line px-4 py-3.5">
+            <button
+              type="button"
+              onClick={() => setMaisOpcoes((atual) => !atual)}
+              aria-expanded={maisOpcoes}
+              className="flex w-full items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[.07em] text-faint hover:text-sub"
+            >
+              <ChevronRight size={13} className={maisOpcoes ? "rotate-90" : ""} />
+              Mais opções
+            </button>
 
-          {/*
-            O desenho previa "Trechos que a IA encontra", listando cada bloco
-            como um trecho procurável. A busca não funciona assim: o
-            search_vector cobre o documento INTEIRO — título com peso A,
-            caminho B, conteúdo C — e o trecho é um ts_headline calculado na
-            hora da pergunta. Listar blocos ensinaria a quebrar o texto para
-            "melhorar a busca", o que não muda nada. O que muda é usar as
-            palavras que o cliente usa.
-          */}
-          <Painel titulo="Como a busca acha isto">
-            <p className="text-[10.5px] leading-4 text-sub">
-              O documento inteiro é procurado de uma vez — o título pesa mais que o corpo. O assistente recebe um
-              recorte montado na hora da pergunta, não um bloco fixo. O que faz ele ser encontrado é o texto conter
-              as palavras que o cliente usa.
-            </p>
-            <div className="mt-2.5">
-              <div className="flex gap-1.5">
-                <label className="sr-only" htmlFor="pergunta-editor">Pergunta de teste</label>
-                <input
-                  id="pergunta-editor"
-                  value={pergunta}
-                  onChange={(e) => setPergunta(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && testar()}
-                  placeholder="Testar uma pergunta…"
-                  className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
-                />
-                <button
-                  type="button"
-                  onClick={testar}
-                  disabled={testando || !pergunta.trim()}
-                  aria-label="Testar"
-                  className="rounded-[8px] border border-line px-2.5 text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
-                >
-                  {testando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                </button>
-              </div>
-              {previa && (
-                <div className="mt-2 rounded-[8px] bg-surface p-2.5">
-                  {previa.erro
-                    ? <p className="text-[10.5px] text-danger">{previa.erro}</p>
-                    : previa.casou
-                      ? <>
-                        <p className="text-[10.5px] font-semibold text-success">Responde.</p>
-                        <p className="mt-1 whitespace-pre-wrap text-[10.5px] leading-4 text-sub">{previa.trecho}</p>
-                      </>
-                      : <p className="text-[10.5px] leading-4 text-warning">Nenhuma palavra dessa pergunta aparece no texto.</p>}
+            {maisOpcoes && (
+              <div className="mt-3 grid gap-3.5">
+                <div>
+                  <p className="text-[12px] text-fg">
+                    {palavras.toLocaleString("pt-BR")} palavras{" "}
+                    <span className="font-semibold" style={{ color: folego.cor }}>· {folego.rotulo}</span>
+                  </p>
+                  <p className="mt-1 text-[10.5px] leading-4 text-sub">
+                    Acima de ~{PALAVRAS_CONFORTAVEIS.toLocaleString("pt-BR")} palavras o assistente começa a perder o fio.
+                  </p>
                 </div>
-              )}
-            </div>
-          </Painel>
 
-          <Painel
-            titulo="Histórico"
-            acao={rascunho.id ? (
-              <button type="button" onClick={aoVerHistorico} className="ml-auto text-[10px] font-semibold text-accent-forte hover:underline">
-                Ver versões
-              </button>
-            ) : null}
-          >
-            <p className="text-[10.5px] leading-4 text-sub">
-              {rascunho.id
-                ? <>Versão {rascunho.versao || 1}. Cada salvamento preserva a anterior.</>
-                : "Ainda não salvo."}
-            </p>
-          </Painel>
+                {/*
+                  O desenho previa "Trechos que a IA encontra", listando cada bloco
+                  como um trecho procurável. A busca não funciona assim: o
+                  search_vector cobre o documento INTEIRO — título com peso A,
+                  caminho B, conteúdo C — e o trecho é um ts_headline calculado na
+                  hora da pergunta. Listar blocos ensinaria a quebrar o texto para
+                  "melhorar a busca", o que não muda nada. O que muda é usar as
+                  palavras que o cliente usa.
+                */}
+                <div className="border-t border-line pt-3.5">
+                  <p className="text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">Como a busca acha isto</p>
+                  <p className="mt-2 text-[10.5px] leading-4 text-sub">
+                    O documento inteiro é procurado de uma vez — o título pesa mais que o corpo. O assistente recebe um
+                    recorte montado na hora da pergunta, não um bloco fixo. O que faz ele ser encontrado é o texto conter
+                    as palavras que o cliente usa.
+                  </p>
+                  <div className="mt-2.5">
+                    <div className="flex gap-1.5">
+                      <label className="sr-only" htmlFor="pergunta-editor">Pergunta de teste</label>
+                      <input
+                        id="pergunta-editor"
+                        value={pergunta}
+                        onChange={(e) => setPergunta(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && testar()}
+                        placeholder="Testar uma pergunta…"
+                        className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
+                      />
+                      <button
+                        type="button"
+                        onClick={testar}
+                        disabled={testando || !pergunta.trim()}
+                        aria-label="Testar"
+                        className="rounded-[8px] border border-line px-2.5 text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+                      >
+                        {testando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                      </button>
+                    </div>
+                    {previa && (
+                      <div className="mt-2 rounded-[8px] bg-surface p-2.5">
+                        {previa.erro
+                          ? <p className="text-[10.5px] text-danger">{previa.erro}</p>
+                          : previa.casou
+                            ? <>
+                              <p className="text-[10.5px] font-semibold text-success">Responde.</p>
+                              <p className="mt-1 whitespace-pre-wrap text-[10.5px] leading-4 text-sub">{previa.trecho}</p>
+                            </>
+                            : <p className="text-[10.5px] leading-4 text-warning">Nenhuma palavra dessa pergunta aparece no texto.</p>}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-          <Painel titulo="Arquivo">
-            <div className="flex flex-wrap gap-1.5">
-              <input ref={arquivoRef} type="file" accept=".md,.markdown,.txt" className="hidden" onChange={(e) => importar(e.target.files?.[0])} />
-              {podeEscrever && (
-                <button type="button" onClick={() => arquivoRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
-                  <FileUp size={13} /> Importar .md
-                </button>
-              )}
-              <button type="button" onClick={exportar} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
-                <Download size={13} /> Exportar .md
-              </button>
-            </div>
-          </Painel>
+                <div className="border-t border-line pt-3.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">Histórico</p>
+                    {rascunho.id && (
+                      <button type="button" onClick={aoVerHistorico} className="ml-auto text-[10px] font-semibold text-accent-forte hover:underline">
+                        Ver versões
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[10.5px] leading-4 text-sub">
+                    {rascunho.id
+                      ? <>Versão {rascunho.versao || 1}. Cada salvamento preserva a anterior.</>
+                      : "Ainda não salvo."}
+                  </p>
+                </div>
 
-          {rascunho.id && podeEscrever && (
-            <Painel titulo="Arquivar">
-              <button type="button" onClick={aoArquivar} className="inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-danger/10 hover:text-danger">
-                <Archive size={13} /> Arquivar documento
-              </button>
-            </Painel>
-          )}
+                <div className="border-t border-line pt-3.5">
+                  <p className="text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">Arquivo</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <input ref={arquivoRef} type="file" accept=".md,.markdown,.txt" className="hidden" onChange={(e) => importar(e.target.files?.[0])} />
+                    {podeEscrever && (
+                      <button type="button" onClick={() => arquivoRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
+                        <FileUp size={13} /> Importar .md
+                      </button>
+                    )}
+                    <button type="button" onClick={exportar} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
+                      <Download size={13} /> Exportar .md
+                    </button>
+                  </div>
+                </div>
+
+                {rascunho.id && podeEscrever && (
+                  <div className="border-t border-line pt-3.5">
+                    <button type="button" onClick={aoArquivar} className="inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-danger/10 hover:text-danger">
+                      <Archive size={13} /> Arquivar documento
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </aside>
       </div>
 

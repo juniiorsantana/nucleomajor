@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#ffffff; --surface:#f5f6f8; --line:#e6e9ed;
+      --fg:#121730; --sub:#667085; --faint:#98a2b3;
+      --accent:#4f3cfc; --accent-forte:#3d29db; --accent-soft:#eeebff;
+      --success:#16a34a;
+      --teal:#0f9f8f; --teal-soft:#e6f6f2; --teal-forte:#08796e;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#171c24; --surface:#11151b; --line:#262d38;
+        --fg:#e8ecf1; --sub:#9aa5b4; --faint:#6b7686;
+        --accent:#8b7cff; --accent-forte:#a99dff; --accent-soft:#1d1940;
+        --success:#3ecf8e;
+        --teal:#3ecf8e; --teal-soft:#123229; --teal-forte:#6be3cc;
+      }
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    .grouplabel{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);}
+    .row{display:flex;align-items:center;gap:12px;padding:14px 20px;min-height:56px;box-sizing:border-box;border-top:1px solid var(--line);}
+    .row:first-child{border-top:none;}
+  </style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--surface);box-sizing:border-box;display:flex;flex-direction:column;color:var(--fg);overflow:hidden;">
+
+  <div style="flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:16px 20px;display:flex;align-items:center;gap:12px;">
+    <h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;">Agentes</h1>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+      <button style="width:36px;height:36px;border-radius:10px;background:var(--surface);border:none;display:flex;align-items:center;justify-content:center;color:var(--sub);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+      <button style="width:36px;height:36px;border-radius:10px;background:var(--accent);border:none;display:flex;align-items:center;justify-content:center;color:#fff;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow-y:auto;padding-bottom:20px;">
+
+    <div style="padding:20px 20px 6px;">
+      <span class="grouplabel">Clientes e leads</span>
+    </div>
+
+    <div style="background:var(--bg);">
+      <div class="row">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--teal-soft);color:var(--teal-forte);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none;">RM</div>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <strong style="font-size:14.5px;font-weight:600;">Recepção Major</strong>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.5l-5.8 3 1.1-6.5-4.8-4.6 6.6-.9z"/></svg>
+          </div>
+          <div style="font-size:12.5px;color:var(--sub);">Atendimento a clientes</div>
+        </div>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--success);flex:none;"></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M9 5l7 7-7 7"/></svg>
+      </div>
+      <div class="row">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--teal-soft);color:var(--teal-forte);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none;">VM</div>
+        <div style="min-width:0;flex:1;">
+          <strong style="font-size:14.5px;font-weight:600;">Vendas Major</strong>
+          <div style="font-size:12.5px;color:var(--sub);">Qualificação e propostas</div>
+        </div>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none;"></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M9 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+
+    <div style="padding:22px 20px 6px;">
+      <span class="grouplabel">Minha equipe</span>
+    </div>
+
+    <div style="background:var(--bg);">
+      <div class="row">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--accent-soft);color:var(--accent-forte);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none;">CT</div>
+        <div style="min-width:0;flex:1;">
+          <strong style="font-size:14.5px;font-weight:600;">Copiloto do time</strong>
+          <div style="font-size:12.5px;color:var(--sub);">Agenda e apoio interno</div>
+        </div>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--success);flex:none;"></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M9 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="flex:none;border-top:1px solid var(--line);background:var(--bg);display:flex;justify-content:center;padding:12px 0 18px;">
+    <div style="display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:600;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Novo agente
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

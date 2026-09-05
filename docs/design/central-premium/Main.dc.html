@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#ffffff; --surface:#f5f6f8; --line:#e6e9ed; --line-strong:#d3d8de;
+      --fg:#121730; --sub:#667085; --faint:#98a2b3;
+      --accent:#4f3cfc; --accent-forte:#3d29db; --accent-soft:#eeebff;
+      --success:#16a34a; --warning:#b45309;
+      --teal:#0f9f8f; --teal-soft:#e6f6f2; --teal-forte:#08796e;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#171c24; --surface:#11151b; --line:#262d38; --line-strong:#333c4a;
+        --fg:#e8ecf1; --sub:#9aa5b4; --faint:#6b7686;
+        --accent:#8b7cff; --accent-forte:#a99dff; --accent-soft:#1d1940;
+        --success:#3ecf8e; --warning:#d99341;
+        --teal:#3ecf8e; --teal-soft:#123229; --teal-forte:#6be3cc;
+      }
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    a{color:var(--accent-forte);} a:hover{color:var(--accent);}
+    .navtab{display:flex;align-items:center;gap:8px;padding:0 0 14px;font-size:13.5px;color:var(--sub);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;}
+    .navtab.on{color:var(--fg);font-weight:600;border-color:var(--accent);}
+    .navtab svg{flex:none;}
+    .card{border:1px solid var(--line);border-radius:16px;background:var(--bg);padding:22px;width:340px;box-sizing:border-box;display:flex;flex-direction:column;gap:14px;}
+    .grouplabel{font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;background:var(--surface);box-sizing:border-box;display:flex;flex-direction:column;color:var(--fg);">
+
+  <div style="flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:30px 48px 0;">
+    <div style="display:flex;align-items:flex-start;gap:24px;">
+      <div style="min-width:0;">
+        <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--accent-forte);">Central de inteligência</p>
+        <h1 style="margin:6px 0 0;font-size:32px;font-weight:600;letter-spacing:-.02em;">Sua equipe de IA</h1>
+        <p style="margin:8px 0 0;max-width:520px;font-size:14.5px;line-height:1.5;color:var(--sub);">Cada agente atende um público certo e sabe exatamente o que pode fazer — sem se confundir com os outros.</p>
+      </div>
+      <button style="margin-left:auto;flex:none;display:flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Novo agente
+      </button>
+    </div>
+
+    <nav style="margin-top:26px;display:flex;gap:34px;overflow-x:auto;">
+      <span class="navtab on">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/><path d="M12 8V5"/><circle cx="12" cy="3.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+        Agentes
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
+        Conhecimento
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z"/><path d="M19 14.5l.7 1.9 1.8.7-1.8.7-.7 1.9-.7-1.9-1.8-.7 1.8-.7z"/></svg>
+        Habilidades
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l6 4V6l-6 4z"/><path d="M16.5 9.2a3 3 0 0 1 0 5.6"/></svg>
+        Campanhas
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6.3a2 2 0 0 1-.4 1.2L4.4 16a2 2 0 0 0 1.6 3.2h12a2 2 0 0 0 1.6-3.2l-4.2-6.5a2 2 0 0 1-.4-1.2V2"/><path d="M8.5 2h7"/><path d="M8 12.5h8"/></svg>
+        Testar agente
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.6 1.6"/><path d="M4.2 8.5A8.6 8.6 0 0 1 6 5.7"/></svg>
+        Histórico
+      </span>
+      <span class="navtab">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l7.5 2.8v5.6c0 4.7-3.2 8.4-7.5 10.1-4.3-1.7-7.5-5.4-7.5-10.1V5.3z"/><path d="M8.7 12.2l2.3 2.3 4.3-4.3"/></svg>
+        Acessos
+      </span>
+    </nav>
+  </div>
+
+  <div style="flex:1;min-height:0;padding:36px 48px 0;overflow:hidden;">
+
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:18px;">
+      <span class="grouplabel">Clientes e leads</span>
+      <span style="font-size:11.5px;color:var(--faint);">2 agentes</span>
+      <span style="flex:1;height:1px;background:var(--line);"></span>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;">
+
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--teal-soft);color:var(--teal-forte);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex:none;">RM</div>
+          <div style="min-width:0;flex:1;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <strong style="font-size:16px;font-weight:600;">Recepção Major</strong>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--accent)" stroke="none" style="flex:none;"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.5l-5.8 3 1.1-6.5-4.8-4.6 6.6-.9z"/></svg>
+            </div>
+            <div style="margin-top:2px;font-size:13px;color:var(--sub);">Atendimento a clientes</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:none;margin-top:2px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--success);"></span>
+            <span style="font-size:11.5px;font-weight:500;color:var(--sub);">Ativo</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding-top:12px;border-top:1px solid var(--line);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8l-4 4z"/></svg>
+          <span style="font-size:12.5px;color:var(--sub);">Atende clientes e leads no WhatsApp</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--teal-soft);color:var(--teal-forte);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex:none;">VM</div>
+          <div style="min-width:0;flex:1;">
+            <strong style="font-size:16px;font-weight:600;">Vendas Major</strong>
+            <div style="margin-top:2px;font-size:13px;color:var(--sub);">Qualificação e propostas</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:none;margin-top:2px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--faint);"></span>
+            <span style="font-size:11.5px;font-weight:500;color:var(--faint);">Pausado</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding-top:12px;border-top:1px solid var(--line);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H8l-4 4z"/></svg>
+          <span style="font-size:12.5px;color:var(--sub);">Atende clientes e leads no WhatsApp</span>
+        </div>
+      </div>
+
+      <button style="width:340px;box-sizing:border-box;border:1.5px dashed var(--line-strong);border-radius:16px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--sub);padding:22px;cursor:pointer;font-family:inherit;min-height:104px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span style="font-size:12.5px;font-weight:500;">Novo agente para clientes</span>
+      </button>
+
+    </div>
+
+    <div style="display:flex;align-items:baseline;gap:10px;margin:36px 0 18px;">
+      <span class="grouplabel">Minha equipe</span>
+      <span style="font-size:11.5px;color:var(--faint);">1 agente</span>
+      <span style="flex:1;height:1px;background:var(--line);"></span>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;">
+
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent-forte);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;flex:none;">CT</div>
+          <div style="min-width:0;flex:1;">
+            <strong style="font-size:16px;font-weight:600;">Copiloto do time</strong>
+            <div style="margin-top:2px;font-size:13px;color:var(--sub);">Agenda, tarefas e apoio interno</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:none;margin-top:2px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--success);"></span>
+            <span style="font-size:11.5px;font-weight:500;color:var(--sub);">Ativo</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;padding-top:12px;border-top:1px solid var(--line);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 7 18.5V20"/><circle cx="12" cy="8" r="3.3"/></svg>
+          <span style="font-size:12.5px;color:var(--sub);">Atende a equipe interna</span>
+        </div>
+      </div>
+
+      <button style="width:340px;box-sizing:border-box;border:1.5px dashed var(--line-strong);border-radius:16px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--sub);padding:22px;cursor:pointer;font-family:inherit;min-height:104px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span style="font-size:12.5px;font-weight:500;">Novo agente para a equipe</span>
+      </button>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

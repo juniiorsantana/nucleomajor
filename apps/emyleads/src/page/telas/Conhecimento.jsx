@@ -5,7 +5,6 @@ import AssistenteConhecimento from "./conhecimento/AssistenteConhecimento";
 import EditorDocumento from "./conhecimento/EditorDocumento";
 import ListaConhecimento from "./conhecimento/ListaConhecimento";
 import PrimeiroAcesso from "./conhecimento/PrimeiroAcesso";
-import ResumoConhecimento from "./conhecimento/ResumoConhecimento";
 import { filtrar, resumo, situacaoDoDocumento } from "./conhecimento/conhecimentoDados";
 import { exigeColecaoExterna, motivoParaNaoPublicar } from "./conhecimento/conhecimentoRegras";
 import { mensagemDeGravacao } from "./conhecimento/erroDeGravacao";
@@ -278,8 +277,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
             <PrimeiroAcesso onCriar={criar} podeEscrever={podeCriar} />
           ) : (
             <div className="mx-auto max-w-6xl">
-              <ResumoConhecimento total={total} filtro={filtro} onFiltrar={setFiltro} />
-              <div className="mt-5">
+              <div className="mt-1">
                 <ListaConhecimento
                   documentos={visiveis}
                   total={total}

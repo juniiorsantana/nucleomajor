@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    :root{
+      --bg:#ffffff; --surface:#f5f6f8; --line:#e6e9ed; --line-strong:#d3d8de;
+      --fg:#121730; --sub:#667085; --faint:#98a2b3;
+      --accent:#4f3cfc; --accent-forte:#3d29db; --accent-soft:#eeebff;
+      --success:#16a34a;
+      --teal:#0f9f8f; --teal-soft:#e6f6f2; --teal-forte:#08796e;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#171c24; --surface:#11151b; --line:#262d38; --line-strong:#333c4a;
+        --fg:#e8ecf1; --sub:#9aa5b4; --faint:#6b7686;
+        --accent:#8b7cff; --accent-forte:#a99dff; --accent-soft:#1d1940;
+        --success:#3ecf8e;
+        --teal:#3ecf8e; --teal-soft:#123229; --teal-forte:#6be3cc;
+      }
+    }
+    body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    .tab{padding:0 0 13px;font-size:13.5px;color:var(--sub);font-weight:500;border-bottom:2px solid transparent;}
+    .tab.on{color:var(--fg);font-weight:600;border-color:var(--teal);}
+    .row{display:flex;gap:14px;padding:16px 0;border-top:1px solid var(--line);}
+    .row:first-child{border-top:none;}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;background:var(--surface);box-sizing:border-box;display:flex;flex-direction:column;color:var(--fg);">
+
+  <div style="flex:none;background:var(--bg);border-bottom:1px solid var(--line);padding:26px 48px 0;">
+    <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sub);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      Agentes
+    </div>
+
+    <div style="margin-top:14px;display:flex;align-items:flex-start;gap:16px;">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--teal-soft);color:var(--teal-forte);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;flex:none;">RM</div>
+      <div style="min-width:0;flex:1;padding-top:2px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h1 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em;">Recepção Major</h1>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.5l-5.8 3 1.1-6.5-4.8-4.6 6.6-.9z"/></svg>
+        </div>
+        <p style="margin:4px 0 0;font-size:13.5px;color:var(--sub);">Atendimento a clientes · agente principal</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex:none;padding-top:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--teal);display:inline-block;">
+            <span style="position:absolute;top:2px;left:18px;width:18px;height:18px;border-radius:50%;background:#fff;"></span>
+          </span>
+          <span style="font-size:12.5px;color:var(--sub);">Ativo</span>
+        </div>
+        <button style="display:flex;align-items:center;gap:7px;border:1px solid var(--line-strong);background:var(--bg);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--fg);font-family:inherit;cursor:pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16z"/></svg>
+          Editar
+        </button>
+      </div>
+    </div>
+
+    <nav style="margin-top:24px;display:flex;gap:32px;">
+      <span class="tab on">Visão geral</span>
+      <span class="tab">Personalidade</span>
+      <span class="tab">Habilidades</span>
+      <span class="tab">Conhecimento</span>
+    </nav>
+  </div>
+
+  <div style="flex:1;min-height:0;padding:36px 48px;display:flex;gap:56px;overflow:hidden;">
+
+    <div style="flex:1;min-width:0;max-width:680px;">
+
+      <section>
+        <h2 style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Como fala</h2>
+        <p style="margin:0;font-size:14.5px;line-height:1.6;color:var(--fg);max-width:560px;">Cordial, natural, profissional e objetivo. Demonstra interesse genuíno pela pessoa e evita respostas robóticas ou genéricas.</p>
+      </section>
+
+      <section style="margin-top:32px;">
+        <h2 style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">O que sabe fazer</h2>
+        <div class="row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
+          <div><strong style="font-size:14px;font-weight:600;">Atendimento inicial</strong><p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Entende a necessidade antes de apresentar qualquer solução.</p></div>
+        </div>
+        <div class="row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
+          <div><strong style="font-size:14px;font-weight:600;">Agendamento</strong><p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Marca conversas na agenda respeitando os horários disponíveis.</p></div>
+        </div>
+        <div class="row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/></svg>
+          <div><strong style="font-size:14px;font-weight:600;">Transferência para uma pessoa</strong><p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Reconhece exceções comerciais e passa a conversa adiante.</p></div>
+        </div>
+      </section>
+
+      <section style="margin-top:32px;">
+        <h2 style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Conhecimento que consulta</h2>
+        <div class="row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
+          <div><strong style="font-size:14px;font-weight:600;">Sobre a Major</strong><p style="margin:2px 0 0;font-size:13px;color:var(--sub);">Quem somos, como trabalhamos e o que não fazemos.</p></div>
+        </div>
+        <div class="row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sub)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>
+          <div><strong style="font-size:14px;font-weight:600;">Perguntas frequentes</strong><p style="margin:2px 0 0;font-size:13px;color:var(--sub);">14 perguntas e respostas usadas no atendimento.</p></div>
+        </div>
+      </section>
+
+    </div>
+
+    <aside style="width:320px;flex:none;">
+      <p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--sub);">Prévia da conversa</p>
+      <div style="border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 12px 30px -18px rgba(18,23,48,.25);">
+        <div style="background:#075e54;padding:12px 14px;display:flex;align-items:center;gap:10px;color:#fff;">
+          <div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;">RM</div>
+          <div><div style="font-size:13px;font-weight:600;">Recepção Major</div><div style="font-size:10.5px;opacity:.72;">online</div></div>
+        </div>
+        <div style="background:#efeae2;padding:16px;min-height:280px;display:flex;flex-direction:column;gap:10px;">
+          <div style="max-width:85%;background:#fff;border-radius:10px 10px 10px 2px;padding:9px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 1px 1px rgba(0,0,0,.06);">Olá! Sou a Recepção da Major 👋 Como posso te ajudar hoje?</div>
+          <div style="align-self:flex-end;max-width:80%;background:#d9fdd3;border-radius:10px 10px 2px 10px;padding:9px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 1px 1px rgba(0,0,0,.06);">Oi, vi o anúncio e quero entender como funciona</div>
+          <div style="max-width:85%;background:#fff;border-radius:10px 10px 10px 2px;padding:9px 12px;font-size:12.5px;line-height:1.5;box-shadow:0 1px 1px rgba(0,0,0,.06);">Perfeito! Antes de tudo, me conta rapidinho o que você está buscando resolver.</div>
+        </div>
+      </div>
+      <p style="margin:10px 0 0;font-size:11.5px;color:var(--faint);">Ilustrativa — usa apenas conhecimento publicado para clientes.</p>
+    </aside>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
