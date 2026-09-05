@@ -13,25 +13,28 @@ import {
 /**
  * Uma linha de meta só, não quatro colunas.
  *
- * Público, situação, skills e "atualizado" competiam por atenção em cinco
+ * Público, situação, coleções e "atualizado" competiam por atenção em cinco
  * pedaços separados — cada um pedindo para ser lido primeiro. Juntos numa
  * frase só, na ordem em que alguém realmente pergunta ("pra quem isso vale,
- * tá no ar, quem usa, desde quando"), o olho lê uma vez só.
+ * tá no ar, em que coleção, desde quando"), o olho lê uma vez só.
+ *
+ * Coleção é conceito de Conhecimento, não de Skills/Agents — este documento
+ * não sabe, e não deveria saber, quais agentes existem.
  */
-function Meta({ documento, skills, autor, agora }) {
+function Meta({ documento, colecoes, autor, agora }) {
   const publico = PUBLICO_POR_ID.get(publicoDoDocumento(documento))?.rotulo;
   const situacao = situacaoDoDocumento(documento) === "publicado" ? "Publicado" : "Rascunho";
-  const usados = skills.length ? `usado por ${skills.slice(0, 2).join(", ")}${skills.length > 2 ? ` +${skills.length - 2}` : ""}` : "nenhum agente ainda";
+  const vinculo = colecoes.length ? `Coleções: ${colecoes.slice(0, 2).join(", ")}${colecoes.length > 2 ? ` +${colecoes.length - 2}` : ""}` : "sem coleção vinculada";
   const quando = `atualizado ${tempoRelativo(documento.atualizadoEm, agora)}${autor ? ` por ${autor}` : ""}`;
   return (
     <p className="mt-1 truncate text-[11.5px] text-faint">
-      {publico} · {situacao} · {usados} · {quando}
+      {publico} · {situacao} · {vinculo} · {quando}
     </p>
   );
 }
 
 export default function ListaConhecimento({
-  documentos, total, filtro, onFiltrar, onAbrir, skillsDoDocumento, nomeDoAutor, agora,
+  documentos, total, filtro, onFiltrar, onAbrir, colecoesDoDocumento, nomeDoAutor, agora,
 }) {
   return (
     <>
@@ -72,7 +75,7 @@ export default function ListaConhecimento({
           </div>
         ) : documentos.map((documento) => {
           const revisar = precisaRevisao(documento, agora);
-          const skills = skillsDoDocumento(documento);
+          const colecoes = colecoesDoDocumento(documento);
           const autor = nomeDoAutor(documento.atualizadoPor);
           const resumo = resumoDoConteudo(documento.conteudo);
 
@@ -95,7 +98,7 @@ export default function ListaConhecimento({
                 ) : resumo && (
                   <small className="mt-0.5 block truncate text-[11px] text-sub">{resumo}</small>
                 )}
-                <Meta documento={documento} skills={skills} autor={autor} agora={agora} />
+                <Meta documento={documento} colecoes={colecoes} autor={autor} agora={agora} />
               </span>
             </button>
           );

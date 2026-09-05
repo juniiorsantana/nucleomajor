@@ -1,10 +1,11 @@
 # Handoff — EmyLeads / Central de Inteligência multi-agent
 
-Atualizado em 05/09/2026 após a consolidação da 12C.1.8. Branch atual:
+Atualizado em 05/09/2026 após a consolidação da 12C.1.8. Branch:
 `consolidacao/fase-12-sobre-main`, worktree em
-`.worktrees/nucleomajor-fase-12-consolidacao`, HEAD `63192d7`. **Rode
-`git status` e `git log -3` antes de qualquer coisa** — não assuma que este
-hash continua sendo o HEAD.
+`.worktrees/nucleomajor-fase-12-consolidacao`. O commit funcional da
+consolidação (título/Conhecimento portados sobre `origin/main`) é `63192d7`.
+**Rode `git status` e `git log -3` antes de qualquer coisa** — não assuma
+qual é o HEAD atual a partir deste documento.
 
 ## O que mudou desde a versão anterior deste handoff
 

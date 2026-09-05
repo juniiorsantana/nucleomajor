@@ -284,7 +284,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
                   filtro={filtro}
                   onFiltrar={setFiltro}
                   onAbrir={abrir}
-                  skillsDoDocumento={(documento) => colecoesPorDocumento.get(documento.id) || []}
+                  colecoesDoDocumento={(documento) => colecoesPorDocumento.get(documento.id) || []}
                   nomeDoAutor={(id) => nomePorId.get(id) || ""}
                   agora={agora}
                 />
