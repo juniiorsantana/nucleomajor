@@ -68,15 +68,21 @@ test("B: o AgentDefinition lê row.is_default do banco", () => {
   assert.deepEqual(validateAgentDefinition(assistantProfileToAgentDefinition(linhaPersistida({ is_default: false }))), []);
 });
 
-test("C: o fallback legado true só vale quando a coluna não existe", () => {
+test("C: sem a coluna is_default, o adapter falha FECHADO (era `true` até a FASE E)", () => {
+  // Enquanto `unique (organization_id, audience)` existia, presumir `true` era
+  // exato: a única linha daquela audience era necessariamente a padrão. A
+  // FASE E removeu a unique em 05/09/2026 e a premissa caiu junto — com N
+  // agentes, presumir `true` promoveria um agente COMUM a padrão em silêncio,
+  // que é o erro que as FASES C, D e E existiram para impedir.
   const legada = linhaPersistida();
   delete legada.is_default;
-  assert.equal(assistantProfileToAgentDefinition(legada).isDefault, true, "sem coluna, cai no fallback de transição");
+  assert.equal(assistantProfileToAgentDefinition(legada).isDefault, false, "sem coluna, não vira padrão");
 
-  // Com a coluna presente, o banco manda — inclusive quando diz false.
+  // Com a coluna presente, o banco manda — nos dois sentidos.
+  assert.equal(assistantProfileToAgentDefinition(linhaPersistida({ is_default: true })).isDefault, true);
   assert.equal(assistantProfileToAgentDefinition(linhaPersistida({ is_default: false })).isDefault, false);
-  // Valor não-booleano não é confundido com "false".
-  assert.equal(assistantProfileToAgentDefinition(linhaPersistida({ is_default: null })).isDefault, true);
+  // Valor não-booleano também não promove: só `true` explícito promove.
+  assert.equal(assistantProfileToAgentDefinition(linhaPersistida({ is_default: null })).isDefault, false);
 });
 
 test("D: dois padrões na mesma organização e audience são rejeitados pelo índice parcial", () => {

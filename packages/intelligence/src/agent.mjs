@@ -145,12 +145,17 @@ export function validateAgentDefinition(agent) {
  *
  * Desde a FASE C (migration `20260904190000_agente_padrao_explicito.sql`),
  * `is_default` é coluna: o banco é a fonte da verdade de quem é o agente
- * padrão. O fallback `true` continua apenas como compatibilidade de
- * transição, para linha de fixture antiga ou banco sem a migration — e ele é
- * correto só porque `unique (organization_id, audience)` ainda existe, o que
- * torna a única linha daquela audience necessariamente a padrão. Quando a
- * FASE E remover essa unique, este fallback deixa de ser defensável e precisa
- * sair junto.
+ * padrão. O fallback era `true`, e era defensável enquanto
+ * `unique (organization_id, audience)` existisse — a única linha daquela
+ * audience era necessariamente a padrão.
+ *
+ * A FASE E (`20260905000000_a_audience_deixa_de_limitar_a_um_agente.sql`,
+ * aplicada em 05/09/2026) removeu essa unique, e com ela a premissa. O
+ * fallback passou a `false`, que é a leitura que FALHA FECHADO: uma linha sem
+ * `is_default` legível não é promovida a padrão por omissão. O erro que isso
+ * evita é o mais caro do modelo multi-agent — um agente comum ser tratado
+ * como o padrão em silêncio, que é exatamente o que as FASES C, D e E
+ * existiram para impedir.
  *
  * `isDefault` é ortogonal a `status`: um agente padrão pode estar inativo.
  * Quem decide o que fazer nesse caso é o resolvedor (recusar, não escolher
@@ -175,6 +180,6 @@ export function assistantProfileToAgentDefinition(row) {
     tone: typeof row.tone === "string" ? row.tone : null,
     soulMarkdown: typeof row.soul_markdown === "string" ? row.soul_markdown : null,
     status: row.active === false ? "inactive" : "active",
-    isDefault: typeof row.is_default === "boolean" ? row.is_default : true,
+    isDefault: typeof row.is_default === "boolean" ? row.is_default : false,
   };
 }

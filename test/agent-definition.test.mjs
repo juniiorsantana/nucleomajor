@@ -22,6 +22,8 @@ function linhaDePerfil(overrides = {}) {
     brand_config: {},
     process_config: { rollout: { mode: "off" } },
     active: true,
+    // Desde a FASE C a coluna é `not null`: toda linha real do banco a traz.
+    is_default: true,
     created_by: "00000000-0000-4000-8000-0000000000f1",
     updated_by: "00000000-0000-4000-8000-0000000000f1",
     created_at: "2026-08-23T12:00:00.000Z",
@@ -180,10 +182,37 @@ test("I: skills continuam entidade independente — o AgentDefinition não as ca
   ]);
 });
 
-test("isDefault vem true do adapter porque a UNIQUE atual garante um agente por audience", () => {
-  // Esta derivação é o ponto exato que a FASE C precisa substituir por uma
-  // coluna real ANTES da FASE E remover unique (organization_id, audience).
-  assert.equal(assistantProfileToAgentDefinition(linhaDePerfil()).isDefault, true);
-  assert.equal(assistantProfileToAgentDefinition(linhaDePerfil({ active: false })).isDefault, true);
+test("sem a coluna is_default, o adapter falha FECHADO: a linha não vira padrão", () => {
+  // Este fallback já foi `true`, e era correto enquanto
+  // `unique (organization_id, audience)` garantisse um agente por audience —
+  // a única linha daquela audience era necessariamente a padrão.
+  //
+  // A FASE E removeu a unique em 05/09/2026 e a premissa morreu junto. Com N
+  // agentes por audience, presumir `true` faria um agente COMUM ser lido como
+  // o padrão em silêncio — exatamente o erro que as FASES C, D e E existiram
+  // para impedir. Uma linha sem `is_default` legível agora não é promovida.
+  const semColuna = (extras = {}) => {
+    const { is_default: _ignorado, ...linha } = linhaDePerfil(extras);
+    return linha;
+  };
+  assert.equal(assistantProfileToAgentDefinition(semColuna()).isDefault, false);
+  assert.equal(assistantProfileToAgentDefinition(semColuna({ active: false })).isDefault, false);
   assert.equal(assistantProfileToAgentDefinition(null), null);
+});
+
+test("com a coluna presente, quem manda é o banco — nos dois sentidos", () => {
+  assert.equal(
+    assistantProfileToAgentDefinition(linhaDePerfil({ is_default: true })).isDefault,
+    true,
+  );
+  assert.equal(
+    assistantProfileToAgentDefinition(linhaDePerfil({ is_default: false })).isDefault,
+    false,
+  );
+  // isDefault continua ortogonal a status: padrão pode estar inativo.
+  const padraoParado = assistantProfileToAgentDefinition(
+    linhaDePerfil({ is_default: true, active: false }),
+  );
+  assert.equal(padraoParado.isDefault, true);
+  assert.equal(padraoParado.status, "inactive");
 });
