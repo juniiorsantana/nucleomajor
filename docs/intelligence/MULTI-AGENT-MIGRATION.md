@@ -1021,3 +1021,104 @@ suíte do app não clica em nada, e ainda assim pegou.
 
 Agent Router (continua sendo a fase seguinte), handoff automático, remoção de
 legado, métricas, editor visual de Soul, e qualquer deploy.
+
+## ETAPA 12B.1 — a Central fala a língua de quem contrata
+
+Redesenho de UX sobre a mesma FASE G, escrito em 05/09/2026, **não aplicado em
+produção**. Nada de banco, RPC, RLS, grant ou contrato da FASE F mudou — só
+como a tela nomeia e organiza o que já existia.
+
+### Nomenclatura — termo interno → termo mostrado
+
+| Interno (banco/domínio) | Mostrado ao usuário | Por quê |
+|---|---|---|
+| `is_default` | **Principal** | "Padrão" soa a configuração de sistema; "Principal" soa a papel de alguém na empresa — é ele quem responde primeiro. |
+| `audience = 'customer'` | **Clientes** (e leads) | Direto, sem jargão. |
+| `audience = 'internal'` | **Equipe** | Idem. |
+| `soul_markdown` | **Personalidade e instruções** | O termo "Soul" não aparece em lugar nenhum do fluxo. |
+| Skills (catálogo, criar/publicar) | **Habilidades** | Nome de produto para o que hoje é "Skills". |
+| Skills vinculadas a UM agente | **O que sabe fazer** | Nome diferente do catálogo de propósito — são perguntas diferentes: "o que existe" vs "o que ESTE agente usa". |
+| `slug` | **Identificador técnico** (em Configurações avançadas) | Fica escondido, não desaparece — quem precisa, encontra. |
+| Aba "Assistentes" (rollout, marca, sessão) | **Liberação e marca** | Nome descreve o que a aba de fato configura; continua existindo porque a FASE F não tem operação equivalente ainda. |
+| Aba "Skills" (autoria) | **Habilidades** | Mesmo componente, rótulo renomeado. |
+
+### Jornada de criação — cinco telas, uma decisão cada
+
+1. **Intenção** — "O que você quer que esse agente faça?" Presets: Atendimento,
+   Vendas, Qualificação, Agenda, Suporte, Cobrança, Equipe interna, **Criar do
+   zero**. Cada preset é só UX — sugere `audience`, `role`, um tom e um
+   `soulMarkdown` de partida, e pré-marca as habilidades do catálogo real que
+   batem com o preset (nunca sugere uma que a organização não publicou).
+   Nenhum preset vira entidade nova no backend.
+2. **Público** — "Com quem esse agente vai conversar?" Clientes e leads /
+   Minha equipe. Sempre perguntado, mesmo quando o preset já sugeriu — o
+   usuário confirma ou troca.
+3. **Identidade** — nome, função, "como ele deve conversar?" (chips: Profissional,
+   Consultivo, Acolhedor, Objetivo, Persuasivo, ou texto livre). O
+   identificador técnico mora dentro de "Configurações avançadas", derivado
+   do nome, editável só se alguém abrir.
+4. **Personalidade e instruções** — o texto do preset, sempre editável.
+5. **Habilidades** — "O que esse agente sabe fazer?", checklist pré-marcado.
+   Botão final: **Concluir** (não "Criar agente" — esse nome já é do CTA que
+   abre o assistente, evitando dois botões homônimos na mesma tela).
+
+Ao concluir, a tela chama `agents.criar` com os campos reais (sem
+`skillIds`), e só depois, com o **id do agente recém-criado**, chama
+`agents.definirSkill` para cada habilidade marcada — melhor esforço
+(`Promise.allSettled`): se uma vinculação falhar, o agente já existe e pode
+ser ajustado depois em "O que sabe fazer", em vez de travar todo o assistente.
+
+### Home de Agents
+
+"**Seus agentes**" — "Crie agentes especializados para atender seus clientes
+e ajudar sua equipe." CTA "Criar agente". Lista agrupada por Clientes/Equipe,
+principal primeiro, cada cartão com avatar, nome, selos (Principal/Ativo ou
+Inativo) e função. Nenhuma referência a "um assistente de clientes + um
+assistente da equipe" — a lista mostra a coleção real, do tamanho que ela for.
+
+### Detalhe do Agent
+
+Cabeçalho com avatar maior, nome, selos, "Função · Atende: Clientes". Ações
+"Tornar principal" (ou o selo "Agente principal desta audiência") e
+Ativar/Desativar. Três abas: **Geral** (nome, função, tom, "quem ele atende"
+somente leitura, Configurações avançadas fechada), **Personalidade**, **O que
+sabe fazer**.
+
+### Conhecimento × Habilidades
+
+Um aviso de uma linha acima de cada aba, sem mexer no `Conhecimento.jsx`
+legado: Conhecimento é o que os agentes podem **consultar**; Habilidades é o
+que eles sabem **fazer**.
+
+### Avatar — perfil, não formulário
+
+Cada agente ganha um avatar de iniciais coloridas (`Iniciais` + `corDerivada`,
+o mesmo componente e o mesmo algoritmo já usados para pessoas — `corDerivada`
+foi exportada de `ui/perfil.js` para isso, sem duplicar o hash). Upload de
+foto real fica registrado como **oportunidade futura**: exigiria bucket de
+armazenamento e coluna nova em `assistant_profiles`, fora do escopo de um
+redesenho de UX.
+
+### O que ficou escondido, não removido
+
+`slug`, os `id`s técnicos e a palavra "audience" saem do fluxo principal e vão
+para "Configurações avançadas" ou desaparecem da tela — mas continuam
+acessíveis a quem precisa. Nada de legado foi apagado: `Assistente.jsx`
+(`/app/assistente`) e `SimulatorLegacy` seguem intocados; Campanhas, Rollout e
+a autoria de Habilidades continuam funcionando como antes.
+
+### Provas
+
+> Domínio: `domain/agents.test.js`, 33 itens — inclui os presets (nenhum marca
+> `isDefault`, "Criar do zero" não sugere nada, skills sugeridas restritas ao
+> catálogo real) e o avatar (cor estável, mesmo algoritmo de pessoas).
+>
+> Estático: `Agents.test.jsx`, 30 itens — nenhuma palavra técnica
+> (`audience`, `is_default`, `assistant_profile`) no que a tela renderiza.
+>
+> Interativo: `Agents.interactive.test.jsx`, 15 itens em jsdom com eventos
+> reais — percorre as 5 telas do assistente com um preset real, confirma o
+> payload de criação e que as habilidades são vinculadas ao id do agente
+> recém-criado (não a um id antigo), e mantém as invariáveis da ETAPA 12B
+> (uma chamada para trocar o principal, aviso antes de desativar, N:N de
+> habilidades, mensagens amigáveis de erro, navegação mobile completa).
