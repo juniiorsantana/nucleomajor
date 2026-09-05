@@ -973,3 +973,51 @@ em nome da segurança, a ambiguidade que a FASE C separou.
 > legítimas continuam funcionando**. As provas das FASES E e F foram
 > re-executadas depois do hardening e seguem verdes — a troca de padrão pela
 > RPC, a recusa com padrão inativo e o N:N de skills não regrediram.
+
+## Central de Inteligência — Agents (UI), não aplicada
+
+Primeira entrega de tela realmente multi-agent, escrita em 05/09/2026. **Nada
+foi implantado**: o código está versionado e o build local passa, mas não houve
+deploy.
+
+| Peça | Arquivo |
+|---|---|
+| Tela | `apps/emyleads/src/page/telas/Agents.jsx` |
+| Lógica pura | `apps/emyleads/src/domain/agents.js` |
+| Ligação | aba `agents` em `Inteligencia.jsx`, provider em `web/operations.js` |
+
+### Onde ela entra
+
+A Central de Inteligência já existia com seis abas. **Agents** entra como
+primeira e como aba inicial. As demais ficam intactas — e isso é decisão, não
+omissão: rollout, marca e política de sessão continuam em **Assistentes**,
+não têm operação equivalente na FASE F, e migrá-las agora quebraria o piloto de
+atendimento. A tela de Agents diz onde elas estão, em vez de deixar o usuário
+procurar.
+
+### O que a tela garante, e o que trava isso
+
+| Invariável | Como aparece | Teste |
+|---|---|---|
+| `audience` imutável | campo desabilitado no detalhe, com o motivo; nunca entra no patch | `G` |
+| agente nasce comum | a criação não oferece "tornar padrão" e diz isso em texto | `D` |
+| troca de padrão é atômica | uma única chamada a `agents.tornarPadrao` | `J` |
+| desligar padrão não promove ninguém | confirmação explica que a audiência fica sem atendimento | `I` |
+| sem estado otimista | a lista vem sempre de `recarregar`; erro deixa a tela como estava | `N` |
+| nada de `.find(audience)` | trabalha com a coleção inteira, agrupada | teste dedicado |
+
+O padrão vem primeiro dentro de cada audiência. Não é estética: é o único
+agente daquela audiência que responde hoje, e enterrá-lo numa lista alfabética
+esconderia a informação mais importante da tela.
+
+### Um defeito que o teste encontrou
+
+O rascunho do detalhe era semeado dentro de um `useEffect`, o que fazia o painel
+renderizar vazio no primeiro passe — uma piscada na tela real, e nada em render
+estático. Passou a nascer preenchido no próprio estado. Registrado porque a
+suíte do app não clica em nada, e ainda assim pegou.
+
+### O que NÃO foi feito
+
+Agent Router (continua sendo a fase seguinte), handoff automático, remoção de
+legado, métricas, editor visual de Soul, e qualquer deploy.
