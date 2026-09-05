@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  agruparPorAudiencia, avisoAoDesativar, avisoAoTornarPadrao, mensagemDeErro,
-  ordenarAgents, padraoDaAudiencia, selosDoAgent, separarSkills,
+  PRESETS_DE_AGENTE, TONS_SUGERIDOS, agruparPorAudiencia, avisoAoDesativar,
+  avisoAoTornarPadrao, corDoAgent, descricaoDaSkill, mensagemDeErro,
+  ordenarAgents, padraoDaAudiencia, presetPorId, selosDoAgent,
+  separarSkills, skillsPreSelecionadas, tomPorId,
 } from "./agents";
 import { AGENT_ERRORS, AgentError } from "../../../../packages/intelligence/src/agent-management.mjs";
 
@@ -26,9 +28,7 @@ describe("ordem da lista", () => {
     expect(grupos[1].agents).toHaveLength(2);
   });
 
-  it("C: o padrão vem primeiro dentro da audiência, depois ordem alfabética", () => {
-    // Não é estética: o padrão é o único que responde hoje. Enterrá-lo numa
-    // lista alfabética esconde a informação mais importante da tela.
+  it("C: o principal vem primeiro dentro da audiência, depois ordem alfabética", () => {
     const [clientes, equipe] = agruparPorAudiencia(elenco);
     expect(clientes.agents.map((a) => a.name)).toEqual(["Emilia", "Agenda", "Closer"]);
     expect(equipe.agents.map((a) => a.name)).toEqual(["Operacoes", "QA"]);
@@ -47,37 +47,47 @@ describe("ordem da lista", () => {
   });
 });
 
-describe("selos", () => {
-  it("C: padrão e status aparecem, nessa ordem", () => {
-    expect(selosDoAgent(agent({ isDefault: true })).map((s) => s.texto)).toEqual(["Padrão", "Ativo"]);
+describe("selos — linguagem de produto, não de coluna", () => {
+  it("C: o selo do agente principal diz 'Principal', não 'Padrão'", () => {
+    expect(selosDoAgent(agent({ isDefault: true })).map((s) => s.texto)).toEqual(["Principal", "Ativo"]);
     expect(selosDoAgent(agent({ isDefault: false })).map((s) => s.texto)).toEqual(["Ativo"]);
     expect(selosDoAgent(agent({ status: "inactive" })).map((s) => s.texto)).toEqual(["Inativo"]);
   });
 
-  it("padrão inativo mostra os dois — são ortogonais", () => {
+  it("principal inativo mostra os dois — são ortogonais", () => {
     const selos = selosDoAgent(agent({ isDefault: true, status: "inactive" }));
-    expect(selos.map((s) => s.texto)).toEqual(["Padrão", "Inativo"]);
+    expect(selos.map((s) => s.texto)).toEqual(["Principal", "Inativo"]);
   });
 });
 
-describe("padrão da audiência", () => {
-  it("acha o padrão certo de cada audiência, sem .find(audience) solto", () => {
+describe("avatar — cor estável por agente", () => {
+  it("a mesma id sempre produz a mesma cor", () => {
+    expect(corDoAgent(agent({ id: "emilia" }))).toBe(corDoAgent(agent({ id: "emilia" })));
+  });
+
+  it("é a mesma paleta/algoritmo usado para pessoas — não uma segunda implementação", () => {
+    expect(corDoAgent(agent({ id: "x" }))).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe("agente principal da audiência", () => {
+  it("acha o principal certo de cada audiência, sem .find(audience) solto", () => {
     expect(padraoDaAudiencia(elenco, "customer").name).toBe("Emilia");
     expect(padraoDaAudiencia(elenco, "internal").name).toBe("Operacoes");
   });
 
-  it("devolve null quando a audiência não tem padrão", () => {
-    const semPadrao = elenco.filter((a) => !a.isDefault);
-    expect(padraoDaAudiencia(semPadrao, "customer")).toBeNull();
+  it("devolve null quando a audiência não tem principal", () => {
+    const semPrincipal = elenco.filter((a) => !a.isDefault);
+    expect(padraoDaAudiencia(semPrincipal, "customer")).toBeNull();
   });
 });
 
 describe("I: desativar", () => {
-  it("desligar o agente PADRÃO e ativo pede confirmação e explica a consequência", () => {
+  it("desligar o agente PRINCIPAL e ativo pede confirmação e explica a consequência", () => {
     const aviso = avisoAoDesativar(agent({ name: "Emilia", isDefault: true }));
     expect(aviso).not.toBeNull();
+    expect(aviso.titulo).toMatch(/agente principal/i);
     expect(aviso.descricao).toMatch(/sem atendimento/i);
-    // E deixa explícito que ninguém é promovido no lugar.
     expect(aviso.descricao).toMatch(/Nenhum outro agente é promovido/i);
     expect(aviso.rotulo).toBe("Desativar mesmo assim");
   });
@@ -91,12 +101,14 @@ describe("I: desativar", () => {
   });
 });
 
-describe("J/K: tornar padrão", () => {
-  it("nomeia o padrão que sai e diz que ele continua existindo", () => {
+describe("J/K: tornar principal", () => {
+  it("nomeia o principal que sai e diz que ele continua existindo", () => {
     const aviso = avisoAoTornarPadrao(agent({ name: "Closer" }), agent({ id: "emilia", name: "Emilia" }));
+    expect(aviso.titulo).toMatch(/agente principal/i);
     expect(aviso.descricao).toContain("Closer");
     expect(aviso.descricao).toContain("Emilia");
     expect(aviso.descricao).toMatch(/continua existindo/i);
+    expect(aviso.rotulo).toBe("Tornar principal");
   });
 
   it("avisa quando o agente promovido está inativo", () => {
@@ -104,7 +116,7 @@ describe("J/K: tornar padrão", () => {
     expect(aviso.descricao).toMatch(/está inativo/i);
   });
 
-  it("sem padrão anterior, não inventa um nome", () => {
+  it("sem principal anterior, não inventa um nome", () => {
     const aviso = avisoAoTornarPadrao(agent({ name: "Closer" }), null);
     expect(aviso.descricao).not.toMatch(/no lugar de/i);
   });
@@ -112,10 +124,10 @@ describe("J/K: tornar padrão", () => {
 
 describe("L/M: skills", () => {
   const catalogo = [
-    { id: "s1", name: "Vendas", audience: "customer", status: "published" },
-    { id: "s2", name: "Agenda", audience: "both", status: "published" },
-    { id: "s3", name: "Tarefas", audience: "internal", status: "published" },
-    { id: "s4", name: "Rascunho", audience: "customer", status: "draft" },
+    { id: "s1", name: "Vendas", slug: "vendas", audience: "customer", status: "published" },
+    { id: "s2", name: "Agenda", slug: "agenda", audience: "both", status: "published" },
+    { id: "s3", name: "Tarefas", slug: "tarefas", audience: "internal", status: "published" },
+    { id: "s4", name: "Rascunho", slug: "rascunho", audience: "customer", status: "draft" },
   ];
 
   it("separa vinculadas de disponíveis, respeitando a audiência", () => {
@@ -123,7 +135,6 @@ describe("L/M: skills", () => {
       catalogo, [{ skill_id: "s1", enabled: true, priority: 10 }], "customer",
     );
     expect(vinculadas.map((s) => s.id)).toEqual(["s1"]);
-    // s3 é interna e s4 não está publicada: nenhuma das duas aparece.
     expect(disponiveis.map((s) => s.id)).toEqual(["s2"]);
   });
 
@@ -148,6 +159,12 @@ describe("L/M: skills", () => {
     expect(vinculadas).toHaveLength(0);
     expect(disponiveis.map((s) => s.id)).toEqual(["s2", "s3"]);
   });
+
+  it("descrição ausente vira frase amigável, nunca o slug técnico", () => {
+    expect(descricaoDaSkill({ description: "Fala com o cliente." })).toBe("Fala com o cliente.");
+    expect(descricaoDaSkill({ description: "", slug: "pre-qualificacao" })).toBe("Sem descrição disponível.");
+    expect(descricaoDaSkill({ slug: "pre-qualificacao" })).not.toContain("pre-qualificacao");
+  });
 });
 
 describe("E/N: erros viram frase de tela", () => {
@@ -157,9 +174,9 @@ describe("E/N: erros viram frase de tela", () => {
     expect(frase).not.toMatch(/23505|duplicate key|constraint/i);
   });
 
-  it("padrão já existente manda usar Tornar padrão, em vez de criar outro", () => {
+  it("principal já existente manda usar Tornar principal, em vez de criar outro", () => {
     expect(mensagemDeErro(new AgentError(AGENT_ERRORS.DEFAULT_ALREADY_EXISTS)))
-      .toMatch(/Tornar padrão/i);
+      .toMatch(/Tornar principal/i);
   });
 
   it("sem permissão diz isso, sem falar de RLS", () => {
@@ -168,9 +185,71 @@ describe("E/N: erros viram frase de tela", () => {
     expect(frase).not.toMatch(/row-level|policy|42501/i);
   });
 
+  it("audience imutável fala de 'quem o agente atende', não de 'audience'", () => {
+    const frase = mensagemDeErro(new AgentError(AGENT_ERRORS.AUDIENCE_IMMUTABLE));
+    expect(frase.toLowerCase()).not.toContain("audience");
+  });
+
   it("erro desconhecido não vira texto técnico vazio", () => {
     expect(mensagemDeErro(new Error("Falha de rede"))).toBe("Falha de rede");
     expect(mensagemDeErro(null)).toBe("Não foi possível concluir a ação.");
     expect(mensagemDeErro({})).toBe("Não foi possível concluir a ação.");
+  });
+});
+
+describe("assistente de criação — presets são só UX", () => {
+  it("todo preset de audience 'customer'/'internal' tem os campos que o passo seguinte precisa", () => {
+    for (const preset of PRESETS_DE_AGENTE) {
+      if (preset.id === "zero") continue;
+      expect(["customer", "internal"]).toContain(preset.audience);
+      expect(preset.role.length).toBeGreaterThan(0);
+      expect(tomPorId(preset.tomSugerido)).not.toBeNull();
+      expect(preset.soulSugerido.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("'Criar do zero' não sugere nada — o usuário define tudo", () => {
+    const zero = presetPorId("zero");
+    expect(zero.audience).toBeNull();
+    expect(zero.role).toBe("");
+    expect(zero.tomSugerido).toBeNull();
+    expect(zero.soulSugerido).toBe("");
+    expect(zero.skillsSugeridas).toEqual([]);
+  });
+
+  it("presetPorId com id desconhecido devolve null, nunca undefined silencioso", () => {
+    expect(presetPorId("nao-existe")).toBeNull();
+  });
+
+  it("cada tom sugerido tem um rótulo curto e uma frase completa para o campo real", () => {
+    for (const tom of TONS_SUGERIDOS) {
+      expect(tom.rotulo.length).toBeLessThan(20);
+      expect(tom.texto.length).toBeGreaterThan(tom.rotulo.length);
+    }
+  });
+
+  it("skillsPreSelecionadas só marca o que a organização realmente publicou", () => {
+    const catalogoDaOrg = [
+      { id: "sk-vendas", slug: "vendas", status: "published" },
+      { id: "sk-pre", slug: "pre-qualificacao", status: "draft" },
+    ];
+    const preset = presetPorId("vendas");
+    const marcadas = skillsPreSelecionadas(catalogoDaOrg, preset);
+    expect(marcadas).toEqual(["sk-vendas"]);
+  });
+
+  it("preset sem skills sugeridas não marca nada, mesmo com catálogo cheio", () => {
+    const cobranca = presetPorId("cobranca");
+    const marcadas = skillsPreSelecionadas(
+      [{ id: "s1", slug: "vendas", status: "published" }], cobranca,
+    );
+    expect(marcadas).toEqual([]);
+  });
+
+  it("nenhum preset marca o agente como principal — isso continua ação separada", () => {
+    for (const preset of PRESETS_DE_AGENTE) {
+      expect(preset).not.toHaveProperty("isDefault");
+      expect(preset).not.toHaveProperty("is_default");
+    }
   });
 });

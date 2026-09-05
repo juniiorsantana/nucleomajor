@@ -52,8 +52,14 @@ const CORES_SORTEAVEIS = CORES_DE_PESSOA.slice(0, 7);
  * Determinística porque o mesmo rosto precisa ter a mesma cor em toda sessão,
  * em toda máquina e para todo mundo da equipe — cor sorteada em memória mudaria
  * a cada recarga e não serviria para reconhecer ninguém.
+ *
+ * Exportada porque `domain/agents.js` reusa exatamente este algoritmo para o
+ * avatar dos agentes (`corDoAgent`, a partir do `id` do agente): um agente não
+ * tem coluna de cor escolhida — é sempre derivada —, mas precisa da MESMA
+ * garantia de estabilidade que uma pessoa tem, e duplicar o hash aqui
+ * divergiria da paleta na primeira mudança de uma das duas.
  */
-function corDerivada(id) {
+export function corDerivada(id) {
   const texto = String(id || "");
   if (!texto) return CORES_SORTEAVEIS[0];
   let soma = 0;

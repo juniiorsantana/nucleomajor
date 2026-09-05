@@ -10,11 +10,22 @@ import { resolverRotaSkill } from "../../domain/intelligenceRouter";
 import Conhecimento from "./Conhecimento";
 import Agents from "./Agents";
 
+// ETAPA 12B.1: a ordem prioriza o que o usuário administra primeiro — os
+// agentes — e empurra o que é avançado/legado para o fim. "Habilidades" aqui
+// é o catálogo (criar/publicar/versionar); dentro de um agente, a mesma
+// coisa aparece como "O que sabe fazer" — nomes diferentes de propósito,
+// porque são perguntas diferentes ("o que existe" vs "o que ESTE usa").
+// "Assistentes" virou "Liberação e marca": é o que ela de fato configura
+// (rollout, marca, política de sessão) — ela continua existindo porque a
+// FASE F ainda não tem operação equivalente para essas três coisas.
 const tabs = [
-  ["agents", "Agents", Bot],
-  ["knowledge", "Conhecimento", BookOpen], ["assistants", "Assistentes", Sparkles],
-  ["skills", "Skills", WandSparkles], ["campaigns", "Campanhas", Megaphone],
-  ["simulator", "Simulador", FlaskConical], ["history", "Histórico", History],
+  ["agents", "Agentes", Bot],
+  ["knowledge", "Conhecimento", BookOpen],
+  ["skills", "Habilidades", WandSparkles],
+  ["campaigns", "Campanhas", Megaphone],
+  ["history", "Histórico", History],
+  ["simulator", "Simulador", FlaskConical],
+  ["assistants", "Liberação e marca", Settings2],
 ];
 const list = (value) => String(value || "").split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
 const date = (value) => value ? new Date(value).toLocaleString("pt-BR") : "—";
@@ -220,5 +231,5 @@ export default function Inteligencia({ sessao }) {
   useEffect(() => { load().catch((failure) => setError(failure.message)).finally(() => setLoading(false)); }, []);
   useEffect(() => { carregarAgents(); }, []);
   if (loading) return <div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando inteligência…</div>;
-  return <div className="flex min-h-0 flex-1 flex-col bg-surface"><header className="flex-none border-b border-line bg-bg px-4 pt-4 md:px-7"><div className="flex items-start gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Núcleo de Conhecimento</p><h1 className="text-[22px] font-semibold tracking-tight">Central de Inteligência</h1><p className="mt-1 text-[11px] text-sub">Agentes, habilidades, campanhas e informação com fronteiras claras.</p></div><span className="ml-auto hidden items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-sub md:flex"><ShieldCheck size={14} className="text-success" />Isolada por organização</span></div><nav className="scrollbar-fina mt-4 flex gap-1 overflow-x-auto">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-fit items-center gap-2 border-b-2 px-3 py-2.5 text-[11.5px] font-medium ${tab === id ? "border-accent text-accent-forte" : "border-transparent text-sub"}`}><Icon size={15} />{label}</button>)}</nav></header>{error && <div role="alert" className="mx-4 mt-3 rounded-[9px] bg-danger/10 px-4 py-3 text-[12px] text-danger md:mx-7">{error}</div>}{tab === "agents" && <Agents agents={agents} catalogoSkills={data.skills} canWrite={canWrite} recarregar={async () => { await carregarAgents(); await load(); }} carregando={false} erro={agentsErro} />}{tab === "knowledge" && <Conhecimento sessao={sessao} inteligencia={data} embedded />}{tab === "assistants" && <Assistants data={data} canWrite={canWrite} reload={load} fail={setError} onTest={() => setTab("simulator")} onManageSkills={() => setTab("skills")} />}{tab === "skills" && <Skills data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "campaigns" && <Campaigns data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "simulator" && <Simulator reload={load} fail={setError} />}{tab === "history" && <Audit data={data} canWrite={canWrite} reload={load} fail={setError} />}</div>;
+  return <div className="flex min-h-0 flex-1 flex-col bg-surface"><header className="flex-none border-b border-line bg-bg px-4 pt-4 md:px-7"><div className="flex items-start gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-accent">Núcleo de Conhecimento</p><h1 className="text-[22px] font-semibold tracking-tight">Central de Inteligência</h1><p className="mt-1 text-[11px] text-sub">Agentes, habilidades, campanhas e informação com fronteiras claras.</p></div><span className="ml-auto hidden items-center gap-2 rounded-full border border-line px-3 py-1.5 text-[10px] text-sub md:flex"><ShieldCheck size={14} className="text-success" />Isolada por organização</span></div><nav className="scrollbar-fina mt-4 flex gap-1 overflow-x-auto">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-fit items-center gap-2 border-b-2 px-3 py-2.5 text-[11.5px] font-medium ${tab === id ? "border-accent text-accent-forte" : "border-transparent text-sub"}`}><Icon size={15} />{label}</button>)}</nav></header>{error && <div role="alert" className="mx-4 mt-3 rounded-[9px] bg-danger/10 px-4 py-3 text-[12px] text-danger md:mx-7">{error}</div>}{tab === "agents" && <Agents agents={agents} catalogoSkills={data.skills} canWrite={canWrite} recarregar={async () => { await carregarAgents(); await load(); }} carregando={false} erro={agentsErro} />}{tab === "knowledge" && <div className="flex min-h-0 flex-1 flex-col"><p className="mx-4 mt-3 rounded-[9px] bg-surface px-3 py-2 text-[11px] text-sub md:mx-7">Conhecimento é o que seus agentes podem <strong>consultar</strong> ao responder — diferente de Habilidades, que é o que eles sabem <strong>fazer</strong>.</p><Conhecimento sessao={sessao} inteligencia={data} embedded /></div>}{tab === "assistants" && <Assistants data={data} canWrite={canWrite} reload={load} fail={setError} onTest={() => setTab("simulator")} onManageSkills={() => setTab("skills")} />}{tab === "skills" && <div className="flex min-h-0 flex-1 flex-col"><p className="mx-4 mt-3 rounded-[9px] bg-surface px-3 py-2 text-[11px] text-sub md:mx-7">Habilidades é o que seus agentes sabem <strong>fazer</strong> — diferente de Conhecimento, que é o que eles podem <strong>consultar</strong>. Aqui você cria e publica; dentro de cada agente, em "O que sabe fazer", você escolhe quais delas ele usa.</p><Skills data={data} canWrite={canWrite} reload={load} fail={setError} /></div>}{tab === "campaigns" && <Campaigns data={data} canWrite={canWrite} reload={load} fail={setError} />}{tab === "simulator" && <Simulator reload={load} fail={setError} />}{tab === "history" && <Audit data={data} canWrite={canWrite} reload={load} fail={setError} />}</div>;
 }

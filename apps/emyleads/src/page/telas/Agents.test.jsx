@@ -1,15 +1,13 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import Agents, { DetalheAgent, NovoAgent } from "./Agents";
+import Agents, { AssistenteDeCriacao, DetalheAgent } from "./Agents";
 
 /**
  * A suíte do app renderiza para markup estático e não clica em nada. Então o
  * que dá para provar aqui é o que a tela MOSTRA e o que ela OFERECE; a lógica
- * de decisão está em `domain/agents.test.js`, e o que só existe dentro de um
- * `onClick` é verificado pelo texto do módulo — que é o suficiente para travar
- * as invariáveis que importam (uma chamada só na troca de padrão, nada de
- * `.find(audience)`, nenhum estado otimista).
+ * de decisão está em `domain/agents.test.js`, e o caminho de evento real está
+ * em `Agents.interactive.test.jsx`.
  */
 
 const fonte = readFileSync(new URL("./Agents.jsx", import.meta.url), "utf8");
@@ -32,22 +30,38 @@ const render = (props = {}) => renderToStaticMarkup(
     carregando={false} erro="" {...props} />,
 );
 
-describe("lista", () => {
-  it("A/B: mostra todos os agentes, das duas audiências", () => {
+describe("home dos agentes", () => {
+  it("chama pelo nome de produto: 'Seus agentes', não a nomenclatura técnica", () => {
+    const html = render();
+    expect(html).toContain("Seus agentes");
+    expect(html).toContain("Crie agentes especializados para atender seus clientes e ajudar sua equipe.");
+    // Nada de audience/assistant_profile/is_default no que a pessoa lê.
+    expect(html.toLowerCase()).not.toContain("audience");
+    expect(html.toLowerCase()).not.toContain("assistant_profile");
+    expect(html).not.toMatch(/is_default|isDefault=/);
+  });
+
+  it("A/B: mostra todos os agentes, das duas audiências, com rótulo amigável", () => {
     const html = render();
     for (const nome of ["Emilia", "Closer", "Agenda", "Operacoes", "QA"]) {
       expect(html).toContain(nome);
     }
     expect(html).toContain("Clientes");
     expect(html).toContain("Equipe");
-    expect(html).toContain("5 nesta organização");
   });
 
-  it("C: identifica o padrão e o estado de cada um", () => {
+  it("C: identifica o principal como 'Principal', não 'Padrão'", () => {
     const html = render();
-    expect(html).toContain("Padrão");
+    expect(html).toContain("Principal");
+    expect(html).not.toContain(">Padrão<");
     expect(html).toContain("Ativo");
     expect(html).toContain("Inativo");
+  });
+
+  it("cada agente tem um avatar (iniciais coloridas), como um perfil", () => {
+    const html = render();
+    // O avatar usa <Iniciais>: um círculo colorido com as letras do nome.
+    expect(html).toMatch(/rounded-full[^>]*>\s*E/); // Emilia -> "E" ou "EM"
   });
 
   it("empty state quando não há agente nenhum", () => {
@@ -62,45 +76,67 @@ describe("lista", () => {
   });
 
   it("sem permissão de escrita, não oferece criar agente", () => {
-    expect(render({ canWrite: false })).not.toContain("Novo agente");
-    expect(render()).toContain("Novo agente");
+    expect(render({ canWrite: false })).not.toContain("Criar agente");
+    expect(render()).toContain("Criar agente");
   });
 
   it("O: as duas apresentações existem — mestre/detalhe no desktop, uma tela no mobile", () => {
     const html = render();
     expect(html).toContain("md:grid-cols-[320px_minmax(0,1fr)]");
     expect(html).toContain("md:hidden");
-    expect(html).toContain("hidden");
   });
 
-  it("aponta onde ficou o que esta tela ainda não cobre", () => {
-    // Rollout e marca continuam na aba Assistentes; a tela diz isso em vez de
-    // deixar o usuário procurar.
-    expect(render()).toMatch(/Rollout, marca e política de sessão/i);
+  it("aponta onde ficou o que esta tela ainda não cobre, com o nome novo da aba", () => {
+    expect(render()).toMatch(/Liberação e marca/);
+  });
+});
+
+describe("assistente de criação (passo 1: intenção)", () => {
+  const criacao = () => renderToStaticMarkup(
+    <AssistenteDeCriacao catalogoSkills={[]} aoFechar={() => {}} aoCriar={async () => {}} />,
+  );
+
+  it("começa pela intenção, não por um formulário técnico", () => {
+    const html = criacao();
+    expect(html).toContain("O que você quer que esse agente faça?");
+    // O primeiro passo não pede nome, slug ou audience ainda.
+    expect(html).not.toMatch(/<input/);
+  });
+
+  it("oferece os presets de papel, incluindo a saída honesta 'Criar do zero'", () => {
+    const html = criacao();
+    for (const rotulo of ["Atendimento", "Vendas", "Qualificação", "Agenda", "Suporte", "Cobrança", "Equipe interna", "Criar do zero"]) {
+      expect(html).toContain(rotulo);
+    }
+  });
+
+  it("mostra o progresso em 5 passos", () => {
+    expect(criacao()).toMatch(/aria-valuemax="5"/);
+  });
+
+  it("não menciona termos internos (soul, slug bruto, audience) na tela inicial", () => {
+    const html = criacao().toLowerCase();
+    expect(html).not.toContain("soul");
+    expect(html).not.toContain("audience");
   });
 });
 
 describe("invariáveis que a tela não pode quebrar", () => {
-  it("G: audience é somente leitura no detalhe, e o patch nunca a envia", () => {
-    expect(fonte).toMatch(/Audiência[\s\S]{0,400}?disabled readOnly/);
-    // O rascunho de edição só tem os campos editáveis.
+  it("G: quem o agente atende é somente leitura no detalhe, e o patch nunca o envia", () => {
+    expect(fonte).toMatch(/Quem ele atende[\s\S]{0,400}?disabled readOnly/);
     expect(fonte).toMatch(/name:[^\n]*slug:[^\n]*role:/);
     expect(fonte).not.toMatch(/audience:\s*rascunho/);
     expect(fonte).not.toMatch(/editar\([^)]*audience/);
   });
 
-  it("D: a criação não oferece nascer padrão", () => {
-    const criacao = fonte.slice(fonte.indexOf("function NovoAgent"), fonte.indexOf("function DetalheAgent"));
-    expect(criacao).not.toMatch(/isDefault|is_default|Tornar padrão/);
-    expect(criacao).toMatch(/nasce <strong>comum<\/strong>/);
+  it("D: nenhum preset, nem o assistente, marca o agente como principal na criação", () => {
+    expect(fonte).not.toMatch(/isDefault:\s*(true|false)/);
+    expect(fonte).toMatch(/Quem responde primeiro continua/);
   });
 
-  it("J: trocar o padrão é UMA chamada, e é a operação atômica", () => {
-    // Dois updates pelo frontend abririam a janela sem padrão que a RPC existe
-    // para fechar. Se alguém tentar, este teste reprova.
+  it("J: trocar o principal é UMA chamada, e é a operação atômica", () => {
     expect(fonte).toContain("api.agents.tornarPadrao");
     expect(fonte).not.toMatch(/definirAtivo[\s\S]{0,200}tornarPadrao/);
-    expect(fonte).not.toMatch(/isDefault:\s*(true|false)/);
     expect((fonte.match(/api\.agents\.tornarPadrao/g) || []).length).toBe(1);
   });
 
@@ -112,9 +148,7 @@ describe("invariáveis que a tela não pode quebrar", () => {
     }
   });
 
-  it("N: nada de estado otimista — a tela só reflete o que o servidor confirmou", () => {
-    // Não existe setAgents/mutação local da coleção dentro da tela: a lista vem
-    // sempre de `recarregar`. Se um erro acontecer, a UI fica como estava.
+  it("N: nada de estado otimista fora do que o servidor confirmou", () => {
     expect(fonte).not.toMatch(/setAgents\(/);
     expect(fonte).toMatch(/catch \(e\) \{ setFalha\(mensagemDeErro\(e\)\); \}/);
   });
@@ -131,9 +165,13 @@ describe("invariáveis que a tela não pode quebrar", () => {
     ]));
   });
 
-  it("Soul é persona, e a tela diz que ele não concede permissão", () => {
-    expect(fonte).toMatch(/personalidade, postura, princípios e estilo/i);
-    expect(fonte).toMatch(/não concede permissão/i);
+  it("avatar reusa o mesmo algoritmo de cor das pessoas, não uma cópia", () => {
+    expect(fonte).toMatch(/corDoAgent[\s\S]{0,200}from "\.\.\/\.\.\/domain\/agents"/);
+    expect(fonte).not.toMatch(/function corDerivada/);
+  });
+
+  it("Personalidade explica o que faz, e diz que não concede permissão em lugar nenhum do fluxo", () => {
+    expect(fonte).toMatch(/conversar, se comportar e representar sua empresa/i);
   });
 });
 
@@ -152,20 +190,34 @@ describe("detalhe do agente, renderizado", () => {
       catalogoSkills={skills} canWrite aoVoltar={() => {}} acoes={acoes} />,
   );
 
-  it("F: oferece nome, slug, função e tom", () => {
+  it("as três abas são Geral, Personalidade e 'O que sabe fazer'", () => {
     const html = detalhe();
-    for (const rotulo of ["Nome", "Identificador (slug)", "Função", "Tom"]) {
+    for (const rotulo of ["Geral", "Personalidade", "O que sabe fazer"]) {
+      expect(html).toContain(rotulo);
+    }
+    expect(html).not.toMatch(/>Soul</);
+    expect(html).not.toMatch(/>Skills</);
+  });
+
+  it("F: oferece nome, função e como conversa", () => {
+    const html = detalhe();
+    for (const rotulo of ["Nome", "Função", "Como ele conversa"]) {
       expect(html).toContain(rotulo);
     }
     expect(html).toContain("Emilia");
-    expect(html).toContain("Recepção");
   });
 
-  it("G: audiência aparece desabilitada, com o motivo", () => {
+  it("G: quem atende aparece desabilitado, com o motivo — sem a palavra 'audience'", () => {
     const html = detalhe();
-    expect(html).toContain("Audiência");
-    expect(html).toMatch(/disabled[^>]*readonly|readonly[^>]*disabled/i);
-    expect(html).toMatch(/Imutável depois da criação/i);
+    expect(html).toContain("Quem ele atende");
+    expect(html.toLowerCase()).not.toContain("audience");
+    expect(html).toMatch(/imutável depois/i);
+  });
+
+  it("o identificador técnico fica dentro de Configurações avançadas, não solto na tela", () => {
+    const html = detalhe();
+    expect(html).toContain("Configurações avançadas");
+    expect(html).toMatch(/Configurações avançadas[\s\S]{0,600}?agente-recepcao|Identificador técnico/);
   });
 
   it("H: oferece desativar quando ativo e ativar quando inativo", () => {
@@ -173,11 +225,15 @@ describe("detalhe do agente, renderizado", () => {
     expect(detalhe({ status: "inactive" })).toContain("Ativar");
   });
 
-  it("C: no padrão mostra o selo, e não oferece “Tornar padrão”", () => {
-    const padrao = detalhe({ isDefault: true });
-    expect(padrao).toContain("Agente padrão desta audiência");
-    expect(padrao).not.toContain("Tornar padrão");
-    expect(detalhe({ isDefault: false })).toContain("Tornar padrão");
+  it("C: no principal mostra 'Agente principal de <audiência>', sem oferecer promovê-lo de novo", () => {
+    const principal = detalhe({ isDefault: true });
+    expect(principal).toMatch(/Agente principal de clientes/i);
+    expect(principal).not.toContain("Tornar principal");
+    expect(detalhe({ isDefault: false })).toContain("Tornar principal");
+  });
+
+  it("cabeçalho mostra o avatar do agente", () => {
+    expect(detalhe()).toMatch(/rounded-full/);
   });
 
   it("somente leitura quando o usuário não pode escrever", () => {
@@ -185,34 +241,7 @@ describe("detalhe do agente, renderizado", () => {
       <DetalheAgent agent={agent()} catalogoSkills={skills} canWrite={false}
         aoVoltar={() => {}} acoes={acoes} />,
     );
-    expect(html).not.toContain("Tornar padrão");
+    expect(html).not.toContain("Tornar principal");
     expect(html).not.toContain("Salvar");
-  });
-});
-
-describe("formulário de criação, renderizado", () => {
-  const criar = () => renderToStaticMarkup(
-    <NovoAgent aoFechar={() => {}} aoCriar={async () => {}} />,
-  );
-
-  it("D: pede nome, audiência, função, tom e soul — e nada de padrão", () => {
-    const html = criar();
-    for (const rotulo of ["Nome", "Audiência", "Função", "Tom", "Soul"]) {
-      expect(html).toContain(rotulo);
-    }
-    expect(html).toContain("Clientes");
-    expect(html).toContain("Equipe");
-    expect(html).not.toContain("Tornar padrão");
-    expect(html).toMatch(/nasce <strong>comum<\/strong>/);
-  });
-
-  it("explica que a audiência é definida agora e imutável depois", () => {
-    expect(criar()).toMatch(/imutável depois/i);
-  });
-
-  it("o Soul vem com a ajuda certa, e sem convite a colocar permissão", () => {
-    const html = criar();
-    expect(html).toMatch(/personalidade, postura, princípios e estilo de comunicação/i);
-    expect(html).toMatch(/Não coloque aqui ferramentas, permissões/i);
   });
 });
