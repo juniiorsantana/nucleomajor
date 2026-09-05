@@ -647,6 +647,50 @@ três rodadas de tentativa e erro.
   Próxima fase: **Central de Inteligência / UI de Agents**, que passa a
   consumir esta camada. **Agent Router continua não existindo** (FASE G).
 
+- `20260905200000_a_rpc_de_agente_padrao_nao_atende_anonimo.sql` aplicada em
+  05/09/2026 — hardening **pontual** de menor privilégio, só da RPC que a FASE F
+  criou. Não muda comportamento: `md5(pg_get_functiondef)` da função é
+  `a8901310…` antes e depois, idêntico.
+
+  O que corrigiu: `public.nucleo_agent_set_default(uuid)` tinha `EXECUTE` para
+  `anon`. A migration da FASE F fez `revoke all ... from public`, e isso
+  funcionou (`has_function_privilege('public', …)` já era `false`), mas o
+  projeto tem `ALTER DEFAULT PRIVILEGES` concedendo EXECUTE **nominalmente** a
+  `anon`/`authenticated`/`service_role` em toda função criada no schema
+  `public` — e revogar de `PUBLIC` não alcança concessão nominal a papel.
+
+  Por que a prova anterior não pegou, registrado como limite conhecido: o
+  Postgres descartável do harness não tem esses default privileges, então lá o
+  ACL saiu limpo e a prova passou sem ver o problema. Quem pegou foi a
+  conferência do catálogo em produção. **O harness prova semântica de SQL, não
+  configuração de projeto.**
+
+  Isto não era explorável, e a migration não existe por pânico: a função é
+  `security definer` e chama `private.can_manage_org` logo depois de achar o
+  agente, o que depende de `auth.uid()`. Chamada anônima não tem `auth.uid()`,
+  então `can_manage_org` é falso e ela levanta `organization management
+  required` antes de escrever qualquer coisa. O que se corrigiu foi superfície:
+  `anon` não deveria nem conseguir invocar uma operação de gestão.
+
+  `service_role` foi **preservada, por decisão**. É o papel dos caminhos
+  servidor, a chave nunca chega ao navegador, e todas as RPCs do projeto a
+  concedem — tirar só desta faria dela a única exceção, que é o tipo de detalhe
+  que surpreende alguém meses depois. E não amplia nada: sem JWT de usuário,
+  `can_manage_org` falha fechado para ela também.
+
+  ACL antes → depois:
+  `postgres | anon | authenticated | service_role` → `postgres | authenticated | service_role`.
+  Conferido pelo privilégio **efetivo**, não pelo texto: `anon` `false`,
+  `PUBLIC` `false`, `authenticated` `true`, `service_role` `true`.
+
+  Nada mais mudou: a fronteira de escrita da ETAPA 11B intacta (privilégio de
+  tabela de `authenticated` ainda `REFERENCES, SELECT, TRIGGER`, zero colunas
+  estruturais graváveis), os seis resolvedores com hash idêntico, 2 perfis,
+  2/2 padrão, `intelligence_audit_log` ainda em 53, nenhum serviço reiniciado.
+
+  Não registrada em `supabase_migrations.schema_migrations` — mesmo estado das
+  demais desde `20260821120000`.
+
 ## Dívidas de menor privilégio (FASES E e F)
 
 Duas coisas encontradas durante a FASE E que **não** são dela e não foram
@@ -661,7 +705,7 @@ corrigidas junto, para não misturar escopo numa migration de produção:
   estão expostos, e os `EXECUTE` das funções `private` em geral. É
   **pré-existente**, anterior a toda a linha multi-agent, e não foi introduzido
   nem agravado pela FASE E.
-- **`EXECUTE` para `anon` em todas as RPCs do schema `public`.** Achado ao
+- **`EXECUTE` para `anon` nas RPCs do schema `public`.** *(A RPC da FASE F saiu desta lista em 05/09/2026, pela migration `20260905200000`; as demais continuam.)* Achado ao
   conferir a RPC nova em produção: `nucleo_agent_set_default` saiu com
   `anon=X`, apesar de a migration fazer `revoke all ... from public`. A causa
   é `ALTER DEFAULT PRIVILEGES` do Supabase, que concede EXECUTE a
