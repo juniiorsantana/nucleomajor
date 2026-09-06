@@ -2,6 +2,7 @@
 
 - [x] 14A: contrato conferido contra RPC humana, sessões e allowlists.
 - [x] 14B: RPC, coluna, testes estáticos e prova SQL com rollback.
+- [x] 14B em produção: corpo aceito pelo hash `c5a77221e64b6be22720cc1800faf683`.
 - [x] 14C: capacidade nas duas allowlists SQL, catálogo, MCP e worker; testes.
 - [x] Executar cadeia em Postgres 17.9 descartável e comparar banco de controle.
 - [x] Commit nos dois repositórios e conferir ancestralidade local/remota/VPS.
