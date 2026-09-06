@@ -8,6 +8,15 @@ runtime é `da11193`: checkout local, `hardening` da VPS e referência remota
 consultada por SSH conferem. O remoto HTTPS do runtime recusou acesso; a leitura
 da referência por SSH na VPS funcionou. Nenhum commit anterior foi descartado.
 
+Commits de implementação: portal **`9b2ef42`** (branch publicada no origin) e
+runtime **`0ae2b38`** (commit local e bundle preservado). A publicação da branch
+do runtime via Git bare temporário foi **recusada pela revisão automática**:
+classificou `git@github.com:juiiorsantana/whatsapp-mcp-hardened.git` como destino
+não verificado por causa da falha anterior no HTTPS, apesar do `ls-remote` SSH
+ter retornado `da11193` para hardening. Não houve tentativa de contornar a recusa.
+Bundle local: `artifacts/fase-14/runtime.bundle`. A main e hardening seguem
+sem a fase até concluir os aceites de produção.
+
 - **14A:** [memorando do contrato](./intelligence/MULTI-AGENT-MIGRATION.md#fase-14a--contrato-de-handoff-entre-agentes).
   Slug validado na organização, motivos fechados, teto persistido de **3** saltos,
   sessão de skill fechada, skill ativa zerada e sessão do modelo descartada.
