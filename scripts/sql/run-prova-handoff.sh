@@ -43,6 +43,8 @@ psql -X -v ON_ERROR_STOP=1 -f "$B/scripts/sql/validar-fase-14.sql" >"$B/validati
 export PGDATABASE=handoff
 apply "$B/supabase/migrations/20260906180000_fase_14b_handoff_entre_agentes.sql"
 apply "$B/supabase/migrations/20260906190000_fase_14c_capacidade_handoff_agente.sql"
+apply "$B/scripts/sql/prova-corpo-copiado-fase-14b.sql"
+psql -X -v ON_ERROR_STOP=1 -f "$B/scripts/sql/restaurar-corpo-fase-14b.sql" 2>&1 | tee "$B/repair-14b.log"
 psql -X -v ON_ERROR_STOP=1 -f "$B/scripts/sql/validar-fase-14.sql" >"$B/validation-after.log"
 for database in control handoff; do
   psql -X -d "$database" -At -c "select n.nspname||'.'||p.proname, md5(pg_get_functiondef(p.oid)), md5(replace(p.prosrc,chr(13),'')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.prokind='f' order by 1,2" >"$B/hashes-$database.log"

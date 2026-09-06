@@ -57,7 +57,10 @@ existentes e continua exigindo credencial de robô. A RPC nova revoga anon/publi
 Recepção e Vendas publicadas ao SDR confirmado, preservando prioridades/configuração
 de bindings existentes. Script exato executado duas vezes em PostgreSQL 17.9
 descartável: idempotência, resolução de Recepção e de Vendas pelo SDR e rollback
-sem resíduos passaram. Entregue para aplicação manual; ainda não confirmada.
+sem resíduos passaram. **Aplicação manual confirmada pelo resultado devolvido
+pelo usuário:** Recepção habilitada, prioridade 1000, v1, fallback=true; Vendas
+habilitada, prioridade **100 preservada do vínculo existente**, v3, fallback=false.
+O SDR está preparado para resolver ambas. As migrations 14B/14C continuam pendentes.
 
 O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
 que classificou a liberação de acesso a supabase.com como possível exposição da
@@ -1237,3 +1240,6 @@ como pendência.
 8. somente então avaliar a mudança do piloto para o modo Ativo.
 
 O registro das dez jornadas fica em `docs/MVP-ACCEPTANCE-H5.md`.
+# FASE 14 — aceite manual do corpo SQL (2026-09-06)
+
+O retorno do SQL Editor confirmou coluna e permissões da RPC 14B, mas o corpo instalado tem hash `92928c87614ffd2603e9ecea9e376e5f`: a cópia introduziu quebras dentro de três mensagens literais, incluindo duas recusas públicas. O aceite permanece pendente. `scripts/sql/restaurar-corpo-fase-14b.sql` restaura apenas a função, com guardas antes e depois e rollback em caso de divergência. A reprodução exata do corpo recebido e sua restauração para `c5a77221e64b6be22720cc1800faf683` passaram em Postgres 17.9 descartável, seguidas de toda a prova comportamental A–H/G2 e dos vínculos SDR. Aguarda execução manual e retorno do hash; 14C, publicação das skills, runtime e transferência real continuam pendentes.
