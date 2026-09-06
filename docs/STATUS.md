@@ -691,6 +691,197 @@ três rodadas de tentativa e erro.
   Não registrada em `supabase_migrations.schema_migrations` — mesmo estado das
   demais desde `20260821120000`.
 
+- `20260905220000_fase_13_agent_router.sql` **aplicada em produção** em
+  06/09/2026 (FASE 13 / G de `docs/intelligence/MULTI-AGENT-MIGRATION.md`,
+  primeira fatia do Agent Router), pelo SQL Editor, e conferida por consulta ao
+  catálogo — não pela mensagem de sucesso.
+
+  **A seleção do agente deixou de ser sempre `is_default`.**
+  `private.intelligence_payload` saiu de `7d026211…` para `417dda36…`, e as
+  outras seis funções observadas ficaram com hash **idêntico**:
+  `provision_intelligence` (`2ce57ef0…`), `resolve` v1 (`afbe50a5…`),
+  `resolve_v2` (`a1110719…`), `resolve_v3` (`e4aa5c0a…`),
+  `nucleo_customer_assistant_access` (`7ac0a815…`) e
+  `intelligence_context_preview` (`7ab1366f…`). As sete seguem
+  `security definer` com `search_path=""`.
+
+  **Sobre o hash não ser o `75e64817…` que a prova previu.** Não é divergência
+  de código: o corpo aplicado tem **235 CRs** — um por linha —, porque o SQL
+  foi colado no SQL Editor a partir do Windows. Normalizando CRLF, o corpo em
+  produção é **byte a byte idêntico** ao provado: `md5` do corpo normalizado é
+  `f5a6b72b2a01f96aab60e5d6b4e50319` dos dois lados. É o mesmo fenômeno que já
+  explicava, nesta base, `nucleo_intelligence_context_resolve` (32 CRs) e
+  `intelligence_context_preview` (21 CRs) diferirem do repositório sem
+  diferirem em comportamento. **Quem for conferir por hash depois precisa
+  normalizar antes de concluir qualquer coisa.**
+
+  **Nenhum dado se moveu**, conferido antes e depois: 3 perfis (Assistente
+  Major, SDR, Assistente interno), 2 padrões, 3 ativos, 5 contextos ativos, 0
+  contexto sem perfil, 1 campanha em `test`/`active`, `updated_at` máximo dos
+  perfis ainda em 05/09 20:14:08 UTC e `intelligence_audit_log` ainda em **54**
+  — a migration é só `CREATE OR REPLACE` mais blocos `DO` de asserção, então
+  ela não dispara gatilho nem escreve auditoria, ao contrário das FASES B e C.
+
+  **Ninguém mudou de agente no ato.** Conferido imediatamente antes de aplicar:
+  as 5 conversas ativas estavam pinadas exatamente no agente que já era o
+  padrão do público delas — 1 no Assistente Major (clientes) e 4 no Assistente
+  interno (equipe) —, e o SDR tinha 0 conversas. Ou seja, o ramo da afinidade
+  resolve hoje o mesmo agente que o ramo do padrão resolvia. O efeito prático
+  aparece a partir da próxima conversa que for pinada em um agente não-padrão
+  ou casar com campanha de outro agente.
+
+  Nenhum serviço foi reiniciado — migration de banco não exige, e o bridge e o
+  assistente da VPS seguem de pé.
+
+  O que ela instala, quando aplicada: a seleção do agente deixa de ser sempre
+  `is_default` e passa a obedecer **afinidade → campanha → padrão**. Conversa
+  em `handed_off` continua recusando antes de tudo; contexto ativo usa o agente
+  pinado em `conversation_intelligence_contexts.assistant_profile_id`; conversa
+  nova que casa com campanha de clientes usa
+  `organization_campaigns.assistant_profile_id`; o resto continua no padrão.
+
+  O achado que a originou: a afinidade tinha campo e **não tinha efeito**. A
+  coluna existe e é `not null` desde a FASE H, mas o corpo da FASE D fazia
+  `set assistant_profile_id = selected_profile.id` a cada turno, com
+  `selected_profile` sendo sempre o padrão — a conversa era devolvida ao padrão
+  em todo turno. Aqui a seleção passa a **ler** esse campo; a escrita continua
+  idêntica (no ramo pinado é um no-op). Nenhuma coluna nova, nenhum backfill.
+
+  É só `CREATE OR REPLACE` de **uma** função (`private.intelligence_payload`,
+  por onde passam v1, v2, v3 e o preview). Não cria coluna, tabela, índice ou
+  tipo; não toca `resolve_v2`/`resolve_v3`; não muda `schemaVersion`
+  (`fase-h-1` aqui, `fase-h-2`/`fase-h-3` na borda) nem as chaves de
+  `runtimeContext.assistant`; não cria `targetAgentId`, `targetMode = 'agent'`,
+  campo de payload ou ferramenta nova; não roteia por keyword; e **não muda uma
+  linha do runtime** — `whatsapp-mcp-hardened` já transporta tudo que o banco
+  precisa (`conversation_key_hash`, `requester_phone`, `incoming_text`,
+  `source_data`).
+
+  As seis recusas usam a string pública de sempre,
+  `assistant profile is inactive or unavailable`, e **nenhum ramo cai no
+  seguinte**: pinado inativo recusa, agente de campanha inativo recusa, padrão
+  inativo recusa. É a regra da FASE D estendida aos ramos novos.
+
+  Duas mudanças de comportamento observável, deliberadas: trocar o agente
+  padrão **não move conversas já abertas**; e conversa nova que casa com
+  campanha de agente inativo passa a **recusar**, onde antes era atendida pelo
+  padrão com a campanha de outro agente colada no contexto. Hoje isso não
+  alcança ninguém em produção — a única campanha viva
+  (`Piloto Atendimento Major`) aponta para o próprio padrão de clientes.
+
+  Nenhuma seleção de agente usa `limit 1`: as duas por id entram por
+  `id + organization_id + audience`, e a do padrão depende de `is_default`,
+  protegida pelo índice parcial da FASE C. `campaign.id` entrou como **última**
+  chave do `order by` da descoberta de campanha (desempate determinista; não
+  muda precedência).
+
+  A migration se confere sozinha: o pré-voo aborta se faltar coluna, índice, FK
+  ou a FASE D, e recusa rodar sobre um corpo que já roteie; as asserções finais
+  leem o `prosrc` aplicado — não a mensagem de sucesso — e conferem que ACL,
+  dono, `SECURITY DEFINER` e `search_path` não mudaram no replace.
+
+  Provas: `test/agent-router-migration.test.mjs` (15 itens, verdes) para o lado
+  estático; `scripts/sql/prova-agent-router.sql` (itens A–L) para o
+  comportamental, com a receita e o resultado em
+  `scripts/sql/README-prova-agent-router.md`.
+
+  **A prova comportamental foi executada antes de aplicar**, em 06/09/2026, PostgreSQL 17.9
+  userspace descartável na VPS (socket unix, sem porta TCP), e **produção não
+  foi tocada**: as 56 migrations do repositório aplicaram limpas do zero, os
+  itens **A–L passaram todos**, e a transação não deixou fixture nenhuma
+  (conferido por contagem independente depois do `ROLLBACK`). Um segundo banco
+  no mesmo cluster, com a cadeia **menos** a FASE 13, serviu de controle: só
+  `private.intelligence_payload` mudou (`7d026211…` → `75e64817…`), e as outras
+  seis funções saíram com hash idêntico — `provision_intelligence`
+  (`2ce57ef0…`), `resolve` v1 (`486f653b…`), `resolve_v2` (`a1110719…`),
+  `resolve_v3` (`e4aa5c0a…`), `nucleo_customer_assistant_access` (`7ac0a815…`)
+  e `intelligence_context_preview` (`ea6b4c1c…`). Os hashes do controle batem
+  com os que esta seção já registrava para produção, então a comparação vale.
+  Assinatura, `SECURITY DEFINER`, `search_path` e ACL saíram idênticos nos dois
+  bancos. O cluster foi destruído no fim; bridge e assistente da VPS seguiram
+  `active`, `NRestarts=0`, sem reinício.
+
+  Não registrada em `supabase_migrations.schema_migrations` — mesmo estado das
+  demais desde `20260821120000`.
+
+  **O que ainda não foi observado:** produção segue sem tráfego no caminho de
+  resolução. O último turno de conversa de cliente é de 31/08 e o interno de
+  05/09 18:14, ambos anteriores a esta aplicação — então, como nas FASES D, E e
+  F, o roteador **não foi exercitado sob carga real**. O que sustenta a fase é
+  a prova comportamental A–L mais a conferência do catálogo acima.
+
+  **Próximo passo natural:** a FASE 13C (levar o `soul_markdown` do agente
+  escolhido ao prompt). `soul_markdown` está NULL em 100% dos perfis hoje.
+
+- `20260906010000_fase_13c_soul_do_agente_no_prompt.sql` **escrita e provada,
+  NÃO aplicada** (FASE 13C — o agente passa a falar com a própria persona).
+
+  **O que ela faz.** Leva o `soul_markdown` do **mesmo agente que o Router da
+  13B escolheu** até o payload, como duas chaves novas dentro do objeto
+  `assistente`: `soul` (o texto) e `soulHash` (sha256 hex). O Soul sai de
+  `selected_profile` e de nenhuma consulta própria a `assistant_profiles` — uma
+  quarta busca de perfil seria exatamente o caminho por onde a persona de um
+  agente vazaria para a conversa de outro. **Agente sem persona manda `null`,
+  nunca a do padrão**: herdar persona por ausência é o mesmo erro que a FASE D
+  proibiu para disponibilidade.
+
+  É só `CREATE OR REPLACE` de **uma** função (`private.intelligence_payload`),
+  mais a constraint `assistant_profiles_soul_markdown_tamanho`. Não muda
+  `schemaVersion` (`fase-h-1`); `resolve_v2` e `resolve_v3` copiam o objeto
+  `assistente` inteiro, então as duas chaves chegam ao `runtimeContext` sem que
+  nenhuma das duas funções seja tocada. Não toca `allowedTools`, política,
+  policy, grant ou RLS — Soul é persona, nunca permissão; quem autoriza
+  continua sendo `allowedTools` da skill mais RLS. Não usa `source_data`, não
+  cria `targetAgentId`, não renomeia `assistente` para `agente` e não altera a
+  precedência do Router.
+
+  **O teto de 8000 caracteres, em três lugares.** `soul_markdown` nasceu `text`
+  sem limite nenhum na FASE B, enquanto `tone` tem 500 no banco e 500 espelhado
+  em JavaScript. Persona sem teto entra em **todo** prompt de **todo** turno
+  daquele agente: custo, risco de estourar contexto e, no limite, empurrar a
+  skill para fora da janela. Agora: a constraint impede gravar acima de 8000; o
+  payload descarta acima de 8000 (sem derrubar o turno — persona não autoriza
+  nada, então recusar o atendimento por causa dela trocaria um problema
+  cosmético por um cliente sem resposta); e o runtime aplica o mesmo `MAX_SOUL`
+  contra linhas antigas, anteriores à constraint.
+
+  **Diferente da 13B, esta fatia muda o runtime.** Em `whatsapp-mcp-hardened`
+  (branch `hardening`): `intelligence.py` ganha o helper `_soul` e monta o bloco
+  `<agent_soul_trusted>` **abaixo das políticas e acima da skill** — o que está
+  acima decide o que pode, a persona decide como soa, o que está abaixo decide o
+  que fazer no turno; e `worker.py` registra `soul_hash[:12]` e `soul_rejected`,
+  **nunca o conteúdo** — persona é texto livre escrito por gente da organização
+  e não pertence a arquivo de log.
+
+  **Provas.** Estático: `test/agent-soul-migration.test.mjs` (12 itens, e o
+  central é o B — o corpo tem de ser o da 13B mais exatamente três acréscimos
+  conhecidos), somando **27 verdes** com os da 13B. Prompt:
+  `whatsapp-assistant/test_intelligence.py`, **364 verdes**, incluindo
+  `test_persona_de_um_agente_nao_aparece_na_conversa_de_outro`. Comportamental:
+  `scripts/sql/prova-soul-do-agente.sql` (A–J) — **executada em 06/09/2026,
+  PASS em todos**, PostgreSQL 17.9 descartável na VPS, 57 migrations aplicadas
+  do zero, zero fixtures depois do `ROLLBACK` e produção intocada. Banco de
+  controle sem a 13C no mesmo cluster confirma que **só
+  `intelligence_payload` mudou** (`75e64817…` → `fa473433…`); as outras seis
+  saíram com hash idêntico. O `75e64817…` do controle é o mesmo hash que a prova
+  da 13B registrou para o corpo hoje vivo em produção — é o que faz a comparação
+  valer. Detalhes em `scripts/sql/README-prova-soul-do-agente.md`.
+
+  **Ao aplicar, conferir por:** `md5(replace(prosrc, chr(13), ''))` =
+  `4ed9516507bcf8322f14e313fa08a94e`. O `md5(pg_get_functiondef(...))` provado é
+  `fa473433b5a5f6e3b440383fcffce4e0`, mas ele **vai divergir em produção** por
+  CRLF, como já divergiu na 13B — normalizar antes de concluir qualquer coisa.
+
+  **Ordem de rollout é indiferente**, e isso é deliberado: o runtime novo aceita
+  payload sem `soul` (as chaves são opcionais) e o runtime antigo ignora chaves
+  que não conhece. Não existe janela quebrada entre aplicar a migration e
+  publicar o runtime.
+
+  **O que não vai aparecer de imediato:** `soul_markdown` está NULL em 100% dos
+  perfis. Depois de aplicada, a fatia só produz efeito observável quando alguém
+  escrever uma persona pelo portal — a tela de criação e edição já grava nessa
+  coluna desde a FASE B.
+
 ## Dívidas de menor privilégio (FASES E e F)
 
 Duas coisas encontradas durante a FASE E que **não** são dela e não foram
