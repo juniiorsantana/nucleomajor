@@ -42,10 +42,22 @@ sem a fase até concluir os aceites de produção.
   controle e no banco com a fase: quatro hashes aceitos no pós-check.
 
 **Não observado/não publicado:** migrations no Supabase, skills novas, runtime
-em serviço e transferência WhatsApp real. O slug comercial **proposto `sdr`** está
-configurado nas instruções confiáveis de Recepção e Vendas, mas ainda precisa
-ser confirmado pela consulta antes da publicação. Não é um dado de produção
-verificado. Se divergir, corrigir ambas as instruções antes de publicar.
+em serviço e transferência WhatsApp real.
+
+**Pré-check de produção devolvido pelo usuário:** hashes de payload/v2/v3
+conferem com os baselines provados; RPC e coluna da 14 ainda ausentes. Slug
+`sdr` confirmado, ativo/customer na mesma organização do Assistente Major.
+Recepção v1 e Vendas v3 continuam publicadas sem a capacidade nova. O SDR tem
+**zero bindings de fallback**, contra um no Major: antes do handoff é necessário
+preparar seu fallback para o turno seguinte. O resultado também mostra EXECUTE
+para anon em v2/v3, diferente do cluster mínimo; a 14C preserva esses privilégios
+existentes e continua exigindo credencial de robô. A RPC nova revoga anon/public.
+
+[preparar-sdr-fase-14.sql](../scripts/sql/preparar-sdr-fase-14.sql) vincula apenas
+Recepção e Vendas publicadas ao SDR confirmado, preservando prioridades/configuração
+de bindings existentes. Script exato executado duas vezes em PostgreSQL 17.9
+descartável: idempotência, resolução de Recepção e de Vendas pelo SDR e rollback
+sem resíduos passaram. Entregue para aplicação manual; ainda não confirmada.
 
 O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
 que classificou a liberação de acesso a supabase.com como possível exposição da

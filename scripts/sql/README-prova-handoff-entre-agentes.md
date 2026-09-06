@@ -54,6 +54,14 @@ Evidências locais: `artifacts/fase-14/fase-14-sql-evidence/`.
 
 ## Aplicação e aceite pendentes
 
+O pré-check devolvido pelo usuário confirmou slug `sdr` e hashes de baseline,
+mas **zero bindings de fallback no SDR**. Executar primeiro
+[preparar-sdr-fase-14.sql](./preparar-sdr-fase-14.sql) no SQL Editor e conferir
+Recepção/Vendas habilitadas. É configuração específica da Major, não migration
+global. O harness executa `prova-preparacao-sdr-fase-14.sql`: o arquivo exato é
+incluído duas vezes numa transação descartável, a resolução v3 pelo SDR é provada
+para saudação e intenção comercial e o ROLLBACK elimina as fixtures.
+
 1. Executar [validar-fase-14.sql](./validar-fase-14.sql) no SQL Editor. Conferir
    baselines, slugs, audience e fallback publicado do destino; não publicar skill
    nova antes de os dois resolvedores aceitarem a capacidade.

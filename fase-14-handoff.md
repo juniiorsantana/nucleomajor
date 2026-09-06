@@ -10,9 +10,10 @@
 
 Concluída somente com banco, payload, runtime e skill em produção e handoff real.
 
-Pendências concretas: confirmar o slug proposto `sdr`; liberar acesso ao SQL
-Editor (revisão automática recusou); identificar unidades reais na VPS (consulta
-atual retornou zero). Nenhuma aplicação de produção foi feita.
+Slug `sdr` confirmado pelo pré-check do usuário. Falta aplicar o vínculo de
+Recepção/Vendas ao SDR (fallback ausente), as migrations pelo SQL Editor manual
+e identificar unidades reais na VPS (consulta atual retornou zero).
+Nenhuma aplicação de produção foi confirmada.
 
 Portal `9b2ef42` publicado em branch própria; runtime `0ae2b38` commitado, com
 bundle local. A revisão automática recusou o push do runtime para o remoto SSH;
