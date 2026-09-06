@@ -15,8 +15,9 @@ Concluída somente com banco, payload, runtime e skill em produção e handoff r
 Slug `sdr` e vínculos Recepção/Vendas confirmados pelo resultado do usuário:
 Recepção prioridade 1000/fallback=true; Vendas prioridade 100 preservada.
 As migrations foram aceitas pelos hashes normalizados e Recepção v2/Vendas v4
-foram publicadas. Falta identificar as unidades reais na VPS (consulta atual
-retornou zero) antes de publicar o runtime.
+foram publicadas. As unidades reais foram identificadas no `systemd --user`; o
+assistente e o bridge estão `active/running`, `NRestarts=0`, sobre a base
+`da11193`. Falta publicar e validar o runtime.
 
 Portal `9b2ef42` publicado em branch própria; runtime `0ae2b38` commitado, com
 bundle local. A revisão automática recusou o push do runtime para o remoto SSH;

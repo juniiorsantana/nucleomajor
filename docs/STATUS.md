@@ -73,10 +73,13 @@ aplicadas e aceitas, e as duas skills foram publicadas.
 O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
 que classificou a liberação de acesso a supabase.com como possível exposição da
 sessão autenticada. Nenhum canal alternativo de aplicação foi usado.
-Na VPS, `systemctl list-units --all 'whatsapp*'` e `list-unit-files 'whatsapp*'`
-retornaram **zero unidades**; consultas aos nomes registrados anteriormente
-indicaram `inactive`/`NRestarts=0`. Isso contradiz o estado observado na 13C e
-precisa ser esclarecido antes de deploy. Nenhum serviço foi reiniciado.
+As unidades rodam no `systemd --user`, esclarecendo a consulta anterior feita no
+gerenciador do sistema. `whatsapp-assistant@8ee1e6d0-a9d0-4041-b6ea-878716a34a71`
+está `active/running`, `NRestarts=0`, e o bridge equivalente também está
+`active/running`, `NRestarts=0`. O symlink ativo resolve para
+`/home/nucleo/releases/whatsapp-mcp-hardened/a6f769f`; o checkout está limpo em
+`da1119334727a3e86241c9ad1d52e2a6720e9bfc`, igual à base conferida antes da
+implementação. Nenhum serviço foi reiniciado.
 
 **A fase permanece aberta.** Publicação do runtime, conferência
 ActiveState/NRestarts, transferência real e integração da branch à main
