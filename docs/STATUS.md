@@ -813,8 +813,80 @@ três rodadas de tentativa e erro.
   **Próximo passo natural:** a FASE 13C (levar o `soul_markdown` do agente
   escolhido ao prompt). `soul_markdown` está NULL em 100% dos perfis hoje.
 
-- `20260906010000_fase_13c_soul_do_agente_no_prompt.sql` **escrita e provada,
-  NÃO aplicada** (FASE 13C — o agente passa a falar com a própria persona).
+- `20260906010000_fase_13c_soul_do_agente_no_prompt.sql` **aplicada em produção**
+  em 06/09/2026 (FASE 13C — o agente passa a falar com a própria persona), pelo
+  SQL Editor, e conferida por consulta ao catálogo — não pela mensagem de
+  sucesso.
+
+  **O que a conferência mostrou** (leitura de 06/09/2026 17:07 UTC, com
+  `scripts/sql/validar-fase-13c.sql`): o corpo normalizado de
+  `private.intelligence_payload` é `4ed9516507bcf8322f14e313fa08a94e`,
+  **idêntico ao provado**; a definição saiu `f31bb996…` em vez do `fa473433…`
+  do cluster de prova, de novo **só por CRLF** — mesmo fenômeno da 13B. As
+  outras seis funções ficaram com `md5(pg_get_functiondef(...))` **idêntico ao
+  registrado após a 13B**: `provision_intelligence` (`2ce57ef0…`),
+  `intelligence_context_preview` (`7ab1366f…`),
+  `nucleo_customer_assistant_access` (`7ac0a815…`), `resolve` v1 (`afbe50a5…`),
+  `resolve_v2` (`a1110719…`) e `resolve_v3` (`e4aa5c0a…`). Assinatura, dono,
+  ACL, `SECURITY DEFINER` e `search_path=""` preservados. A constraint
+  `assistant_profiles_soul_markdown_tamanho` existe, é `CHECK`, está
+  **validada**, e diz `soul_markdown IS NULL OR length(soul_markdown) <= 8000`.
+
+  **Nenhum dado se moveu:** 3 perfis, 2 padrões, 3 ativos, 5 contextos ativos,
+  `intelligence_audit_log` ainda em **54** e `updated_at` máximo dos perfis
+  ainda em 05/09 20:14:08 UTC — os mesmos números da aplicação da 13B. A
+  migration é `CREATE OR REPLACE` mais um `alter table ... add constraint` e
+  blocos `DO` de asserção: não dispara gatilho nem escreve auditoria.
+
+  **Correção de um fato que esta página vinha repetindo:** `soul_markdown`
+  **não** está NULL em 100% dos perfis. A leitura acima mostra `com_soul = 1`:
+  o **SDR** (`85ef7c76-e439-4a4d-9ff2-8b3109a650de`, criado na FASE 12D) tem
+  persona de **366 caracteres em 1 linha**, sha256
+  `477f8f59…`, gravada em 05/09 20:14:08 — anterior a esta aplicação, no mesmo
+  horário da criação do agente. Bem dentro do teto (`soul_acima_de_8000 = 0`).
+
+  Consequência, com a precisão que o Router impõe: o SDR é `is_default = false`,
+  então ele só atende quando a 13B o seleciona — conversa **pinada** nele
+  (tinha zero) ou conversa nova casando com **campanha** que aponte para ele.
+  Publicado o runtime, a persona do SDR entra no prompt **no primeiro turno em
+  que o SDR for o agente escolhido**, e não antes. Para os dois agentes padrão,
+  que seguem sem persona, nada muda — e `null` nunca vira a persona de outro.
+
+  **Runtime publicado na VPS em 06/09/2026 17:23 UTC**, fechando a fatia.
+  `whatsapp-mcp-hardened` passou de `a6f769f` para `da11193`; só o
+  `whatsapp-assistant` foi reiniciado (o Bridge não precisa, e não foi tocado —
+  segue `active` desde 03/09 com `NRestarts=0`). Depois do restart: `active`,
+  `running`, `NRestarts=0`, `service.started` normal, `py_compile` e os 15
+  testes de `test_intelligence.py` verdes no próprio Python do serviço (3.11.16).
+
+  **Divergência encontrada no caminho, e por que ela quase virou regressão.** A
+  branch `hardening` tinha divergido: o checkout local parou em
+  `ee8afa6 + 4b969e3` enquanto o remoto e a VPS seguiram por
+  `ee8afa6 + ba35858 + c24fd3a + a6f769f` (três commits de 04/09, entre eles um
+  `fix` de caminho operacional). A branch da 13C tinha nascido do lado que ficou
+  para trás; publicá-la como estava teria **apagado esses três commits de
+  produção**. Foi rebaseada sobre `a6f769f` antes do deploy — sem conflito, e o
+  git confirmou que o conteúdo de `4b969e3` já estava aplicado na linha da VPS.
+  Suíte do `whatsapp-assistant` depois do rebase: **370 verdes**.
+
+  **A deriva de marcador foi corrigida junto**, para não deixar a armadilha
+  armada: `hardening` foi avançada para `da11193` por fast-forward real
+  (`a6f769f..da11193`, sem force) no GitHub, e a VPS deixou de rodar em HEAD
+  destacado — agora ela **segue a branch** `hardening`. A troca foi feita movendo
+  o rótulo antes de anexar o HEAD, então o working tree nunca voltou ao código
+  antigo: zero arquivo alterado no disco, nenhum serviço reiniciado por causa
+  disso, e os dois seguem `active` com `NRestarts=0`. Local, remoto e VPS agora
+  apontam para o mesmo commit, e "publicar a `hardening`" voltou a significar
+  publicar o que está em produção.
+
+  **Achado não relacionado, registrado por honestidade:** o log do assistente
+  acumula `runtime.commands_unavailable` / `control_plane_unavailable`
+  ("Supabase recusou reserva de comandos do runtime") a cada ~20 minutos —
+  **202 ocorrências desde 03/09**, muito antes desta publicação. Não é efeito da
+  13C e não foi investigado aqui.
+
+  Não registrada em `supabase_migrations.schema_migrations` — mesmo estado das
+  demais desde `20260821120000`.
 
   **O que ela faz.** Leva o `soul_markdown` do **mesmo agente que o Router da
   13B escolheu** até o payload, como duas chaves novas dentro do objeto
