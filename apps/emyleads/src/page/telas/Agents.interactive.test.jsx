@@ -115,12 +115,12 @@ function titulos() {
   return Array.from(container.querySelectorAll("h2")).map((h) => h.textContent);
 }
 function botaoComTexto(texto) {
-  const achado = botoes().find((b) => b.textContent.trim() === texto);
+  const achado = botoes().find((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
   if (!achado) throw new Error(`botão "${texto}" não encontrado`);
   return achado;
 }
 function existeBotao(texto) {
-  return botoes().some((b) => b.textContent.trim() === texto);
+  return botoes().some((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
 }
 function inputPorRotulo(rotulo) {
   const labels = Array.from(container.querySelectorAll("label"));
@@ -516,8 +516,7 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
 
 describe("MOBILE — navegação de uma tela por vez", () => {
   function painelMobile() {
-    const topo = Array.from(container.querySelectorAll(":scope > div"));
-    const achado = topo.find((d) => d.className.includes("md:hidden") && d.className.includes("flex"));
+    const achado = container.querySelector(".agent-drawer") || container.querySelector(".agents-gallery");
     if (!achado) throw new Error("painel mobile não encontrado");
     return achado;
   }
