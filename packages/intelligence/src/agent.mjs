@@ -37,10 +37,21 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Espelha os limites reais das colunas de assistant_profiles:
-// display_name → length(trim()) between 2 and 100; tone → length <= 500.
+// display_name → length(trim()) between 2 and 100; tone → length <= 500;
+// soul_markdown → length <= 8000 (constraint
+// `assistant_profiles_soul_markdown_tamanho`, migration
+// 20260906010000_fase_13c_soul_do_agente_no_prompt.sql).
+//
+// O teto do soul existe em três camadas de propósito, e as três precisam
+// continuar iguais: o banco é quem impede gravar, `private.intelligence_payload`
+// descarta o que for maior antes de montar o prompt, e o runtime
+// (`whatsapp-assistant/intelligence.py`, MAX_SOUL) repete a mesma regra. Ele
+// fica entre `tone` (500) e as instruções de skill (20000) porque persona vai
+// dentro de todo prompt de todo turno daquele agente.
 const NAME_MIN = 2;
 const NAME_MAX = 100;
 const TONE_MAX = 500;
+export const SOUL_MAX = 8000;
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -114,8 +125,8 @@ export function validateAgentDefinition(agent) {
   if (!isNullableText(agent.tone, { max: TONE_MAX })) {
     errors.push(`tone deve ser um texto de até ${TONE_MAX} caracteres ou null`);
   }
-  if (!isNullableText(agent.soulMarkdown)) {
-    errors.push("soulMarkdown deve ser um texto ou null");
+  if (!isNullableText(agent.soulMarkdown, { max: SOUL_MAX })) {
+    errors.push(`soulMarkdown deve ser um texto de até ${SOUL_MAX} caracteres ou null`);
   }
   if (typeof agent.isDefault !== "boolean") {
     errors.push("isDefault deve ser booleano");

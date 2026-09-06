@@ -11,7 +11,7 @@ import {
   buildUpdateAgentCommand,
   mapDatabaseError,
 } from "../packages/intelligence/src/agent-management.mjs";
-import { slugFromAgentName } from "../packages/intelligence/src/agent.mjs";
+import { SOUL_MAX, slugFromAgentName } from "../packages/intelligence/src/agent.mjs";
 
 const ORG = "00000000-0000-4000-8000-000000000001";
 const OUTRA_ORG = "00000000-0000-4000-8000-000000000002";
@@ -166,4 +166,36 @@ test("soul e persona não carregam permissão", () => {
   const row = agentCommandToRow(comando, { actor: ATOR });
   assert.ok(!("allowed_tools" in row));
   assert.equal(row.soul_markdown, "# Emília\nSeja calorosa.");
+});
+
+test("FASE 13C: o teto do soul é o mesmo do banco, e não trunca em silêncio", () => {
+  // 8000 é a constraint `assistant_profiles_soul_markdown_tamanho`. O JavaScript
+  // repete o número para o erro aparecer na tela, na hora de escrever, e não
+  // seis meses depois numa conversa.
+  assert.equal(SOUL_MAX, 8000);
+
+  const noLimite = "x".repeat(SOUL_MAX);
+  assert.equal(criar({ soulMarkdown: noLimite }).soulMarkdown, noLimite);
+
+  const gigante = "x".repeat(SOUL_MAX + 1);
+  assert.throws(
+    () => criar({ soulMarkdown: gigante }),
+    (erro) =>
+      erro instanceof AgentError &&
+      erro.code === AGENT_ERRORS.INVALID &&
+      erro.details.some((d) => d.includes("soulMarkdown")),
+    "criar agente com soul acima do teto deveria falhar, não truncar",
+  );
+
+  // E na atualização vale o mesmo: truncar comeria o fim do texto que a pessoa
+  // acabou de escrever.
+  assert.equal(
+    buildUpdateAgentCommand({ soulMarkdown: noLimite }).soulMarkdown,
+    noLimite,
+  );
+  assert.throws(
+    () => buildUpdateAgentCommand({ soulMarkdown: gigante }),
+    (erro) => erro instanceof AgentError && erro.code === AGENT_ERRORS.INVALID,
+    "atualizar soul acima do teto deveria falhar, não truncar",
+  );
 });

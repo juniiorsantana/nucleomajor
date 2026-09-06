@@ -32,6 +32,7 @@
 
 import {
   AGENT_AUDIENCES,
+  SOUL_MAX,
   slugFromAgentName,
   validateAgentDefinition,
 } from "./agent.mjs";
@@ -143,6 +144,9 @@ export function buildCreateAgentCommand(input) {
   if (comando.tone !== null && comando.tone.length > 500) {
     errors.push("tone deve ter até 500 caracteres");
   }
+  if (comando.soulMarkdown !== null && comando.soulMarkdown.length > SOUL_MAX) {
+    errors.push(`soulMarkdown deve ter até ${SOUL_MAX} caracteres`);
+  }
   if (errors.length) throw new AgentError(AGENT_ERRORS.INVALID, { details: errors });
 
   return comando;
@@ -208,7 +212,18 @@ export function buildUpdateAgentCommand(patch) {
   }
   if ("role" in patch) comando.role = textoOuNulo(patch.role);
   if ("tone" in patch) comando.tone = textoOuNulo(patch.tone, { max: 500 });
-  if ("soulMarkdown" in patch) comando.soulMarkdown = textoOuNulo(patch.soulMarkdown);
+  if ("soulMarkdown" in patch) {
+    // Sem `max` no `textoOuNulo` de propósito: truncar em silêncio comeria o
+    // fim da persona que a pessoa acabou de escrever. Aqui o erro sobe e a tela
+    // mostra.
+    const soul = textoOuNulo(patch.soulMarkdown);
+    if (soul !== null && soul.length > SOUL_MAX) {
+      throw new AgentError(AGENT_ERRORS.INVALID, {
+        details: [`soulMarkdown deve ter até ${SOUL_MAX} caracteres`],
+      });
+    }
+    comando.soulMarkdown = soul;
+  }
   if ("active" in patch) comando.active = Boolean(patch.active);
 
   if (!Object.keys(comando).length) {
