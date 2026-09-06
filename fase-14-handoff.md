@@ -6,15 +6,17 @@
 - [x] 14C: capacidade nas duas allowlists SQL, catálogo, MCP e worker; testes.
 - [x] Executar cadeia em Postgres 17.9 descartável e comparar banco de controle.
 - [x] Commit nos dois repositórios e conferir ancestralidade local/remota/VPS.
-- [ ] Aplicar pelo SQL Editor e conferir hashes normalizados; publicar skill/runtime.
+- [x] Aplicar 14B/14C pelo SQL Editor, conferir hashes e publicar as duas skills.
+- [ ] Publicar e validar o runtime.
 - [ ] Observar WhatsApp real, registrar STATUS e integrar main.
 
 Concluída somente com banco, payload, runtime e skill em produção e handoff real.
 
 Slug `sdr` e vínculos Recepção/Vendas confirmados pelo resultado do usuário:
 Recepção prioridade 1000/fallback=true; Vendas prioridade 100 preservada.
-Faltam as migrations pelo SQL Editor manual e identificar unidades reais na VPS
-(consulta atual retornou zero). Apenas a configuração dos vínculos foi aplicada.
+As migrations foram aceitas pelos hashes normalizados e Recepção v2/Vendas v4
+foram publicadas. Falta identificar as unidades reais na VPS (consulta atual
+retornou zero) antes de publicar o runtime.
 
 Portal `9b2ef42` publicado em branch própria; runtime `0ae2b38` commitado, com
 bundle local. A revisão automática recusou o push do runtime para o remoto SSH;

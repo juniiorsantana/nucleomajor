@@ -1,6 +1,6 @@
 # Estado atual
 
-## FASE 14 — implementada e provada; publicação pendente (06/09/2026)
+## FASE 14 — banco e skills publicados; runtime e prova real pendentes (06/09/2026)
 
 Branches isoladas `feature/fase-14-handoff` no portal e no runtime. A base do
 portal é `60c90ab`, igual a `origin/main` consultada nesta execução. A base do
@@ -41,8 +41,15 @@ sem a fase até concluir os aceites de produção.
   [Consulta read-only de aceite](../scripts/sql/validar-fase-14.sql) executada no
   controle e no banco com a fase: quatro hashes aceitos no pós-check.
 
-**Não observado/não publicado:** migrations no Supabase, skills novas, runtime
-em serviço e transferência WhatsApp real.
+**Produção observada:** 14B aceita com hash
+`c5a77221e64b6be22720cc1800faf683`; 14C aceita com v2
+`cf6d7160329a589602d730412215c801` e v3
+`f74eee42963ae1c1a0f033ce3905811b`; `intelligence_payload` permaneceu
+`4ed9516507bcf8322f14e313fa08a94e`. Recepção foi publicada como v2,
+hash `e5648acb6408...`, e Vendas como v4, hash `422df18a36b7...`.
+Nova simulação confirmou ambas sem alteração.
+
+**Não observado/não publicado:** runtime em serviço e transferência WhatsApp real.
 
 **Pré-check de produção devolvido pelo usuário:** hashes de payload/v2/v3
 conferem com os baselines provados; RPC e coluna da 14 ainda ausentes. Slug
@@ -60,8 +67,8 @@ descartável: idempotência, resolução de Recepção e de Vendas pelo SDR e ro
 sem resíduos passaram. **Aplicação manual confirmada pelo resultado devolvido
 pelo usuário:** Recepção habilitada, prioridade 1000, v1, fallback=true; Vendas
 habilitada, prioridade **100 preservada do vínculo existente**, v3, fallback=false.
-O SDR está preparado para resolver ambas. A migration 14B foi aplicada e aceita;
-a 14C continua pendente.
+O SDR está preparado para resolver ambas. As migrations 14B e 14C foram
+aplicadas e aceitas, e as duas skills foram publicadas.
 
 O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
 que classificou a liberação de acesso a supabase.com como possível exposição da
@@ -71,9 +78,9 @@ retornaram **zero unidades**; consultas aos nomes registrados anteriormente
 indicaram `inactive`/`NRestarts=0`. Isso contradiz o estado observado na 13C e
 precisa ser esclarecido antes de deploy. Nenhum serviço foi reiniciado.
 
-**A fase permanece aberta.** Aplicação manual pelo SQL Editor, publicação das
-duas skills/runtime, conferência ActiveState/NRestarts, transferência real e
-integração da branch à main continuam pendentes.
+**A fase permanece aberta.** Publicação do runtime, conferência
+ActiveState/NRestarts, transferência real e integração da branch à main
+continuam pendentes.
 
 Última revisão documental: **29/08/2026**.
 
