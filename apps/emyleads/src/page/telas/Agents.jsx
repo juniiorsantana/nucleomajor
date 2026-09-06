@@ -25,11 +25,11 @@
  * migrá-las agora quebraria o piloto de atendimento.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Bot, Calendar, Check, ChevronDown, Handshake, LifeBuoy,
   MessageCircle, Plus, Power, Receipt, ShieldCheck, Sparkles, Star, Target,
-  Users, Wand2, X,
+  Users, Wand2, X, Crown, ChevronRight,
 } from "lucide-react";
 import { api } from "../../data/client";
 import {
@@ -40,6 +40,7 @@ import {
 } from "../../domain/agents";
 import { slugFromAgentName } from "../../../../../packages/intelligence/src/agent.mjs";
 import { DialogoConfirmar, Iniciais } from "../ui";
+import "./agents-gallery.css";
 
 const TOM_DO_SELO = {
   destaque: "bg-accent-soft text-accent-forte",
@@ -91,27 +92,31 @@ function Campo({ rotulo, ajuda, children }) {
 const entrada = "mt-1 w-full rounded-[9px] border border-line bg-bg px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:bg-surface disabled:text-faint";
 
 /** Cartão da lista. Um agente é uma entidade com cara própria, não uma linha de formulário. */
-function CartaoAgent({ agent, ativo, aoAbrir }) {
+function CartaoAgent({ agent, ativo, aoAbrir, skills = [] }) {
+  const portrait = { "assistente-major": "major", "assistente-interno": "internal", sdr: "sdr" }[agent.slug];
+  const Icon = agent.audience === "internal" ? Users : agent.slug === "sdr" ? Target : MessageCircle;
+  const description = agent.soulMarkdown?.replace(/[#*_`>]/g, "").trim()
+    || (agent.audience === "internal" ? "Apoio à equipe com as informações e habilidades autorizadas da organização." : "Atendimento a clientes com a personalidade e as habilidades configuradas para este agente.");
   return (
     <button
       type="button"
       onClick={() => aoAbrir(agent)}
       aria-pressed={ativo}
-      className={`group relative w-full overflow-hidden rounded-[13px] border p-3.5 text-left transition ${
-        ativo ? "border-accent bg-accent-soft/40" : "border-line bg-bg hover:border-faint"
-      } ${agent.status === "inactive" ? "opacity-70" : ""}`}
+      className={`agent-card ${agent.isDefault ? "agent-card--principal" : ""} ${agent.status === "inactive" ? "agent-card--inactive" : ""}`}
     >
-      <div className="flex items-start gap-3">
-        <Avatar agent={agent} tamanho={40} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <h3 className="truncate text-[13.5px] font-semibold">{agent.name}</h3>
-            {selosDoAgent(agent).map((selo) => <Selo key={selo.id} texto={selo.texto} tom={selo.tom} />)}
-          </div>
-          <p className="mt-0.5 truncate text-[10.5px] text-sub">
-            {agent.role || rotuloDeAudiencia(agent.audience)}
-          </p>
+      <div className={`agent-portrait ${portrait ? `agent-portrait--${portrait}` : "agent-portrait--fallback"}`}>
+        {!portrait && <Avatar agent={agent} tamanho={80} />}
+        <span className={`agent-status ${agent.status === "active" ? "agent-status--active" : ""}`}><span />{agent.status === "active" ? "Ativo" : "Inativo"}</span>
+        {agent.isDefault && <span className="agent-principal"><Crown size={15} />Principal</span>}
+      </div>
+      <div className="agent-card-body">
+        <div className="agent-card-identity">
+          <span className="agent-role-icon"><Icon size={23} /></span>
+          <div className="min-w-0"><h3>{agent.name}</h3><p>{agent.role || rotuloDeAudiencia(agent.audience)}</p></div>
         </div>
+        <p className="agent-card-description">{description}</p>
+        <div className="agent-tags"><span>{rotuloDeAudiencia(agent.audience)}</span>{skills.slice(0, 2).map(skill => <span key={skill.id}>{skill.name}</span>)}{skills.length > 2 && <span>+{skills.length - 2}</span>}</div>
+        <span className="agent-card-action"><MessageCircle size={18} />Configurar agente<ChevronRight size={18} /></span>
       </div>
     </button>
   );
@@ -489,7 +494,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex-none border-b border-line px-4 pt-4 md:px-6">
         <div className="flex items-start gap-3">
-          <button onClick={aoVoltar} className="-ml-1 rounded-[8px] p-1.5 text-sub md:hidden" aria-label="Voltar">
+          <button onClick={aoVoltar} className="-ml-1 rounded-[8px] p-1.5 text-sub" aria-label="Voltar">
             <ArrowLeft size={18} />
           </button>
           <Avatar agent={agent} tamanho={44} />
@@ -658,7 +663,8 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
  * RAIZ — a lista + o detalhe (ou o assistente de criação por cima dos dois).
  * ========================================================================== */
 
-export default function Agents({ agents, catalogoSkills, canWrite, recarregar, carregando, erro }) {
+export default function Agents({ agents, catalogoSkills, bindings = [], aoAtualizarSkills, canWrite, recarregar, carregando, erro }) {
+  const painelRef = useRef(null);
   const [selecionadoId, setSelecionadoId] = useState(null);
   const [criando, setCriando] = useState(false);
   const [pedido, setPedido] = useState(null);
@@ -669,10 +675,30 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
     () => (agents ?? []).find((agent) => agent.id === selecionadoId) ?? null,
     [agents, selecionadoId],
   );
+  useEffect(() => {
+    if (!selecionadoId || pedido || criando) return;
+    const anterior = document.activeElement;
+    painelRef.current?.querySelector("button")?.focus();
+    const teclado = (event) => {
+      if (event.key === "Escape") setSelecionadoId(null);
+      if (event.key !== "Tab") return;
+      const campos = [...(painelRef.current?.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), summary') || [])]
+        .filter(element => !element.closest("details:not([open])") || element.tagName === "SUMMARY");
+      const primeiro = campos[0], ultimo = campos.at(-1);
+      if (event.shiftKey && document.activeElement === primeiro) { event.preventDefault(); ultimo?.focus(); }
+      if (!event.shiftKey && document.activeElement === ultimo) { event.preventDefault(); primeiro?.focus(); }
+    };
+    document.addEventListener("keydown", teclado);
+    return () => { document.removeEventListener("keydown", teclado); anterior?.focus(); };
+  }, [selecionadoId, pedido, criando]);
 
   const acoes = {
     listarSkills: (agentId) => api.agents.listarSkills({ agentId }),
-    definirSkill: (agentId, skillId, enabled) => api.agents.definirSkill({ agentId, skillId, enabled }),
+    definirSkill: async (agentId, skillId, enabled) => {
+      const resultado = await api.agents.definirSkill({ agentId, skillId, enabled });
+      await aoAtualizarSkills?.();
+      return resultado;
+    },
     editar: async (agentId, patch) => { await api.agents.editar({ agentId, ...patch }); await recarregar(); },
 
     alternarAtivo: (agent) => {
@@ -706,14 +732,17 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
   };
 
   const criarAgente = async ({ skillIds, ...campos }) => {
+    setFalha("");
     const criado = await api.agents.criar(campos);
     if (skillIds?.length) {
-      // Melhor esforço: o agente já foi criado, então uma habilidade que não
-      // vinculou não pode travar o fim do assistente — o usuário ainda pode
-      // adicioná-la depois, na aba "O que sabe fazer".
-      await Promise.allSettled(
+      // O cadastro já existe: não reabrir criação nem esconder falha parcial.
+      const resultados = await Promise.allSettled(
         skillIds.map((skillId) => api.agents.definirSkill({ agentId: criado.id, skillId, enabled: true })),
       );
+      const falhas = resultados.filter((resultado) => resultado.status === "rejected");
+      if (falhas.length) {
+        setFalha(`O agente foi criado, mas ${falhas.length} habilidade(s) não foram vinculadas. Tente adicioná-las em “O que sabe fazer”. ${mensagemDeErro(falhas[0].reason)}`);
+      }
     }
     await recarregar();
     setCriando(false);
@@ -728,42 +757,33 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
   }
 
   const lista = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-none px-4 pt-4 md:px-5">
-        <h2 className="text-[19px] font-semibold tracking-tight">Sua equipe de IA</h2>
-        <p className="mt-1 text-[11.5px] text-sub">
+    <div className="agents-gallery scrollbar-fina" inert={selecionado ? "" : undefined}>
+      <div className="agents-gallery-heading">
+        <div><p className="agents-eyebrow">Central de Inteligência</p><h2>Sua equipe de IA</h2>
+        <p className="agents-gallery-subtitle">
           Cada agente atende um público certo e possui responsabilidades específicas.
-        </p>
+        </p></div>
         {canWrite ? (
-          <button onClick={() => setCriando(true)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-[9px] bg-accent px-3.5 py-2.5 text-[12px] font-semibold text-white">
-            <Plus size={15} />Criar agente
+          <button onClick={() => setCriando(true)} className="agents-create" aria-label="Criar agente">
+            <Plus size={20} />Novo agente
           </button>
         ) : null}
       </div>
 
       {falha ? <p className="mx-4 mt-3 rounded-[9px] bg-danger/10 p-2.5 text-[11.5px] text-danger md:mx-5" role="alert">{falha}</p> : null}
 
-      <div className="scrollbar-fina min-h-0 flex-1 space-y-5 overflow-y-auto p-4 pt-4 md:p-5">
-        {grupos.length ? grupos.map((grupo) => (
-          <section key={grupo.id}>
-            <p className="mb-2 text-[9.5px] font-bold uppercase tracking-[.12em] text-faint">{grupo.rotulo}</p>
-            <div className="grid gap-2">
-              {grupo.agents.map((agent) => (
+      <div className="agents-grid">
+        {grupos.length ? grupos.flatMap((grupo) => grupo.agents.map((agent) => (
                 <CartaoAgent key={agent.id} agent={agent}
+                  skills={separarSkills(catalogoSkills, bindings.filter(binding => binding.profile_id === agent.id), agent.audience).vinculadas}
                   ativo={agent.id === selecionadoId} aoAbrir={(a) => setSelecionadoId(a.id)} />
-              ))}
-            </div>
-          </section>
-        )) : (
+        ))) : (
           <p className="rounded-[12px] border border-dashed border-line p-8 text-center text-[12px] text-sub">
             Nenhum agente configurado.
           </p>
         )}
-        <p className="pt-1 text-[10px] leading-4 text-faint">
-          Liberação de atendimento, marca e política de sessão continuam em “Liberação e marca”.
-        </p>
       </div>
+      <div className="agents-info"><span className="agent-role-icon"><ShieldCheck size={25} /></span><div><h3>Uma equipe, responsabilidades bem definidas</h3><p>Cada agente usa as habilidades que você habilitou. O principal continua sendo a porta de entrada de cada público.</p><p>Liberação de atendimento e marca ficam em “Liberação e marca”.</p></div></div>
     </div>
   );
 
@@ -774,26 +794,8 @@ export default function Agents({ agents, catalogoSkills, canWrite, recarregar, c
 
   return (
     <>
-      {/* Desktop: mestre/detalhe. Mobile: uma coisa de cada vez. */}
-      <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-r border-line bg-bg">{lista}</aside>
-        <main className="flex min-h-0 flex-col bg-bg">
-          {detalhe || (
-            <div className="flex min-h-[420px] flex-1 flex-col items-center justify-center px-8 text-center">
-              <Bot size={34} className="text-faint" />
-              <h3 className="mt-3 text-[15px] font-semibold">Selecione um agente</h3>
-              <p className="mt-1 max-w-sm text-[11.5px] text-sub">
-                Cada agente tem identidade, personalidade e habilidades próprias. Quem responde a uma
-                audiência é sempre o agente principal dela.
-              </p>
-            </div>
-          )}
-        </main>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col bg-bg md:hidden">
-        {detalhe || lista}
-      </div>
+      {lista}
+      {detalhe && <div className="agent-drawer-backdrop"><section ref={painelRef} role="dialog" aria-modal="true" className="agent-drawer" aria-label={`Configurar ${selecionado.name}`}>{falha && <p role="alert" className="p-4 text-danger">{falha}</p>}{detalhe}</section></div>}
 
       {criando ? (
         <AssistenteDeCriacao catalogoSkills={catalogoSkills} aoFechar={() => setCriando(false)} aoCriar={criarAgente} />

@@ -80,10 +80,10 @@ describe("home dos agentes", () => {
     expect(render()).toContain("Criar agente");
   });
 
-  it("O: as duas apresentações existem — mestre/detalhe no desktop, uma tela no mobile", () => {
+  it("O: a galeria mostra uma única coleção de cards, sem duplicar agentes por viewport", () => {
     const html = render();
-    expect(html).toContain("md:grid-cols-[320px_minmax(0,1fr)]");
-    expect(html).toContain("md:hidden");
+    expect(html).toContain("agents-grid");
+    expect((html.match(/Configurar agente/g) || []).length).toBe(elenco.length);
   });
 
   it("aponta onde ficou o que esta tela ainda não cobre, com o nome novo da aba", () => {

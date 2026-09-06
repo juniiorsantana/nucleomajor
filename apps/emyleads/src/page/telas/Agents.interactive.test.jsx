@@ -115,12 +115,12 @@ function titulos() {
   return Array.from(container.querySelectorAll("h2")).map((h) => h.textContent);
 }
 function botaoComTexto(texto) {
-  const achado = botoes().find((b) => b.textContent.trim() === texto);
+  const achado = botoes().find((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
   if (!achado) throw new Error(`botão "${texto}" não encontrado`);
   return achado;
 }
 function existeBotao(texto) {
-  return botoes().some((b) => b.textContent.trim() === texto);
+  return botoes().some((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
 }
 function inputPorRotulo(rotulo) {
   const labels = Array.from(container.querySelectorAll("label"));
@@ -244,6 +244,25 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
 
     // Sem nome, "Continuar" fica desabilitado — não avança em branco.
     expect(botaoComTexto("Continuar").disabled).toBe(true);
+  });
+
+  it("mostra falha parcial de habilidades sem repetir o cadastro já concluído", async () => {
+    await montar({ inicial: [], catalogoSkills: CATALOGO_VENDAS });
+    await clicar(botaoComTexto("Criar agente"));
+    await clicarCard("Vendas");
+    await clicarCard("Clientes e leads");
+    await digitar(inputPorRotulo("Nome"), "SDR");
+    await clicar(botaoComTexto("Continuar"));
+    await clicar(botaoComTexto("Continuar"));
+    agentsApi.criar.mockResolvedValueOnce(agent({ id: "sdr", name: "SDR" }));
+    agentsApi.definirSkill.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN" }).mockResolvedValueOnce({});
+    agentsApi.listar.mockResolvedValueOnce([agent({ id: "sdr", name: "SDR" })]);
+    await clicar(botaoComTexto("Concluir"));
+    await tick();
+    expect(assistenteAberto()).toBe(false);
+    expect(container.textContent).toContain("O agente foi criado, mas 1 habilidade(s) não foram vinculadas");
+    expect(agentsApi.criar).toHaveBeenCalledTimes(1);
+    expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
   });
 
   it("o identificador técnico fica em Configurações avançadas, derivado do nome", async () => {
@@ -497,8 +516,7 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
 
 describe("MOBILE — navegação de uma tela por vez", () => {
   function painelMobile() {
-    const topo = Array.from(container.querySelectorAll(":scope > div"));
-    const achado = topo.find((d) => d.className.includes("md:hidden") && d.className.includes("flex"));
+    const achado = container.querySelector(".agent-drawer") || container.querySelector(".agents-gallery");
     if (!achado) throw new Error("painel mobile não encontrado");
     return achado;
   }

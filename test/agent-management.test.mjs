@@ -31,7 +31,7 @@ test("D: agente novo nasce NÃO-padrão, sempre", () => {
   // de fora — o comando ignora, não obedece.
   assert.equal(criar().isDefault, false);
   assert.equal(criar({ isDefault: true }).isDefault, false);
-  assert.equal(agentCommandToRow(criar({ isDefault: true }), { actor: ATOR }).is_default, false);
+  assert.ok(!("is_default" in agentCommandToRow(criar({ isDefault: true }), { actor: ATOR })));
 });
 
 test("A/B/C: criar agentes de qualquer audience é aceito pelo domínio", () => {
