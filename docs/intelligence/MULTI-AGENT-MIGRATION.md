@@ -1377,3 +1377,72 @@ fora do agente escolhido), as seis recusas da 13B e o `SECURITY DEFINER` com
 
 Enquanto `soul_markdown` estiver NULL em 100% dos perfis, a fatia não produz
 efeito observável: ela só aparece quando alguém escrever uma persona pelo portal.
+
+## FASE 14A — Contrato de handoff entre agentes
+
+Memorando de 06/09/2026, conferido contra `nucleo_customer_handoff_request`
+(20260826150000, linhas 503–600), a sessão H3 e os resolvedores v2/v3.
+
+- **Entrada MCP:** `agente_destino_slug`, `motivo`, `resumo` opcional (até 1000
+  caracteres). Motivos fechados: `commercial_intent`, `specialist_required`,
+  `scope_mismatch`. Organização vem de `private.robot_organization()`;
+  hash da conversa e telefone vêm do runtime, nunca do modelo. Slug é identidade
+  técnica, única na organização; a RPC resolve e valida antes de usar o UUID.
+  Conhecer um slug não concede acesso a outro público ou organização.
+- **Troca:** fixa o destino, zera `active_skill_id`, incrementa o contador e fecha
+  a sessão de skill ativa como `handed_off`, incrementando sua revisão. O contexto
+  permanece `active`. No próximo turno, v3 descarta a sessão fechada e resolve
+  a skill pelos vínculos do destino. A linha de sessão é reutilizada pelo upsert
+  existente; `handed_off` não é um histórico permanente (a auditoria é).
+- **Sessão do modelo:** após confirmação técnica do MCP, o worker descarta
+  a sessão local para não retomar a persona anterior mesmo se ambos usarem a mesma
+  skill/hash. Não aciona o árbitro humano nem interrompe turnos seguintes.
+- **Resumo:** validado, mas não persistido, devolvido ou auditado; transportar
+  contexto livre ao destino pertence à FASE 15. Não incluir dados desnecessários.
+- **Teto:** três transferências bem-sucedidas por contexto de conversa, inclusive
+  A→B→A; a quarta recusa. Contador `agent_handoff_count integer not null default 0`,
+  atualizado sob `FOR UPDATE`. Falhas não contam; poda da auditoria não altera o
+  teto. Um contexto novo começa em zero; a RPC não reabre contextos fechados.
+- **Auditoria:** `intelligence_audit_log`, `entity_type=conversation`,
+  `action=agent_handoff`, slugs de origem/destino, motivo e número do salto.
+  O MCP registra os mesmos campos somente após sucesso; o worker produz
+  `conversation.agent_handoff`. Sem resumo, telefone, argumentos, persona ou
+  conteúdo do cliente, inclusive nos detalhes de erro desta ferramenta.
+
+Recusas SQL públicas, pela ordem abaixo (todas levantam exceção e não escrevem):
+
+| Condição | String pública |
+|---|---|
+| Credencial ausente/inativa | `active robot credential required` |
+| Contexto ausente, fechado, de outro público/canal/organização | `customer intelligence context required` |
+| Já entregue a pessoa | `conversation already handed off to human` |
+| Slug inexistente ou de outra organização | `target agent unavailable` |
+| Público diferente | `target agent audience mismatch` |
+| Destino inativo | `target agent inactive` |
+| Destino igual ao fixo atual | `target agent is current agent` |
+| Três saltos já usados | `agent handoff limit reached; use human handoff` |
+| Motivo nulo ou fora da lista | `invalid agent handoff reason` |
+| Telefone normalizado fora de 10–15 dígitos | `valid customer phone required` |
+| Resumo maior que 1000 caracteres | `agent handoff summary too long` |
+
+### Dependências encontradas na leitura da 14C
+
+A capacidade é independente de `conversation.handoff`. Além dos quatro pontos
+previstos, o catálogo exige `src/tools.mjs` e o enum de `skill.schema.json`.
+**v2 também precisa da string:** v3 chama v2 antes de reconstruir a skill por
+estágio; v2 valida o `allowedTools` global. Alterar só v3 quebraria a Recepção
+publicada. A migration 14C confere o hash normalizado anterior de cada função e
+redefine as duas com apenas a nova string; testes comparam os corpos integralmente.
+`private.intelligence_payload`, schemaVersion e chaves do payload permanecem iguais.
+
+Com vínculos diferentes, `skillsPermitidos` muda legitimamente para os do destino.
+A prova cobre esse isolamento e, separadamente, compara o payload inteiro com
+vínculos equivalentes: só agente e revisão da sessão mudam. Não se deve exigir
+que a lista de skills do agente anterior sobreviva ao handoff.
+
+Recepção declara a capacidade nos estágios acolher, entender e encaminhar;
+Vendas nos estágios descobrir, consultar e avançar. A regra existente já ativa
+Vendas para “quero fechar plano”, portanto Recepção sozinha não cobre o caso.
+As instruções propõem `sdr` como destino comercial, condicionado à conferência
+do slug real antes da publicação. O próprio SDR continua atendendo sem transferir
+para si. Pedido de pessoa, tema sensível e limite atingido seguem para humano.

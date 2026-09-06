@@ -1,5 +1,55 @@
 # Estado atual
 
+## FASE 14 — implementada e provada; publicação pendente (06/09/2026)
+
+Branches isoladas `feature/fase-14-handoff` no portal e no runtime. A base do
+portal é `60c90ab`, igual a `origin/main` consultada nesta execução. A base do
+runtime é `da11193`: checkout local, `hardening` da VPS e referência remota
+consultada por SSH conferem. O remoto HTTPS do runtime recusou acesso; a leitura
+da referência por SSH na VPS funcionou. Nenhum commit anterior foi descartado.
+
+- **14A:** [memorando do contrato](./intelligence/MULTI-AGENT-MIGRATION.md#fase-14a--contrato-de-handoff-entre-agentes).
+  Slug validado na organização, motivos fechados, teto persistido de **3** saltos,
+  sessão de skill fechada, skill ativa zerada e sessão do modelo descartada.
+  Resumo opcional não é persistido/devolvido/auditado; contexto livre é FASE 15.
+- **14B:** RPC `nucleo_customer_agent_handoff` e coluna `agent_handoff_count`.
+  Prova em **PostgreSQL 17.9 descartável**, 57 migrations anteriores + 2 novas,
+  **A–H e G2 PASS**, ROLLBACK sem resíduos e cluster removido.
+- **14C:** capacidade própria no banco, catálogo, schema, runtime e MCP;
+  evento `conversation.agent_handoff` só após sucesso técnico, sem resumo e sem
+  acionar o árbitro humano. Recepção e Vendas declaram a capacidade por estágio.
+  Vendas é necessária porque “quero fechar plano” já ativa essa skill.
+- **Ajuste necessário ao plano:** v3 chama v2 antes da sua validação, portanto
+  **as duas allowlists** recebem a string. Comparação integral dos corpos prova
+  que nenhuma outra linha operacional foi alterada. Dos 143 corpos anteriores,
+  só esses dois mudaram; o posterior tem 144 funções pela RPC nova.
+  `intelligence_payload` permanece com hash normalizado
+  `4ed9516507bcf8322f14e313fa08a94e`, idêntico à 13C.
+- **Verificações executadas:** 237 testes Node; 578 testes do app, **49 arquivos**
+  (incluindo jsdom); **374 testes do assistente**, incluindo a prova de dois turnos;
+  50 testes MCP. Build Vite e compilação Python passaram.
+  [Receita, evidências e hashes](../scripts/sql/README-prova-handoff-entre-agentes.md).
+  [Consulta read-only de aceite](../scripts/sql/validar-fase-14.sql) executada no
+  controle e no banco com a fase: quatro hashes aceitos no pós-check.
+
+**Não observado/não publicado:** migrations no Supabase, skills novas, runtime
+em serviço e transferência WhatsApp real. O slug comercial **proposto `sdr`** está
+configurado nas instruções confiáveis de Recepção e Vendas, mas ainda precisa
+ser confirmado pela consulta antes da publicação. Não é um dado de produção
+verificado. Se divergir, corrigir ambas as instruções antes de publicar.
+
+O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
+que classificou a liberação de acesso a supabase.com como possível exposição da
+sessão autenticada. Nenhum canal alternativo de aplicação foi usado.
+Na VPS, `systemctl list-units --all 'whatsapp*'` e `list-unit-files 'whatsapp*'`
+retornaram **zero unidades**; consultas aos nomes registrados anteriormente
+indicaram `inactive`/`NRestarts=0`. Isso contradiz o estado observado na 13C e
+precisa ser esclarecido antes de deploy. Nenhum serviço foi reiniciado.
+
+**A fase permanece aberta.** Aplicação manual pelo SQL Editor, publicação das
+duas skills/runtime, conferência ActiveState/NRestarts, transferência real e
+integração da branch à main continuam pendentes.
+
 Última revisão documental: **29/08/2026**.
 
 ## Produção confirmada

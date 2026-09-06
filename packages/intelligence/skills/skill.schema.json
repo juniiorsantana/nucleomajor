@@ -106,6 +106,7 @@
           "crm.tag.apply",
           "crm.deal.qualify",
           "conversation.handoff",
+          "conversation.handoff.agent",
           "calendar.read",
           "calendar.availability",
           "calendar.prepare",

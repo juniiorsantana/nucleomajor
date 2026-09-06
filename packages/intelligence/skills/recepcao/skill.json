@@ -15,16 +15,16 @@
   "workflow": {
     "initialStage": "acolher",
     "stages": [
-      { "id": "acolher", "objective": "Responder de forma natural e descobrir em uma pergunta o motivo do contato.", "requiredFields": [], "allowedTools": [], "completion": "A pessoa informou o que precisa." },
-      { "id": "entender", "objective": "Classificar a intenção sem inventar dados, oferta ou diagnóstico.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.read"], "completion": "Há uma intenção clara ou necessidade de transferência humana." },
+      { "id": "acolher", "objective": "Responder de forma natural e descobrir em uma pergunta o motivo do contato.", "requiredFields": [], "allowedTools": ["conversation.handoff.agent"], "completion": "A pessoa informou o que precisa." },
+      { "id": "entender", "objective": "Classificar a intenção sem inventar dados, oferta ou diagnóstico.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.read", "conversation.handoff.agent"], "completion": "Há uma intenção clara ou necessidade de transferência humana." },
       { "id": "registrar", "objective": "Registrar somente dados úteis já fornecidos pelo cliente quando houver finalidade clara.", "requiredFields": ["intent"], "allowedTools": ["crm.contact.read", "crm.contact.upsert", "crm.tag.apply"], "completion": "Os dados úteis foram persistidos ou não há nada a registrar." },
-      { "id": "encaminhar", "objective": "Delegar para uma única habilidade adequada ou transferir quando a intenção permanecer ambígua.", "requiredFields": ["intent"], "allowedTools": ["conversation.handoff"], "completion": "Um subfluxo foi iniciado ou o atendimento foi transferido." }
+      { "id": "encaminhar", "objective": "Delegar para uma única habilidade adequada ou transferir quando a intenção permanecer ambígua.", "requiredFields": ["intent"], "allowedTools": ["conversation.handoff", "conversation.handoff.agent"], "completion": "Um subfluxo foi iniciado ou o atendimento foi transferido." }
     ],
     "delegatesTo": ["pre-qualificacao", "vendas", "suporte", "agenda"]
   },
   "requiredFields": ["intent"],
   "questions": ["Como posso ajudar você hoje?", "Você procura informações, suporte, uma proposta ou quer marcar um horário?"],
-  "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff"],
+  "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"],
   "guardrails": ["no_write_before_purpose", "one_question_at_a_time", "no_internal_knowledge", "no_invented_answer"],
   "handoff": ["requested_human", "low_confidence", "sensitive_topic", "skill_limit"]
 }
