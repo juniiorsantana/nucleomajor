@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    * { box-sizing: border-box; }
+
+    .card { border: 1px solid #e6e9ed; border-radius: 13px; background: #ffffff; padding: 16px; }
+    .ico { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 11px; background: #eeebff; color: #3d29db; }
+    .card.priv .ico { background: #e6f6f2; color: #08796e; }
+    .card h3 { margin: 0; font-size: 13.5px; font-weight: 600; color: #121730; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tier { border-radius: 99px; background: #f5f6f8; color: #667085; font-size: 8.5px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; flex: none; }
+    .desc { margin: 4px 0 0; color: #667085; font-size: 11px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .kw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 16px; }
+    .kw span { border: 1px solid #e6e9ed; border-radius: 99px; padding: 2px 8px; font-size: 9px; color: #667085; }
+    .rodape { margin-top: 16px; border-top: 1px solid #e6e9ed; padding-top: 12px; font-size: 9.5px; color: #98a2b3; }
+  </style>
+</helmet>
+
+<div style="width: 1210px; height: 740px; background: #f5f6f8; padding: 28px; color: #121730">
+  <div style="max-width: 1152px; margin: 0 auto">
+
+    <div style="display: flex; align-items: flex-end; gap: 12px">
+      <div>
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600; color: #121730">Catálogo de habilidades</h2>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #667085">Oficiais evoluem centralmente; privados pertencem somente à organização.</p>
+      </div>
+      <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px; border-radius: 9px; background: #4f3cfc; color: #ffffff; padding: 10px 16px; font-size: 12px; font-weight: 600">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        Criar skill
+      </span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px">
+      <sc-for list="{{skills}}" as="s" hint-placeholder-count="8">
+        <div class="card {{s.cls}}">
+          <div style="display: flex; align-items: flex-start; gap: 12px">
+            <span class="ico">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path>
+              </svg>
+            </span>
+            <div style="min-width: 0; flex: 1">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <h3>{{s.nome}}</h3>
+                <span class="tier">{{s.tier}}</span>
+              </div>
+              <p class="desc">{{s.descricao}}</p>
+            </div>
+          </div>
+          <div class="kw">
+            <sc-for list="{{s.gatilhos}}" as="g" hint-placeholder-count="4"><span>{{g.t}}</span></sc-for>
+          </div>
+          <div class="rodape">{{s.rodape}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1210,"height":740}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const brutos = [
+      { nome: "Recepção", descricao: "Recebe novos clientes, entende a intenção e encaminha para a habilidade adequada.", aud: "customer", gatilhos: ["oi", "olá", "bom dia", "boa tarde"], tier: "Núcleo", v: 1 },
+      { nome: "Pré-qualificação", descricao: "Coleta dados essenciais e registra a qualificação no CRM.", aud: "customer", gatilhos: ["interesse", "quero saber", "como funciona", "conhecer"], tier: "Núcleo", v: 1 },
+      { nome: "Vendas", descricao: "Entende o interesse, apresenta a oferta autorizada e conduz o próximo passo.", aud: "customer", gatilhos: ["preço", "valor", "comprar", "contratar"], tier: "Núcleo", v: 1 },
+      { nome: "Suporte", descricao: "Orienta com base no conteúdo publicado e transfere casos não resolvidos.", aud: "customer", gatilhos: ["ajuda", "erro", "problema", "não funciona"], tier: "Núcleo", v: 1 },
+      { nome: "Solicitação de agenda", descricao: "Prepara pedidos de horário de clientes e os submete à aprovação da equipe.", aud: "customer", gatilhos: ["agendar", "marcar", "reunião", "disponibilidade"], tier: "Núcleo", v: 1 },
+      { nome: "Agenda", descricao: "Consulta disponibilidade e cria compromissos internos com confirmação.", aud: "internal", gatilhos: ["agenda", "agendar", "reunião", "horário"], tier: "Núcleo", v: 1 },
+      { nome: "Tarefas", descricao: "Consulta e cria tarefas internas com atribuição e confirmação.", aud: "internal", gatilhos: ["tarefa", "pendência", "afazer"], tier: "Núcleo", v: 1 },
+      { nome: "Pós-venda", descricao: "Acompanha quem já comprou, confirma a entrega e registra a satisfação.", aud: "customer", gatilhos: ["entrega", "recebi", "avaliar"], tier: "Privado", v: 2 },
+    ];
+    return {
+      skills: brutos.map((s) => ({
+        ...s,
+        cls: s.tier === "Privado" ? "priv" : "",
+        gatilhos: s.gatilhos.map((t) => ({ t })),
+        rodape: `v${s.v} · ${s.aud}`,
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

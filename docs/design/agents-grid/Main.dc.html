@@ -1,0 +1,298 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    * { box-sizing: border-box; }
+
+    /* --- cartão do agente, na escala proposta --- */
+    .card {
+      --ac: #3d29db;
+      display: flex; flex-direction: column; min-width: 0;
+      padding: 10px 10px 0; border-radius: 14px;
+      border: 1px solid #d3d8de; background: #ffffff; text-align: left; overflow: hidden;
+    }
+    .card.principal { --ac: #087f78; border-color: #6caeac; background: linear-gradient(155deg, #ebf5f4, #ffffff); }
+    .card.inativo .ap { filter: saturate(.35); }
+
+    .ap {
+      position: relative; aspect-ratio: 1.3; overflow: hidden; border-radius: 10px;
+      background-color: #eeebff; background-image: url('./team.jpg');
+      background-size: 300% auto; background-repeat: no-repeat;
+    }
+    .ap--major { background-position: left 32%; }
+    .ap--internal { background-position: center 32%; }
+    .ap--sdr { background-position: right 32%; }
+    .ap--fallback {
+      display: flex; align-items: center; justify-content: center;
+      background-image: radial-gradient(ellipse at top left, #4f3cfc33, transparent);
+    }
+
+    .selo, .coroa {
+      position: absolute; display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 99px; padding: 5px 8px; font-size: 10px; line-height: 1;
+      color: #f1f5f9; border: 1px solid #ffffff28; background: #101820d9;
+    }
+    .selo { top: 7px; right: 7px; }
+    .selo > i { width: 7px; height: 7px; background: #c1c8d3; border-radius: 50%; }
+    .selo.on > i { background: #2fe2ad; }
+    .coroa { bottom: 7px; left: 7px; color: #ffdf8b; background: #292212ed; border-color: #f0bf5c55; }
+
+    .corpo { flex: 1; display: flex; flex-direction: column; padding: 13px 5px 0; }
+    .ident { display: flex; align-items: center; gap: 9px; }
+    .rico {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px;
+      color: var(--ac); background: #e8e5fb;
+    }
+    .card.principal .rico { background: #e1f0ef; }
+    .ident h3 { margin: 0; font-size: 14.5px; line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; color: #121730; }
+    .ident p { margin: 2px 0 0; color: #667085; font-size: 11.5px; }
+
+    .desc {
+      color: #667085; font-size: 12px; line-height: 1.65; margin: 13px 0 11px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-bottom: 12px; }
+    .tags span { font-size: 9.5px; font-weight: 500; color: var(--ac); background: #eceafb; padding: 5px 8px; border-radius: 99px; }
+    .card.principal .tags span { background: #e6f2f2; }
+    .act {
+      display: flex; align-items: center; gap: 9px; border-top: 1px solid #e6e9ed;
+      padding: 13px 0; color: var(--ac); font-size: 11.5px; font-weight: 600;
+    }
+    .act .fim { margin-left: auto; }
+
+    .iniciais {
+      display: flex; align-items: center; justify-content: center;
+      width: 62px; height: 62px; border-radius: 50%;
+      color: #ffffff; font-size: 23.5px; font-weight: 600;
+    }
+
+    /* --- chrome da galeria, igual ao que já existe --- */
+    .eyebrow { margin: 0 0 8px; color: #3d29db; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+    .galeria h2 { margin: 0; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; color: #121730; }
+    .sub { margin: 10px 0 0; color: #667085; font-size: 14px; line-height: 1.6; }
+    .criar {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;
+      padding: 14px 22px; border-radius: 13px; background: #5543d5; color: #ffffff;
+      font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px #5543d518;
+    }
+    .info { display: flex; align-items: center; gap: 20px; margin-top: 24px; padding: 22px; border: 1px solid #d3d8de; border-radius: 17px; background: #ffffff; }
+    .info .rico { width: 45px; height: 45px; border-radius: 15px; }
+    .info h3 { margin: 0; font-size: 14px; font-weight: 600; color: #121730; }
+    .info p { margin: 4px 0 0; color: #667085; font-size: 12px; line-height: 1.7; }
+
+    .medidor { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 12px; color: #667085; }
+    .medidor b { color: #121730; font-weight: 600; }
+    .pilula { border-radius: 99px; background: #eeebff; color: #3d29db; font-weight: 600; padding: 4px 10px; }
+    /* Acima de ~280px o card já estourou o que foi desenhado: é o sintoma do
+       auto-fit esticando poucas trilhas para preencher a linha inteira. */
+    .pilula.estourou { background: #fdecec; color: #dc2626; }
+  </style>
+</helmet>
+
+<div style="width: 1760px; height: 1280px; background: #ffffff; padding: 20px; color: #121730">
+
+  <div class="medidor">
+    <span>Tela de <b>{{tela}}px</b></span>
+    <span style="color: #d3d8de">·</span>
+    <span>menu <b>{{menuTexto}}</b></span>
+    <span style="color: #d3d8de">·</span>
+    <span><b>{{quantos}}</b> agentes</span>
+    <span style="color: #d3d8de">·</span>
+    <span>sobram <b>{{larguraUtil}}px</b> para o grid</span>
+    <span class="pilula">{{colunas}} colunas</span>
+    <span class="pilula {{avisoCls}}">card de {{larguraCard}}px</span>
+  </div>
+
+  <!-- A caixa abaixo é a área que a galeria ocupa na tela: mesma cor de fundo
+       do app (surface) e o padding de 32px que .agents-gallery já tem. -->
+  <div class="galeria" style="width: {{larguraCaixa}}px; background: #f5f6f8; border: 1px solid #e6e9ed; border-radius: 10px; padding: 32px">
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 30px">
+      <div>
+        <p class="eyebrow">Central de Inteligência</p>
+        <h2>Sua equipe de IA</h2>
+        <p class="sub">Cada agente atende um público certo e possui responsabilidades específicas.</p>
+      </div>
+      <span class="criar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        Novo agente
+      </span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat({{colunas}}, minmax(0, 1fr)); gap: 14px; align-items: stretch">
+      <sc-for list="{{agentes}}" as="a" hint-placeholder-count="6">
+        <div class="card {{a.cls}}">
+          <div class="ap {{a.pcls}}">
+            <sc-if value="{{a.semRetrato}}">
+              <span class="iniciais" style="background: {{a.cor}}">{{a.iniciais}}</span>
+            </sc-if>
+            <span class="selo {{a.selo}}"><i></i>{{a.statusRotulo}}</span>
+            <sc-if value="{{a.principal}}">
+              <span class="coroa">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"></path><path d="M5 21h14"></path></svg>
+                Principal
+              </span>
+            </sc-if>
+          </div>
+
+          <div class="corpo">
+            <div class="ident">
+              <span class="rico">
+                <sc-if value="{{a.icoEquipe}}">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                </sc-if>
+                <sc-if value="{{a.icoAlvo}}">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+                </sc-if>
+                <sc-if value="{{a.icoConversa}}" hint-placeholder-val="{{true}}">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>
+                </sc-if>
+              </span>
+              <div style="min-width: 0">
+                <h3>{{a.nome}}</h3>
+                <p>{{a.papel}}</p>
+              </div>
+            </div>
+
+            <p class="desc">{{a.descricao}}</p>
+
+            <div class="tags">
+              <span>{{a.audiencia}}</span>
+              <sc-for list="{{a.skills}}" as="s" hint-placeholder-count="2"><span>{{s.nome}}</span></sc-for>
+              <sc-if value="{{a.temMais}}"><span>{{a.mais}}</span></sc-if>
+            </div>
+
+            <span class="act">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>
+              Configurar agente
+              <svg class="fim" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div class="info">
+      <span class="rico">
+        <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+      </span>
+      <div>
+        <h3>Uma equipe, responsabilidades bem definidas</h3>
+        <p>Cada agente usa as habilidades que você habilitou. O principal continua sendo a porta de entrada de cada público.</p>
+        <p>Liberação de atendimento e marca ficam em “Liberação e marca”.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"encaixe":{"editor":"enum","default":"auto-fill","options":["auto-fill","auto-fit"],"section":"Grid"},"quantos":{"editor":"range","default":3,"min":3,"max":7,"step":1,"section":"Grid"},"tela":{"editor":"range","default":1920,"min":1440,"max":1920,"step":40,"unit":"px","section":"Tela"},"minimo":{"editor":"range","default":200,"min":180,"max":240,"step":5,"unit":"px","section":"Grid"},"menuAberto":{"editor":"boolean","default":true,"section":"Tela"},"$preview":{"width":1760,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tela = this.props.tela ?? 1440;
+    const minimo = this.props.minimo ?? 200;
+    const menuAberto = this.props.menuAberto ?? true;
+    const quantos = this.props.quantos ?? 3;
+    const encaixe = this.props.encaixe ?? "auto-fill";
+
+    // As mesmas contas que o navegador faz: a galeria recebe o que sobra
+    // depois do menu, menos os 32px de padding de cada lado.
+    const menu = menuAberto ? 256 : 68;
+    const gap = 14;
+    const larguraUtil = tela - menu - 64;
+
+    // Quantas trilhas de `minimo` cabem na linha. É o mesmo número nos dois
+    // modos — o que muda é o que acontece com as que ficam VAZIAS.
+    const trilhas = Math.max(1, Math.floor((larguraUtil + gap) / (minimo + gap)));
+
+    // auto-fit COLAPSA a trilha vazia, e as que sobraram esticam para ocupar a
+    // linha inteira: com 3 agentes numa tela larga, cada card vira um cartaz.
+    // auto-fill mantém a trilha vazia reservada, então o card mede sempre o
+    // mesmo, com 3 agentes ou com 30.
+    const colunas = encaixe === "auto-fit" ? Math.min(trilhas, quantos) : trilhas;
+    const larguraCard = Math.round((larguraUtil - (colunas - 1) * gap) / colunas);
+
+    const brutos = [
+      {
+        nome: "Assistente Major", papel: "Atendimento", audiencia: "Clientes",
+        retrato: "major", principal: true, ativo: true, ico: "conversa",
+        descricao: "Recebe cada pessoa com atenção, entende o que ela precisa e conduz para o próximo passo certo — sem pressa, sem parecer um robô de menu.",
+        skills: ["Recepção"], mais: 0,
+      },
+      {
+        nome: "Assistente Interno", papel: "Equipe", audiencia: "Equipe",
+        retrato: "internal", principal: true, ativo: true, ico: "equipe",
+        descricao: "Apoio à equipe com as informações e habilidades autorizadas da organização.",
+        skills: ["Conhecimento"], mais: 0,
+      },
+      {
+        nome: "SDR", papel: "Pré-qualificação", audiencia: "Clientes",
+        retrato: "sdr", principal: false, ativo: true, ico: "alvo",
+        descricao: "Faz as perguntas certas, poucas por vez, para entender rápido se aquele contato tem o perfil que a empresa atende.",
+        skills: ["Pré-qualificação"], mais: 0,
+      },
+      {
+        nome: "Vendas", papel: "Vendas", audiencia: "Clientes",
+        retrato: null, principal: false, ativo: true, ico: "conversa", cor: "#b45309",
+        descricao: "Entende a necessidade antes de oferecer, apresenta a solução com segurança e conduz para o fechamento sem forçar.",
+        skills: ["Vendas", "Pré-qualificação"], mais: 1,
+      },
+      {
+        nome: "Agenda", papel: "Agendamentos", audiencia: "Clientes",
+        retrato: null, principal: false, ativo: true, ico: "conversa", cor: "#0f766e",
+        descricao: "Verifica disponibilidade, propõe horários claros e confirma o agendamento sem gerar ida e volta desnecessária.",
+        skills: ["Agenda", "Solicitação"], mais: 0,
+      },
+      {
+        nome: "Suporte", papel: "Suporte", audiencia: "Clientes",
+        retrato: null, principal: false, ativo: false, ico: "conversa", cor: "#9333ea",
+        descricao: "Ouve o problema com paciência, explica a solução em passos simples e confirma que a pessoa conseguiu resolver.",
+        skills: ["Suporte"], mais: 0,
+      },
+      {
+        nome: "Cobrança", papel: "Cobrança", audiencia: "Clientes",
+        retrato: null, principal: false, ativo: true, ico: "conversa", cor: "#be123c",
+        descricao: "Trata o assunto com clareza e respeito, sem constranger a pessoa, e propõe caminhos concretos para regularizar.",
+        skills: ["Cobrança"], mais: 0,
+      },
+    ];
+
+    const agentes = brutos.slice(0, quantos).map((a) => ({
+      ...a,
+      cls: `${a.principal ? "principal" : ""} ${a.ativo ? "" : "inativo"}`,
+      pcls: a.retrato ? `ap--${a.retrato}` : "ap--fallback",
+      semRetrato: !a.retrato,
+      iniciais: a.nome.slice(0, 2).toUpperCase(),
+      cor: a.cor || "#4f3cfc",
+      selo: a.ativo ? "on" : "",
+      statusRotulo: a.ativo ? "Ativo" : "Inativo",
+      icoEquipe: a.ico === "equipe",
+      icoAlvo: a.ico === "alvo",
+      icoConversa: a.ico === "conversa",
+      skills: a.skills.map((nome) => ({ nome })),
+      temMais: a.mais > 0,
+      mais: `+${a.mais}`,
+    }));
+
+    return {
+      tela, colunas, larguraUtil, quantos, larguraCard,
+      avisoCls: larguraCard > 280 ? "estourou" : "",
+      larguraCaixa: larguraUtil + 64,
+      menuTexto: menuAberto ? "aberto" : "recolhido",
+      agentes,
+    };
+  }
+}
+</script>
+</body>
+</html>

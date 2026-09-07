@@ -1,0 +1,31 @@
+{
+  "artboards": [
+    { "file": "Antes.dc.html", "x": 0, "y": 0, "w": 1210, "h": 740, "title": "Como está hoje" },
+    { "file": "Main.dc.html", "x": 1330, "y": 0, "w": 1210, "h": 700, "title": "Grade seca — candidata principal" },
+    { "file": "Lista.dc.html", "x": 1330, "y": 900, "w": 1210, "h": 700, "title": "Lista densa" }
+  ],
+  "annotations": [
+    {
+      "id": "hoje",
+      "x": 0,
+      "y": -170,
+      "w": 360,
+      "text": "Hoje: o mesmo ícone Sparkles nos oito cards, gatilhos como pílulas cinzas e um rodapé que diz \"v1 · customer\" em inglês de banco de dados."
+    },
+    {
+      "id": "grade",
+      "x": 1330,
+      "y": -190,
+      "w": 470,
+      "text": "GRADE SECA — candidata principal.\n\nMonocromática: um único roxo, e só no hover. Hairline de 1px, raio 10, zero sombra. JetBrains Mono em tudo que é fato de máquina — versão, nível, gatilhos e o identificador real da ferramenta (knowledge.search, crm.contact.upsert), que vem do skill.json e hoje não aparece em lugar nenhum da tela.\n\nA malha de pontos de 16px no fundo é a única textura. Quatro por linha, com controle para 3 ou 5."
+    },
+    {
+      "id": "lista",
+      "x": 1330,
+      "y": 1720,
+      "w": 470,
+      "text": "LISTA DENSA — o mesmo vocabulário levado ao limite: sem cartão, só linhas com filete e colunas alinhadas. As oito habilidades cabem numa tela sem rolar, e dá para varrer a coluna de ferramentas de cima a baixo.\n\nCusto: some a identidade visual por habilidade — o glifo vira um ícone de 18px numa célula. Parece painel de configuração, não catálogo."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

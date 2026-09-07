@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bot, BookOpen, Check, ChevronLeft, ChevronRight, FlaskConical, History,
-  Eye, Layers3, Megaphone, MessageCircle, Plus, RotateCcw, Save, Settings2,
-  ShieldCheck, Sparkles, Users, WandSparkles, X,
+  Eye, Layers3, LayoutGrid, List, Megaphone, MessageCircle, Plus, RotateCcw,
+  Save, Settings2, ShieldCheck, Sparkles, Users, WandSparkles, X,
 } from "lucide-react";
 import { api } from "../../data/client";
 import { CUSTOMER_ROLLOUT_MODES, maskPhone, rolloutMode } from "../../domain/customerAssistant";
 import { resolverRotaSkill } from "../../domain/intelligenceRouter";
 import Conhecimento from "./Conhecimento";
 import Agents from "./Agents";
+import "./skills-catalog.css";
 
 // ETAPA 12B.1: a ordem prioriza o que o usuário administra primeiro — os
 // agentes — e empurra o que é avançado/legado para o fim. "Habilidades" aqui
@@ -94,9 +95,162 @@ function SkillWizard({ data, close, saved, fail }) {
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3"><section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[15px] border border-line bg-bg shadow-2xl"><header className="flex items-center border-b border-line px-5 py-4"><div><p className="text-[10px] font-bold uppercase tracking-[.13em] text-accent">Skill privado</p><h2 className="text-[17px] font-semibold">Editor assistido</h2></div><button onClick={close} className="ml-auto p-2 text-sub"><X size={18} /></button></header><div className="flex gap-1 overflow-x-auto border-b border-line px-4 py-2">{steps.map((label, index) => <button key={label} onClick={() => setStep(index)} className={`min-w-fit rounded-full px-2.5 py-1 text-[9.5px] ${index === step ? "bg-accent text-white" : index < step ? "bg-accent-soft text-accent-forte" : "bg-surface text-sub"}`}>{index + 1}. {label}</button>)}</div><div className="scrollbar-fina flex-1 overflow-y-auto p-5"><h3 className="mb-1 text-[16px] font-semibold">{steps[step]}</h3><p className="mb-4 text-[11.5px] text-sub">Permissões continuam validadas pelo Núcleo; o skill não pode ampliá-las.</p>{step === 0 && <div className="grid gap-3"><input value={form.nome} onChange={(e) => field("nome", e.target.value)} placeholder="Nome do skill" className="rounded-[9px] border border-line px-3 py-2.5 text-[13px] outline-none focus:border-accent" /><input value={form.objetivo} onChange={(e) => field("objetivo", e.target.value)} placeholder="Qual resultado este skill produz?" className="rounded-[9px] border border-line px-3 py-2.5 text-[13px] outline-none focus:border-accent" />{area("descricao", "Descrição curta para o catálogo")}</div>}{step === 1 && <div className="grid gap-2">{[["internal", "Somente profissionais"], ["customer", "Somente clientes"], ["both", "Os dois públicos"]].map(([value, label]) => <label key={value} className={`flex items-center gap-3 rounded-[10px] border p-3 ${form.audiencia === value ? "border-accent bg-accent-soft" : "border-line"}`}><input type="radio" checked={form.audiencia === value} onChange={() => field("audiencia", value)} />{label}</label>)}</div>}{step === 2 && area("gatilhos", "Uma expressão por linha\npreço\nquero contratar")}{step === 3 && area("dados", "Um dado obrigatório por linha\nnome\nnecessidade\nprazo")}{step === 4 && area("perguntas", "Uma pergunta permitida por linha")}{step === 5 && <div className="grid gap-2">{data.collections.filter((item) => form.audiencia === "internal" ? item.audience === "internal" : item.audience === "external").map((collection) => <label key={collection.id} className="flex items-center gap-3 rounded-[10px] border border-line p-3 text-[12px]"><input type="checkbox" checked={form.colecoes.includes(collection.id)} onChange={(event) => field("colecoes", event.target.checked ? [...form.colecoes, collection.id] : form.colecoes.filter((id) => id !== collection.id))} />{collection.name}</label>)}</div>}{step === 6 && area("acoes", "Uma ação permitida por linha\ncrm.contact.upsert\nconversation.handoff")}{step === 7 && <div className="grid gap-3">{area("limites", "Um limite obrigatório por linha")}{area("transferencia", "Quando transferir para uma pessoa")}</div>}{step === 8 && area("testes", "Uma mensagem de teste por linha")}{step === 9 && <div className="rounded-[12px] border border-line bg-surface p-4"><p className="text-[14px] font-semibold">{form.nome || "Skill sem nome"}</p><p className="mt-1 text-[11.5px] text-sub">{form.objetivo || "Objetivo não informado"}</p><div className="mt-4 grid gap-2 text-[11px] md:grid-cols-2"><span>{list(form.gatilhos).length} gatilhos</span><span>{list(form.dados).length} dados obrigatórios</span><span>{list(form.acoes).length} ações permitidas</span><span>{list(form.testes).length} testes</span></div><div className="mt-4 flex items-center gap-2 text-[10.5px] text-success"><ShieldCheck size={15} />Regras centrais protegidas.</div></div>}</div><footer className="flex items-center gap-2 border-t border-line px-5 py-3"><button disabled={!step} onClick={() => setStep(step - 1)} className="inline-flex items-center gap-1 px-3 py-2 text-[11.5px] text-sub disabled:opacity-30"><ChevronLeft size={14} />Voltar</button>{step < steps.length - 1 ? <button onClick={() => setStep(step + 1)} className="ml-auto inline-flex items-center gap-1 rounded-[8px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white">Continuar<ChevronRight size={14} /></button> : <button disabled={saving || !form.nome.trim() || !form.objetivo.trim()} onClick={publish} className="ml-auto inline-flex items-center gap-2 rounded-[8px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40"><Check size={14} />{saving ? "Publicando…" : "Publicar skill"}</button>}</footer></section></div>;
 }
 
+/**
+ * Recolher ou espalhar o catálogo é preferência, e preferência atravessa
+ * recarga — mesma decisão do menu lateral, mesmo motivo: quem prefere varrer a
+ * lista densa quer ela amanhã de novo, sem um clique diário.
+ */
+const CHAVE_DA_VISAO = "emyleads.skills.visao";
+
+function visaoInicial() {
+  try {
+    return window.localStorage.getItem(CHAVE_DA_VISAO) === "lista" ? "lista" : "grade";
+  } catch {
+    // Janela anônima ou cookies bloqueados: abre na grade, que é o padrão.
+    return "grade";
+  }
+}
+
+/**
+ * Um desenho por habilidade, no lugar do mesmo `Sparkles` oito vezes.
+ *
+ * Os oficiais são reconhecidos pelo `slug`, que é estável — o nome não é, pois
+ * pode ser renomeado. Um skill PRIVADO, que nasce com slug que ninguém aqui
+ * conhece, herda o desenho da família de ferramenta que ele efetivamente toca:
+ * quem mexe em `calendar.*` recebe o calendário. Assim a tela nunca cai num
+ * ícone genérico só porque a habilidade é nova.
+ */
+const GLIFO = {
+  entrada: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3",
+  funil: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
+  etiqueta: "M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7.5 7.5h.01",
+  boia: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24",
+  agendaMais: "M8 2v4M16 2v4M3 10h18M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8M16 19h6M19 16v6",
+  agendaOk: "M8 2v4M16 2v4M3 10h18M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7M16 20l2 2 4-4",
+  checklist: "M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11M9 11l3 3L22 4",
+  livro: "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20",
+  contato: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M22 21v-2a4 4 0 0 0-3-3.87",
+  no: "M12 2 3 7v10l9 5 9-5V7z",
+};
+
+const GLIFO_POR_SLUG = {
+  recepcao: GLIFO.entrada,
+  "pre-qualificacao": GLIFO.funil,
+  vendas: GLIFO.etiqueta,
+  suporte: GLIFO.boia,
+  "solicitacao-agenda": GLIFO.agendaMais,
+  agenda: GLIFO.agendaOk,
+  tarefas: GLIFO.checklist,
+};
+
+function glifoDoSkill(skill) {
+  const conhecido = GLIFO_POR_SLUG[skill.slug];
+  if (conhecido) return conhecido;
+  const tools = skill.spec?.allowedTools || [];
+  const toca = (prefixo) => tools.some((tool) => String(tool).startsWith(prefixo));
+  if (toca("calendar.")) return GLIFO.agendaOk;
+  if (toca("task.")) return GLIFO.checklist;
+  if (toca("crm.deal")) return GLIFO.funil;
+  if (toca("conversation.")) return GLIFO.boia;
+  if (toca("crm.")) return GLIFO.contato;
+  if (toca("knowledge.")) return GLIFO.livro;
+  return GLIFO.no;
+}
+
+function Glifo({ d, tamanho = 20 }) {
+  return <svg viewBox="0 0 24 24" width={tamanho} height={tamanho} fill="none" stroke="currentColor" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
+}
+
+/** O que a máquina sabe do skill, pronto para as duas visões. */
+function fichaDoSkill(skill) {
+  const tools = skill.spec?.allowedTools || [];
+  const keywords = skill.spec?.activation?.keywords || [];
+  const privado = skill.owner_type !== "platform";
+  return {
+    skill,
+    glifo: glifoDoSkill(skill),
+    privado,
+    nivel: privado ? "Privado" : "Núcleo",
+    versao: `v${skill.current_version}`,
+    gatilhos: keywords.slice(0, 3).join("  "),
+    // O identificador REAL da ferramenta. É o que faz a tela parecer
+    // instrumento e não cartão decorado — e ele já existia no spec.
+    tool: tools[0] || "—",
+    maisTools: tools.length > 1 ? `+${tools.length - 1}` : "",
+  };
+}
+
 function Skills({ data, canWrite, reload, fail }) {
   const [wizard, setWizard] = useState(false);
-  return <div className="scrollbar-fina flex-1 overflow-y-auto p-4 md:p-7"><div className="mx-auto max-w-6xl"><div className="flex items-end gap-3"><div><h2 className="text-[18px] font-semibold">Catálogo de habilidades</h2><p className="mt-1 text-[12px] text-sub">Oficiais evoluem centralmente; privados pertencem somente à organização.</p></div>{canWrite && <button onClick={() => setWizard(true)} className="ml-auto inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white"><Plus size={15} />Criar skill</button>}</div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{data.skills.map((skill) => <section key={skill.id} className="rounded-[13px] border border-line bg-bg p-4"><div className="flex items-start gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-[11px] ${skill.owner_type === "platform" ? "bg-accent-soft text-accent-forte" : "bg-[#e6f6f2] text-[#08796e]"}`}><Sparkles size={18} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="truncate text-[13.5px] font-semibold">{skill.name}</h3><span className="rounded-full bg-surface px-2 py-0.5 text-[8.5px] font-bold uppercase text-sub">{skill.owner_type === "platform" ? "Núcleo" : "Privado"}</span></div><p className="mt-1 line-clamp-2 text-[11px] leading-4 text-sub">{skill.description}</p></div></div><div className="mt-4 flex flex-wrap gap-1">{(skill.spec?.activation?.keywords || []).slice(0, 4).map((keyword) => <span key={keyword} className="rounded-full border border-line px-2 py-0.5 text-[9px] text-sub">{keyword}</span>)}</div><div className="mt-4 border-t border-line pt-3 text-[9.5px] text-faint">v{skill.current_version} · {skill.audience}</div></section>)}</div></div>{wizard && <SkillWizard data={data} close={() => setWizard(false)} saved={reload} fail={fail} />}</div>;
+  const [visao, setVisao] = useState(visaoInicial);
+  const fichas = useMemo(() => data.skills.map(fichaDoSkill), [data.skills]);
+
+  const trocarVisao = (proxima) => {
+    setVisao(proxima);
+    try {
+      window.localStorage.setItem(CHAVE_DA_VISAO, proxima);
+    } catch {
+      // Sem onde guardar, a escolha vale só nesta sessão — e continua valendo.
+    }
+  };
+
+  return <div className="skills-catalogo scrollbar-fina"><div className="skills-interno">
+    <div className="skills-cabeca">
+      <div>
+        <p className="skills-eyebrow font-mono">Núcleo de conhecimento</p>
+        <h2>Catálogo de habilidades</h2>
+        <p className="sub">Oficiais evoluem centralmente; privados pertencem somente à organização.</p>
+      </div>
+      <div className="skills-acoes">
+        <div className="skills-alternador" role="group" aria-label="Visualização do catálogo">
+          <button type="button" onClick={() => trocarVisao("grade")} aria-pressed={visao === "grade"} title="Ver em grade" aria-label="Ver em grade"><LayoutGrid size={15} /></button>
+          <button type="button" onClick={() => trocarVisao("lista")} aria-pressed={visao === "lista"} title="Ver em lista" aria-label="Ver em lista"><List size={15} /></button>
+        </div>
+        {canWrite && <button type="button" onClick={() => setWizard(true)} className="skills-criar"><Plus size={14} />Criar skill</button>}
+      </div>
+    </div>
+
+    {!fichas.length ? <p className="skills-vazio">Nenhuma habilidade no catálogo.</p> : visao === "grade" ? (
+      <div className="skills-grade">
+        {fichas.map((f) => <article key={f.skill.id} className={`skill-card ${f.privado ? "skill-privado" : ""}`}>
+          <div className="skill-topo">
+            <span className="skill-glifo"><Glifo d={f.glifo} /></span>
+            <span className="skill-meta font-mono">
+              <i className="skill-ponto" />
+              <span className="skill-nivel">{f.nivel}</span>
+              <span>{f.versao}</span>
+            </span>
+          </div>
+          <h3 className="skill-nome">{f.skill.name}</h3>
+          <p className="skill-desc">{f.skill.description}</p>
+          <div className="skill-pe">
+            <div className="skill-filete" />
+            <div className="skill-campo font-mono"><span className="skill-rot">ativa</span><span className="skill-val">{f.gatilhos || "—"}</span></div>
+            <div className="skill-campo font-mono"><span className="skill-rot">usa</span><span className="skill-val"><b>{f.tool}</b>{f.maisTools && <span className="skill-mais"> {f.maisTools}</span>}</span></div>
+          </div>
+        </article>)}
+      </div>
+    ) : (
+      <div className="skills-lista">
+        <div className="skill-linha skill-linha--cabeca font-mono" aria-hidden="true">
+          <span />
+          <span>Habilidade</span>
+          <span className="skill-oculta-sm">O que faz</span>
+          <span className="skill-oculta-md skill-oculta-sm">Ativa com</span>
+          <span className="skill-oculta-sm">Ferramentas</span>
+          <span style={{ textAlign: "right" }}>Nível</span>
+        </div>
+        {fichas.map((f) => <article key={f.skill.id} className={`skill-linha skill-linha--item ${f.privado ? "skill-privado" : ""}`}>
+          <span className="skill-glifo"><Glifo d={f.glifo} tamanho={18} /></span>
+          <span className="skill-nome">{f.skill.name}</span>
+          <span className="skill-desc skill-oculta-sm">{f.skill.description}</span>
+          <span className="skill-cel font-mono skill-oculta-md skill-oculta-sm">{f.gatilhos || "—"}</span>
+          <span className="skill-cel font-mono skill-oculta-sm"><b>{f.tool}</b>{f.maisTools && <span className="skill-mais"> {f.maisTools}</span>}</span>
+          <span className="skill-nivel-cel font-mono"><i className="skill-ponto" />{f.nivel} {f.versao}</span>
+        </article>)}
+      </div>
+    )}
+  </div>{wizard && <SkillWizard data={data} close={() => setWizard(false)} saved={reload} fail={fail} />}</div>;
 }
 
 const emptyCampaign = { id: null, nome: "", status: "draft", objetivo: "", oferta: "", publico: "", resultado: "", padrao: false, fontes: "keyword:", skillIds: [], collectionIds: [] };

@@ -8,9 +8,16 @@
 /* 200px e não 260px: com o menu aberto numa tela de 1440 sobram 1120px para o
    grid, e a 260 isso dá QUATRO colunas — a quinta só entrava a partir de uns
    1690px de tela. A 200 com gap 14 cabem cinco em 1440, seis com o menu
-   recolhido, sete em 1920. O `1fr` continua esticando os cards para preencher,
-   então 200 é o piso da conta, não a largura final. */
-.agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 14px; align-items: stretch; }
+   recolhido, sete em 1920.
+
+   auto-FILL e não auto-fit, e essa palavra é a regra inteira: `minmax` só põe
+   PISO, nunca teto. Com auto-fit a trilha vazia COLAPSA e as que sobram
+   esticam para ocupar a linha — três agentes numa tela de 1920 viravam três
+   cartazes de 524px cada, ou seja, quanto MENOS agentes, maior o card. Com
+   auto-fill a trilha vazia fica reservada e o card mede ~215px com três
+   agentes ou com trinta. Em troca, sobram espaços vazios à direita quando há
+   poucos — que é o que um catálogo deve mesmo mostrar. */
+.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 14px; align-items: stretch; }
 .agent-card { --agent-color: var(--el-accent-forte); display: flex; flex-direction: column; min-width: 0; padding: 10px 10px 0; border-radius: 14px; border: 1px solid var(--el-line-strong); background: var(--el-bg); text-align: left; overflow: hidden; transition: border-color .18s, box-shadow .18s, transform .18s; }
 .agent-card:hover { border-color: var(--agent-color); transform: translateY(-3px); box-shadow: 0 12px 28px #10182c14; }
 .agent-card--principal { --agent-color: #087f78; border-color: color-mix(in srgb, var(--agent-color) 55%, var(--el-line)); background: linear-gradient(155deg, color-mix(in srgb, var(--agent-color) 8%, var(--el-bg)), var(--el-bg)); }

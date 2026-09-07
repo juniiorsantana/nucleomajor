@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    * { box-sizing: border-box; }
+
+    .card {
+      --ac: #087f78;
+      display: flex; flex-direction: column;
+      border: 1px solid #6caeac; background: linear-gradient(155deg, #ebf5f4, #ffffff);
+      text-align: left; overflow: hidden;
+    }
+    .ap {
+      position: relative; aspect-ratio: 1.3; overflow: hidden;
+      background-color: #eeebff; background-image: url('./team.jpg');
+      background-size: 300% auto; background-repeat: no-repeat; background-position: left 32%;
+    }
+    .selo, .coroa {
+      position: absolute; display: inline-flex; align-items: center;
+      border-radius: 99px; line-height: 1; color: #f1f5f9;
+      border: 1px solid #ffffff28; background: #101820d9;
+    }
+    .selo > i { background: #2fe2ad; border-radius: 50%; }
+    .coroa { color: #ffdf8b; background: #292212ed; border-color: #f0bf5c55; }
+
+    .corpo { flex: 1; display: flex; flex-direction: column; }
+    .ident { display: flex; align-items: center; }
+    .rico { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--ac); background: #e1f0ef; }
+    .ident h3 { margin: 0; font-weight: 600; overflow-wrap: anywhere; color: #121730; }
+    .ident p { color: #667085; }
+    .desc { color: #667085; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .tags { display: flex; flex-wrap: wrap; margin-top: auto; }
+    .tags span { font-weight: 500; color: var(--ac); background: #e6f2f2; border-radius: 99px; }
+    .act { display: flex; align-items: center; border-top: 1px solid #e6e9ed; color: var(--ac); font-weight: 600; }
+    .act .fim { margin-left: auto; }
+
+    /* HOJE */
+    .hoje.card { width: 268px; padding: 12px 12px 0; border-radius: 17px; }
+    .hoje .ap { border-radius: 12px; }
+    .hoje .selo, .hoje .coroa { gap: 7px; padding: 6px 10px; font-size: 11px; }
+    .hoje .selo { top: 9px; right: 9px; } .hoje .selo > i { width: 8px; height: 8px; }
+    .hoje .coroa { bottom: 9px; left: 9px; }
+    .hoje .corpo { padding: 16px 7px 0; }
+    .hoje .ident { gap: 11px; }
+    .hoje .rico { width: 45px; height: 45px; border-radius: 15px; }
+    .hoje .ident h3 { font-size: 16px; line-height: 1.4; }
+    .hoje .ident p { margin: 3px 0 0; font-size: 12px; }
+    .hoje .desc { font-size: 13px; line-height: 1.8; margin: 17px 0 15px; }
+    .hoje .tags { gap: 6px; padding-bottom: 15px; }
+    .hoje .tags span { font-size: 10px; padding: 7px 10px; }
+    .hoje .act { gap: 10px; padding: 16px 0; font-size: 12px; }
+
+    /* PROPOSTA */
+    .prop.card { width: 213px; padding: 10px 10px 0; border-radius: 14px; }
+    .prop .ap { border-radius: 10px; }
+    .prop .selo, .prop .coroa { gap: 6px; padding: 5px 8px; font-size: 10px; }
+    .prop .selo { top: 7px; right: 7px; } .prop .selo > i { width: 7px; height: 7px; }
+    .prop .coroa { bottom: 7px; left: 7px; }
+    .prop .corpo { padding: 13px 5px 0; }
+    .prop .ident { gap: 9px; }
+    .prop .rico { width: 38px; height: 38px; border-radius: 12px; }
+    .prop .ident h3 { font-size: 14.5px; line-height: 1.35; }
+    .prop .ident p { margin: 2px 0 0; font-size: 11.5px; }
+    .prop .desc { font-size: 12px; line-height: 1.65; margin: 13px 0 11px; }
+    .prop .tags { gap: 5px; padding-bottom: 12px; }
+    .prop .tags span { font-size: 9.5px; padding: 5px 8px; }
+    .prop .act { gap: 9px; padding: 13px 0; font-size: 11.5px; }
+
+    .rot { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #121730; }
+    .rot em { font-style: normal; font-size: 11.5px; font-weight: 500; color: #98a2b3; }
+
+    table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    th { text-align: left; padding: 0 0 7px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3; }
+    td { padding: 7px 0; border-top: 1px solid #e6e9ed; color: #667085; }
+    td:first-child { color: #121730; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.novo { color: #3d29db; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 600px; height: 780px; background: #ffffff; padding: 28px; color: #121730">
+
+  <div style="display: flex; align-items: flex-start; gap: 36px">
+
+    <div>
+      <p class="rot">Hoje <em>268 × 458</em></p>
+      <div class="hoje card">
+        <div class="ap">
+          <span class="selo"><i></i>Ativo</span>
+          <span class="coroa"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"></path><path d="M5 21h14"></path></svg>Principal</span>
+        </div>
+        <div class="corpo">
+          <div class="ident">
+            <span class="rico"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></span>
+            <div style="min-width: 0"><h3>Assistente Major</h3><p>Atendimento</p></div>
+          </div>
+          <p class="desc">Recebe cada pessoa com atenção, entende o que ela precisa e conduz para o próximo passo certo — sem pressa, sem parecer um robô de menu.</p>
+          <div class="tags"><span>Clientes</span><span>Recepção</span></div>
+          <span class="act">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>
+            Configurar agente
+            <svg class="fim" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="rot">Proposta <em>213 × 372</em></p>
+      <div class="prop card">
+        <div class="ap">
+          <span class="selo"><i></i>Ativo</span>
+          <span class="coroa"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"></path><path d="M5 21h14"></path></svg>Principal</span>
+        </div>
+        <div class="corpo">
+          <div class="ident">
+            <span class="rico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></span>
+            <div style="min-width: 0"><h3>Assistente Major</h3><p>Atendimento</p></div>
+          </div>
+          <p class="desc">Recebe cada pessoa com atenção, entende o que ela precisa e conduz para o próximo passo certo — sem pressa, sem parecer um robô de menu.</p>
+          <div class="tags"><span>Clientes</span><span>Recepção</span></div>
+          <span class="act">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg>
+            Configurar agente
+            <svg class="fim" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table style="margin-top: 28px">
+    <thead>
+      <tr><th>O que muda</th><th class="num" style="width: 92px">Hoje</th><th class="num" style="width: 92px">Proposta</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Largura mínima no grid</td><td class="num">260px</td><td class="num novo">200px</td></tr>
+      <tr><td>Espaço entre cards</td><td class="num">16px</td><td class="num novo">14px</td></tr>
+      <tr><td>Ícone do papel</td><td class="num">45px</td><td class="num novo">38px</td></tr>
+      <tr><td>Nome do agente</td><td class="num">16px</td><td class="num novo">14,5px</td></tr>
+      <tr><td>Descrição (3 linhas nas duas)</td><td class="num">13 / 1,8</td><td class="num novo">12 / 1,65</td></tr>
+      <tr><td>Tags e rodapé</td><td class="num">10 e 12px</td><td class="num novo">9,5 e 11,5px</td></tr>
+      <tr><td>Raio do card</td><td class="num">17px</td><td class="num novo">14px</td></tr>
+    </tbody>
+  </table>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":600,"height":780}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

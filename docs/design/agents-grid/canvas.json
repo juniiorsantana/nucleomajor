@@ -1,0 +1,31 @@
+{
+  "artboards": [
+    { "file": "Antes.dc.html", "x": 0, "y": 0, "w": 1224, "h": 1340, "title": "Como está hoje — 4 colunas" },
+    { "file": "Main.dc.html", "x": 1344, "y": 0, "w": 1760, "h": 1280, "title": "Proposta — arraste a largura", "is_interactive": true },
+    { "file": "Cartao.dc.html", "x": 0, "y": 1460, "w": 600, "h": 780, "title": "O card, lado a lado" }
+  ],
+  "annotations": [
+    {
+      "id": "hoje",
+      "x": 0,
+      "y": -140,
+      "w": 340,
+      "text": "Hoje o grid é minmax(260px, 1fr) com gap 16. Numa tela de 1440 com o menu aberto sobram 1120px — dá 4 colunas. Para 5 caberem seria preciso uma tela de ~1690px."
+    },
+    {
+      "id": "proposta",
+      "x": 1344,
+      "y": -190,
+      "w": 470,
+      "text": "O QUE FALTAVA: trocar auto-fit por auto-fill.\n\nCom auto-fit a trilha vazia COLAPSA, e as que sobram esticam para preencher a linha. Com 3 agentes numa tela de 1920, cada card virava um cartaz de 524px — foi o que você viu no print. O mínimo de 200px nunca foi o problema: ele é piso, não teto.\n\nCom auto-fill a trilha vazia fica reservada e o card mede 216px, com 3 agentes ou com 30.\n\nTroque o controle \"encaixe\" entre auto-fill e auto-fit e olhe a pílula da largura do card."
+    },
+    {
+      "id": "cartao",
+      "x": 660,
+      "y": 1460,
+      "w": 340,
+      "text": "Tudo encolhe junto, como você escolheu: o retrato continua, a descrição continua em 3 linhas. O card fica 19% mais estreito e 19% mais baixo."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
