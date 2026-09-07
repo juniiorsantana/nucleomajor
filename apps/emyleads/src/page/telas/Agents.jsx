@@ -105,18 +105,18 @@ function CartaoAgent({ agent, ativo, aoAbrir, skills = [] }) {
       className={`agent-card ${agent.isDefault ? "agent-card--principal" : ""} ${agent.status === "inactive" ? "agent-card--inactive" : ""}`}
     >
       <div className={`agent-portrait ${portrait ? `agent-portrait--${portrait}` : "agent-portrait--fallback"}`}>
-        {!portrait && <Avatar agent={agent} tamanho={80} />}
+        {!portrait && <Avatar agent={agent} tamanho={62} />}
         <span className={`agent-status ${agent.status === "active" ? "agent-status--active" : ""}`}><span />{agent.status === "active" ? "Ativo" : "Inativo"}</span>
-        {agent.isDefault && <span className="agent-principal"><Crown size={15} />Principal</span>}
+        {agent.isDefault && <span className="agent-principal"><Crown size={13} />Principal</span>}
       </div>
       <div className="agent-card-body">
         <div className="agent-card-identity">
-          <span className="agent-role-icon"><Icon size={23} /></span>
+          <span className="agent-role-icon"><Icon size={20} /></span>
           <div className="min-w-0"><h3>{agent.name}</h3><p>{agent.role || rotuloDeAudiencia(agent.audience)}</p></div>
         </div>
         <p className="agent-card-description">{description}</p>
         <div className="agent-tags"><span>{rotuloDeAudiencia(agent.audience)}</span>{skills.slice(0, 2).map(skill => <span key={skill.id}>{skill.name}</span>)}{skills.length > 2 && <span>+{skills.length - 2}</span>}</div>
-        <span className="agent-card-action"><MessageCircle size={18} />Configurar agente<ChevronRight size={18} /></span>
+        <span className="agent-card-action"><MessageCircle size={16} />Configurar agente<ChevronRight size={16} /></span>
       </div>
     </button>
   );
