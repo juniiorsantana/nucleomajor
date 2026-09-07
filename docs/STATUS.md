@@ -62,6 +62,8 @@ MCP passou com 50 testes no seu próprio ambiente virtual.
 **Não observado:** transferência WhatsApp real. A consulta ao journal desde
 o deploy não encontrou `conversation.agent_handoff`, `Traceback` ou
 `ModuleNotFoundError`; isso não substitui a prova de dois turnos reais.
+Essa prova foi adiada para terça-feira, quando a credencial do Claude estiver
+disponível.
 
 **Pré-check de produção devolvido pelo usuário:** hashes de payload/v2/v3
 conferem com os baselines provados; RPC e coluna da 14 ainda ausentes. Slug

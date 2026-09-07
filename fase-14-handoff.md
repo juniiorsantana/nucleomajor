@@ -8,7 +8,7 @@
 - [x] Commit nos dois repositórios e conferir ancestralidade local/remota/VPS.
 - [x] Aplicar 14B/14C pelo SQL Editor, conferir hashes e publicar as duas skills.
 - [x] Publicar e validar o runtime na VPS (`0ae2b38`, ativo, zero reinícios).
-- [ ] Observar WhatsApp real, registrar STATUS e integrar main.
+- [ ] Observar WhatsApp real (aguardando token do Claude na terça), registrar STATUS e integrar main.
 
 Concluída somente com banco, payload, runtime e skill em produção e handoff real.
 
