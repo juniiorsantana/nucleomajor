@@ -10,6 +10,9 @@ const contato = (tags = []) => ({ id: "c1", tags });
 const msg = (id, texto = "Olá") => ({ id, tipo: "enviar_mensagem", texto });
 const tag = (id, adicionar = [], remover = []) => ({ id, tipo: "editar_etiquetas", adicionar, remover });
 const transferir = (id, destino = "ia", motivo = "", extra = {}) => ({ id, tipo: "transferir", destino, motivo, ...extra });
+const condicao = (id, expressao) => ({ id, tipo: "condicao", expressao });
+const encerrar = (id) => ({ id, tipo: "encerrar" });
+const ligarPor = (source, saida, target) => ({ source, saida, target });
 
 describe("plano de execução", () => {
   it("para na primeira mensagem e guarda o resto", () => {
@@ -112,6 +115,51 @@ describe("a ordem vem do grafo", () => {
     const plano = planoDosPassos(bot([msg("m1"), tag("solto", ["nunca"])], canvas), contato());
     expect(plano.mensagem).toBe("Olá");
     expect(plano.restantes).toEqual([]);
+  });
+});
+
+describe("execução do canvas v3", () => {
+  const fluxo = (expressao) => {
+    const passos = [
+      condicao("decisao", expressao),
+      tag("marca-sim", ["atendido"]),
+      tag("marca-nao", ["pendente"]),
+      msg("resposta"),
+      encerrar("fim"),
+    ];
+    return bot(passos, {
+      versao: 3,
+      nos: [],
+      conexoes: [
+        ligar(NO_ENTRADA, NO_CONDICOES),
+        ligar(NO_CONDICOES, "decisao"),
+        ligarPor("decisao", "sim", "marca-sim"),
+        ligarPor("decisao", "nao", "marca-nao"),
+        ligar("marca-sim", "resposta"),
+        ligar("marca-nao", "resposta"),
+        ligar("resposta", "fim"),
+      ],
+    });
+  };
+
+  it("segue a porta sim e converge no caminho comum", () => {
+    const plano = planoDosPassos(
+      fluxo({ tipo: "tem_etiqueta", etiquetaId: "vip" }),
+      { contato: contato(["vip"]), negocios: [], tarefas: [], notas: [], eventos: [], agora: 10 }
+    );
+
+    expect(plano.tagsFinais).toEqual(["vip", "atendido"]);
+    expect(plano.mensagem).toBe("Olá");
+  });
+
+  it("segue a porta não sem executar o ramo sim", () => {
+    const plano = planoDosPassos(
+      fluxo({ operador: "ou", itens: [{ tipo: "tem_etiqueta", etiquetaId: "vip" }] }),
+      { contato: contato(), negocios: [], tarefas: [], notas: [], eventos: [], agora: 10 }
+    );
+
+    expect(plano.tagsFinais).toEqual(["pendente"]);
+    expect(plano.etiquetas).toEqual(["pendente"]);
   });
 });
 

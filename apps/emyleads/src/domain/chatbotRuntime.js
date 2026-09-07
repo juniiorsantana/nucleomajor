@@ -15,8 +15,9 @@
  * Enquanto nenhum bloco ramifica, os dois dão o mesmo caminho.
  */
 
-import { caminhoDoGrafo, conexoesDoChatbot } from "./chatbotGrafo.js";
+import { conexoesDoChatbot, NO_CONDICOES, SAIDA_PADRAO } from "./chatbotGrafo.js";
 import { TIPOS_PASSO } from "./chatbots.js";
+import { avaliarExpressao } from "./regras.js";
 
 /** Ordem de avaliação: o primeiro chatbot compatível vence. */
 export const ordenarChatbots = (chatbots) =>
@@ -43,14 +44,57 @@ export function proximaTransferencia(passos = []) {
   } : null;
 }
 
+const contextoDaExecucao = (entrada) => {
+  if (entrada?.contato) return entrada;
+  return {
+    contato: entrada || { tags: [] },
+    negocios: [],
+    tarefas: [],
+    notas: [],
+    eventos: [],
+    agora: Date.now(),
+  };
+};
+
+/** Resolve somente o caminho escolhido; uma convergência aparece uma única vez. */
+export function caminhoDaExecucao(chatbot, entrada) {
+  const contexto = contextoDaExecucao(entrada);
+  const porId = new Map((chatbot.passos || []).map((passo) => [passo.id, passo]));
+  const destinos = new Map(
+    conexoesDoChatbot(chatbot).map((conexao) => [
+      `${conexao.source}:${conexao.saida || SAIDA_PADRAO}`,
+      conexao.target,
+    ])
+  );
+  const caminho = [];
+  const visitados = new Set();
+  let atual = destinos.get(`${NO_CONDICOES}:${SAIDA_PADRAO}`);
+
+  while (atual && porId.has(atual) && !visitados.has(atual)) {
+    visitados.add(atual);
+    const passo = porId.get(atual);
+    caminho.push(passo);
+    if (passo.tipo === TIPOS_PASSO.condicao) {
+      const porta = avaliarExpressao(passo.expressao, contexto) ? "sim" : "nao";
+      atual = destinos.get(`${atual}:${porta}`);
+      continue;
+    }
+    if (passo.tipo === TIPOS_PASSO.encerrar || passo.tipo === TIPOS_PASSO.transferir) break;
+    atual = destinos.get(`${atual}:${SAIDA_PADRAO}`);
+  }
+  return caminho;
+}
+
 /**
  * O que este chatbot faz com este contato, agora.
  *
  * Para na primeira mensagem: o que vem depois fica em `restantes`, sinalizado
  * no canvas mas não executado nesta fase.
  */
-export function planoDosPassos(chatbot, contato) {
-  const caminho = caminhoDoGrafo(chatbot.passos || [], conexoesDoChatbot(chatbot));
+export function planoDosPassos(chatbot, entrada) {
+  const contexto = contextoDaExecucao(entrada);
+  const contato = contexto.contato;
+  const caminho = caminhoDaExecucao(chatbot, contexto);
   const atuais = new Set(contato.tags || []);
   const alteradas = new Set();
   let mensagem = null;

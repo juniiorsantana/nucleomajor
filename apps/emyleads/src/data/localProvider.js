@@ -614,7 +614,7 @@ async function prepararExecucao({ contactId, chatbotId, agora: instante = Date.n
     throw erro;
   }
 
-  const plano = planoDosPassos(bot, ficha.contato);
+  const plano = planoDosPassos(bot, { ...ficha, agora: instante });
   return {
     chatbotId: bot.id,
     nome: bot.nome,
@@ -634,7 +634,7 @@ async function avaliarChatbots({ contactId, agora: instante = Date.now() }) {
   const sugestoes = bots
     .filter((bot) => bot.ativo !== false && regraAtende(bot, { ...ficha, agora: instante }))
     .map((bot) => {
-      const plano = planoDosPassos(bot, ficha.contato);
+      const plano = planoDosPassos(bot, { ...ficha, agora: instante });
       return {
         chatbotId: bot.id,
         nome: bot.nome,
@@ -709,7 +709,7 @@ async function prepararAutomatico({ contactId, messageId, agora: instante = Date
   // esta mensagem. Não é erro: é a proteção funcionando.
   if (!reservou) return ignorar("reserva-ativa", bot);
 
-  const plano = planoDosPassos(bot, ficha.contato);
+  const plano = planoDosPassos(bot, { ...ficha, agora: instante });
   return {
     preparacao: {
       chatbotId: bot.id,
@@ -834,7 +834,7 @@ async function executarChatbot({ contactId, chatbotId, preparacao = null, mensag
       throw erro;
     }
 
-    const plano = planoDosPassos(bot, contato);
+    const plano = planoDosPassos(bot, { ...ficha, agora: instante });
     const proximoContato = plano.etiquetas.length
       ? { ...contato, tags: plano.tagsFinais, atualizadoEm: instante }
       : contato;
