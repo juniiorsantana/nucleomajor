@@ -7,7 +7,7 @@
 - [x] Executar cadeia em Postgres 17.9 descartável e comparar banco de controle.
 - [x] Commit nos dois repositórios e conferir ancestralidade local/remota/VPS.
 - [x] Aplicar 14B/14C pelo SQL Editor, conferir hashes e publicar as duas skills.
-- [ ] Publicar e validar o runtime.
+- [x] Publicar e validar o runtime na VPS (`0ae2b38`, ativo, zero reinícios).
 - [ ] Observar WhatsApp real, registrar STATUS e integrar main.
 
 Concluída somente com banco, payload, runtime e skill em produção e handoff real.
@@ -17,7 +17,7 @@ Recepção prioridade 1000/fallback=true; Vendas prioridade 100 preservada.
 As migrations foram aceitas pelos hashes normalizados e Recepção v2/Vendas v4
 foram publicadas. As unidades reais foram identificadas no `systemd --user`; o
 assistente e o bridge estão `active/running`, `NRestarts=0`, sobre a base
-`da11193`. Falta publicar e validar o runtime.
+`0ae2b38` para o assistente. Falta a transferência real e integração Git.
 
 Portal `9b2ef42` publicado em branch própria; runtime `0ae2b38` commitado, com
 bundle local. A revisão automática recusou o push do runtime para o remoto SSH;

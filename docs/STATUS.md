@@ -1,6 +1,6 @@
 # Estado atual
 
-## FASE 14 — banco e skills publicados; runtime e prova real pendentes (06/09/2026)
+## FASE 14 — banco, skills e runtime publicados; prova real pendente
 
 Branches isoladas `feature/fase-14-handoff` no portal e no runtime. A base do
 portal é `60c90ab`, igual a `origin/main` consultada nesta execução. A base do
@@ -49,7 +49,19 @@ sem a fase até concluir os aceites de produção.
 hash `e5648acb6408...`, e Vendas como v4, hash `422df18a36b7...`.
 Nova simulação confirmou ambas sem alteração.
 
-**Não observado/não publicado:** runtime em serviço e transferência WhatsApp real.
+**Runtime publicado:** após autorização explícita, release `0ae2b38` ativado
+em 06/09/2026 às 19:35 (America/Sao_Paulo), reiniciando apenas o assistente.
+Nova consulta confirmou HEAD `0ae2b386d46a5ce00700177d3fae816ca38e633b`,
+PID `125825`, `active/running` e `NRestarts=0`. Bridge preservado no PID
+`76260`, também ativo e sem reinícios. O release anterior foi preservado para
+rollback. A suíte do assistente passou com 374 testes na repetição integral;
+a primeira execução teve uma falha intermitente no teste de aviso ao operador,
+que passou isoladamente. A causa dessa intermitência não foi determinada.
+MCP passou com 50 testes no seu próprio ambiente virtual.
+
+**Não observado:** transferência WhatsApp real. A consulta ao journal desde
+o deploy não encontrou `conversation.agent_handoff`, `Traceback` ou
+`ModuleNotFoundError`; isso não substitui a prova de dois turnos reais.
 
 **Pré-check de produção devolvido pelo usuário:** hashes de payload/v2/v3
 conferem com os baselines provados; RPC e coluna da 14 ainda ausentes. Slug
@@ -77,13 +89,13 @@ As unidades rodam no `systemd --user`, esclarecendo a consulta anterior feita no
 gerenciador do sistema. `whatsapp-assistant@8ee1e6d0-a9d0-4041-b6ea-878716a34a71`
 está `active/running`, `NRestarts=0`, e o bridge equivalente também está
 `active/running`, `NRestarts=0`. O symlink ativo resolve para
-`/home/nucleo/releases/whatsapp-mcp-hardened/a6f769f`; o checkout está limpo em
-`da1119334727a3e86241c9ad1d52e2a6720e9bfc`, igual à base conferida antes da
-implementação. Nenhum serviço foi reiniciado.
+`/home/nucleo/releases/whatsapp-mcp-hardened/0ae2b38`. Antes da troca,
+o checkout foi conferido em `da1119334727a3e86241c9ad1d52e2a6720e9bfc`.
+O diretório `a6f769f` foi preservado como rollback. Apenas o assistente reiniciou.
 
-**A fase permanece aberta.** Publicação do runtime, conferência
-ActiveState/NRestarts, transferência real e integração da branch à main
-continuam pendentes.
+**A fase permanece aberta.** Transferência real e integração das branches
+continuam pendentes. O runtime está implantado na VPS; sua branch remota
+ainda precisa ser publicada antes da integração.
 
 Última revisão documental: **29/08/2026**.
 
