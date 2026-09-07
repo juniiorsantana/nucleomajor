@@ -119,6 +119,19 @@ describe("a ordem vem do grafo", () => {
 });
 
 describe("execução do canvas v3", () => {
+  it("avalia a condição depois da alteração de etiqueta", () => {
+    const pessoa = contato();
+    const fluxo = bot([
+      tag("marcar", ["vip"]), condicao("decidir", { tipo: "tem_etiqueta", etiquetaId: "vip" }),
+      msg("sim", "VIP"), msg("nao", "Comum"), encerrar("fim"),
+    ], { versao: 3, conexoes: [
+      ligar(NO_ENTRADA, NO_CONDICOES), ligar(NO_CONDICOES, "marcar"), ligar("marcar", "decidir"),
+      ligarPor("decidir", "sim", "sim"), ligarPor("decidir", "nao", "nao"),
+      ligar("sim", "fim"), ligar("nao", "fim"),
+    ] });
+    expect(planoDosPassos(fluxo, pessoa).mensagem).toBe("VIP");
+    expect(pessoa.tags).toEqual([]);
+  });
   const fluxo = (expressao) => {
     const passos = [
       condicao("decisao", expressao),

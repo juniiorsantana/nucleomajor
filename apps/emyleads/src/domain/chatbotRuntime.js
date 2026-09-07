@@ -58,7 +58,9 @@ const contextoDaExecucao = (entrada) => {
 
 /** Resolve somente o caminho escolhido; uma convergência aparece uma única vez. */
 export function caminhoDaExecucao(chatbot, entrada) {
-  const contexto = contextoDaExecucao(entrada);
+  const original = contextoDaExecucao(entrada);
+  const contexto = { ...original, contato: { ...original.contato, tags: [...(original.contato.tags || [])] } };
+  let antesDaMensagem = true;
   const porId = new Map((chatbot.passos || []).map((passo) => [passo.id, passo]));
   const destinos = new Map(
     conexoesDoChatbot(chatbot).map((conexao) => [
@@ -74,6 +76,13 @@ export function caminhoDaExecucao(chatbot, entrada) {
     visitados.add(atual);
     const passo = porId.get(atual);
     caminho.push(passo);
+    if (passo.tipo === TIPOS_PASSO.enviarMensagem) antesDaMensagem = false;
+    if (antesDaMensagem && passo.tipo === TIPOS_PASSO.editarEtiquetas) {
+      const tags = new Set(contexto.contato.tags);
+      for (const id of passo.remover || []) tags.delete(id);
+      for (const id of passo.adicionar || []) tags.add(id);
+      contexto.contato.tags = [...tags];
+    }
     if (passo.tipo === TIPOS_PASSO.condicao) {
       const porta = avaliarExpressao(passo.expressao, contexto) ? "sim" : "nao";
       atual = destinos.get(`${atual}:${porta}`);
