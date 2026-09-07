@@ -9,6 +9,7 @@ import {
   ultimoNoDoCaminho,
   validarGrafo,
 } from "./chatbotGrafo";
+import { saidasDoPasso } from "./chatbots";
 
 const passos = [
   { id: "mensagem", tipo: "enviar_mensagem", texto: "Olá" },
@@ -16,6 +17,7 @@ const passos = [
 ];
 
 const ligar = (source, target) => ({ source, saida: SAIDA_PADRAO, target });
+const ligarPor = (source, saida, target) => ({ source, saida, target });
 
 const caminhoValido = [
   ligar(NO_ENTRADA, NO_CONDICOES),
@@ -162,6 +164,51 @@ describe("validação do grafo", () => {
   it("exige que Nova mensagem ligue direto em Condições", () => {
     const solto = [ligar(NO_CONDICOES, "mensagem"), ligar("mensagem", "etiqueta")];
     expect(validarGrafo(passos, solto).erro).toMatch(/Nova mensagem/);
+  });
+});
+
+describe("contrato do canvas v3", () => {
+  const ramificados = [
+    { id: "decidir", tipo: "condicao", expressao: [{ tipo: "tarefa_atrasada" }] },
+    { id: "sim", tipo: "enviar_mensagem", texto: "Vamos resolver." },
+    { id: "nao", tipo: "editar_etiquetas", adicionar: [], remover: [] },
+    { id: "fim", tipo: "encerrar" },
+  ];
+  const grafo = [
+    ligar(NO_ENTRADA, NO_CONDICOES),
+    ligar(NO_CONDICOES, "decidir"),
+    ligarPor("decidir", "sim", "sim"),
+    ligarPor("decidir", "nao", "nao"),
+    ligar("sim", "fim"),
+    ligar("nao", "fim"),
+  ];
+
+  it("declara portas de condição, transferência para IA e término", () => {
+    expect(saidasDoPasso(ramificados[0])).toEqual(["sim", "nao"]);
+    expect(saidasDoPasso({ tipo: "transferir", destino: "ia" })).toEqual(["sucesso", "falha"]);
+    expect(saidasDoPasso({ tipo: "transferir", destino: "humano" })).toEqual([]);
+    expect(saidasDoPasso(ramificados[3])).toEqual([]);
+  });
+
+  it("aceita bifurcação e convergência em um DAG v3", () => {
+    const resultado = validarGrafo(ramificados, grafo, { versao: 3 });
+    expect(resultado.erro).toBeNull();
+    expect(new Set(resultado.ordem)).toEqual(new Set(ramificados.map((passo) => passo.id)));
+  });
+
+  it("exige todas as portas do bloco de condição", () => {
+    const semNao = grafo.filter((conexao) => !(conexao.source === "decidir" && conexao.saida === "nao"));
+    expect(validarGrafo(ramificados, semNao, { versao: 3 }).erro).toMatch(/saída.*não/i);
+  });
+
+  it("recusa caminho v3 sem terminal explícito", () => {
+    const lineares = [{ id: "mensagem", tipo: "enviar_mensagem", texto: "Oi" }];
+    const conexoes = [ligar(NO_ENTRADA, NO_CONDICOES), ligar(NO_CONDICOES, "mensagem")];
+    expect(validarGrafo(lineares, conexoes, { versao: 3 }).erro).toMatch(/saída.*padrão/i);
+  });
+
+  it("mantém o último passo implícito dos canvas antigos", () => {
+    expect(validarGrafo(passos, caminhoValido, { versao: 2 }).erro).toBeNull();
   });
 });
 

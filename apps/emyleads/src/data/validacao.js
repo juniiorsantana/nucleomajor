@@ -7,9 +7,14 @@
  */
 
 import { STATUS_NEGOCIO } from "../domain/types.js";
-import { TIPOS_CONDICAO } from "../domain/regras.js";
+import { OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../domain/regras.js";
 import { ALVOS_IA, DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "../domain/chatbots.js";
-import { SAIDA_PADRAO, VERSAO_CANVAS } from "../domain/chatbotGrafo.js";
+import {
+  SAIDA_PADRAO,
+  VERSAO_CANVAS,
+  VERSAO_CANVAS_RAMIFICADO,
+  validarGrafo,
+} from "../domain/chatbotGrafo.js";
 
 export const VERSAO_PACOTE = 1;
 
@@ -173,6 +178,35 @@ export function validarCondicao(condicao, nome = "Condição") {
   return condicao;
 }
 
+const LIMITE_PROFUNDIDADE_EXPRESSAO = 8;
+const LIMITE_ITENS_EXPRESSAO = 100;
+
+export function validarExpressaoCondicional(expressao, nome = "Expressão", estado = { total: 0 }, profundidade = 0) {
+  if (profundidade > LIMITE_PROFUNDIDADE_EXPRESSAO)
+    throw erro(`${nome} excede o limite de profundidade.`, nome);
+  if (Array.isArray(expressao)) {
+    if (!expressao.length) throw erro(`${nome} precisa ter ao menos uma condição.`, nome);
+    expressao.forEach((item, indice) =>
+      validarExpressaoCondicional(item, `${nome}[${indice}]`, estado, profundidade + 1)
+    );
+    return expressao;
+  }
+
+  objeto(expressao, nome);
+  estado.total += 1;
+  if (estado.total > LIMITE_ITENS_EXPRESSAO)
+    throw erro(`${nome} excede o limite de condições.`, nome);
+  if (!Object.hasOwn(expressao, "operador")) return validarCondicao(expressao, nome);
+  if (!Object.values(OPERADORES_LOGICOS).includes(expressao.operador))
+    throw erro(`${nome}.operador desconhecido.`, `${nome}.operador`);
+  if (!Array.isArray(expressao.itens) || !expressao.itens.length)
+    throw erro(`${nome} precisa ter ao menos uma condição.`, nome);
+  expressao.itens.forEach((item, indice) =>
+    validarExpressaoCondicional(item, `${nome}.itens[${indice}]`, estado, profundidade + 1)
+  );
+  return expressao;
+}
+
 export function validarPasso(passo, nome = "Passo") {
   objeto(passo, nome);
   id(passo.id, `${nome}.id`);
@@ -184,6 +218,10 @@ export function validarPasso(passo, nome = "Passo") {
     const remover = listaTextosUnica(passo.remover, `${nome}.remover`);
     if ([...adicionar].some((tagId) => remover.has(tagId)))
       throw erro(`${nome} não pode adicionar e remover a mesma etiqueta.`, nome);
+  } else if (passo.tipo === TIPOS_PASSO.condicao) {
+    validarExpressaoCondicional(passo.expressao, `${nome}.expressão`);
+  } else if (passo.tipo === TIPOS_PASSO.encerrar) {
+    // Bloco terminal sem configuração própria.
   } else if (passo.tipo === TIPOS_PASSO.transferir) {
     // O destino é uma lista fechada: um valor livre aqui viraria uma conversa
     // entregue a um dono que não existe, e o atendimento ficaria sem ninguém.
@@ -225,7 +263,7 @@ export function validarChatbot(chatbot, nome = "Chatbot") {
     // A v1 continua válida: registro gravado antes das saídas nomeadas é lido
     // como cadeia linear e regravado canônico no primeiro salvamento. Recusá-lo
     // aqui apagaria chatbot de quem só abriu a tela.
-    if (chatbot.canvas.versao !== 1 && chatbot.canvas.versao !== VERSAO_CANVAS)
+    if (![1, VERSAO_CANVAS, VERSAO_CANVAS_RAMIFICADO].includes(chatbot.canvas.versao))
       throw erro(`${nome}.canvas.versao inválida.`, `${nome}.canvas.versao`);
     if (!Array.isArray(chatbot.canvas.nos) || !Array.isArray(chatbot.canvas.conexoes))
       throw erro(`${nome}.canvas inválido.`, `${nome}.canvas`);
@@ -268,16 +306,27 @@ export function validarChatbot(chatbot, nome = "Chatbot") {
         throw erro(`${nome}.canvas possui conexão duplicada.`, `${nome}.canvas.conexoes`);
       pares.add(par);
     });
+    const resultadoGrafo = validarGrafo(chatbot.passos, chatbot.canvas.conexoes, {
+      versao: chatbot.canvas.versao,
+    });
+    if (resultadoGrafo.erro) throw erro(resultadoGrafo.erro, `${nome}.canvas.conexoes`);
   }
   return chatbot;
 }
 
 export function referenciasDeTagsDoChatbot(chatbot) {
   const ids = new Set();
+  const colherExpressao = (expressao) => {
+    if (Array.isArray(expressao)) return expressao.forEach(colherExpressao);
+    if (!expressao || typeof expressao !== "object") return;
+    if (Array.isArray(expressao.itens)) return expressao.itens.forEach(colherExpressao);
+    if (expressao.tipo === TIPOS_CONDICAO.temEtiqueta) ids.add(expressao.etiquetaId);
+  };
   for (const condicao of chatbot.condicoes || []) {
     if (condicao.tipo === TIPOS_CONDICAO.temEtiqueta) ids.add(condicao.etiquetaId);
   }
   for (const passo of chatbot.passos || []) {
+    if (passo.tipo === TIPOS_PASSO.condicao) colherExpressao(passo.expressao);
     if (passo.tipo !== TIPOS_PASSO.editarEtiquetas) continue;
     (passo.adicionar || []).forEach((idTag) => ids.add(idTag));
     (passo.remover || []).forEach((idTag) => ids.add(idTag));
