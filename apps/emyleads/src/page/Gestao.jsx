@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
@@ -46,28 +46,36 @@ function menuRecolhidoNoInicio() {
   }
 }
 
+/**
+ * `grupo` é o rótulo que o menu desenha acima do bloco, não uma chave.
+ *
+ * Onze destinos numa lista chapada é uma lista que ninguém varre: lê-se do
+ * começo toda vez. Quatro blocos de dois a quatro itens cada um cabem de
+ * relance. O rótulo vai no dado porque é aqui que a ORDEM vive — separar os
+ * dois criaria duas listas para manter em sincronia.
+ */
 const TELAS = [
   ...(PLATAFORMA_WEB
     ? [
-        { id: "assistente", rotulo: "Assistente", icone: Sparkles },
+        { id: "assistente", rotulo: "Assistente", icone: Sparkles, grupo: "Atendimento" },
         // Logo abaixo do Assistente, e não dentro de Contatos: é por onde o dia
         // começa, não uma sub-tela de quem já está cadastrado.
         //
         // Só no portal. Dentro da extensão a conversa já está na tela — é o
         // WhatsApp com o painel do EmyLeads do lado. Uma caixa de entrada
         // dentro dela seria a mesma conversa duas vezes.
-        { id: "conversas", rotulo: "Conversas", icone: MessageSquare },
+        { id: "conversas", rotulo: "Conversas", icone: MessageSquare, grupo: "Atendimento" },
       ]
     : []),
-  { id: "contatos", rotulo: "Contatos", icone: Users },
-  { id: "funil", rotulo: "Funil", icone: Filter },
-  { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig },
-  { id: "agenda", rotulo: "Agenda", icone: CalendarDays },
-  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Inteligência", icone: LibraryBig }] : []),
-  { id: "chatbots", rotulo: "Chatbots", icone: Bot },
-  { id: "conexoes", rotulo: "Conexões", icone: Cable },
-  { id: "equipe", rotulo: "Equipe", icone: UsersRound },
-  { id: "config", rotulo: "Configurações", icone: Settings },
+  { id: "contatos", rotulo: "Contatos", icone: Users, grupo: "Gestão" },
+  { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão" },
+  { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão" },
+  { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão" },
+  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Inteligência", icone: LibraryBig, grupo: "Automação" }] : []),
+  { id: "chatbots", rotulo: "Chatbots", icone: Bot, grupo: "Automação" },
+  { id: "conexoes", rotulo: "Conexões", icone: Cable, grupo: "Ambiente" },
+  { id: "equipe", rotulo: "Equipe", icone: UsersRound, grupo: "Ambiente" },
+  { id: "config", rotulo: "Configurações", icone: Settings, grupo: "Ambiente" },
 ];
 
 const VAZIO = {
@@ -267,7 +275,7 @@ function AvisoMigracao({ migracao }) {
  * segue a mesma separação do modelo de dados: quem você é em cima, em que
  * empresa você está embaixo.
  */
-function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta }) {
+function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) {
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -300,19 +308,32 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta }) {
 
   return (
     <div className="relative">
-      <button onClick={() => setAberto(!aberto)} className="flex w-full cursor-pointer items-center gap-2.5 rounded-[12px] border border-line px-3 py-2.5 text-left hover:bg-surface-hover">
+      <button
+        onClick={() => setAberto(!aberto)}
+        title={recolhido ? `${apelido} · ${sessao.organizacaoAtual.name}` : undefined}
+        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[12px] text-left transition-colors hover:bg-surface-hover ${
+          recolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"
+        }`}
+      >
         <Iniciais nome={perfil?.full_name || apelido} tamanho={30} cor={cor} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
-          <span className="block truncate text-[11.5px] text-sub">
-            {sessao.organizacaoAtual.name}
-            {papel && ` · ${papel}`}
-          </span>
-        </span>
-        <ChevronDown size={15} className={`flex-none text-sub transition-transform ${aberto ? "rotate-180" : ""}`} />
+        {!recolhido && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
+              <span className="block truncate text-[11.5px] text-sub">
+                {sessao.organizacaoAtual.name}
+                {papel && ` · ${papel}`}
+              </span>
+            </span>
+            <ChevronDown size={15} className={`flex-none text-sub transition-transform ${aberto ? "rotate-180" : ""}`} />
+          </>
+        )}
       </button>
       {aberto && (
-        <div className="absolute bottom-[calc(100%+8px)] left-0 right-0 z-20 overflow-hidden rounded-[10px] border border-line bg-bg p-1 shadow-xl">
+        // Recolhido o rodapé mede 44px: o menu abriria espremido contra a
+        // borda. Largura própria, ancorada à esquerda, e ele cresce por cima
+        // do conteúdo — que é para onde há espaço.
+        <div className={`absolute bottom-[calc(100%+8px)] left-0 z-20 overflow-hidden rounded-[10px] border border-line bg-bg p-1 shadow-xl ${recolhido ? "w-[248px]" : "right-0"}`}>
           <div className="flex items-center gap-2.5 px-2.5 py-2">
             <Iniciais nome={perfil?.full_name || apelido} tamanho={32} cor={cor} />
             <span className="min-w-0 flex-1">
@@ -497,31 +518,42 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         desenhado. A diferença importa: `Rail` desenha duas navegações, a de
         computador e a barra de baixo do celular, e a do celular é
         `position: fixed` — está fora do fluxo, e por isso continua inteira
-        quando esta caixa fecha para zero. Deixar de desenhar `Rail` levaria a
+        quando esta caixa encolhe. Deixar de desenhar `Rail` levaria a
         navegação do celular junto, e no celular não há menu lateral para
         recolher: só a barra de baixo, que é a única forma de navegar.
 
-        `w-0 md:w-64` e não `w-auto`: no celular esta caixa precisa medir zero
+        `w-0 md:...` e não `w-auto`: no celular esta caixa precisa medir zero
         SEMPRE — lá dentro só há a navegação escondida do computador e a barra
         fixa de baixo, e uma largura automática que um dia medisse diferente
-        abriria uma coluna vazia de 256px na tela do celular. A largura fixa é
-        também o que torna a animação possível: o CSS não interpola de `auto`
-        para zero.
+        abriria uma coluna vazia na tela do celular. A largura fixa é também o
+        que torna a animação possível: o CSS não interpola de `auto` para zero.
+
+        Recolhido são 68px e não zero: 44px de alvo mais os 12px de respiro de
+        cada lado. Cabe o ícone, a marca e o avatar da conta — some o texto,
+        não a navegação.
+
+        Sem `overflow-hidden`: a dica que devolve o rótulo no modo ícone vive
+        FORA da barra, à direita, e um recorte aqui a comeria. Ela não precisa
+        mais existir: a `nav` lá dentro é `w-full` e acompanha esta largura em
+        vez de estourar dela.
       */}
       {!editorDeChatbotAberto && (
       <div
-        className={`flex-none overflow-hidden transition-[width] duration-200 ${
-          menuRecolhido ? "w-0" : "w-0 md:w-64"
+        className={`flex-none transition-[width] duration-200 ${
+          menuRecolhido ? "w-0 md:w-[68px]" : "w-0 md:w-64"
         }`}
       >
       <Rail
         telas={TELAS}
         ativa={tela}
         aoTrocar={trocarTela}
+        recolhido={menuRecolhido}
+        aoAlternar={alternarMenu}
         rodape={
           sessao ? (
             <RodapeWorkspace
               sessao={sessao}
+              recolhido={menuRecolhido}
               aoAbrirConta={() => trocarTela("conta")}
               aoTrocar={async (proximo) => {
                 setDados(null);
@@ -537,12 +569,17 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               }}
             />
           ) : (
-            <div className="flex items-center gap-2.5 rounded-[12px] border border-line px-3 py-2.5">
+            <div
+              className={`flex items-center gap-2.5 rounded-[12px] ${menuRecolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"}`}
+              title={menuRecolhido ? `EmyLeads · ${dados ? `${dados.contatos.length} contatos` : "carregando"}` : undefined}
+            >
               <Marca tamanho={30} texto={false} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold text-fg">EmyLeads</div>
-                <div className="truncate text-[11.5px] text-sub">{dados ? `${dados.contatos.length} contatos` : "Carregando…"}</div>
-              </div>
+              {!menuRecolhido && (
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-fg">EmyLeads</div>
+                  <div className="truncate text-[11.5px] text-sub">{dados ? `${dados.contatos.length} contatos` : "Carregando…"}</div>
+                </div>
+              )}
             </div>
           )
         }
@@ -551,34 +588,14 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
       )}
 
       {/*
-        O punho que recolhe e traz de volta.
+        A calha de 16px que segurava o punho saiu daqui.
 
-        Coluna estreita e própria, e não um botão flutuante sobre o conteúdo:
-        cada tela desenha o próprio cabeçalho no canto superior esquerdo — o
-        título de Contatos, a lista de Conversas — e um botão por cima
-        acertaria um deles em cheio. Dezesseis pixels custam menos que isso.
-
-        Só em computador: no celular a navegação é a barra de baixo, e não há
-        menu lateral para recolher.
+        Ela existia porque o punho não tinha onde morar: um botão flutuante
+        sobre o conteúdo acertaria em cheio o cabeçalho que cada tela desenha
+        no canto superior esquerdo. Mas com o menu recolhido virando barra de
+        ícones, há um lugar melhor — dentro do próprio menu, embaixo da marca,
+        onde o punho tem âncora e não disputa espaço com ninguém.
       */}
-      {!editorDeChatbotAberto && (
-        <div className="hidden flex-none justify-center pt-4 md:flex md:w-4">
-          <button
-            onClick={alternarMenu}
-            title={`${menuRecolhido ? "Mostrar" : "Esconder"} o menu (Ctrl+B)`}
-            aria-label={menuRecolhido ? "Mostrar o menu" : "Esconder o menu"}
-            aria-expanded={!menuRecolhido}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[8px] text-faint transition-colors hover:bg-surface-hover hover:text-fg"
-          >
-            {menuRecolhido ? (
-              <ChevronsRight size={15} strokeWidth={2.2} />
-            ) : (
-              <ChevronsLeft size={15} strokeWidth={2.2} />
-            )}
-          </button>
-        </div>
-      )}
-
       <main className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
         <AvisoMigracao migracao={migracaoPendente} />
         {erro ? (

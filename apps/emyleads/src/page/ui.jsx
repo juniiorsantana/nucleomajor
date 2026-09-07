@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef } from "react";
-import { ChevronDown } from "lucide-react";
+import { Fragment, useEffect, useId, useRef } from "react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 /**
  * Peças da página de gestão.
@@ -105,35 +105,124 @@ export function SeloWhatsApp({ tamanho = 16 }) {
 
 /* ------------------------------------------------------------------ */
 
-export function Rail({ telas, ativa, aoTrocar, rodape }) {
+/**
+ * Agrupa as telas em blocos CONSECUTIVOS de mesmo `grupo`.
+ *
+ * Consecutivo, e não por chave, porque a lista já chega na ordem em que se
+ * quer ler. Um grupo que some inteiro na extensão (Atendimento só existe no
+ * portal) simplesmente não aparece, sem precisar de tabela paralela.
+ */
+function agruparTelas(telas) {
+  const grupos = [];
+  telas.forEach((t) => {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.rotulo === t.grupo) ultimo.telas.push(t);
+    else grupos.push({ rotulo: t.grupo || "", telas: [t] });
+  });
+  return grupos;
+}
+
+/**
+ * O punho que recolhe o menu.
+ *
+ * `PanelLeftClose` e não `ChevronsLeft`: chevron duplo é o desenho de
+ * «voltar», e voltar não é o que acontece. Painel quer dizer painel.
+ */
+function PunhoDoMenu({ recolhido, aoAlternar }) {
+  const Icone = recolhido ? PanelLeftOpen : PanelLeftClose;
+  return (
+    <button
+      onClick={aoAlternar}
+      title={`${recolhido ? "Mostrar" : "Esconder"} o menu (Ctrl+B)`}
+      aria-label={recolhido ? "Mostrar o menu" : "Esconder o menu"}
+      aria-expanded={!recolhido}
+      className="flex h-7 w-7 flex-none cursor-pointer items-center justify-center rounded-[8px] text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+    >
+      <Icone size={18} strokeWidth={1.9} />
+    </button>
+  );
+}
+
+/**
+ * Navegação principal.
+ *
+ * Recolhido o menu vira uma BARRA DE ÍCONES de 68px, e não um vazio: quem
+ * recolhe quer espaço para a tela larga, não quer perder de vista onde está
+ * nem como voltar. A marca, os onze destinos e a conta continuam na tela — o
+ * que sai é só o texto, que a dica ao passar o mouse devolve.
+ *
+ * A largura de verdade quem anima é quem envolve (`Gestao`); aqui a `nav` é
+ * `w-full` para acompanhar. Por isso NÃO pode haver `overflow` no caminho até
+ * a dica: ela vive fora da barra, à direita.
+ */
+export function Rail({ telas, ativa, aoTrocar, rodape, recolhido = false, aoAlternar = null }) {
+  const grupos = agruparTelas(telas);
+
   return (
     <>
-      <nav aria-label="Navegação principal" className="hidden w-64 flex-none flex-col border-r border-line bg-bg md:flex">
-        <div className="px-5 pb-2 pt-5">
-          <Marca />
+      <nav aria-label="Navegação principal" className="relative z-30 hidden h-full w-full flex-none flex-col border-r border-line bg-bg md:flex">
+        <div className={`flex h-16 flex-none items-center gap-2.5 ${recolhido ? "justify-center" : "pl-5 pr-3"}`}>
+          <Marca tamanho={32} texto={!recolhido} />
+          {!recolhido && aoAlternar && (
+            <span className="ml-auto flex">
+              <PunhoDoMenu recolhido={false} aoAlternar={aoAlternar} />
+            </span>
+          )}
         </div>
 
-        <div className="flex flex-1 flex-col gap-1 px-3 pt-4">
-          {telas.map((t) => {
-            const on = t.id === ativa;
-            return (
-              <button
-                key={t.id}
-                onClick={() => aoTrocar(t.id)}
-                className={`flex cursor-pointer items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[14px] transition-colors ${
-                  on
-                    ? "bg-accent-soft font-semibold text-accent-forte"
-                    : "font-medium text-sub hover:bg-surface-hover hover:text-fg"
-                }`}
-              >
-                <t.icone size={19} strokeWidth={1.75} className="flex-none" />
-                {t.rotulo}
-              </button>
-            );
-          })}
+        {recolhido && aoAlternar && (
+          <div className="flex flex-none justify-center pb-2.5">
+            <PunhoDoMenu recolhido aoAlternar={aoAlternar} />
+          </div>
+        )}
+
+        {/* Só o menu aberto rola: a dica do modo ícone precisa escapar pela
+            direita, e `overflow-y: auto` recortaria ela junto. */}
+        <div className={`flex min-h-0 flex-1 flex-col gap-0.5 px-3 ${recolhido ? "pt-0.5" : "scrollbar-fina overflow-y-auto pb-2 pt-1"}`}>
+          {grupos.map((grupo, iGrupo) => (
+            <Fragment key={grupo.rotulo || iGrupo}>
+              {grupo.rotulo &&
+                (recolhido ? (
+                  iGrupo > 0 && <div className="mx-2 my-2.5 h-px flex-none bg-line" />
+                ) : (
+                  <p className={`flex-none px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-faint ${iGrupo > 0 ? "pt-4" : "pt-0.5"}`}>
+                    {grupo.rotulo}
+                  </p>
+                ))}
+              {grupo.telas.map((t) => {
+                const on = t.id === ativa;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => aoTrocar(t.id)}
+                    aria-current={on ? "page" : undefined}
+                    className={`group relative flex h-10 flex-none cursor-pointer items-center gap-3 rounded-[10px] text-left text-[14px] transition-colors ${
+                      recolhido ? "justify-center" : "px-3"
+                    } ${
+                      on
+                        ? "bg-accent-soft font-semibold text-accent-forte"
+                        : "font-medium text-sub hover:bg-surface-hover hover:text-fg"
+                    }`}
+                  >
+                    <t.icone size={19} strokeWidth={1.75} className="flex-none" />
+                    {recolhido ? (
+                      <>
+                        <span className="sr-only">{t.rotulo}</span>
+                        <span className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-[7px] bg-fg px-2.5 py-1.5 text-[12px] font-medium text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                          {t.rotulo}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="truncate">{t.rotulo}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </Fragment>
+          ))}
         </div>
 
-        {rodape && <div className="p-3">{rodape}</div>}
+        {rodape && <div className="flex-none p-3">{rodape}</div>}
       </nav>
       <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch gap-1 overflow-x-auto border-t border-line bg-bg/95 px-2 py-1.5 backdrop-blur md:hidden">
         {telas.map((t) => {
