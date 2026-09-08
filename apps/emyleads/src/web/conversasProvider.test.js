@@ -4,6 +4,7 @@ import { WORKSPACE_KEY } from "./storage.js";
 
 const ORGANIZATION_ID = "338e44ca-36ab-437c-b8ac-aa7c60fee64a";
 const CONNECTION_ID = "0f2a1b6c-9d3e-4f18-a5c7-2b8e6d4a1c90";
+const AVATAR_PATH = `organizations/${ORGANIZATION_ID}/contacts/contato-1/avatar.jpg`;
 
 /**
  * O construtor de consulta do supabase-js, o suficiente para este provider:
@@ -77,6 +78,7 @@ const CONTATOS = [
     phone: "(11) 8765-4321",
     company: "Alves Odontologia",
     job_title: "Sócia",
+    avatar_path: AVATAR_PATH,
   },
 ];
 
@@ -114,18 +116,37 @@ const MENSAGENS = [
   },
 ];
 
-function bancada({ workspace = ORGANIZATION_ID, rpc = null } = {}) {
+function bancada({
+  workspace = ORGANIZATION_ID,
+  rpc = null,
+  conversas = CONVERSAS,
+  contatos = CONTATOS,
+  assinatura = null,
+} = {}) {
   const chamadas = [];
   const respostas = {
-    whatsapp_conversations: CONVERSAS,
-    contacts: CONTATOS,
+    whatsapp_conversations: conversas,
+    contacts: contatos,
     whatsapp_messages: MENSAGENS,
   };
   const rpcs = [];
+  const criarUrlsAssinadas = vi.fn(async (caminhos, validade) => {
+    if (assinatura instanceof Error) throw assinatura;
+    if (assinatura?.error) return assinatura;
+    return {
+      data:
+        assinatura?.data ||
+        caminhos.map((path) => ({ path, signedUrl: `https://storage.test/${path}` })),
+      error: null,
+    };
+  });
   const supabase = {
     from: vi.fn((tabela) =>
       criarConsulta(tabela, { data: respostas[tabela], error: null }, chamadas)
     ),
+    storage: {
+      from: vi.fn(() => ({ createSignedUrls: criarUrlsAssinadas })),
+    },
     rpc: vi.fn(async (nome, argumentos) => {
       rpcs.push([nome, argumentos]);
       return rpc
@@ -134,7 +155,13 @@ function bancada({ workspace = ORGANIZATION_ID, rpc = null } = {}) {
     }),
   };
   const area = { get: vi.fn(async () => (workspace ? { [WORKSPACE_KEY]: workspace } : {})) };
-  return { operacoes: criarOperacoesConversasWeb({ supabase, area }), chamadas, supabase, rpcs };
+  return {
+    operacoes: criarOperacoesConversasWeb({ supabase, area }),
+    chamadas,
+    criarUrlsAssinadas,
+    supabase,
+    rpcs,
+  };
 }
 
 const consultaDe = (chamadas, tabela) => chamadas.find((c) => c.tabela === tabela);
@@ -157,6 +184,29 @@ describe("conversas.listar", () => {
       naoLidas: 2,
     });
     expect(primeira.hora).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it("assina os avatares dos contatos em um único lote", async () => {
+    const { operacoes, chamadas, criarUrlsAssinadas, supabase } = bancada();
+
+    const [primeira] = await operacoes["conversas.listar"]();
+
+    expect(consultaDe(chamadas, "contacts").campos).toContain("avatar_path");
+    expect(supabase.storage.from).toHaveBeenCalledOnce();
+    expect(supabase.storage.from).toHaveBeenCalledWith("contact-avatars");
+    expect(criarUrlsAssinadas).toHaveBeenCalledOnce();
+    expect(criarUrlsAssinadas).toHaveBeenCalledWith([AVATAR_PATH], 3600);
+    expect(primeira.fotoUrl).toBe(`https://storage.test/${AVATAR_PATH}`);
+  });
+
+  it("mantém a lista com iniciais quando a assinatura do avatar falha", async () => {
+    const { operacoes } = bancada({
+      assinatura: { data: null, error: { message: "storage indisponível" } },
+    });
+
+    await expect(operacoes["conversas.listar"]()).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ contactId: "contato-1", fotoUrl: null })])
+    );
   });
 
   it("mantém na lista quem ainda não foi cadastrado", async () => {
@@ -205,7 +255,12 @@ describe("conversas.mensagens", () => {
     expect(linhas[0].tipo).toBe("data");
 
     const bolhas = linhas.filter((l) => l.tipo === "mensagem");
-    expect(bolhas[0]).toMatchObject({ direcao: "entra", texto: "Bom dia!" });
+    expect(bolhas[0]).toMatchObject({
+      messageId: "wa-1",
+      direcao: "entra",
+      texto: "Bom dia!",
+      enviadaEm: new Date("2026-08-31T13:00:00.000Z").getTime(),
+    });
     // Legenda de imagem chega como conteúdo normal e ganha o rótulo junto.
     expect(bolhas[1].texto).toBe("📎 Imagem\nSegue a foto do dente");
     // Áudio sem texto vira só o rótulo — bolha vazia seria pior que dizer o tipo.
@@ -286,6 +341,15 @@ describe("grupo na lista", () => {
       contactId: null,
       naoLidas: 4,
     });
+  });
+
+  it("usa um rótulo legível quando o grupo nunca teve nome", async () => {
+    const semNome = { ...CONVERSAS.find((c) => c.chat_kind === "grupo"), contact_name: "   " };
+    const { operacoes } = bancada({ conversas: [semNome] });
+
+    const [grupo] = await operacoes["conversas.listar"]();
+
+    expect(grupo.nome).toBe("Grupo sem nome");
   });
 
   it("o identificador de grupo sobrevive à volta pelo id da tela", async () => {

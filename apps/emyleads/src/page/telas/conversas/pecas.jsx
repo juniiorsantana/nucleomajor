@@ -41,14 +41,27 @@ const FUNDO_DO_DONO = { bot: "bg-sub", ia: "bg-accent", humano: "bg-success" };
 const TEXTO_DO_DONO = { bot: "text-sub", ia: "text-accent", humano: "text-success" };
 const TOM_DO_AUTOR = { bot: "text-sub", ia: "text-accent-forte", humano: "text-accent" };
 
-export function AvatarComDono({ nome, dono, grupo = false, tamanho = 46 }) {
+export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho = 46 }) {
+  const [fotoCarregavel, setFotoCarregavel] = useState(Boolean(foto));
+  useEffect(() => setFotoCarregavel(Boolean(foto)), [foto]);
+
   // Grupo mostra o selo de grupo, e não o de dono: um grupo não tem
   // atendimento atribuído, e um selo de robô ali afirmaria que tem.
   const Icone = grupo ? Users : ICONE_DO_DONO[dono];
   const selo = Math.round(tamanho * 0.37);
   return (
     <span className="relative flex-none self-center">
-      <Iniciais nome={nome} tamanho={tamanho} />
+      {foto && fotoCarregavel ? (
+        <img
+          src={foto}
+          alt=""
+          className="flex-none rounded-full object-cover"
+          style={{ width: tamanho, height: tamanho }}
+          onError={() => setFotoCarregavel(false)}
+        />
+      ) : (
+        <Iniciais nome={nome} tamanho={tamanho} />
+      )}
       {Icone && (
         <span
           title={grupo ? "Grupo" : textoDoDono(dono)}
@@ -84,7 +97,12 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
         ativa ? "bg-accent-soft" : "hover:bg-surface"
       }`}
     >
-      <AvatarComDono nome={conversa.nome} dono={conversa.dono} grupo={conversa.grupo} />
+      <AvatarComDono
+        nome={conversa.nome}
+        foto={conversa.fotoUrl}
+        dono={conversa.dono}
+        grupo={conversa.grupo}
+      />
       {/* A divisória mora nesta coluna, e não na linha: é o que faz ela começar
           depois do avatar em vez de cortar a lista de ponta a ponta. */}
       <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px] border-b border-line py-2.5">

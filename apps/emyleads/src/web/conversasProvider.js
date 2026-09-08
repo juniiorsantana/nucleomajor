@@ -37,6 +37,9 @@ const CAMPOS_CONVERSA =
 const CAMPOS_MENSAGEM =
   "message_id,content,sent_at,is_from_me,media_type,media_filename";
 
+const BUCKET_AVATARES = "contact-avatars";
+const VALIDADE_AVATAR_SEGUNDOS = 60 * 60;
+
 /**
  * O que a bolha mostra quando a mensagem é mídia.
  *
@@ -94,6 +97,36 @@ function traduzir(mensagem) {
   const cru = String(mensagem || "");
   const achado = RECUSAS.find(([trecho]) => cru.includes(trecho));
   return achado ? achado[1] : cru;
+}
+
+/**
+ * Converte os caminhos privados dos contatos em URLs temporárias para a tela.
+ *
+ * Uma falha do Storage não pode derrubar a caixa de entrada: avatar é
+ * enriquecimento visual, e as iniciais continuam sendo um fallback completo.
+ */
+async function assinarAvatares(supabase, contatos) {
+  const caminhos = [
+    ...new Set(
+      contatos.map((contato) => String(contato.avatar_path || "").trim()).filter(Boolean)
+    ),
+  ];
+  if (caminhos.length === 0) return new Map();
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_AVATARES)
+      .createSignedUrls(caminhos, VALIDADE_AVATAR_SEGUNDOS);
+    if (error) return new Map();
+
+    return new Map(
+      (data || [])
+        .filter((arquivo) => arquivo?.path && arquivo?.signedUrl && !arquivo?.error)
+        .map((arquivo) => [arquivo.path, arquivo.signedUrl])
+    );
+  } catch {
+    return new Map();
+  }
 }
 
 /**
@@ -168,7 +201,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
   const listar = async () => {
     const organizationId = await organizacao();
     // As duas consultas em paralelo: a lista não depende dos contatos para
-    // existir, só para ganhar nome de CRM e ficha.
+    // existir, só para ganhar nome de CRM, ficha e avatar.
     const [conversas, contatos] = await Promise.all([
       executar(
         supabase
@@ -181,7 +214,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       executar(
         supabase
           .from("contacts")
-          .select("id,name,phone,company,job_title")
+          .select("id,name,phone,company,job_title,avatar_path")
           .eq("organization_id", organizationId)
           .is("deleted_at", null),
         "conversas-contatos-falharam"
@@ -189,12 +222,14 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     ]);
 
     const indice = indicePorTelefone(contatos);
+    const avatares = await assinarAvatares(supabase, contatos);
     return conversas.map((linha) => {
       const grupo = linha.chat_kind === "grupo";
       // Grupo não procura contato: o identificador dele não é telefone de
       // ninguém, e deixá-lo cair no índice acharia um contato por coincidência
       // de dígitos e penduraria a ficha da pessoa errada ao lado da conversa.
       const contato = grupo ? null : acharContato(indice, linha.contact_phone);
+      const nomeEspelhado = String(linha.contact_name || "").trim();
       return {
         id: idDaConversa(linha.connection_id, linha.contact_phone),
         grupo,
@@ -202,9 +237,12 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         // ainda não foi cadastrado, e é justamente essa a pessoa que não pode
         // sumir da caixa de entrada.
         contactId: contato?.id || null,
-        nome: contato?.name || linha.contact_name || linha.contact_phone,
+        nome: grupo
+          ? nomeEspelhado || "Grupo sem nome"
+          : contato?.name || nomeEspelhado || linha.contact_phone,
         empresa: contato?.company || "",
         cargo: contato?.job_title || "",
+        fotoUrl: contato ? avatares.get(contato.avatar_path) || null : null,
         // O grupo não tem telefone para mostrar. Formatar o id dele como se
         // fosse um daria à tela um número de dezoito dígitos com DDD inventado.
         telefone: grupo ? "" : linha.contact_phone,
@@ -264,7 +302,9 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       }
       saida.push({
         tipo: "mensagem",
+        messageId: linha.message_id,
         direcao: linha.is_from_me ? "sai" : "entra",
+        enviadaEm: new Date(linha.sent_at).getTime(),
         hora: new Date(linha.sent_at).toLocaleTimeString("pt-BR", {
           hour: "2-digit",
           minute: "2-digit",

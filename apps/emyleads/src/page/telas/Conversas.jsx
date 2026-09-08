@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { MailOpen, PanelRight, Plus, Search, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { DONOS_CURTOS } from "../../ui/atendimento";
@@ -18,6 +18,7 @@ import {
   PilulaSistema,
 } from "./conversas/pecas";
 import { useConversas } from "./conversas/useConversas";
+import { useRolagemConversa } from "./conversas/useRolagemConversa";
 
 /**
  * Conversas — a caixa de entrada da equipe.
@@ -115,11 +116,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
   const [atalho, setAtalho] = useState(null);
   const [fichaAberta, setFichaAberta] = useState(true);
 
-  const fimDaConversa = useRef(null);
-  const rolagem = useRef(null);
-  // Quem estava no fim ANTES da atualização é quem quer ser levado ao fim
-  // depois dela. Medir depois não serve: o conteúdo novo já mudou a altura.
-  const estavaNoFim = useRef(true);
+  const { rolagem, aoRolar } = useRolagemConversa(atual, mensagens);
 
   const termo = busca.trim().toLowerCase();
   const visiveis = useMemo(
@@ -127,30 +124,6 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
     [conversas, filtro, termo]
   );
   const conversa = (conversas || []).find((c) => c.id === atual) || null;
-
-  // A conversa nasce no fim, e não no começo: o que importa é a última
-  // mensagem, não a primeira.
-  //
-  // Ao TROCAR de conversa, sempre no fim. Numa conversa já aberta, só se quem
-  // está lendo já estava no fim — desde que a conversa aberta se atualiza
-  // sozinha, rolar sempre puxaria a tela de quem foi procurar o que o cliente
-  // disse ontem, justamente enquanto ele procura.
-  useEffect(() => {
-    estavaNoFim.current = true;
-    fimDaConversa.current?.scrollIntoView({ block: "end" });
-  }, [atual]);
-
-  useEffect(() => {
-    if (estavaNoFim.current) fimDaConversa.current?.scrollIntoView({ block: "end" });
-  }, [mensagens]);
-
-  const aoRolar = () => {
-    const caixa = rolagem.current;
-    if (!caixa) return;
-    // 40px de folga: rolagem com inércia raramente para no pixel exato, e sem
-    // a folga a conversa deixaria de acompanhar por causa de dois pixels.
-    estavaNoFim.current = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 40;
-  };
 
   const contato = dados.contatos.find((c) => c.id === conversa?.contactId) || null;
   const negocio = useMemo(() => {
@@ -310,6 +283,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
             <header className="flex h-[62px] flex-none items-center gap-2.5 border-b border-line px-3.5">
               <AvatarComDono
                 nome={conversa.nome}
+                foto={conversa.fotoUrl}
                 dono={conversa.dono}
                 grupo={conversa.grupo}
                 tamanho={38}
@@ -379,7 +353,6 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
                   return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
                 return <Bolha key={chave} mensagem={m} nomeProprio={eu} />;
               })}
-              <div ref={fimDaConversa} />
             </div>
 
             {aba === "modelos" && (
