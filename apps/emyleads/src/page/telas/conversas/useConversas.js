@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../data/client";
 import { textoDoMotivoDeEnvio } from "../../../ui/atendimento";
-import { mesmaConversa, textoDaTransferencia } from "./conversasUtils";
+import { conexaoDaLista, mesmaConversa, textoDaTransferencia } from "./conversasUtils";
 
 const PLATAFORMA_WEB =
   typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
@@ -231,7 +231,7 @@ export function useConversas(organizacaoId) {
   }, []);
 
   const enviar = useCallback(
-    async (texto) => {
+    async (texto, reaproveitar = null) => {
       if (!atual) return;
       const limpo = String(texto || "").trim();
       if (!limpo) return;
@@ -240,10 +240,21 @@ export function useConversas(organizacaoId) {
       // A bolha aparece antes do desfecho, marcada como enviando. Sem ela a
       // caixa esvazia e a conversa fica igual por quinze segundos — quem
       // escreveu não tem como saber se o clique pegou, e escreve de novo.
-      const chave = `pendente-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      //
+      // Num reenvio a bolha já existe, e é a MESMA que volta a piscar: criar
+      // outra deixaria duas bolhas iguais na conversa, uma falha e uma a
+      // caminho, para uma mensagem que só será entregue uma vez.
+      const chave =
+        reaproveitar || `pendente-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const hora = horaDeAgora();
       const conversa = atual;
-      setPendentes((antes) => antes.concat([{ chave, conversa, texto: limpo, hora }]));
+      if (reaproveitar) {
+        setPendentes((antes) =>
+          antes.map((p) => (p.chave === chave ? { ...p, falhou: false, motivo: "" } : p))
+        );
+      } else {
+        setPendentes((antes) => antes.concat([{ chave, conversa, texto: limpo, hora }]));
+      }
 
       const largar = () => setPendentes((antes) => antes.filter((p) => p.chave !== chave));
       const marcar = (motivo) =>
@@ -285,6 +296,82 @@ export function useConversas(organizacaoId) {
       })();
     },
     [atual, acompanhar, carregarLista, carregarMensagens]
+  );
+
+  /**
+   * Reenvia a mensagem de uma bolha que falhou.
+   *
+   * Não é um botão de conveniência: a maior parte das recusas do Bridge é
+   * temporária — ele estava fora do ar, o runtime não pegou a tempo — e sem
+   * reenvio a saída é apagar a bolha, reescrever o texto e mandar de novo.
+   * Quem está atendendo faz isso com o cliente esperando.
+   *
+   * Passa a mesma chave adiante para a bolha voltar a piscar em vez de nascer
+   * uma segunda ao lado da que falhou.
+   */
+  const reenviar = useCallback(
+    async (chave) => {
+      const pendente = pendentes.find((p) => p.chave === chave);
+      if (!pendente || !pendente.falhou) return;
+      await enviar(pendente.texto, chave).catch(() => {});
+    },
+    [pendentes, enviar]
+  );
+
+  /**
+   * O número existe no WhatsApp?
+   *
+   * Pergunta antes de criar conversa, e a resposta vem pelo mesmo caminho de
+   * qualquer comando: o portal enfileira, o runtime pergunta ao Bridge, e o
+   * desfecho traz a resposta alguns segundos depois. Na bancada ela já vem
+   * junto, e é por isso que `resultado` é conferido antes de acompanhar
+   * qualquer coisa.
+   *
+   * Três desfechos, e são três de propósito. `sim` e `nao` são respostas sobre
+   * o número; `indefinido` é "não consegui perguntar", e é o que impede um
+   * Bridge fora do ar de mandar alguém apagar um número que está certo.
+   */
+  const verificarNumero = useCallback(
+    async (telefone) => {
+      const conexao = conexaoDaLista(conversas);
+      const pedido = await api.conversas.verificarNumero({
+        connectionId: conexao,
+        telefone,
+      });
+      const resposta =
+        pedido?.resultado || (await acompanhar(pedido?.comandoId))?.resultado || null;
+      if (resposta && typeof resposta.onWhatsApp === "boolean") {
+        return { situacao: resposta.onWhatsApp ? "sim" : "nao", motivo: resposta.reason || "" };
+      }
+      // Sem resposta: o comando expirou, o runtime não pegou, ou o desfecho
+      // não voltou a tempo. Nenhuma dessas coisas é "o número não existe".
+      return { situacao: "indefinido", motivo: "" };
+    },
+    [conversas, acompanhar]
+  );
+
+  /**
+   * Cria a conversa e a deixa aberta.
+   *
+   * Não manda mensagem: a conversa nasce vazia e a primeira sai pelo composer,
+   * pelo mesmo caminho de qualquer outra. Recarregar a lista antes de escolher
+   * é o que garante que a linha nova já esteja lá quando `atual` apontar para
+   * ela — sem isso a tela selecionaria uma conversa que a lista ainda não tem.
+   */
+  const iniciarConversa = useCallback(
+    async ({ telefone, nome = "" }) => {
+      setAviso("");
+      const conexao = conexaoDaLista(conversas);
+      const nova = await api.conversas.iniciar({
+        connectionId: conexao,
+        telefone,
+        nome,
+      });
+      await carregarLista().catch(() => {});
+      setAtual(nova.id);
+      return nova;
+    },
+    [conversas, carregarLista]
   );
 
   const trocarDono = useCallback(
@@ -362,6 +449,10 @@ export function useConversas(organizacaoId) {
       .map((p) => ({
         tipo: "mensagem",
         direcao: "sai",
+        // A chave viaja junto porque é por ela que o botão de reenviar acha a
+        // bolha de volta. As mensagens de verdade não têm chave, e é assim que
+        // a bolha entregue nunca oferece "tentar novamente".
+        chave: p.chave,
         hora: p.hora,
         texto: p.texto,
         enviando: !p.falhou,
@@ -391,7 +482,15 @@ export function useConversas(organizacaoId) {
     equipe,
     erro,
     aviso,
+    // A lista se atualiza sozinha pelo realtime e pelo timer, e isto é para
+    // quem sabe de uma mudança que aqueles dois não veem: salvar um contato
+    // muda o NOME e a ficha das conversas dele, e o gatilho de realtime mora em
+    // `whatsapp_conversations`, que salvar contato não toca.
+    recarregarLista: carregarLista,
     enviar,
+    reenviar,
+    verificarNumero,
+    iniciarConversa,
     trocarDono,
     guardarBaralho,
   };

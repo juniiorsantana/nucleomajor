@@ -1,6 +1,6 @@
 import { MODELOS } from "../data/modelosPadrao.js";
 import { fmtDiaDaConversa, fmtHoraDaLista } from "../lib/formato.js";
-import { variantesBR } from "../lib/phone.js";
+import { normalizePhone, variantesBR } from "../lib/phone.js";
 import { WORKSPACE_KEY } from "./storage.js";
 
 /**
@@ -88,6 +88,22 @@ const RECUSAS = [
   ["conversation owner is invalid", "Quem atende só pode ser o robô, a IA ou alguém da equipe."],
   ["conversation command is invalid", "Comando desconhecido para esta conversa."],
   ["conversation command not found", "Este envio não existe mais."],
+  ["phone number is invalid", "Esse número não parece um telefone. Confira o DDD e o DDI."],
+  [
+    "connection is not available",
+    "O WhatsApp desta empresa não está disponível. Confira em Conexões.",
+  ],
+  [
+    "more than one connection",
+    "Esta empresa tem mais de um WhatsApp conectado. Abra uma conversa existente" +
+      " do número que você quer usar antes de começar outra.",
+  ],
+  // O teto existe para a caixa de entrada não virar disparador. O texto diz o
+  // que fazer — esperar —, e não só que deu errado.
+  [
+    "too many conversations started",
+    "Muitas conversas novas na última hora. Espere um pouco antes de começar outra.",
+  ],
 ];
 
 function traduzir(mensagem) {
@@ -287,20 +303,38 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
    * mensagem "ok" da mesma conversa seria engolida como repetição da primeira —
    * e "ok" é o que mais se digita duas vezes num atendimento.
    */
-  const enfileirar = async (id, comando, carga) => {
-    const alvo = separarId(id);
-    if (!alvo) throw erroConversas("Conversa inválida.", "conversas-id-invalido");
+  const enfileirarEm = async ({ connectionId, chat }, comando, carga) => {
     const organizationId = await organizacao();
     const { data, error } = await supabase.rpc("nucleo_conversation_command_enqueue", {
       target_organization: organizationId,
-      target_connection: alvo.connectionId,
-      target_chat: alvo.chat,
+      target_connection: connectionId,
+      target_chat: chat,
       requested_command: comando,
       command_payload: { ...carga, clientId: crypto.randomUUID() },
     });
     if (error) throw erroConversas(traduzir(error.message), "conversas-comando-falhou");
     return { comandoId: data?.commandId || null, situacao: data?.status || "pending" };
   };
+
+  const enfileirar = async (id, comando, carga) => {
+    const alvo = separarId(id);
+    if (!alvo) throw erroConversas("Conversa inválida.", "conversas-id-invalido");
+    return enfileirarEm(alvo, comando, carga);
+  };
+
+  /**
+   * O telefone como o WhatsApp o endereça: só dígitos, com DDI.
+   *
+   * `normalizePhone` é quem põe o 55 quando o número veio sem DDI. Tirar só a
+   * pontuação deixaria "11987654321" atravessar a fila, o Bridge procuraria
+   * "+11987654321", e a resposta seria "não tem WhatsApp" sobre um número que
+   * tem — a pior forma de errar nesta tela.
+   *
+   * Sem DDI reconhecível sobram os dígitos, e quem recusa é a RPC, com uma
+   * mensagem traduzida. Inventar um país aqui seria pior que recusar.
+   */
+  const telefoneDoWhatsApp = (bruto) =>
+    normalizePhone(bruto) || String(bruto || "").replace(/\D/g, "");
 
   return {
     "conversas.listar": listar,
@@ -338,6 +372,52 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         attendantId: dono === "humano" && atendenteId ? String(atendenteId) : "",
       }),
 
+
+    /**
+     * Pergunta se um número existe no WhatsApp, antes de criar conversa.
+     *
+     * O único comando desta fila que não exige conversa espelhada — perguntar
+     * não envia nada, e exigir espelho para perguntar seria exigir a resposta
+     * antes da pergunta.
+     *
+     * Devolve só o comando. Quem espera a resposta é a tela, pelo mesmo
+     * `desfecho` que acompanha um envio: aqui também enfileirar não é
+     * perguntar, e a volta leva alguns segundos.
+     */
+    "conversas.verificarNumero": async ({ connectionId, telefone }) =>
+      enfileirarEm(
+        { connectionId, chat: telefoneDoWhatsApp(telefone) },
+        "conversation_check",
+        {}
+      ),
+
+    /**
+     * Cria a conversa com quem ainda não falou com a empresa.
+     *
+     * Não manda mensagem. A conversa nasce vazia e a primeira mensagem sai pelo
+     * composer, pelo mesmo caminho de qualquer outra — que a esta altura já
+     * funciona, porque a linha passou a existir.
+     *
+     * `connectionId` pode vir nulo: com um WhatsApp só, o banco resolve
+     * sozinho. Com mais de um, ele recusa em vez de escolher — adivinhar por
+     * qual número a empresa fala com o cliente é decisão de gente.
+     */
+    "conversas.iniciar": async ({ connectionId = null, telefone, nome = "" }) => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("nucleo_conversation_start", {
+        target_organization: organizationId,
+        target_connection: connectionId,
+        target_phone: telefoneDoWhatsApp(telefone),
+        contact_name: String(nome || "").trim(),
+      });
+      if (error) throw erroConversas(traduzir(error.message), "conversas-inicio-falhou");
+      return {
+        id: idDaConversa(data?.connectionId, data?.chat),
+        criada: data?.created === true,
+        comandoId: data?.commandId || null,
+      };
+    },
+
     /** O desfecho de um comando, para a tela parar de dizer "enviando". */
     "conversas.desfecho": async ({ comandoId }) => {
       if (!comandoId) return null;
@@ -350,6 +430,9 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       return {
         situacao: data?.status || "pending",
         motivo: data?.errorCode || "",
+        // O que o runtime respondeu. Vazio na maioria dos comandos; numa
+        // verificação é ele que carrega o `onWhatsApp` — a resposta inteira.
+        resultado: data?.result || null,
       };
     },
   };

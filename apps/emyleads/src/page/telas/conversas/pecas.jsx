@@ -11,12 +11,18 @@ import {
   Paperclip,
   Pin,
   SendHorizontal,
+  RotateCw,
   Smile,
   Sparkles,
   Users,
   Zap,
 } from "lucide-react";
-import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoDono } from "../../../ui/atendimento";
+import {
+  EXPLICACAO_DO_DONO,
+  OPCOES_DE_DONO,
+  textoDoDono,
+  textoDoMotivoDeEnvio,
+} from "../../../ui/atendimento";
 import { Iniciais } from "../../ui";
 
 /**
@@ -158,7 +164,69 @@ export function PilulaSistema({ dono, texto, hora }) {
   );
 }
 
-export function Bolha({ mensagem, nomeProprio }) {
+/**
+ * O aviso de que a mensagem não saiu, e o caminho de volta.
+ *
+ * O indicador continua do tamanho que era — um ícone de 13px no canto da
+ * bolha, ao lado da hora. O que muda é ele passar a responder: antes a bolha
+ * dizia "falhou" e o motivo aparecia numa faixa acima do composer, que some na
+ * mensagem seguinte. Numa conversa em que duas falharam por motivos
+ * diferentes, não havia como saber qual foi qual.
+ *
+ * O reinício importa mais que o motivo. A maior parte das recusas é
+ * temporária — o Bridge estava fora do ar, o runtime não pegou a tempo — e
+ * sem "tentar de novo" a saída é reescrever o texto e mandar outra vez, com o
+ * cliente esperando.
+ */
+function AvisoDeFalha({ motivo, aoReenviar }) {
+  const [aberto, setAberto] = useState(false);
+  const texto = textoDoMotivoDeEnvio(motivo);
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        title={texto}
+        aria-label={`Não enviada: ${texto}`}
+        aria-expanded={aberto}
+        onClick={() => setAberto((v) => !v)}
+        onBlur={() => setAberto(false)}
+        className="flex cursor-pointer items-center text-danger"
+      >
+        <AlertCircle size={13} strokeWidth={2.2} className="flex-none" />
+      </button>
+      {aberto && (
+        <span
+          role="status"
+          // Ancorado à direita e acima: a bolha que falhou é nossa, e portanto
+          // encostada na borda direita da conversa — abrir para a esquerda é o
+          // único lado com espaço.
+          className="absolute bottom-full right-0 z-20 mb-1.5 w-[228px] rounded-[10px] border border-line bg-bg p-2.5 text-left shadow-lg"
+        >
+          <span className="block text-[11.5px] leading-[17px] text-fg">{texto}</span>
+          {aoReenviar && (
+            <button
+              type="button"
+              // `onMouseDown` e não `onClick`: o `onBlur` do botão de cima
+              // fecharia este painel antes de o clique chegar aqui.
+              onMouseDown={(evento) => {
+                evento.preventDefault();
+                setAberto(false);
+                aoReenviar();
+              }}
+              className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-line py-1.5 text-[11.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
+            >
+              <RotateCw size={12} strokeWidth={2.2} />
+              Tentar novamente
+            </button>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function Bolha({ mensagem, nomeProprio, aoReenviar }) {
   const saiu = mensagem.direcao === "sai";
   const autor = mensagem.autor || (saiu && mensagem.tom === "humano" ? nomeProprio : null);
   return (
@@ -193,7 +261,12 @@ export function Bolha({ mensagem, nomeProprio }) {
               distingue a mensagem a caminho da que o Bridge recusou, e escreve
               de novo. O tique só aparece quando a mensagem voltou do aparelho. */}
           {saiu && mensagem.falhou && (
-            <AlertCircle size={13} strokeWidth={2.2} className="flex-none text-danger" />
+            <AvisoDeFalha
+              motivo={mensagem.motivo}
+              aoReenviar={
+                mensagem.chave && aoReenviar ? () => aoReenviar(mensagem.chave) : null
+              }
+            />
           )}
           {saiu && mensagem.enviando && (
             <Clock3 size={13} strokeWidth={2.2} className="flex-none text-faint" />

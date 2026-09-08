@@ -1,4 +1,12 @@
-import { ArrowRight, CalendarPlus, DollarSign, SquareCheckBig, StickyNote, X } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarPlus,
+  DollarSign,
+  SquareCheckBig,
+  StickyNote,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { corDoEstagio } from "../../../domain/types";
 import { TONS, fmtMoeda, fmtRelativo, fmtVencimento } from "../../../lib/formato";
 import { formatPhone } from "../../../lib/phone";
@@ -42,6 +50,7 @@ export function FichaLateral({
   aoFechar,
   aoAtalho,
   aoAbrirFicha,
+  aoSalvarContato,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -175,15 +184,41 @@ export function FichaLateral({
         </div>
       </div>
 
+      {/*
+        O rodapé troca de botão conforme a conversa tenha contato ou não.
+        "Abrir ficha completa" cinza era o estado mais comum aqui: quem chegou
+        agora é justamente quem ainda não está no CRM, e a ficha lateral
+        oferecia como única ação um botão que não fazia nada. O nome e o
+        telefone que o WhatsApp já entregou vão preenchidos — redigitar o que a
+        tela mostra logo acima seria trabalho inventado.
+      */}
       <div className="flex-none border-t border-line px-3.5 py-2.5">
-        <button
-          onClick={aoAbrirFicha}
-          disabled={!contato}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
-        >
-          Abrir ficha completa
-          <ArrowRight size={14} strokeWidth={2} />
-        </button>
+        {contato ? (
+          <button
+            onClick={aoAbrirFicha}
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
+          >
+            Abrir ficha completa
+            <ArrowRight size={14} strokeWidth={2} />
+          </button>
+        ) : (
+          <button
+            onClick={() =>
+              aoSalvarContato?.({
+                // O nome que o espelho trouxe pode ser o próprio número, e
+                // gravar "5565992178164" como nome de contato é pior que deixar
+                // o campo vazio para a pessoa preencher.
+                nome: conversa.nome === conversa.telefone ? "" : conversa.nome,
+                telefone: conversa.telefone,
+              })
+            }
+            disabled={!aoSalvarContato}
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
+          >
+            <UserPlus size={14} strokeWidth={2} />
+            Salvar contato
+          </button>
+        )}
       </div>
     </aside>
   );

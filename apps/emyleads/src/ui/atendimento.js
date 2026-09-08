@@ -89,6 +89,13 @@ export const MOTIVOS_DE_ENVIO = {
   invalid_payload: "O runtime recusou o formato deste pedido.",
   unsupported_command: "O runtime desta VPS ainda não conhece este comando.",
   send_failed: "O WhatsApp recusou o envio.",
+  // O número saiu do WhatsApp entre a verificação e a mensagem, ou a conversa
+  // é antiga e o número mudou de dono. Insistir não resolve, e é isso que o
+  // texto precisa dizer — `send_failed` mandaria a pessoa tentar de novo.
+  recipient_not_on_whatsapp:
+    "Esse número não tem WhatsApp. Confira com o cliente antes de tentar de novo.",
+  check_unsupported:
+    "O runtime desta VPS ainda não sabe verificar número. Peça a atualização do Bridge.",
   // Não deveria mais aparecer: desde 03/09/2026 a resposta manual sai por uma
   // rota própria do Bridge, que não consulta `allowed_recipients` — essa lista
   // guarda quem o agente pode procurar sozinho, e nunca teve como propósito

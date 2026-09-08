@@ -179,6 +179,9 @@ export function criarOperacoesConversas({ listarContatos }) {
   const atendentes = new Map();
   const lidas = new Set();
   const baralhos = new Map();
+  // As conversas comecadas nesta sessao da bancada, por telefone. Vivem em
+  // memoria e somem ao recarregar, como todo o resto daqui.
+  const novas = new Map();
 
   const roteiroDe = (contato, indice) => {
     const base = indice === 0 ? ROTEIRO_LONGO : ROTEIRO_CURTO;
@@ -187,6 +190,12 @@ export function criarOperacoesConversas({ listarContatos }) {
       texto: renderizar(m.texto, contato),
       ...(m.cita ? { cita: { quem: renderizar(m.cita.quem, contato), texto: m.cita.texto } } : {}),
     }));
+  };
+
+  /** O que a linha da conversa nova mostra antes de a primeira mensagem sair. */
+  const previaDaConversaNova = (acrescimos) => {
+    const ultima = [...(acrescimos || [])].reverse().find((m) => m.tipo === "mensagem");
+    return ultima ? ultima.texto : "Conversa nova — escreva a primeira mensagem.";
   };
 
   const listar = async () => {
@@ -216,10 +225,31 @@ export function criarOperacoesConversas({ listarContatos }) {
       };
     });
 
+    // As conversas comecadas pelo botão "+", antes do grupo: elas são as mais
+    // recentes, e a lista da tela já vem ordenada de quem falou por último.
+    const iniciadas = [...novas.values()].map((nova) => ({
+      id: nova.id,
+      contactId: null,
+      grupo: false,
+      nome: nova.nome || nova.telefone,
+      empresa: "",
+      cargo: "",
+      telefone: nova.telefone,
+      dono: donos.get(nova.id) || "humano",
+      atendenteId: null,
+      atendenteNome: "Você",
+      hora: nova.hora,
+      naoLidas: 0,
+      fixado: false,
+      saiu: false,
+      lido: false,
+      previa: previaDaConversaNova(extras.get(nova.id)),
+    }));
+
     // Um grupo na bancada, porque grupo é 56% da caixa de entrada de verdade e
     // desenhar a lista sem um deixaria a linha do grupo sem prova visual.
     // Grupo não tem telefone, não tem ficha e não tem atendente.
-    return linhas.concat([
+    return linhas.concat(iniciadas, [
       {
         id: GRUPO.id,
         contactId: null,
@@ -254,6 +284,9 @@ export function criarOperacoesConversas({ listarContatos }) {
     "conversas.mensagens": async ({ id }) => {
       lidas.add(id);
       if (id === GRUPO.id) return GRUPO.roteiro.concat(extras.get(id) || []);
+      // Conversa comecada aqui nao tem roteiro: ela nasceu vazia, e o que
+      // aparece nela e so o que a pessoa escreveu depois de abrir.
+      if (String(id).startsWith("novo:")) return extras.get(id) || [];
       const { contato, indice } = await posicaoDe(id);
       if (!contato) return [];
       return roteiroDe(contato, indice).concat(extras.get(id) || []);
@@ -313,6 +346,38 @@ export function criarOperacoesConversas({ listarContatos }) {
         (extras.get(id) || []).concat([{ tipo: "sistema", dono, texto: textos[dono] || "" }])
       );
       return { comandoId: null, situacao: "completed" };
+    },
+
+
+    /**
+     * Bancada: a verificação responde na hora, e diz "não" para um número.
+     *
+     * `comandoId: null` é o que já diz à tela que aqui não há fila para
+     * acompanhar, e `resultado` vem junto porque a resposta já existe. No
+     * portal os dois viajam separados: o comando volta pendente e a resposta
+     * chega segundos depois.
+     *
+     * Terminado em quatro zeros a bancada responde "não tem WhatsApp". Sem um
+     * número que recusa, o caminho da recusa nunca seria desenhado — e ele é
+     * metade do motivo de a verificação existir.
+     */
+    "conversas.verificarNumero": async ({ telefone }) => {
+      const digitos = String(telefone || "").replace(/\D/g, "");
+      return {
+        comandoId: null,
+        situacao: "completed",
+        resultado: { onWhatsApp: !digitos.endsWith("0000"), reason: "not_registered" },
+      };
+    },
+
+    /** Bancada: a conversa nova entra na lista e não sai do navegador. */
+    "conversas.iniciar": async ({ telefone, nome = "" }) => {
+      const digitos = String(telefone || "").replace(/\D/g, "");
+      const id = `novo:${digitos}`;
+      if (!novas.has(digitos)) {
+        novas.set(digitos, { id, telefone: digitos, nome: String(nome || "").trim(), hora: horaDeAgora() });
+      }
+      return { id, criada: true, comandoId: null };
     },
 
     /** Na bancada nada fica pendente: o comando já terminou quando foi pedido. */

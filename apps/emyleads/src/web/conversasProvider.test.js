@@ -403,7 +403,128 @@ describe("escrever pela fila do runtime", () => {
     expect(await operacoes["conversas.desfecho"]({ comandoId: "cmd-1" })).toEqual({
       situacao: "failed",
       motivo: "recipient_not_allowed",
+      resultado: null,
     });
+  });
+
+  it("o desfecho devolve o resultado do runtime, que é onde a verificação responde", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({
+        data: {
+          status: "completed",
+          errorCode: null,
+          result: { onWhatsApp: false, reason: "not_registered" },
+        },
+        error: null,
+      }),
+    });
+    expect(await operacoes["conversas.desfecho"]({ comandoId: "cmd-1" })).toEqual({
+      situacao: "completed",
+      motivo: "",
+      resultado: { onWhatsApp: false, reason: "not_registered" },
+    });
+  });
+});
+
+describe("conversas.verificarNumero", () => {
+  it("pergunta pelo comando que não exige conversa espelhada", async () => {
+    const { operacoes, rpcs } = bancada();
+    await operacoes["conversas.verificarNumero"]({
+      connectionId: CONNECTION_ID,
+      telefone: "(11) 98765-4321",
+    });
+
+    const [nome, argumentos] = rpcs[0];
+    expect(nome).toBe("nucleo_conversation_command_enqueue");
+    expect(argumentos.requested_command).toBe("conversation_check");
+    // Com DDI, e não só sem pontuação. Tirar os parênteses e parar por aí
+    // mandaria "11987654321" pela fila, o Bridge procuraria "+11987654321", e a
+    // resposta seria "não tem WhatsApp" sobre um número que tem.
+    expect(argumentos.target_chat).toBe("5511987654321");
+    expect(argumentos.target_connection).toBe(CONNECTION_ID);
+  });
+
+  it("cada pergunta tem clientId próprio, para reperguntar não ser engolido", async () => {
+    const { operacoes, rpcs } = bancada();
+    await operacoes["conversas.verificarNumero"]({
+      connectionId: CONNECTION_ID,
+      telefone: "5511987654321",
+    });
+    await operacoes["conversas.verificarNumero"]({
+      connectionId: CONNECTION_ID,
+      telefone: "5511987654321",
+    });
+    expect(rpcs[0][1].command_payload.clientId).not.toBe(
+      rpcs[1][1].command_payload.clientId
+    );
+  });
+});
+
+describe("conversas.iniciar", () => {
+  it("cria a conversa e devolve o id que a lista usa", async () => {
+    const { operacoes, rpcs } = bancada({
+      rpc: async () => ({
+        data: {
+          connectionId: CONNECTION_ID,
+          chat: "5565992178164",
+          created: true,
+          commandId: "cmd-9",
+        },
+        error: null,
+      }),
+    });
+
+    const nova = await operacoes["conversas.iniciar"]({
+      connectionId: CONNECTION_ID,
+      telefone: "+55 65 99217-8164",
+      nome: "  Ana Paula  ",
+    });
+
+    const [nome, argumentos] = rpcs[0];
+    expect(nome).toBe("nucleo_conversation_start");
+    expect(argumentos.target_phone).toBe("5565992178164");
+    expect(argumentos.contact_name).toBe("Ana Paula");
+    // O id é `<conexao>:<chat>`, o mesmo formato que `conversas.listar` monta.
+    // Se divergisse, a tela selecionaria uma conversa que a lista não tem.
+    expect(nova.id).toBe(`${CONNECTION_ID}:5565992178164`);
+    expect(nova.criada).toBe(true);
+  });
+
+  it("conexão nula chega nula, para o banco resolver", async () => {
+    // A tela não adivinha por qual WhatsApp a empresa fala. Com um só, o banco
+    // resolve; com mais de um, recusa com motivo próprio.
+    const { operacoes, rpcs } = bancada({
+      rpc: async () => ({
+        data: { connectionId: CONNECTION_ID, chat: "5565992178164", created: true },
+        error: null,
+      }),
+    });
+    await operacoes["conversas.iniciar"]({ telefone: "5565992178164" });
+    expect(rpcs[0][1].target_connection).toBeNull();
+  });
+
+  it("o teto por hora chega em português, dizendo o que fazer", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({
+        data: null,
+        error: { message: "too many conversations started in the last hour" },
+      }),
+    });
+    await expect(
+      operacoes["conversas.iniciar"]({ telefone: "5565992178164" })
+    ).rejects.toThrow(/Espere um pouco/);
+  });
+
+  it("mais de uma conexão vira instrução, e não erro cru do banco", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({
+        data: null,
+        error: { message: "organization has more than one connection; choose one" },
+      }),
+    });
+    await expect(
+      operacoes["conversas.iniciar"]({ telefone: "5565992178164" })
+    ).rejects.toThrow(/mais de um WhatsApp conectado/);
   });
 });
 

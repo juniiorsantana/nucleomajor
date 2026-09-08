@@ -6,6 +6,7 @@ import { nomeCurto } from "../../ui/perfil";
 import { formatPhone } from "../../lib/phone";
 import { SeloWhatsApp } from "../ui";
 import { FichaLateral } from "./conversas/ficha";
+import { ModalNovaConversa } from "./conversas/ModalNovaConversa";
 import { PainelAtalhos, PainelModelos } from "./conversas/paineis";
 import {
   AvatarComDono,
@@ -93,7 +94,13 @@ function ultimaRecebida(mensagens) {
 
 /* ------------------------------------------------------------------ */
 
-export default function Conversas({ dados, recarregar, aoAbrirContato, sessao }) {
+export default function Conversas({
+  dados,
+  recarregar,
+  aoAbrirContato,
+  aoNovoContato,
+  sessao,
+}) {
   const {
     conversas,
     modelos,
@@ -103,7 +110,11 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
     equipe,
     erro,
     aviso,
+    recarregarLista,
     enviar,
+    reenviar,
+    verificarNumero,
+    iniciarConversa,
     trocarDono,
     guardarBaralho,
   } = useConversas(sessao?.organizacaoAtual?.id);
@@ -114,6 +125,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
   const [aba, setAba] = useState(null);
   const [atalho, setAtalho] = useState(null);
   const [fichaAberta, setFichaAberta] = useState(true);
+  const [novaConversa, setNovaConversa] = useState(false);
 
   const fimDaConversa = useRef(null);
   const rolagem = useRef(null);
@@ -143,6 +155,23 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
   useEffect(() => {
     if (estavaNoFim.current) fimDaConversa.current?.scrollIntoView({ block: "end" });
   }, [mensagens]);
+
+  /**
+   * Salvar um contato muda a lista, e nada avisava.
+   *
+   * O aviso de realtime das Conversas sai de `whatsapp_conversations`, e criar
+   * contato não toca nessa tabela — quem mudou foi `contacts`, que a lista
+   * cruza por telefone para descobrir nome, empresa e ficha. Sem isto, quem
+   * acabou de salvar um contato continuaria vendo o número cru e o botão
+   * "Salvar contato" por até vinte segundos, e clicaria de novo.
+   *
+   * A dependência é a QUANTIDADE de contatos: é ela que muda quando um nasce, e
+   * usar o array inteiro dispararia a recarga a cada carregamento do painel.
+   */
+  const quantosContatos = dados.contatos.length;
+  useEffect(() => {
+    recarregarLista().catch(() => {});
+  }, [quantosContatos, recarregarLista]);
 
   const aoRolar = () => {
     const caixa = rolagem.current;
@@ -234,9 +263,9 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
               {visiveis.length}
             </span>
             <button
-              title="Nova conversa — ainda sem envio para número novo"
-              disabled
-              className="ml-auto flex h-8 w-8 items-center justify-center rounded-[9px] text-sub opacity-40"
+              onClick={() => setNovaConversa(true)}
+              title="Nova conversa"
+              className="ml-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
             >
               <Plus size={17} strokeWidth={2.2} />
             </button>
@@ -279,7 +308,7 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
           ) : visiveis.length === 0 ? (
             <div className="px-3.5 py-6 text-[12.5px] text-sub">
               {conversas.length === 0
-                ? "Nenhum contato ainda. Importe do WhatsApp ou crie um em Contatos."
+                ? "Nenhuma conversa ainda. Comece uma pelo + aqui em cima."
                 : "Nada aqui com esse filtro."}
             </div>
           ) : (
@@ -377,7 +406,9 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
                 if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
                 if (m.tipo === "sistema")
                   return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
-                return <Bolha key={chave} mensagem={m} nomeProprio={eu} />;
+                return (
+                  <Bolha key={chave} mensagem={m} nomeProprio={eu} aoReenviar={reenviar} />
+                );
               })}
               <div ref={fimDaConversa} />
             </div>
@@ -455,6 +486,18 @@ export default function Conversas({ dados, recarregar, aoAbrirContato, sessao })
           aoFechar={() => setFichaAberta(false)}
           aoAtalho={abrirAtalho}
           aoAbrirFicha={() => contato && aoAbrirContato(contato)}
+          aoSalvarContato={aoNovoContato}
+        />
+      )}
+
+      {novaConversa && (
+        <ModalNovaConversa
+          contatos={dados.contatos}
+          conversas={conversas || []}
+          aoVerificar={verificarNumero}
+          aoIniciar={iniciarConversa}
+          aoAbrirConversa={setAtual}
+          aoFechar={() => setNovaConversa(false)}
         />
       )}
     </div>

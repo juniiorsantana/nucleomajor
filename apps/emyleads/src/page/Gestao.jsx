@@ -616,6 +616,12 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               dados={dados}
               recarregar={carregar}
               aoAbrirContato={abrirFicha}
+              // Salvar contato a partir de uma conversa reusa o MESMO modal de
+              // "Adicionar contato" da tela de Contatos, com nome e telefone
+              // preenchidos. Um formulário próprio dentro de Conversas seria um
+              // segundo lugar onde contato nasce, e o dia em que um campo novo
+              // aparecesse só num dos dois já estaria marcado.
+              aoNovoContato={(preenchido) => setEditando(preenchido || null)}
               sessao={sessao}
             />
           </Suspense>
