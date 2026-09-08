@@ -4,8 +4,18 @@ import "../ui/theme.css";
 import AuthGate from "../page/AuthGate";
 import Gestao from "../page/Gestao";
 
+/*
+ * Todo destino do menu precisa de slug aqui, e a falta de um não dá erro — dá
+ * um bug silencioso.
+ *
+ * "Conversas" ficou de fora desta tabela quando a tela nasceu. Clicar nela
+ * trocava a tela e em seguida navegava para `screenToSlug["conversas"]`, que
+ * era `undefined` e caía no fallback: a URL virava outra coisa, o efeito de
+ * `telaInicial` devolvia a tela, e só o SEGUNDO clique ficava — porque aí a
+ * URL já estava no fallback e não mudava mais.
+ */
 const slugToScreen = {
-  assistente: "assistente",
+  conversas: "conversas",
   contatos: "contatos",
   funil: "funil",
   tarefas: "tarefas",
@@ -24,8 +34,10 @@ screenToSlug.conhecimento = "conhecimento";
 function WebApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const slug = location.pathname.split("/").filter(Boolean)[0] || "assistente";
-  const screen = slugToScreen[slug] || "assistente";
+  // `/assistente` guardado nos favoritos de alguém cai aqui e vira Conversas,
+  // em vez de tela em branco.
+  const slug = location.pathname.split("/").filter(Boolean)[0] || "conversas";
+  const screen = slugToScreen[slug] || "conversas";
 
   return (
     <AuthGate>
@@ -35,7 +47,7 @@ function WebApp() {
           atualizarSessao={refreshSession}
           migracaoPendente={null}
           telaInicial={screen}
-          aoTrocarTela={(next) => navigate(`/${screenToSlug[next] || "assistente"}`)}
+          aoTrocarTela={(next) => navigate(`/${screenToSlug[next] || "conversas"}`)}
         />
       )}
     </AuthGate>

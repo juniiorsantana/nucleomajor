@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, Sparkles, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
@@ -11,7 +11,6 @@ import { CampoFormulario, ENTRADA_GESTAO, ModalGestao } from "./telas/gestaoComp
 import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
-const Assistente = lazy(() => import("./telas/Assistente"));
 const Conversas = lazy(() => import("./telas/Conversas"));
 const Inteligencia = lazy(() => import("./telas/Inteligencia"));
 const Chatbots = lazy(() => import("./telas/Chatbots"));
@@ -57,9 +56,10 @@ function menuRecolhidoNoInicio() {
 const TELAS = [
   ...(PLATAFORMA_WEB
     ? [
-        { id: "assistente", rotulo: "Assistente", icone: Sparkles, grupo: "Atendimento" },
-        // Logo abaixo do Assistente, e não dentro de Contatos: é por onde o dia
-        // começa, não uma sub-tela de quem já está cadastrado.
+        // O Assistente saiu do painel em 08/09/2026: a tela existia e não
+        // funcionava, e um destino que não entrega nada gasta a atenção de quem
+        // varre o menu toda manhã. O arquivo continua em `telas/Assistente.jsx`
+        // — o que se removeu foi a porta, não o cômodo.
         //
         // Só no portal. Dentro da extensão a conversa já está na tela — é o
         // WhatsApp com o painel do EmyLeads do lado. Uma caixa de entrada
@@ -373,7 +373,7 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
 }
 
 export default function Gestao({ sessao = null, atualizarSessao = null, migracaoPendente = null, telaInicial = null, aoTrocarTela = null }) {
-  const [tela, setTela] = useState(telaInicial || (PLATAFORMA_WEB ? "assistente" : "contatos"));
+  const [tela, setTela] = useState(telaInicial || (PLATAFORMA_WEB ? "conversas" : "contatos"));
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
   const [editando, setEditando] = useState(undefined); // undefined = fechado
@@ -606,10 +606,6 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           <div className="flex flex-1 items-center justify-center text-[14px] text-sub">
             Carregando…
           </div>
-        ) : tela === "assistente" ? (
-          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando assistente…</div>}>
-            <Assistente />
-          </Suspense>
         ) : tela === "conversas" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conversas…</div>}>
             <Conversas
