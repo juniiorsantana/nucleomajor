@@ -1,5 +1,21 @@
 # Estado atual
 
+## Construtor de fluxos — FASE 3 em implementação (07/09/2026)
+
+Na branch `feature/flow-builder-phase-3` e na branch de runtime
+`feature/flow-runtime-phase-3`, o executor v3 passou provas de PostgreSQL
+descartável na VPS e de retomada entre processos Python. Foram observados
+cursor/revisão persistidos, definição fixada, etiquetas antes de condições,
+suspensão/conclusão de IA, mensagens em ordem, concorrência, isolamento entre
+conexões/organizações e cancelamento após tomada humana.
+
+O Bridge dessas provas era fictício, em loopback. A migration não foi aplicada
+ao Supabase de produção e o runtime de produção não foi substituído. Os
+providers local/remoto oferecem prévia por etapa e impedem a execução v3 pelo
+consumidor legado do navegador. A fase aguarda aplicação manual, deploy e
+observação real; o editor v3 continua reservado à FASE 4.
+Evidências e pendências: [checklist da FASE 3](intelligence/FLOW-PHASE-3-CHECKLIST.md).
+
 Última revisão documental: **29/08/2026**.
 
 ## Produção confirmada

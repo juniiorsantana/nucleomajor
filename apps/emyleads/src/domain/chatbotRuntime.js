@@ -19,6 +19,38 @@ import { conexoesDoChatbot, NO_CONDICOES, SAIDA_PADRAO } from "./chatbotGrafo.js
 import { TIPOS_PASSO } from "./chatbots.js";
 import { avaliarExpressao } from "./regras.js";
 
+/** Mesmo contrato do consumidor Python: nunca antecipa efeitos de outro nó. */
+export function planoDaEtapa(passo, entrada) {
+  const contexto = contextoDaExecucao(entrada);
+  switch (passo?.tipo) {
+    case TIPOS_PASSO.enviarMensagem:
+      if (typeof passo.texto !== "string" || !passo.texto.trim()) throw new Error("flow_message_invalid");
+      return { action: "message", text: passo.texto, output: "padrao" };
+    case TIPOS_PASSO.editarEtiquetas:
+      return { action: "tags", output: "padrao" };
+    case TIPOS_PASSO.condicao:
+      return { action: "condition", output: avaliarExpressao(passo.expressao, contexto) ? "sim" : "nao" };
+    case TIPOS_PASSO.encerrar:
+      return { action: "end" };
+    case TIPOS_PASSO.transferir:
+      if (passo.destino === "ia") return { action: "suspend" };
+      if (passo.destino === "humano") return { action: "human" };
+      break;
+    default:
+      break;
+  }
+  throw new Error("flow_step_invalid");
+}
+
+/** Porta confirmada → próximo cursor, sempre na definição fixada da execução. */
+export function destinoDaEtapa(definicao, cursor, saida) {
+  const arestas = conexoesDoChatbot(definicao).filter(
+    (aresta) => aresta.source === cursor && (aresta.saida || SAIDA_PADRAO) === saida
+  );
+  if (arestas.length !== 1) throw new Error("flow_output_unavailable");
+  return arestas[0].target;
+}
+
 /** Ordem de avaliação: o primeiro chatbot compatível vence. */
 export const ordenarChatbots = (chatbots) =>
   [...chatbots].sort((a, b) => a.criadoEm - b.criadoEm || a.id.localeCompare(b.id));

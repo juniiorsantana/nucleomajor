@@ -30,6 +30,8 @@ import {
   assinaturaContexto,
   ordenarChatbots,
   planoDosPassos,
+  planoDaEtapa,
+  destinoDaEtapa,
 } from "../domain/chatbotRuntime.js";
 import { normalizePhone, variantesBR } from "../lib/phone.js";
 import { paraSlug } from "../lib/texto.js";
@@ -52,6 +54,24 @@ import {
 const { LOJAS } = db;
 
 const agora = () => Date.now();
+
+function exigirExecucaoLegada(bot) {
+  if (bot?.canvas?.versao === 3) {
+    const erro = new Error("Este fluxo é executado pelo servidor da conexão WhatsApp.");
+    erro.codigo = "fluxo-executor-central";
+    throw erro;
+  }
+}
+
+async function prepararEtapa({ contactId, chatbotId, cursor = null, agora: instante = Date.now() }) {
+  const [bot, ficha] = await Promise.all([db.buscar(LOJAS.chatbots, chatbotId), fichaDoContato({ contactId })]);
+  if (!bot || !ficha) throw new Error("Fluxo ou contato não encontrado.");
+  if (bot.canvas?.versao !== 3) throw new Error("A prévia por etapa exige um fluxo v3.");
+  const nodeId = cursor || destinoDaEtapa(bot, "condicoes", "padrao");
+  const step = bot.passos.find((passo) => passo.id === nodeId);
+  if (!step) throw new Error("Etapa não encontrada.");
+  return { chatbotId, cursor: nodeId, step, plan: planoDaEtapa(step, { ...ficha, agora: instante }) };
+}
 
 /* ------------------------------------------------------------------ */
 /* Contatos                                                            */
@@ -603,6 +623,7 @@ async function prepararExecucao({ contactId, chatbotId, agora: instante = Date.n
     throw erro;
   }
   if (!ficha) return null;
+  exigirExecucaoLegada(bot);
   if (bot.ativo === false) {
     const erro = new Error("Este chatbot está desativado.");
     erro.codigo = "chatbot-nao-se-aplica";
@@ -688,6 +709,7 @@ async function prepararAutomatico({ contactId, messageId, agora: instante = Date
     (item) => item.ativo !== false && regraAtende(item, { ...ficha, agora: instante })
   );
   if (!bot) return ignorar("nenhum-bot-aplicavel");
+  if (bot.canvas?.versao === 3) return ignorar("fluxo-executor-central", bot);
 
   const chave = CHAVE_AUTO(messageId);
   const reservou = await db.comLojas([LOJAS.meta], "readwrite", async (abertas) => {
@@ -799,6 +821,7 @@ async function executarChatbot({ contactId, chatbotId, preparacao = null, mensag
       throw erro;
     }
     if (!contato) throw new Error("Contato não encontrado.");
+    exigirExecucaoLegada(bot);
     if (mensagemRecebidaId) {
       const jaExecutado = eventos.some(
         (evento) => evento.carga?.mensagemRecebidaId === mensagemRecebidaId
@@ -1173,6 +1196,7 @@ export const operacoes = {
   "chatbots.marcarAutomaticoEnviado": marcarAutomaticoEnviado,
   "chatbots.cancelarAutomatico": cancelarAutomatico,
   "chatbots.executar": executarChatbot,
+  "chatbots.prepararEtapa": prepararEtapa,
 
   "automacao.estado": estadoAutomacao,
   "automacao.pausar": pausarAutomacao,
