@@ -1,5 +1,10 @@
 # Estado atual
 
+**Ambiente definido pelo usuário: não usar WSL local.** Desenvolvimento local
+em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...`
+são legadas e não justificam reativar o WSL. Esta regra também consta em
+[`AGENTS.md`](../AGENTS.md).
+
 ## Construtor de fluxos — FASE 3 em implementação (07/09/2026)
 
 Na branch `feature/flow-builder-phase-3` e na branch de runtime

@@ -30,7 +30,7 @@ reenvio automático. Etapas sem efeito externo podem ser reservadas novamente.
 - [x] Prova de sucesso, falha, expiração, duplicidade, retorno tardio, humano,
   edição do fluxo durante espera e envio incerto.
 - [x] PostgreSQL descartável com cadeia inteira, rollback de fixtures e controle.
-- [ ] Suítes completas relevantes, revisão de branches/HEADs e commits.
+- [x] Suítes completas relevantes, revisão de branches/HEADs e commits.
 - [ ] SQL Editor manual com validação read-only e hashes normalizados.
 - [ ] Runtime publicado e saúde observada; resultado integrado documentado.
 
@@ -64,6 +64,17 @@ os efeitos reais continuam exclusivamente no SQL e no consumidor Python.
 
 Validação local: 600 testes do app, 231 testes Node, 405 testes do assistente
 Python e 52 testes MCP passaram. Build web concluído.
+
+Commits de implementação: portal `7bbfedd`, runtime `1a3cd0b`, nas branches
+próprias. A VPS foi conferida em `0ae2b38`, árvore limpa, assistente `active`,
+`NRestarts=0`. Pelo acesso Git da VPS, `hardening` remoto estava em `da11193`
+e não havia `main` remoto nesse repositório. O release contém commits além do
+remoto: o futuro deploy deve preservar `0ae2b38`, já ancestral da branch da
+fase. A comparação deve ser repetida imediatamente antes da troca do release.
+
+O remoto `origin` local do runtime aponta para um caminho legado `/mnt/d/...`.
+Não foi usado WSL. Essa referência não deve ser usada para deploy nem justificar
+reativação do WSL, explicitamente vedada pelo usuário em `AGENTS.md`.
 Os cenários integrados P/Q provaram falha do modelo, expiração e confirmação
 incerta do Bridge, inclusive após reinício de processo.
 
