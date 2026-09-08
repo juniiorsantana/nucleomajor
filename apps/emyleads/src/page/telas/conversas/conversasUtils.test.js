@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mesmaConversa, textoDaTransferencia } from "./conversasUtils";
+import { conciliarPendentes, mesmaConversa, textoDaTransferencia } from "./conversasUtils";
 
 const msg = (texto, extra = {}) => ({
   tipo: "mensagem",
@@ -43,11 +43,35 @@ describe("mesmaConversa", () => {
     expect(mesmaConversa(antes, depois)).toBe(false);
   });
 
+  it("vê uma mensagem diferente mesmo quando texto e minuto são iguais", () => {
+    const antes = [msg("ok", { direcao: "sai", messageId: "wa-1" })];
+    const depois = [msg("ok", { direcao: "sai", messageId: "wa-2" })];
+    expect(mesmaConversa(antes, depois)).toBe(false);
+  });
+
   it("duas conversas vazias são iguais, e a primeira carga não é", () => {
     expect(mesmaConversa([], [])).toBe(true);
     // `null` é o estado antes da primeira carga: precisa deixar passar, senão a
     // conversa nunca aparece.
     expect(mesmaConversa(null, [msg("oi")])).toBe(false);
+  });
+});
+
+describe("conciliarPendentes", () => {
+  it("ignora ids conhecidos e consome retornos novos um a um", () => {
+    const pendentes = ["p1", "p2"].map((chave) => ({
+      chave,
+      conversa: "c1",
+      texto: "ok",
+      messageIdsConhecidos: ["antiga"],
+    }));
+    const mensagens = [
+      msg("ok", { direcao: "sai", messageId: "antiga" }),
+      msg("ok", { direcao: "sai", messageId: "nova" }),
+    ];
+
+    expect(conciliarPendentes(pendentes, mensagens, "c1").map((p) => p.chave))
+      .toEqual(["p2"]);
   });
 });
 

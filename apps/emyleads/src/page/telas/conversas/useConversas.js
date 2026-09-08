@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../data/client";
 import { textoDoMotivoDeEnvio } from "../../../ui/atendimento";
-import { conexaoDaLista, mesmaConversa, textoDaTransferencia } from "./conversasUtils";
+import {
+  conciliarPendentes,
+  conexaoDaLista,
+  mesmaConversa,
+  textoDaTransferencia,
+} from "./conversasUtils";
 
 const PLATAFORMA_WEB =
   typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
@@ -12,14 +17,23 @@ const RECARGA_MS = 20000;
 /**
  * Quanto a tela espera pelo desfecho de um comando.
  *
- * O runtime consulta a fila a cada dois segundos e o envio pelo Bridge tem duas
- * fases. Vinte tentativas de dois segundos cobrem quarenta — folga larga sobre
- * o caso normal, e ainda dentro dos dez minutos em que a RPC expira o comando
- * sozinha. Desistir aqui não perde nada: o comando segue seu caminho, e a
- * mensagem aparece pela sincronia como qualquer outra.
+ * Primeiro consulta a cada dois segundos; depois desacelera para dez segundos
+ * até completar os dez minutos em que a RPC mantém o comando válido.
  */
 const ESPERA_DO_DESFECHO_MS = 2000;
-const TENTATIVAS_DO_DESFECHO = 20;
+const TENTATIVAS_RAPIDAS_DO_DESFECHO = 20;
+const TENTATIVAS_LENTAS_DO_DESFECHO = 56;
+const ESPERA_LENTA_DO_DESFECHO_MS = 10000;
+
+/**
+ * Quanto o modal de nova conversa espera pela verificação do número.
+ *
+ * Quarenta e cinco segundos — a fase rápida do acompanhamento, com folga. Não
+ * é o mesmo orçamento de um envio: ali a mensagem vai sair e quem escreveu quer
+ * o desfecho; aqui há uma pessoa parada esperando para continuar digitando. A
+ * RPC expira a verificação em dois minutos de qualquer forma.
+ */
+const ESPERA_DA_VERIFICACAO_MS = 45000;
 
 const horaDeAgora = () =>
   new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -56,6 +70,25 @@ export function useConversas(organizacaoId) {
    * versioná-lo, então nem ele sabe dizer o que aconteceu antes.
    */
   const [eventos, setEventos] = useState([]);
+  const [organizacaoDoEstado, setOrganizacaoDoEstado] = useState(organizacaoId || null);
+
+  const organizacaoRef = useRef(organizacaoId);
+  organizacaoRef.current = organizacaoId;
+  const conversasRef = useRef(conversas);
+  conversasRef.current = conversas;
+  // Lido dentro de `enviar` só no reenvio. Como ref, e não como dependência:
+  // `pendentes` muda a cada bolha, e recriar `enviar` a cada mudança
+  // invalidaria o `useCallback` inteiro sem necessidade.
+  const pendentesRef = useRef(pendentes);
+  pendentesRef.current = pendentes;
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
 
   // Qual conversa está aberta AGORA, para o acompanhamento que roda solto.
   // Sem isto, um comando disparado numa conversa recarregaria as mensagens por
@@ -63,9 +96,12 @@ export function useConversas(organizacaoId) {
   const atualRef = useRef(atual);
   atualRef.current = atual;
 
-  const carregarLista = useCallback(async () => {
+  const carregarLista = useCallback(async (organizacaoEsperada = organizacaoRef.current) => {
     const lista = await api.conversas.listar();
+    if (organizacaoEsperada !== organizacaoRef.current || !montadoRef.current) return null;
     setConversas(lista);
+    setOrganizacaoDoEstado(organizacaoEsperada || null);
+    setErro("");
     // Escolher a primeira só na primeira carga: trocar a conversa aberta
     // debaixo de quem está lendo seria pior que não atualizar nada.
     setAtual((anterior) => anterior || lista[0]?.id || null);
@@ -74,18 +110,38 @@ export function useConversas(organizacaoId) {
 
   useEffect(() => {
     let vivo = true;
+    const organizacaoEsperada = organizacaoId;
+    setConversas(null);
+    setModelos([]);
+    setAtual(null);
+    setMensagens([]);
+    setErro("");
+    setAviso("");
+    setEquipe([]);
+    setPendentes([]);
+    setEventos([]);
+    setOrganizacaoDoEstado(null);
+    if (!organizacaoEsperada) return () => {
+      vivo = false;
+    };
     (async () => {
       try {
-        const [, padroes] = await Promise.all([carregarLista(), api.conversas.modelos()]);
-        if (vivo) setModelos(padroes);
+        const [, padroes] = await Promise.all([
+          carregarLista(organizacaoEsperada),
+          api.conversas.modelos(),
+        ]);
+        if (vivo && organizacaoEsperada === organizacaoRef.current) setModelos(padroes);
       } catch (falha) {
-        if (vivo) setErro(falha.message);
+        if (vivo && organizacaoEsperada === organizacaoRef.current) {
+          setOrganizacaoDoEstado(organizacaoEsperada);
+          setErro(falha.message);
+        }
       }
     })();
     return () => {
       vivo = false;
     };
-  }, [carregarLista]);
+  }, [organizacaoId, carregarLista]);
 
   /**
    * A equipe, para o menu de a quem atribuir.
@@ -96,10 +152,11 @@ export function useConversas(organizacaoId) {
    */
   useEffect(() => {
     let vivo = true;
+    const organizacaoEsperada = organizacaoId;
     api.organizacoes
       .membros()
       .then((lista) => {
-        if (!vivo) return;
+        if (!vivo || organizacaoEsperada !== organizacaoRef.current) return;
         setEquipe(
           (lista || [])
             .filter((membro) => membro.status === "active")
@@ -133,10 +190,17 @@ export function useConversas(organizacaoId) {
    * que rola a conversa até o fim puxaria a tela de quem está lendo o
    * histórico.
    */
-  const carregarMensagens = useCallback(async (id) => {
+  const carregarMensagens = useCallback(async (
+    id,
+    organizacaoEsperada = organizacaoRef.current
+  ) => {
     if (!id) return;
     const lista = await api.conversas.mensagens({ id });
-    if (id !== atualRef.current) return;
+    if (
+      id !== atualRef.current ||
+      organizacaoEsperada !== organizacaoRef.current ||
+      !montadoRef.current
+    ) return;
     setMensagens((antes) => (mesmaConversa(antes, lista) ? antes : lista));
   }, []);
 
@@ -146,24 +210,28 @@ export function useConversas(organizacaoId) {
       return undefined;
     }
     let vivo = true;
+    const organizacaoEsperada = organizacaoId;
     (async () => {
       try {
-        await carregarMensagens(atual);
+        await carregarMensagens(atual, organizacaoEsperada);
         if (!vivo) return;
         // Quem decide se a conversa ficou lida é quem entregou as mensagens, e
         // não o clique: na bancada abrir zera o contador, e no portal ele
         // continua sendo o que a VPS reportou — marcar como lida ainda não
         // volta para o WhatsApp. Recarregar aqui mostra a resposta de quem
         // sabe, seja ela qual for.
-        await carregarLista();
+        await carregarLista(organizacaoEsperada);
       } catch (falha) {
-        if (vivo) setErro(falha.message);
+        if (vivo && organizacaoEsperada === organizacaoRef.current) {
+          if (conversasRef.current === null) setErro(falha.message);
+          else setAviso(falha.message);
+        }
       }
     })();
     return () => {
       vivo = false;
     };
-  }, [atual, carregarLista, carregarMensagens]);
+  }, [atual, organizacaoId, carregarLista, carregarMensagens]);
 
   /**
    * O aviso do Supabase chega pelo tópico `conversas`, emitido pelo gatilho em
@@ -206,14 +274,19 @@ export function useConversas(organizacaoId) {
    * depois. Sem este acompanhamento a tela só saberia dizer "pedi", e quem
    * atende não distinguiria a mensagem que saiu da que o Bridge recusou.
    *
-   * Desiste depois de `TENTATIVAS_DO_DESFECHO`, e desistir não é fracasso: a
-   * RPC expira o comando sozinha, e a lista continua sendo a fonte da verdade.
+   * Acompanha até a validade da RPC. Depois das tentativas rápidas, reduz a
+   * frequência para não consultar o banco a cada dois segundos por dez minutos.
    */
-  const acompanhar = useCallback(async (comandoId) => {
+  const acompanhar = useCallback(async (comandoId, continuar = () => true) => {
     // Sem comando não há o que acompanhar: é a bancada, que executa na hora.
     if (!comandoId) return { situacao: "completed", motivo: "" };
-    for (let tentativa = 0; tentativa < TENTATIVAS_DO_DESFECHO; tentativa += 1) {
-      await new Promise((pronto) => window.setTimeout(pronto, ESPERA_DO_DESFECHO_MS));
+    const total = TENTATIVAS_RAPIDAS_DO_DESFECHO + TENTATIVAS_LENTAS_DO_DESFECHO;
+    for (let tentativa = 0; tentativa < total; tentativa += 1) {
+      const espera = tentativa < TENTATIVAS_RAPIDAS_DO_DESFECHO
+        ? ESPERA_DO_DESFECHO_MS
+        : ESPERA_LENTA_DO_DESFECHO_MS;
+      await new Promise((pronto) => window.setTimeout(pronto, espera));
+      if (!continuar()) return { situacao: "cancelled", motivo: "" };
       let desfecho = null;
       try {
         desfecho = await api.conversas.desfecho({ comandoId });
@@ -227,7 +300,7 @@ export function useConversas(organizacaoId) {
         return desfecho;
       }
     }
-    return { situacao: "pending", motivo: "" };
+    return { situacao: "expired", motivo: "expired" };
   }, []);
 
   const enviar = useCallback(
@@ -246,14 +319,45 @@ export function useConversas(organizacaoId) {
       // caminho, para uma mensagem que só será entregue uma vez.
       const chave =
         reaproveitar || `pendente-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      /*
+       * A identidade do CLIQUE, e não da tentativa.
+       *
+       * A RPC chaveia a idempotência por ela e só ressuscita comando `failed`
+       * ou `expired`. Um comando pode ser dado como expirado depois de o
+       * runtime já tê-lo reivindicado — nesse caso ele talvez tenha SAÍDO. Com
+       * chave nova, o reenvio mandaria a mesma mensagem duas vezes para o
+       * cliente; com a mesma chave, a RPC devolve o comando que existe e nada
+       * é duplicado.
+       */
+      const clienteDoClique =
+        (reaproveitar && pendentesRef.current.find((p) => p.chave === reaproveitar)?.clienteId) ||
+        crypto.randomUUID();
       const hora = horaDeAgora();
       const conversa = atual;
+      const organizacaoDoEnvio = organizacaoRef.current;
+      // Os `message_id` que a conversa JÁ tinha quando este envio saiu. É por
+      // eles que a conciliação sabe distinguir a volta desta mensagem de uma
+      // mensagem igual que já estava lá.
+      const messageIdsConhecidos = mensagens
+        .filter((mensagem) => mensagem.tipo === "mensagem" && mensagem.direcao === "sai")
+        .map((mensagem) => mensagem.messageId)
+        .filter(Boolean);
       if (reaproveitar) {
+        // O reenvio reaproveita a bolha que falhou, e por isso também precisa
+        // reaproveitar a lista de conhecidos: recomeçar do zero faria a
+        // conciliação enxergar a mensagem que falhou como se fosse a volta
+        // desta, e a bolha sumiria antes de a mensagem existir.
         setPendentes((antes) =>
-          antes.map((p) => (p.chave === chave ? { ...p, falhou: false, motivo: "" } : p))
+          antes.map((p) =>
+            p.chave === chave ? { ...p, falhou: false, motivo: "" } : p
+          )
         );
       } else {
-        setPendentes((antes) => antes.concat([{ chave, conversa, texto: limpo, hora }]));
+        setPendentes((antes) =>
+          antes.concat([
+            { chave, conversa, texto: limpo, hora, messageIdsConhecidos, clienteId: clienteDoClique },
+          ])
+        );
       }
 
       const largar = () => setPendentes((antes) => antes.filter((p) => p.chave !== chave));
@@ -264,7 +368,11 @@ export function useConversas(organizacaoId) {
 
       let comando;
       try {
-        comando = await api.conversas.enviar({ id: conversa, texto: limpo });
+        comando = await api.conversas.enviar({
+          id: conversa,
+          texto: limpo,
+          clientId: clienteDoClique,
+        });
       } catch (falha) {
         largar();
         setAviso(falha.message);
@@ -279,7 +387,11 @@ export function useConversas(organizacaoId) {
       // e prender a caixa até o runtime responder transformaria dois segundos
       // de fila numa tela travada.
       (async () => {
-        const desfecho = await acompanhar(comando?.comandoId);
+        const desfecho = await acompanhar(
+          comando?.comandoId,
+          () => montadoRef.current && organizacaoRef.current === organizacaoDoEnvio
+        );
+        if (desfecho.situacao === "cancelled") return;
         if (desfecho.situacao === "completed") {
           // O Bridge confirmou o envio, mas a bolha de verdade só existe quando
           // a sincronia a trouxer de volta do aparelho — e isso leva mais um
@@ -290,12 +402,15 @@ export function useConversas(organizacaoId) {
           await carregarMensagens(conversa).catch(() => {});
           return;
         }
-        if (desfecho.situacao === "pending") return;
         marcar(desfecho.motivo);
         setAviso(textoDoMotivoDeEnvio(desfecho.motivo));
-      })();
+      })().catch((falha) => {
+        if (!montadoRef.current || organizacaoRef.current !== organizacaoDoEnvio) return;
+        marcar("");
+        setAviso(falha.message);
+      });
     },
-    [atual, acompanhar, carregarLista, carregarMensagens]
+    [atual, mensagens, acompanhar, carregarLista, carregarMensagens]
   );
 
   /**
@@ -334,17 +449,41 @@ export function useConversas(organizacaoId) {
   const verificarNumero = useCallback(
     async (telefone) => {
       const conexao = conexaoDaLista(conversas);
+      const organizacaoDaPergunta = organizacaoRef.current;
       const pedido = await api.conversas.verificarNumero({
         connectionId: conexao,
         telefone,
       });
-      const resposta =
-        pedido?.resultado || (await acompanhar(pedido?.comandoId))?.resultado || null;
+
+      /*
+       * O orçamento desta espera é próprio, e menor que o de um envio.
+       *
+       * `acompanhar` persegue um comando até os dez minutos de validade da RPC,
+       * e isso é certo para uma mensagem: ela vai sair, e quem escreveu quer
+       * saber quando. Aqui é gente parada num modal esperando para digitar o
+       * próximo caractere. Passado o teto, a resposta honesta é "não consegui
+       * perguntar" — e a verificação de dois minutos da RPC já teria expirado
+       * o comando de qualquer forma.
+       */
+      const limite = Date.now() + ESPERA_DA_VERIFICACAO_MS;
+      const desfecho =
+        pedido?.resultado
+          ? { resultado: pedido.resultado }
+          : await acompanhar(
+              pedido?.comandoId,
+              () =>
+                Date.now() < limite &&
+                montadoRef.current &&
+                organizacaoRef.current === organizacaoDaPergunta
+            );
+
+      const resposta = desfecho?.resultado || null;
       if (resposta && typeof resposta.onWhatsApp === "boolean") {
         return { situacao: resposta.onWhatsApp ? "sim" : "nao", motivo: resposta.reason || "" };
       }
-      // Sem resposta: o comando expirou, o runtime não pegou, ou o desfecho
-      // não voltou a tempo. Nenhuma dessas coisas é "o número não existe".
+      // Sem resposta: o comando expirou, o runtime não pegou, alguém trocou de
+      // organização no meio, ou o desfecho não voltou a tempo. Nenhuma dessas
+      // coisas é "o número não existe".
       return { situacao: "indefinido", motivo: "" };
     },
     [conversas, acompanhar]
@@ -367,7 +506,7 @@ export function useConversas(organizacaoId) {
         telefone,
         nome,
       });
-      await carregarLista().catch(() => {});
+      await carregarLista(organizacaoRef.current).catch(() => {});
       setAtual(nova.id);
       return nova;
     },
@@ -379,6 +518,7 @@ export function useConversas(organizacaoId) {
       if (!atual) return;
       setAviso("");
       const conversa = atual;
+      const organizacaoDaTransferencia = organizacaoRef.current;
       const nome = equipe.find((p) => p.id === atendenteId)?.nome || "";
       const chave = `evento-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -399,7 +539,13 @@ export function useConversas(organizacaoId) {
 
       try {
         const comando = await api.conversas.trocarDono({ id: conversa, dono, atendenteId });
-        const desfecho = await acompanhar(comando?.comandoId);
+        const desfecho = await acompanhar(
+          comando?.comandoId,
+          () =>
+            montadoRef.current &&
+            organizacaoRef.current === organizacaoDaTransferencia
+        );
+        if (desfecho.situacao === "cancelled") return;
         if (desfecho.situacao !== "completed" && desfecho.situacao !== "pending") {
           setAviso(textoDoMotivoDeEnvio(desfecho.motivo));
           // Não aconteceu: a pílula sai, senão a conversa afirmaria uma
@@ -409,9 +555,13 @@ export function useConversas(organizacaoId) {
         // Recarrega em qualquer desfecho: quem manda em quem atende é o árbitro
         // da VPS, e a lista mostra o que ele respondeu — inclusive quando a
         // resposta foi "não mudei nada".
-        await carregarLista();
-        await carregarMensagens(conversa);
+        await carregarLista(organizacaoDaTransferencia);
+        await carregarMensagens(conversa, organizacaoDaTransferencia);
       } catch (falha) {
+        if (
+          !montadoRef.current ||
+          organizacaoRef.current !== organizacaoDaTransferencia
+        ) return;
         setEventos((antes) => antes.filter((e) => e.chave !== chave));
         setAviso(falha.message);
       }
@@ -431,12 +581,7 @@ export function useConversas(organizacaoId) {
    */
   useEffect(() => {
     if (!pendentes.length) return;
-    const entregues = new Set(
-      mensagens.filter((m) => m.tipo === "mensagem" && m.direcao === "sai").map((m) => m.texto)
-    );
-    setPendentes((antes) =>
-      antes.filter((p) => p.falhou || p.conversa !== atual || !entregues.has(p.texto))
-    );
+    setPendentes((antes) => conciliarPendentes(antes, mensagens, atual));
     // `pendentes` fica fora das dependências de propósito: ele é o que este
     // efeito escreve, e incluí-lo faria o efeito se disparar em cadeia.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -473,15 +618,17 @@ export function useConversas(organizacaoId) {
     await api.conversas.guardarBaralho({ id, baralho }).catch(() => {});
   }, []);
 
+  const estadoDoEscopoAtual = organizacaoDoEstado === organizacaoId;
+
   return {
-    conversas,
-    modelos,
-    atual,
+    conversas: estadoDoEscopoAtual ? conversas : null,
+    modelos: estadoDoEscopoAtual ? modelos : [],
+    atual: estadoDoEscopoAtual ? atual : null,
     setAtual,
-    mensagens: naTela,
-    equipe,
-    erro,
-    aviso,
+    mensagens: estadoDoEscopoAtual ? naTela : [],
+    equipe: estadoDoEscopoAtual ? equipe : [],
+    erro: estadoDoEscopoAtual ? erro : "",
+    aviso: estadoDoEscopoAtual ? aviso : "",
     // A lista se atualiza sozinha pelo realtime e pelo timer, e isto é para
     // quem sabe de uma mudança que aqueles dois não veem: salvar um contato
     // muda o NOME e a ficha das conversas dele, e o gatilho de realtime mora em

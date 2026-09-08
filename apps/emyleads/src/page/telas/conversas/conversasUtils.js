@@ -27,11 +27,40 @@ export function mesmaConversa(antes, depois) {
   const b = depois[depois.length - 1];
   return (
     a.tipo === b.tipo &&
+    a.messageId === b.messageId &&
     a.texto === b.texto &&
     a.hora === b.hora &&
     a.direcao === b.direcao &&
     a.lido === b.lido
   );
+}
+
+/**
+ * Remove uma bolha provisória somente quando chega uma mensagem desconhecida
+ * por aquele envio. O consumo um-a-um preserva o segundo de dois textos iguais.
+ */
+export function conciliarPendentes(pendentes, mensagens, conversaAtual) {
+  const usadas = new Set();
+  const enviadas = mensagens.filter(
+    (mensagem) =>
+      mensagem.tipo === "mensagem" &&
+      mensagem.direcao === "sai" &&
+      mensagem.messageId
+  );
+
+  return pendentes.filter((pendente) => {
+    if (pendente.falhou || pendente.conversa !== conversaAtual) return true;
+    const conhecidas = new Set(pendente.messageIdsConhecidos || []);
+    const entregue = enviadas.find(
+      (mensagem) =>
+        mensagem.texto === pendente.texto &&
+        !conhecidas.has(mensagem.messageId) &&
+        !usadas.has(mensagem.messageId)
+    );
+    if (!entregue) return true;
+    usadas.add(entregue.messageId);
+    return false;
+  });
 }
 
 /**
