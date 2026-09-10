@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bot,
@@ -55,6 +55,15 @@ const EM_PAREAMENTO = ["starting_pairing", "awaiting_qr", "qr_expired"];
  * alguém com o celular na mão não pode parecer informação de sistema.
  */
 const SESSAO_CAIDA = ["logged_out", "whatsapp_disconnected", "qr_expired", "error"];
+/*
+ * A cadência do QR, que não é a da tela.
+ *
+ * O código do WhatsApp gira a cada ~20s e a janela toda dura ~2 minutos, então
+ * ler a cada 15s mostra sempre um código válido. O laço geral da tela roda a
+ * cada 2,5s — certo para o resto do cartão, e catastrófico para isto: numa
+ * conexão remota cada leitura é um comando que vai ao Supabase e volta.
+ */
+const ESPERA_DO_QR_MS = 15000;
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
 function SeloEstado({ tom = "neutro", children }) {
@@ -591,6 +600,29 @@ function CartaoConexao({
                 Conectar não ativa respostas automáticas. A automação continua pausada.
               </p>
             </div>
+          ) : qr?.erro ? (
+            /*
+             * Um QR que não veio precisa dizer por quê. Enquanto isto não
+             * existia, o teto do pareamento fechado e o bridge fora do ar
+             * produziam a mesma tela — a de "aguarde" —, e quem estava com o
+             * celular na mão esperava um código que nunca ia chegar.
+             */
+            <div className="text-center">
+              <AlertTriangle size={40} className="mx-auto text-danger" strokeWidth={1.5} aria-hidden="true" />
+              <p className="mt-3 text-[13.5px] font-semibold text-fg">O QR não veio</p>
+              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">{qr.erro}</p>
+              <p className="mt-2 max-w-56 text-[11.5px] leading-relaxed text-faint">
+                A tela tenta de novo a cada 15 segundos.
+              </p>
+            </div>
+          ) : emPareamento ? (
+            <div className="text-center">
+              <LoaderCircle size={40} className="mx-auto animate-spin text-sub" strokeWidth={1.5} aria-hidden="true" />
+              <p className="mt-3 text-[13.5px] font-medium text-fg">Pedindo o código à VPS</p>
+              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">
+                Leva alguns segundos. Deixe esta tela aberta.
+              </p>
+            </div>
           ) : (
             <div className="text-center">
               <QrCode size={40} className="mx-auto text-faint" strokeWidth={1.5} aria-hidden="true" />
@@ -621,6 +653,13 @@ export default function Conexoes({ organizacao, usuario = null }) {
   const [nome, setNome] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState("");
+  // A lista mais recente, fora do ciclo de render: o laço do QR precisa dela
+  // sem depender dela, para não se reagendar a cada atualização da tela.
+  const conexoesRef = useRef([]);
+  const alguemPareando = useMemo(
+    () => (estado?.conexoes || []).some((c) => EM_PAREAMENTO.includes(c.connection?.status)),
+    [estado]
+  );
 
   const carregar = useCallback(
     async ({ silencioso = false } = {}) => {
@@ -648,23 +687,13 @@ export default function Conexoes({ organizacao, usuario = null }) {
           }
         }
 
-        const pendentes = (proximo.conexoes || []).filter((c) =>
-          EM_PAREAMENTO.includes(c.connection?.status)
-        );
-        const lidos = await Promise.all(
-          pendentes.map(async (c) => {
-            try {
-              return [c.connectionId, await api.gateway.qr({
-                organizationId,
-                connectionId: c.connectionId,
-                remoto: c.remoteManaged,
-              })];
-            } catch {
-              return [c.connectionId, null];
-            }
-          })
-        );
-        setQrs(Object.fromEntries(lidos.filter(([, valor]) => valor)));
+        // A leitura do QR NÃO acontece aqui. Este laço roda a cada 2,5s para
+        // manter o cartão vivo, e numa conexão remota cada leitura de QR é um
+        // comando enfileirado que atravessa o Supabase e volta. Pegar carona
+        // nesta cadência gerou 24 pedidos por minuto e estourou o teto do
+        // pareamento em dezessete minutos, em 10/09/2026, com alguém de celular
+        // na mão esperando o código. O QR tem laço próprio, mais lento.
+        conexoesRef.current = proximo.conexoes || [];
 
         // `null` quando a consulta falha, para o cartão dizer "não sei" em vez
         // de "desligado" — a diferença importa justamente quando alguém está
@@ -702,6 +731,64 @@ export default function Conexoes({ organizacao, usuario = null }) {
     },
     [organizationId]
   );
+
+  /**
+   * Lê o QR de quem está pareando.
+   *
+   * `forcar` existe porque o estado da conexão vem do heartbeat da VPS, que
+   * leva até 20 segundos para dizer "estou em pareamento". Esperar essa volta
+   * depois do clique deixaria o painel vazio por meia dúzia de segundos, e
+   * quem clicou concluiria que não funcionou.
+   *
+   * A falha é guardada em vez de engolida: sem isso, um QR que não vem deixa a
+   * tela dizendo "o QR aparecerá aqui" para sempre, sem dizer por quê — foi
+   * exatamente o que aconteceu quando o teto do pareamento fechou.
+   */
+  const lerQrs = useCallback(
+    async (forcar = "") => {
+      const alvos = (conexoesRef.current || []).filter(
+        (c) => EM_PAREAMENTO.includes(c.connection?.status) || c.connectionId === forcar
+      );
+      if (!alvos.length) {
+        setQrs({});
+        return;
+      }
+      const lidos = await Promise.all(
+        alvos.map(async (c) => {
+          try {
+            const qr = await api.gateway.qr({
+              organizationId,
+              connectionId: c.connectionId,
+              remoto: c.remoteManaged,
+            });
+            return [c.connectionId, qr || { erro: "" }];
+          } catch (e) {
+            return [c.connectionId, { erro: e?.message || "Não foi possível ler o QR." }];
+          }
+        })
+      );
+      setQrs(Object.fromEntries(lidos));
+    },
+    [organizationId]
+  );
+
+  // Laço próprio do QR: só existe enquanto alguém está pareando, e é lento de
+  // propósito. Depende de um booleano, e não da lista de conexões, porque a
+  // lista muda de identidade a cada 2,5s — usá-la como dependência recriaria o
+  // intervalo a cada volta e devolveria a cadência rápida pela porta dos fundos.
+  useEffect(() => {
+    if (!organizationId || !alguemPareando) return undefined;
+    let ativo = true;
+    const rodar = () => {
+      if (ativo && document.visibilityState === "visible") lerQrs();
+    };
+    rodar();
+    const id = setInterval(rodar, ESPERA_DO_QR_MS);
+    return () => {
+      ativo = false;
+      clearInterval(id);
+    };
+  }, [organizationId, alguemPareando, lerQrs]);
 
   // Trocar de workspace descarrega tudo antes de qualquer nova consulta: a
   // credencial, o polling e o que estava na tela pertenciam à outra empresa.
@@ -936,13 +1023,16 @@ export default function Conexoes({ organizacao, usuario = null }) {
                   sessaoWeb={sessaoWeb}
                   ocupado={ocupado.endsWith(conexao.connectionId) ? ocupado.split("|")[0] : ""}
                   aoParear={() =>
-                    executar(`parear|${conexao.connectionId}`, () =>
-                      api.gateway.parear({
+                    executar(`parear|${conexao.connectionId}`, async () => {
+                      await api.gateway.parear({
                         organizationId,
                         connectionId: conexao.connectionId,
                         remoto: conexao.remoteManaged,
-                      })
-                    )
+                      });
+                      // Sem esperar o heartbeat: quem clicou quer o código
+                      // agora, e o estado da VPS leva até 20s para chegar.
+                      await lerQrs(conexao.connectionId);
+                    })
                   }
                   aoReconectar={() =>
                     executar(`reconectar|${conexao.connectionId}`, () =>
