@@ -31,7 +31,7 @@ import { WORKSPACE_KEY } from "./storage.js";
  */
 
 const CAMPOS_CONVERSA =
-  "connection_id,contact_phone,chat_kind,contact_name,last_message_preview," +
+  "connection_id,contact_phone,chat_kind,contact_name,contact_photo_url,last_message_preview," +
   "last_message_at,last_message_from_me,unread_count,owner,attendant_id,attendant_name";
 
 const CAMPOS_MENSAGEM =
@@ -258,7 +258,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
           : contato?.name || nomeEspelhado || linha.contact_phone,
         empresa: contato?.company || "",
         cargo: contato?.job_title || "",
-        fotoUrl: contato ? avatares.get(contato.avatar_path) || null : null,
+        fotoUrl: avatares.get(contato?.avatar_path) || linha.contact_photo_url || null,
         // O grupo não tem telefone para mostrar. Formatar o id dele como se
         // fosse um daria à tela um número de dezoito dígitos com DDD inventado.
         telefone: grupo ? "" : linha.contact_phone,
@@ -266,6 +266,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         atendenteId: linha.attendant_id || null,
         atendenteNome: linha.attendant_name || "",
         hora: fmtHoraDaLista(linha.last_message_at),
+        ultimaMensagemEm: linha.last_message_at ? new Date(linha.last_message_at).getTime() : 0,
         naoLidas: linha.unread_count || 0,
         previa: linha.last_message_preview || "",
         saiu: linha.last_message_from_me === true,

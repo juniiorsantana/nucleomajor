@@ -3,6 +3,7 @@ import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, 
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
+import { paraSlug } from "../lib/texto";
 import Contatos from "./telas/Contatos";
 import FichaContato from "./telas/FichaContato";
 import Funil from "./telas/Funil";
@@ -511,6 +512,21 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const consumirComando = () => setComando(null);
   const editorDeChatbotAberto = tela === "chatbots" && chatbotEditando !== undefined;
 
+  const atualizarEtiquetasDoContato = async (contatoId, tags) => {
+    await api.contatos.atualizar({ id: contatoId, patch: { tags } });
+    await carregar();
+  };
+
+  const criarEtiqueta = async (nome) => {
+    const id = paraSlug(nome);
+    if (!id) throw new Error("Digite um nome para a etiqueta.");
+    if (dados.tags.some((tag) => tag.id === id)) return dados.tags.find((tag) => tag.id === id);
+    const tag = { id, nome: nome.trim(), cor: "#7c5ce7" };
+    await api.tags.salvar({ tags: [tag] });
+    await carregar();
+    return tag;
+  };
+
   return (
     <div className="flex h-screen bg-surface text-fg">
       {/*
@@ -618,6 +634,11 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               // segundo lugar onde contato nasce, e o dia em que um campo novo
               // aparecesse só num dos dois já estaria marcado.
               aoNovoContato={(preenchido) => setEditando(preenchido || null)}
+              aoAtualizarEtiquetas={atualizarEtiquetasDoContato}
+              aoCriarEtiqueta={criarEtiqueta}
+              aoAbrirConversa={() => {
+                if (!menuRecolhido) alternarMenu();
+              }}
               sessao={sessao}
             />
           </Suspense>
