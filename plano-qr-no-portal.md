@@ -9,19 +9,44 @@ travada estão fora — ver `plano-conexao-whatsapp.md`.
 
 ## ESTADO — leia primeiro
 
-> **Onde paramos:** **A, B e C escritas e verdes.** Falta commitar e aplicar.
-> **Próxima ação:** commitar as três frentes e aplicar na ordem A → B → C.
-> **Nada aplicado em produção ainda, e nada commitado ainda.**
+> **Onde paramos:** **FEITO.** O QR apareceu no portal e o número
+> `•••• 8362` foi lido e conectado em **10/09/2026, 10:32**.
+> **Próxima ação:** nenhuma neste plano. Ver "O que ficou de fora", no fim.
+>
+> **O que faltava não era nenhuma das três etapas — era um teto de bytes.**
+> `nucleo_runtime_command_complete` recusava qualquer resultado acima de
+> **2048 bytes** (escrito em 20260826010000, quando todo resultado da fila era
+> texto curto). A imagem do QR tem **7.718 bytes**. Resultado: leitura SEM
+> imagem (`starting_pairing`, `qr_expired`) concluía e a fila parecia
+> funcionar; leitura COM imagem (`awaiting_qr`) era recusada pelo banco,
+> virava `unexpected` no runtime e "O QR não veio" na tela. Consertado por
+> `20260910120000_a_imagem_do_qr_nao_cabe_em_dois_mil_bytes.sql` (teto de
+> 12 KB só para `connection_pair_qr`), aplicada pelo SQL Editor em 10/09/2026.
+>
+> - **Migration A:** aplicada pelo SQL Editor. Provado de fora com a chave
+>   publicável: as duas RPCs respondem `P0001 organization admin required`,
+>   enquanto um nome inventado responde `PGRST202`.
+> - **Runtime:** release `1c26fd4` no ar, symlink repontado, 396/396 testes
+>   rodados na VPS, `runtime_commands_enabled: true` no `service.started`.
+>   O bridge **não** foi reiniciado (`ExecMainStartTimestamp` intacto).
+>   A release nova tem `git status` vazio — acabou a divergência de código
+>   fora do git, que existia em todas as anteriores.
+> - **Portal:** `88f0211` publicado (`75ddace..88f0211` na `main`), deploy
+>   automático da Hostinger.
+>
+> **Continua fora deste trabalho:** a sincronia travada desde 08/09 16:55
+> (`control_plane_unavailable`), que ainda repete ~59 falhas por hora.
 >
 > Este bloco e o "Registro de andamento" no fim do arquivo são atualizados a
 > cada passo concluído. Se a conversa se perder, comece por eles.
 
 | Etapa | Estado |
 |---|---|
-| A — migration (portal) | `[x]` escrita e verde |
-| B — runtime (Python) | `[x]` escrito e verde |
-| C — portal (tela e transporte) | `[x]` escrita e verde |
-| Aplicar em produção | `[ ]` na ordem A → B → C, pelo Junior |
+| A — migration (portal) | `[x]` escrita, verde e aplicada |
+| B — runtime (Python) | `[x]` escrito, verde e implantado |
+| C — portal (tela e transporte) | `[x]` escrita, verde e publicada |
+| D — o teto de 2048 bytes | `[x]` descoberta em 10/09, corrigida e aplicada |
+| Ler o QR e conectar | `[x]` 10/09/2026 10:32, número `•••• 8362` |
 
 **Arquivos criados/alterados até aqui:**
 
@@ -245,3 +270,27 @@ sabe fazer.
 | 10/09/2026 | Claude | C — portal | concluída | `pareamentoRemoto` no `gatewayProvider.js` (enfileira + acompanha, 12×700ms); `remoto` em `gateway.parear`/`gateway.qr`; botão "Conectar número" liberado para a VPS com cargo; Reconectar/Revogar seguem locais; `logged_out` virou vermelho. Portal: **627/627** (+5), servidor: **235/235**, `npm run check`: build ok. **Sem commit.** |
 | 10/09/2026 | Claude | B — runtime | concluída | `_parear` no molde do `_conversa_verificar`; o código cru do QR nunca sai (lista de campos explícita); 409 dividido em `session_exists` e `pairing_in_progress`. Suíte do runtime: **396/396**. Branch `conexao/qr-pelo-portal`, **sem commit**. |
 | 10/09/2026 | Claude | A — migration | concluída | `20260910010000_qr_do_whatsapp_pelo_portal.sql` + 14 testes. Suíte de migrations: **178/178**. RPCs próprias, guarda `owner`/`admin`, TTL 60s/30s, tetos separados (10 aberturas, 400 leituras), imagem apagada após 2 min. **Não aplicada no banco remoto.** |
+| 10/09/2026 | Claude | D — o teto de 2048 bytes | concluída | **A causa raiz.** `nucleo_runtime_command_complete` recusava resultado acima de 2048 bytes; a imagem do QR tem **7.718 bytes**. Só a leitura sem imagem passava — por isso a fila parecia funcionar e os três `fix` anteriores (cadência, teto do pareamento, trava) não mudaram nada: mexiam no *quando*, e o problema era o *tamanho*. Corrigido em `20260910120000_a_imagem_do_qr_nao_cabe_em_dois_mil_bytes.sql`: 12 KB só para `connection_pair_qr`, 2048 para o resto, checagem depois de achar o comando. Migrations: **199/199** (+12). Aplicada pelo SQL Editor pelo Junior. |
+| 10/09/2026 | Claude + Junior | ponta a ponta | concluída | 10:31:23, 10:32:05, 10:32:21 e 10:32:36 — quatro `connection_pair_qr` concluídos com **`awaiting_qr`**, estado que nunca aparecera antes; 10:32:54 no bridge: `History sync complete. Stored 404 messages.` Banco: `whatsapp_status: connected`, `verified_phone_last4: 8362`. |
+
+## O que ficou de fora, e vale olhar depois
+
+Nada disto impediu o QR de funcionar — todos foram observados durante o
+diagnóstico e seguem de pé:
+
+1. **A sincronia travada desde 08/09 16:55** (`control_plane_unavailable`),
+   ~59 falhas por hora. Continua repetindo depois da reconexão.
+2. **`private.conexao_da_organizacao` está quebrada** desde 08/09
+   (`20260908120000:92`): faz `min(connection.id)` sobre `uuid`, e o Postgres
+   responde `function min(uuid) does not exist`. Toda chamada que **omite** a
+   conexão morre ali — pareamento, `nucleo_conversation_start` e
+   `conversation_check`. O portal sempre manda o id explícito, então o defeito
+   está latente: aparece no dia em que alguém chamar por RPC sem escolher a
+   conexão. `min()` não existe para uuid; a saída é `order by id limit 1`.
+3. **O laço do QR depende do heartbeat para começar.** Depois do clique há uma
+   leitura forçada; a próxima só vem quando a VPS reporta `awaiting_qr` (até
+   20s) e depois a cada 15s, contra um código que gira a cada 20s. Funciona,
+   mas a margem é de 5 segundos.
+4. **Uma recusa qualquer pausa o laço por 60 segundos**, dentro de uma janela
+   que dura 120. E o laço inteiro para quando a aba sai de primeiro plano
+   (`document.visibilityState`), sem dizer isso a quem está olhando.
