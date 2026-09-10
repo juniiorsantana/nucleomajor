@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MailOpen, PanelRight, Plus, Search, Users } from "lucide-react";
+import { MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
@@ -66,13 +66,11 @@ const FILTROS = [
   { id: "humano", rotulo: maiuscula(DONOS_CURTOS.humano) },
   { id: "ia", rotulo: maiuscula(DONOS_CURTOS.ia) },
   { id: "bot", rotulo: maiuscula(DONOS_CURTOS.bot) },
-  { id: "grupos", rotulo: "Grupos" },
 ];
 
-function passaFiltro(conversa, filtro) {
+export function passaFiltro(conversa, filtro) {
   if (filtro === "naolidas") return conversa.naoLidas > 0;
   if (filtro === "tudo") return true;
-  if (filtro === "grupos") return conversa.grupo === true;
   // Grupo não tem dono de atendimento: ele sobe com o dono padrão da conexão,
   // que é quase sempre "bot". Deixá-lo passar pelos filtros de dono faria a
   // aba do robô virar a lista dos grupos.
@@ -85,6 +83,12 @@ function passaBusca(conversa, termo) {
     `${conversa.nome} ${conversa.empresa} ${conversa.previa} ${conversa.atendenteNome || ""}`
       .toLowerCase();
   return alvo.includes(termo);
+}
+
+export function ordenarPorMensagemMaisRecente(conversas) {
+  return [...conversas].sort(
+    (a, b) => (b.ultimaMensagemEm || 0) - (a.ultimaMensagemEm || 0)
+  );
 }
 
 /** A última coisa que o contato disse — é dela que a tarefa se preenche. */
@@ -100,6 +104,9 @@ export default function Conversas({
   recarregar,
   aoAbrirContato,
   aoNovoContato,
+  aoAtualizarEtiquetas,
+  aoCriarEtiqueta,
+  aoAbrirConversa,
   sessao,
 }) {
   const {
@@ -122,6 +129,7 @@ export default function Conversas({
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("tudo");
+  const [tipoLista, setTipoLista] = useState("contatos");
   const [rascunho, setRascunho] = useState("");
   const [aba, setAba] = useState(null);
   const [atalho, setAtalho] = useState(null);
@@ -132,8 +140,20 @@ export default function Conversas({
 
   const termo = busca.trim().toLowerCase();
   const visiveis = useMemo(
-    () => (conversas || []).filter((c) => passaFiltro(c, filtro) && passaBusca(c, termo)),
-    [conversas, filtro, termo]
+    () =>
+      ordenarPorMensagemMaisRecente(
+        (conversas || [])
+          .filter((c) => (tipoLista === "grupos" ? c.grupo : !c.grupo))
+          .filter((c) => passaFiltro(c, filtro) && passaBusca(c, termo))
+      ),
+    [conversas, filtro, termo, tipoLista]
+  );
+  const totais = useMemo(
+    () => ({
+      contatos: (conversas || []).filter((c) => !c.grupo).length,
+      grupos: (conversas || []).filter((c) => c.grupo).length,
+    }),
+    [conversas]
   );
   const conversa = (conversas || []).find((c) => c.id === atual) || null;
 
@@ -258,7 +278,34 @@ export default function Conversas({
             />
           </div>
 
-          <div className="scrollbar-fina mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5">
+          <div className="mt-2.5 grid grid-cols-2 rounded-[10px] bg-surface p-1" role="tablist" aria-label="Tipo de conversa">
+            {[
+              { id: "contatos", rotulo: "Contatos", Icone: UserRound },
+              { id: "grupos", rotulo: "Grupos", Icone: Users },
+            ].map(({ id, rotulo, Icone }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tipoLista === id}
+                onClick={() => {
+                  setTipoLista(id);
+                  setFiltro("tudo");
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[11.5px] font-semibold transition-colors ${
+                  tipoLista === id
+                    ? "bg-bg text-fg shadow-[0_1px_3px_rgba(18,23,48,.1)]"
+                    : "text-sub hover:text-fg"
+                }`}
+              >
+                <Icone size={13} strokeWidth={2} />
+                {rotulo}
+                <span className="text-[10px] tabular-nums text-faint">{totais[id]}</span>
+              </button>
+            ))}
+          </div>
+
+          {tipoLista === "contatos" && <div className="scrollbar-fina mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5">
             {FILTROS.map((f) => (
               <button
                 key={f.id}
@@ -272,7 +319,7 @@ export default function Conversas({
                 {f.rotulo}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
 
         <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
@@ -294,6 +341,7 @@ export default function Conversas({
                   setAtual(c.id);
                   setAba(null);
                   setAtalho(null);
+                  aoAbrirConversa?.();
                 }}
               />
             ))
@@ -456,10 +504,13 @@ export default function Conversas({
           tarefa={tarefa}
           nota={nota}
           etiquetas={etiquetas}
+          todasEtiquetas={dados.tags}
           aoFechar={() => setFichaAberta(false)}
           aoAtalho={abrirAtalho}
           aoAbrirFicha={() => contato && aoAbrirContato(contato)}
           aoSalvarContato={aoNovoContato}
+          aoAtualizarEtiquetas={aoAtualizarEtiquetas}
+          aoCriarEtiqueta={aoCriarEtiqueta}
         />
       )}
 

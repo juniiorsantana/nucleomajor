@@ -48,6 +48,7 @@ const CONVERSAS = [
     connection_id: CONNECTION_ID,
     contact_phone: "5521999998888",
     contact_name: "",
+    contact_photo_url: "https://pps.whatsapp.net/novo-contato.jpg",
     last_message_preview: "oi",
     last_message_at: null,
     last_message_from_me: false,
@@ -216,6 +217,7 @@ describe("conversas.listar", () => {
     // Quem chegou agora é justamente quem não pode sumir da caixa de entrada.
     // Sem nome no CRM nem no WhatsApp, a linha mostra o número.
     expect(segunda).toMatchObject({ contactId: null, nome: "5521999998888" });
+    expect(segunda.fotoUrl).toBe("https://pps.whatsapp.net/novo-contato.jpg");
     expect(segunda.hora).toBe("");
   });
 
@@ -233,6 +235,7 @@ describe("conversas.listar", () => {
       "last_message_at",
       { ascending: false, nullsFirst: false },
     ]);
+    expect(consultaDe(chamadas, "whatsapp_conversations").campos).toContain("contact_photo_url");
   });
 
   it("sem empresa escolhida não sai consulta nenhuma", async () => {

@@ -217,6 +217,7 @@ export function criarOperacoesConversas({ listarContatos }) {
         atendenteId: atendentes.get(contato.id)?.id || null,
         atendenteNome: atendentes.get(contato.id)?.nome || "",
         hora: ultima ? ultima.hora : padrao.hora,
+        ultimaMensagemEm: contato.ultimaEm || 0,
         naoLidas: lidas.has(contato.id) ? 0 : padrao.naoLidas,
         fixado: padrao.fixado,
         saiu: ultima ? true : padrao.saiu === true,
@@ -239,6 +240,7 @@ export function criarOperacoesConversas({ listarContatos }) {
       atendenteId: null,
       atendenteNome: "Você",
       hora: nova.hora,
+      ultimaMensagemEm: nova.criadaEm,
       naoLidas: 0,
       fixado: false,
       saiu: false,
@@ -375,7 +377,7 @@ export function criarOperacoesConversas({ listarContatos }) {
       const digitos = String(telefone || "").replace(/\D/g, "");
       const id = `novo:${digitos}`;
       if (!novas.has(digitos)) {
-        novas.set(digitos, { id, telefone: digitos, nome: String(nome || "").trim(), hora: horaDeAgora() });
+        novas.set(digitos, { id, telefone: digitos, nome: String(nome || "").trim(), hora: horaDeAgora(), criadaEm: Date.now() });
       }
       return { id, criada: true, comandoId: null };
     },

@@ -1,16 +1,21 @@
+import { useState } from "react";
 import {
   ArrowRight,
   CalendarPlus,
+  Check,
   DollarSign,
+  Plus,
   SquareCheckBig,
   StickyNote,
+  Tag,
   UserPlus,
   X,
 } from "lucide-react";
 import { corDoEstagio } from "../../../domain/types";
 import { TONS, fmtMoeda, fmtRelativo, fmtVencimento } from "../../../lib/formato";
 import { formatPhone } from "../../../lib/phone";
-import { Iniciais, PilulaEstagio, SeloWhatsApp } from "../../ui";
+import { PilulaEstagio, SeloWhatsApp } from "../../ui";
+import { AvatarComDono } from "./pecas";
 
 /**
  * A ficha do contato, ao lado da conversa.
@@ -39,6 +44,121 @@ function Linha({ rotulo, children }) {
   );
 }
 
+function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
+  const [aberto, setAberto] = useState(false);
+  const [nova, setNova] = useState("");
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const selecionadas = contato?.tags || [];
+
+  const alternar = async (id) => {
+    if (!contato || salvando) return;
+    const proxima = selecionadas.includes(id)
+      ? selecionadas.filter((tagId) => tagId !== id)
+      : [...selecionadas, id];
+    setSalvando(true);
+    setErro("");
+    try {
+      await aoAtualizar(contato.id, proxima);
+    } catch (falha) {
+      setErro(falha?.message || "Não foi possível atualizar as etiquetas.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const criar = async (evento) => {
+    evento.preventDefault();
+    if (!nova.trim() || !contato || salvando) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      const tag = await aoCriar(nova.trim());
+      await aoAtualizar(contato.id, [...new Set([...selecionadas, tag.id])]);
+      setNova("");
+    } catch (falha) {
+      setErro(falha?.message || "Não foi possível criar a etiqueta.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="mt-3.5 border-t border-line pt-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Etiquetas</span>
+        {contato && (
+          <button
+            type="button"
+            onClick={() => setAberto((valor) => !valor)}
+            className="ml-auto inline-flex items-center gap-1 rounded-[7px] px-1.5 py-1 text-[10.5px] font-semibold text-accent-forte transition-colors hover:bg-accent-soft"
+          >
+            <Tag size={12} strokeWidth={2} />
+            Gerenciar
+          </button>
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {etiquetas.length ? etiquetas.map((tag) => (
+          <span
+            key={tag.id}
+            className="rounded-[6px] px-2 py-1 text-[10.5px] font-semibold"
+            style={{ color: tag.cor || "var(--el-sub)", backgroundColor: `${tag.cor || "#667085"}18` }}
+          >
+            {tag.nome}
+          </span>
+        )) : <span className="text-[11.5px] text-faint">Nenhuma etiqueta.</span>}
+      </div>
+
+      {!contato && <p className="mt-2 text-[11px] leading-4 text-faint">Salve o contato para adicionar etiquetas.</p>}
+
+      {aberto && contato && (
+        <div className="mt-2.5 rounded-[10px] border border-line bg-surface p-2">
+          <div className="max-h-40 space-y-1 overflow-y-auto">
+            {todas.map((tag) => {
+              const ativa = selecionadas.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  disabled={salvando}
+                  onClick={() => alternar(tag.id)}
+                  className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11.5px] transition-colors ${ativa ? "bg-accent-soft text-fg" : "text-sub hover:bg-surface-hover hover:text-fg"}`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.cor || "#667085" }} />
+                  <span className="min-w-0 flex-1 truncate">{tag.nome}</span>
+                  {ativa && <Check size={13} strokeWidth={2.5} className="text-accent" />}
+                </button>
+              );
+            })}
+          </div>
+          <form onSubmit={criar} className="mt-2 flex gap-1.5 border-t border-line pt-2">
+            <input
+              id="nova-etiqueta-conversa"
+              name="novaEtiqueta"
+              value={nova}
+              onChange={(evento) => setNova(evento.target.value)}
+              placeholder="Nova etiqueta"
+              aria-label="Nome da nova etiqueta"
+              className="min-w-0 flex-1 rounded-[7px] border border-line bg-bg px-2 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              disabled={!nova.trim() || salvando}
+              title="Criar e adicionar etiqueta"
+              className="flex h-8 w-8 items-center justify-center rounded-[7px] bg-accent text-white transition-colors hover:bg-accent-forte disabled:opacity-40"
+            >
+              <Plus size={14} strokeWidth={2.3} />
+            </button>
+          </form>
+          {erro && <p role="alert" className="mt-1.5 text-[10.5px] text-danger">{erro}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FichaLateral({
   conversa,
   contato,
@@ -47,10 +167,13 @@ export function FichaLateral({
   tarefa,
   nota,
   etiquetas,
+  todasEtiquetas,
   aoFechar,
   aoAtalho,
   aoAbrirFicha,
   aoSalvarContato,
+  aoAtualizarEtiquetas,
+  aoCriarEtiqueta,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -71,7 +194,12 @@ export function FichaLateral({
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-3.5 pb-4 pt-3">
         <div className="flex flex-col items-center text-center">
-          <Iniciais nome={conversa.nome} tamanho={62} />
+          <AvatarComDono
+            nome={conversa.nome}
+            foto={conversa.fotoUrl}
+            dono={conversa.dono}
+            tamanho={62}
+          />
           <span className="mt-2.5 text-[15.5px] font-semibold text-fg">{conversa.nome}</span>
           {(conversa.cargo || conversa.empresa) && (
             <span className="mt-0.5 text-[12px] text-sub">
@@ -149,23 +277,15 @@ export function FichaLateral({
           <Linha rotulo="Origem">
             <span className="text-[12px] text-fg">{contato?.origem || "—"}</span>
           </Linha>
-          <Linha rotulo="Etiquetas">
-            {etiquetas.length ? (
-              <span className="flex flex-wrap gap-1">
-                {etiquetas.map((t) => (
-                  <span
-                    key={t.id}
-                    className="rounded-[5px] bg-surface px-1.5 py-0.5 text-[10.5px] text-sub"
-                  >
-                    {t.nome}
-                  </span>
-                ))}
-              </span>
-            ) : (
-              <span className="text-[12px] text-faint">—</span>
-            )}
-          </Linha>
         </div>
+
+        <EditorEtiquetas
+          contato={contato}
+          etiquetas={etiquetas}
+          todas={todasEtiquetas}
+          aoAtualizar={aoAtualizarEtiquetas}
+          aoCriar={aoCriarEtiqueta}
+        />
 
         <div className="mt-3.5 border-t border-line pt-2.5">
           <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
