@@ -64,6 +64,9 @@ const SESSAO_CAIDA = ["logged_out", "whatsapp_disconnected", "qr_expired", "erro
  * conexão remota cada leitura é um comando que vai ao Supabase e volta.
  */
 const ESPERA_DO_QR_MS = 15000;
+// Depois de uma recusa, o laço espera um minuto. Insistir a cada 15s contra
+// um teto cheio mantém o teto cheio.
+const PAUSA_APOS_RECUSA_MS = 60000;
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
 function SeloEstado({ tom = "neutro", children }) {
@@ -656,6 +659,9 @@ export default function Conexoes({ organizacao, usuario = null }) {
   // A lista mais recente, fora do ciclo de render: o laço do QR precisa dela
   // sem depender dela, para não se reagendar a cada atualização da tela.
   const conexoesRef = useRef([]);
+  // Uma leitura de QR por vez nesta aba, e uma pausa depois de recusa.
+  const lendoQrRef = useRef(false);
+  const pausaDoQrRef = useRef(0);
   const alguemPareando = useMemo(
     () => (estado?.conexoes || []).some((c) => EM_PAREAMENTO.includes(c.connection?.status)),
     [estado]
@@ -746,28 +752,56 @@ export default function Conexoes({ organizacao, usuario = null }) {
    */
   const lerQrs = useCallback(
     async (forcar = "") => {
-      const alvos = (conexoesRef.current || []).filter(
-        (c) => EM_PAREAMENTO.includes(c.connection?.status) || c.connectionId === forcar
-      );
-      if (!alvos.length) {
-        setQrs({});
-        return;
+      /*
+       * Uma leitura por vez, e a trava é o que impede o teto de fechar.
+       *
+       * Cada leitura pode levar vários segundos: ela enfileira um comando,
+       * espera a VPS reivindicar e volta perguntando. Sem esta trava, qualquer
+       * coisa que dispare uma segunda leitura no meio da primeira — o clique
+       * junto do laço, o efeito remontando, a aba voltando a ficar visível —
+       * soma pedidos em vez de substituí-los. Foi assim que 4 pedidos por
+       * minuto viraram 12 e o teto fechou de novo, em 10/09/2026.
+       */
+      if (lendoQrRef.current) return;
+      /*
+       * Depois de uma recusa, o laço respira.
+       *
+       * Insistir a cada 15s contra um teto cheio mantém o teto cheio: o laço
+       * vira a causa do próprio bloqueio. Um minuto de pausa deixa a janela
+       * esvaziar. Um clique de gente ignora a pausa, porque pedir de novo é
+       * decisão de quem está com o celular na mão.
+       */
+      if (!forcar && Date.now() < pausaDoQrRef.current) return;
+      lendoQrRef.current = true;
+      try {
+        const alvos = (conexoesRef.current || []).filter(
+          (c) => EM_PAREAMENTO.includes(c.connection?.status) || c.connectionId === forcar
+        );
+        if (!alvos.length) {
+          setQrs({});
+          return;
+        }
+        const lidos = await Promise.all(
+          alvos.map(async (c) => {
+            try {
+              const qr = await api.gateway.qr({
+                organizationId,
+                connectionId: c.connectionId,
+                remoto: c.remoteManaged,
+              });
+              return [c.connectionId, qr || { erro: "" }];
+            } catch (e) {
+              return [c.connectionId, { erro: e?.message || "Não foi possível ler o QR." }];
+            }
+          })
+        );
+        setQrs(Object.fromEntries(lidos));
+        pausaDoQrRef.current = lidos.some(([, valor]) => valor?.erro)
+          ? Date.now() + PAUSA_APOS_RECUSA_MS
+          : 0;
+      } finally {
+        lendoQrRef.current = false;
       }
-      const lidos = await Promise.all(
-        alvos.map(async (c) => {
-          try {
-            const qr = await api.gateway.qr({
-              organizationId,
-              connectionId: c.connectionId,
-              remoto: c.remoteManaged,
-            });
-            return [c.connectionId, qr || { erro: "" }];
-          } catch (e) {
-            return [c.connectionId, { erro: e?.message || "Não foi possível ler o QR." }];
-          }
-        })
-      );
-      setQrs(Object.fromEntries(lidos));
     },
     [organizationId]
   );
