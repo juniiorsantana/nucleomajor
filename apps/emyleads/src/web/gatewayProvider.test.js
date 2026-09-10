@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
       return channel;
     }),
     removeChannel: vi.fn(async (channel) => { removed.push(channel); }),
+    rpc: vi.fn(async () => ({ data: null, error: null })),
     from: vi.fn((table) => {
       const query = {
         select: vi.fn(() => query),
@@ -124,5 +125,94 @@ describe("WebGatewayProvider Realtime", () => {
       },
       attendance: { iaAtiva: true, donoPadrao: "ia" },
     });
+  });
+});
+
+describe("Pareamento de uma conexão da VPS", () => {
+  const organizationId = "338e44ca-36ab-437c-b8ac-aa7c60fee64a";
+  const connectionId = "8ee1e6d0-a9d0-4041-b6ea-878716a34a71";
+
+  /**
+   * O par de respostas de um pedido: a RPC que enfileira e a que acompanha.
+   *
+   * O portal nunca fala com a VPS. Ele deixa o pedido na fila e volta perguntar
+   * — e é esse vaivém que estes testes prendem.
+   */
+  const responder = (desfecho) => {
+    mocks.supabase.rpc.mockImplementation(async (nome) => {
+      if (nome === "nucleo_connection_pair_request") {
+        return { data: { commandId: "cmd-par-1", status: "pending" }, error: null };
+      }
+      if (nome === "nucleo_connection_pair_status") return { data: desfecho, error: null };
+      return { data: null, error: null };
+    });
+  };
+
+  beforeEach(() => {
+    mocks.supabase.rpc.mockReset();
+  });
+
+  it("abre o pareamento pela fila, e não pelo 127.0.0.1", async () => {
+    responder({ status: "completed", errorCode: "", result: { status: "starting_pairing" } });
+    const resultado = await criarOperacoesGateway()["gateway.parear"]({
+      organizationId, connectionId, remoto: true,
+    });
+
+    expect(resultado).toEqual({ status: "starting_pairing" });
+    const pedido = mocks.supabase.rpc.mock.calls.find(
+      ([nome]) => nome === "nucleo_connection_pair_request"
+    );
+    expect(pedido[1].requested_step).toBe("connection_pair_start");
+    expect(pedido[1].target_connection).toBe(connectionId);
+    // A RPC exige identificador hexadecimal do clique.
+    expect(pedido[1].command_payload.clientId).toMatch(/^[0-9a-fA-F-]{8,64}$/);
+  });
+
+  it("devolve a imagem do QR que a VPS leu do bridge", async () => {
+    responder({
+      status: "completed",
+      errorCode: "",
+      result: {
+        status: "awaiting_qr",
+        imageData: "data:image/png;base64,AAAA",
+        expiresAt: "2026-09-10T01:00:00Z",
+      },
+    });
+    const qr = await criarOperacoesGateway()["gateway.qr"]({
+      organizationId, connectionId, remoto: true,
+    });
+
+    expect(qr.imageData).toBe("data:image/png;base64,AAAA");
+    expect(qr.status).toBe("awaiting_qr");
+  });
+
+  it("sem imagem devolve nulo, para a tela não desenhar quadrado em branco", async () => {
+    responder({ status: "completed", errorCode: "", result: { status: "connecting" } });
+    const qr = await criarOperacoesGateway()["gateway.qr"]({
+      organizationId, connectionId, remoto: true,
+    });
+
+    expect(qr).toBeNull();
+  });
+
+  it("sessão viva recusa com o motivo, e não com um erro genérico", async () => {
+    // A tela precisa poder dizer "este número já está conectado". Um erro
+    // genérico faria alguém tentar apagar uma sessão que está funcionando.
+    responder({ status: "failed", errorCode: "session_exists", result: {} });
+
+    await expect(
+      criarOperacoesGateway()["gateway.parear"]({ organizationId, connectionId, remoto: true })
+    ).rejects.toThrow("session_exists");
+  });
+
+  it("a conexão local continua sem passar pela fila", async () => {
+    mocks.supabase.rpc.mockImplementation(async () => ({ data: null, error: null }));
+    await criarOperacoesGateway()["gateway.qr"]({
+      organizationId, connectionId, remoto: false,
+    }).catch(() => {});
+
+    expect(mocks.supabase.rpc).not.toHaveBeenCalledWith(
+      "nucleo_connection_pair_request", expect.anything()
+    );
   });
 });

@@ -18,6 +18,13 @@ import { obterSupabaseWeb } from "./supabaseClient.js";
  *    trás.
  */
 
+// O runtime varre a fila a cada 2s, e a RPC dá 30s de validade a uma leitura de
+// QR. Doze voltas de 700ms cobrem a reivindicação com folga e desistem bem
+// antes de o comando vencer — quem está com o celular na mão não espera meio
+// minuto olhando um quadrado vazio.
+const TENTATIVAS_DO_PAREAMENTO = 12;
+const ESPERA_DO_PAREAMENTO_MS = 700;
+
 const GATEWAY_ORIGIN = "http://127.0.0.1:8090";
 const GATEWAY_BASE = `${GATEWAY_ORIGIN}/api/v1`;
 const CHAVE_CREDENCIAIS = "emyleads.gateway.credenciais";
@@ -265,6 +272,54 @@ export function criarOperacoesGateway() {
     return data || [];
   };
 
+  /*
+   * Parear uma conexão que roda na VPS.
+   *
+   * O caminho local bate em `127.0.0.1:8090`, que na web é o computador de quem
+   * está olhando — e por isso nunca respondeu por uma conexão remota. Aqui o
+   * pedido vai pela fila de comandos que o runtime já consome: o portal
+   * enfileira, a VPS reivindica, chama o bridge dela e devolve o resultado.
+   *
+   * O QR não é gerado aqui nem lá no meio: ele nasce no bridge, que já o
+   * entrega desenhado em PNG. Isto é o correio.
+   */
+  const pareamentoRemoto = async (organizationId, connectionId, passo) => {
+    const supabase = obterSupabaseWeb();
+    // A RPC exige um identificador hexadecimal do clique. Cada pedido leva um
+    // novo, de propósito: repetir o mesmo devolveria a resposta guardada, e um
+    // QR guardado é um código que já girou.
+    const cliente = globalThis.crypto?.randomUUID?.()
+      || Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+    const { data, error } = await supabase.rpc("nucleo_connection_pair_request", {
+      target_organization: organizationId,
+      target_connection: connectionId || null,
+      requested_step: passo,
+      command_payload: { clientId: cliente },
+    });
+    if (error) throw erroGateway(error.message, "pareamento-nao-enfileirado");
+    const comandoId = data?.commandId || "";
+    if (!comandoId) throw erroGateway("pareamento sem comando", "pareamento-nao-enfileirado");
+
+    for (let tentativa = 0; tentativa < TENTATIVAS_DO_PAREAMENTO; tentativa += 1) {
+      // `setTimeout` sem `window`: este provider também é carregado fora do
+      // navegador, e ali `window` não existe.
+      await new Promise((pronto) => setTimeout(pronto, ESPERA_DO_PAREAMENTO_MS));
+      const { data: desfecho, error: falha } = await supabase.rpc(
+        "nucleo_connection_pair_status",
+        { target_organization: organizationId, target_command: comandoId }
+      );
+      // Não saber o desfecho não é o mesmo que ele ter falhado: quem decide é
+      // a próxima resposta, não esta.
+      if (falha) continue;
+      const situacao = desfecho?.status || "pending";
+      if (situacao === "pending" || situacao === "claimed") continue;
+      if (situacao === "completed") return desfecho?.result || {};
+      throw erroGateway(desfecho?.errorCode || situacao, "pareamento-recusado");
+    }
+    throw erroGateway("expired", "pareamento-sem-resposta");
+  };
+
   const conexoesRemotas = async (organizationId) => {
     const supabase = obterSupabaseWeb();
     const [{ data, error }, runtimes] = await Promise.all([
@@ -506,15 +561,26 @@ export function criarOperacoesGateway() {
       );
     },
 
-    "gateway.parear": async ({ organizationId, connectionId } = {}) => {
+    "gateway.parear": async ({ organizationId, connectionId, remoto = false } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
+      if (remoto) {
+        return pareamentoRemoto(organizacao, connectionId, "connection_pair_start");
+      }
       return comCredencial(organizacao, connectionId, (token) =>
         requisitar(`/connections/${connectionId}/pairing/start`, { method: "POST", body: {}, token })
       );
     },
 
-    "gateway.qr": async ({ organizationId, connectionId } = {}) => {
+    "gateway.qr": async ({ organizationId, connectionId, remoto = false } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
+      if (remoto) {
+        const pareamento = await pareamentoRemoto(
+          organizacao, connectionId, "connection_pair_qr"
+        );
+        // Sem imagem não há QR para desenhar. Devolver o objeto vazio faria a
+        // tela trocar o "O QR aparecerá aqui" por um quadrado em branco.
+        return pareamento?.imageData ? pareamento : null;
+      }
       const resposta = await comCredencial(organizacao, connectionId, (token) =>
         requisitar(`/connections/${connectionId}/pairing/qr`, { token })
       );

@@ -46,6 +46,15 @@ const ROTULOS_RUNTIME = {
 };
 
 const EM_PAREAMENTO = ["starting_pairing", "awaiting_qr", "qr_expired"];
+/*
+ * A sessão caiu, e isso é vermelho.
+ *
+ * `logged_out` estava caindo no tom neutro — o mesmo cinza de "Host". Em
+ * 08/09/2026 o número ficou 23 horas mudo com esta tela toda verde, e a linha
+ * que dizia a verdade tinha o peso visual de um rodapé. Um estado que exige
+ * alguém com o celular na mão não pode parecer informação de sistema.
+ */
+const SESSAO_CAIDA = ["logged_out", "whatsapp_disconnected", "qr_expired", "error"];
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
 function SeloEstado({ tom = "neutro", children }) {
@@ -396,7 +405,11 @@ function CartaoConexao({
           <EstadoLinha
             rotulo="WhatsApp"
             valor={rotuloSessao}
-            tom={conectado ? "sucesso" : divergente || estado.status === "error" ? "erro" : "neutro"}
+            tom={conectado
+              ? "sucesso"
+              : divergente || SESSAO_CAIDA.includes(estado.status)
+                ? "erro"
+                : "neutro"}
           />
           <EstadoLinha rotulo="Host" valor={conexao.host || "local"} />
           {conexao.expectedPhoneMasked && (
@@ -503,13 +516,23 @@ function CartaoConexao({
 
           {conexao.remoteManaged && (
             <div className="border-b border-line bg-success-soft/40 px-5 py-3 text-[12px] leading-relaxed text-sub">
-              Esta conexão opera na VPS. O portal já acompanha a saúde em tempo real;
-              comandos administrativos remotos serão liberados após a validação do canal seguro.
+              Esta conexão opera na VPS. Ler o QR funciona daqui;
+              reconectar uma sessão existente e revogar o acesso ainda são feitos na própria VPS.
+              {!podeGerenciar && " Conectar um número é permissão de administrador."}
             </div>
           )}
 
-          {!conexao.remoteManaged && <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-            {!conectado && !divergente && runtimeOnline && (
+          <div className="flex flex-wrap items-center gap-2 px-5 py-4">
+            {/*
+              * Conectar número passa a existir também para a VPS: o pedido vai
+              * pela fila de comandos, e não pelo `127.0.0.1` que só respondia
+              * quando runtime e navegador eram a mesma máquina.
+              *
+              * Cargo só é exigido no caminho remoto, que é o que a RPC guarda.
+              * Na conexão local, quem tem a máquina já tem o aparelho na mão.
+              */}
+            {!conectado && !divergente && runtimeOnline
+              && (!conexao.remoteManaged || podeGerenciar) && (
               <BotaoPrimario
                 onClick={aoParear}
                 disabled={!!ocupado || (emPareamento && estado.status !== "qr_expired")}
@@ -523,7 +546,7 @@ function CartaoConexao({
                 {estado.status === "qr_expired" ? "Gerar novo QR" : "Conectar número"}
               </BotaoPrimario>
             )}
-            {runtimeOnline && !emPareamento && (
+            {!conexao.remoteManaged && runtimeOnline && !emPareamento && (
               <button
                 type="button"
                 onClick={aoReconectar}
@@ -534,15 +557,17 @@ function CartaoConexao({
                 Reconectar
               </button>
             )}
-            <button
-              type="button"
-              onClick={aoRevogar}
-              disabled={!!ocupado}
-              className="ml-auto flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
-            >
-              <Unplug size={15} aria-hidden="true" /> Revogar acesso local
-            </button>
-          </div>}
+            {!conexao.remoteManaged && (
+              <button
+                type="button"
+                onClick={aoRevogar}
+                disabled={!!ocupado}
+                className="ml-auto flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
+              >
+                <Unplug size={15} aria-hidden="true" /> Revogar acesso local
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex min-h-[280px] items-center justify-center p-5">
@@ -629,7 +654,11 @@ export default function Conexoes({ organizacao, usuario = null }) {
         const lidos = await Promise.all(
           pendentes.map(async (c) => {
             try {
-              return [c.connectionId, await api.gateway.qr({ organizationId, connectionId: c.connectionId })];
+              return [c.connectionId, await api.gateway.qr({
+                organizationId,
+                connectionId: c.connectionId,
+                remoto: c.remoteManaged,
+              })];
             } catch {
               return [c.connectionId, null];
             }
@@ -908,7 +937,11 @@ export default function Conexoes({ organizacao, usuario = null }) {
                   ocupado={ocupado.endsWith(conexao.connectionId) ? ocupado.split("|")[0] : ""}
                   aoParear={() =>
                     executar(`parear|${conexao.connectionId}`, () =>
-                      api.gateway.parear({ organizationId, connectionId: conexao.connectionId })
+                      api.gateway.parear({
+                        organizationId,
+                        connectionId: conexao.connectionId,
+                        remoto: conexao.remoteManaged,
+                      })
                     )
                   }
                   aoReconectar={() =>
