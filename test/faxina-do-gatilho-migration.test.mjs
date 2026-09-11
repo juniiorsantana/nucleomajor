@@ -156,7 +156,6 @@ test("a migration confere a si mesma depois de aplicar", () => {
     "FALHOU: a entrega de comandos deixou de ser FIFO",
     "FALHOU: SECURITY DEFINER ou search_path mudou em alguma das duas funcoes",
     "FALHOU: authenticated perdeu o EXECUTE da reserva de comandos",
-    "FALHOU: anon ganhou o EXECUTE da reserva de comandos",
     "FALHOU: nao sao mais nove gatilhos apontando para portal_realtime_notify",
   ]) {
     assert.ok(sqlExecutavel.includes(falha), `faltou a asserção: ${falha}`);
@@ -174,6 +173,20 @@ test("privilégios e isolamento continuam declarados", () => {
     sqlExecutavel,
     /grant execute on function public\.nucleo_runtime_commands_claim\(integer, uuid\) to authenticated/,
   );
+});
+
+test("a migration não afirma nada sobre anon", () => {
+  // Em produção `anon` TEM o EXECUTE desta função, e tem desde 26/08: o projeto
+  // carrega `ALTER DEFAULT PRIVILEGES` concedendo EXECUTE a anon, authenticated
+  // e service_role em toda função criada no schema public, e `revoke ... from
+  // public` não alcança concessão nominal a papel. Diagnosticado na ETAPA 11D.
+  //
+  // Uma asserção contra isso PASSA no Postgres descartável — que não tem esses
+  // default privileges — e ABORTA numa reconstrução do zero contra um Supabase
+  // real. É o limite do harness: ele prova semântica de SQL, não configuração
+  // de projeto. A trava existe para a asserção não voltar por boa intenção.
+  assert.doesNotMatch(sqlExecutavel, /has_function_privilege\('anon'/);
+  assert.match(sqlExecutavel, /has_function_privilege\('authenticated'/);
 });
 
 test("a migration não depende de tabela temporária", () => {
