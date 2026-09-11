@@ -1,0 +1,396 @@
+diff -ruN a/whatsapp-assistant/presenca_humana.py b/whatsapp-assistant/presenca_humana.py
+--- a/whatsapp-assistant/presenca_humana.py	2026-09-10 21:18:37.412228200 -0300
++++ b/whatsapp-assistant/presenca_humana.py	2026-09-10 21:18:37.463365800 -0300
+@@ -24,6 +24,15 @@
+ esquecer um deles não daria erro nenhum, daria uma conversa em que o agente
+ emudece depois da primeira resposta. Um lugar só, por onde tudo passa.
+ 
++**Um lugar só não bastou: os dois lados precisam do mesmo nome.** A primeira
++versão anotava pelo destino do envio (o telefone, `556...`) e procurava pelo
++`chat_jid` que o bridge arquiva (`556...@s.whatsapp.net`, ou `...@lid`). São
++strings diferentes para a mesma conversa, nunca casavam, e o efeito era
++justamente o que o parágrafo acima temia — em TODA conversa individual, não só
++numa. Os testes não pegaram porque usavam a mesma chave dos dois lados. Agora
++`_chave()` normaliza o que dá para normalizar e quem chama passa a identidade
++que falta; ver `ultima_resposta_humana`.
++
+ Degrada em silêncio: banco ausente, ilegível ou com formato inesperado responde
+ "não vi ninguém". Um cliente sem resposta é pior do que uma resposta a mais, e
+ esta regra nunca deve ser o motivo de um atendimento ficar mudo.
+@@ -41,7 +50,7 @@
+ import threading
+ from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+-from typing import Optional
++from typing import Optional, Sequence
+ 
+ # Quanto o relógio do WhatsApp pode discordar do nosso.
+ #
+@@ -84,6 +93,29 @@
+     return quando
+ 
+ 
++def _chave(identidade: str) -> str:
++    """A mesma conversa escrita de um jeito só.
++
++    O runtime conhece o mesmo contato por dois nomes e usava um para gravar e
++    o outro para procurar. O bridge arquiva a mensagem sob o JID do chat
++    (`556...@s.whatsapp.net`); o envio é feito para o telefone canônico, sem
++    servidor, e era esse que `send.py` anotava. `556...` nunca foi igual a
++    `556...@s.whatsapp.net`, então o agente não reconhecia a própria resposta
++    e se calava sozinho — exatamente o silêncio que o topo deste arquivo diz
++    não poder acontecer.
++
++    Cortar no "@" faz os dois virarem a mesma chave. O sufixo `:device` sai
++    junto: o mesmo contato em dois aparelhos é o mesmo contato.
++
++    O que isto NÃO resolve: quando o WhatsApp endereça a conversa por LID
++    (`<identificador interno>@lid`), o número antes do "@" é outro número de
++    verdade, e nenhuma normalização o transforma em telefone. Para esse caso
++    quem chama passa a outra identidade que já tem em mãos — ver o argumento
++    `tambem` de `ultima_resposta_humana`.
++    """
++    return str(identidade or "").split("@", 1)[0].split(":", 1)[0].strip()
++
++
+ class PresencaHumana:
+     """Lê o banco do bridge para responder: alguém falou aqui, e não fui eu?"""
+ 
+@@ -117,7 +149,7 @@
+         gera linha no `messages.db`, e a anotação sobraria para silenciar a
+         próxima mensagem de uma pessoa.
+         """
+-        chat = str(destino or "").strip()
++        chat = _chave(destino)
+         if not chat:
+             return
+         agora = datetime.now(timezone.utc)
+@@ -129,14 +161,20 @@
+             )
+             db.execute("DELETE FROM saida_do_agente WHERE quando < ?", (corte,))
+ 
+-    def _nossa(self, chat: str, quando: datetime, conteudo: str) -> bool:
++    def _nossa(self, chaves: Sequence[str], quando: datetime, conteudo: str) -> bool:
+         """Reconhece o próprio envio por hora OU por texto.
+ 
+         Dois critérios porque cada um falha sozinho num caso real: o texto não
+         serve para mídia (chega com conteúdo vazio), e a hora não serve quando o
+         envio demora a ser carimbado. Reconhecer demais aqui custa uma pausa que
+         não aconteceu; reconhecer de menos custa um agente mudo.
++
++        `chaves` é um conjunto, e não uma chave, porque a mesma conversa tem
++        mais de um nome: procurar por um só era o bug que fazia o agente se
++        calar depois da primeira resposta.
+         """
++        if not chaves:
++            return False
+         # Para UTC antes de virar texto, sempre.
+         #
+         # O carimbo do bridge vem no fuso local (`-03:00`) e a anotação é
+@@ -146,10 +184,12 @@
+         referencia = quando.astimezone(timezone.utc)
+         inicio = (referencia - self.tolerancia).isoformat(timespec="milliseconds")
+         fim = (referencia + self.tolerancia).isoformat(timespec="milliseconds")
++        vagas = ",".join("?" for _ in chaves)
+         with self._lock:
+             por_hora = self._db.execute(
+-                "SELECT 1 FROM saida_do_agente WHERE chat = ? AND quando BETWEEN ? AND ? LIMIT 1",
+-                (chat, inicio, fim),
++                f"SELECT 1 FROM saida_do_agente WHERE chat IN ({vagas})"
++                " AND quando BETWEEN ? AND ? LIMIT 1",
++                (*chaves, inicio, fim),
+             ).fetchone()
+             if por_hora is not None:
+                 return True
+@@ -157,23 +197,46 @@
+             if not texto:
+                 return False
+             igual = self._db.execute(
+-                "SELECT 1 FROM saida_do_agente WHERE chat = ? AND texto = ? LIMIT 1",
+-                (chat, texto[:400]),
++                f"SELECT 1 FROM saida_do_agente WHERE chat IN ({vagas}) AND texto = ? LIMIT 1",
++                (*chaves, texto[:400]),
+             ).fetchone()
+         return igual is not None
+ 
+     # --------------------------------------------------- o que é de gente
+ 
+-    def ultima_resposta_humana(self, chat_jid: str, janela_minutos: float) -> Optional[datetime]:
++    def ultima_resposta_humana(
++        self,
++        chat_jid: str,
++        janela_minutos: float,
++        tambem: Sequence[str] = (),
++    ) -> Optional[datetime]:
+         """A hora da última mensagem que uma PESSOA mandou nesta conversa.
+ 
+         Só olha para dentro da janela: uma resposta humana de ontem não pausa
+         nada hoje, e limitar o intervalo é também o que mantém a consulta barata
+         num banco sem índice por conversa.
++
++        `tambem` são os outros nomes que ESTA conversa tem para quem chama.
++        Existe por causa do LID: quando o WhatsApp endereça a conversa por
++        identificador interno, o `chat_jid` que arquiva a mensagem e o telefone
++        para onde o envio foi feito são números diferentes de verdade, e
++        nenhuma normalização aqui dentro os aproxima. Quem chama tem os dois em
++        mãos e passa o segundo; omitir só devolve o comportamento antigo de
++        errar para o lado de "tem gente atendendo", que cala o agente.
+         """
+         chat = str(chat_jid or "").strip()
+         if not chat or janela_minutos <= 0 or not self.messages_db.exists():
+             return None
++        # A consulta ao banco do bridge continua pelo JID cru: é assim que ele
++        # arquiva, e normalizar aqui não encontraria conversa nenhuma. A
++        # normalização vale só para decidir o que é nosso, logo abaixo.
++        chaves = tuple(
++            dict.fromkeys(
++                chave
++                for chave in (_chave(chat), *(_chave(item) for item in tambem))
++                if chave
++            )
++        )
+         desde = datetime.now(timezone.utc) - timedelta(minutes=float(janela_minutos))
+         try:
+             banco = sqlite3.connect(f"file:{self.messages_db}?mode=ro", uri=True)
+@@ -198,6 +261,6 @@
+                 # A lista vem da mais nova para a mais velha: a primeira que cai
+                 # fora da janela encerra a busca.
+                 break
+-            if not self._nossa(chat, quando, linha["content"]):
++            if not self._nossa(chaves, quando, linha["content"]):
+                 return quando
+         return None
+diff -ruN a/whatsapp-assistant/server.py b/whatsapp-assistant/server.py
+--- a/whatsapp-assistant/server.py	2026-09-10 21:18:37.507073500 -0300
++++ b/whatsapp-assistant/server.py	2026-09-10 21:18:37.549683300 -0300
+@@ -782,8 +782,16 @@
+                 and self.presenca_humana is not None
+                 and self.human_pause_minutes > 0
+             ):
++                # `sender` vai junto porque é ele que o envio anotou.
++                #
++                # O bridge arquiva a mensagem sob `chat_jid` e entrega o
++                # telefone canônico em `sender_phone`; numa conversa endereçada
++                # por LID os dois são números diferentes, e a resposta do
++                # próprio agente — anotada pelo telefone — não era reconhecida
++                # ao procurar só pelo `chat_jid`. O turno inteiro virava "tem
++                # gente atendendo" e o agente se calava por 30 minutos.
+                 humano_em = self.presenca_humana.ultima_resposta_humana(
+-                    chat_jid, self.human_pause_minutes
++                    chat_jid, self.human_pause_minutes, tambem=(sender,)
+                 )
+                 if humano_em is not None:
+                     self.arbitro.pausar_por_humano(
+diff -ruN a/whatsapp-assistant/test_gateway_server.py b/whatsapp-assistant/test_gateway_server.py
+--- a/whatsapp-assistant/test_gateway_server.py	2026-09-10 21:18:37.848563800 -0300
++++ b/whatsapp-assistant/test_gateway_server.py	2026-09-10 21:18:37.891018100 -0300
+@@ -872,9 +872,11 @@
+         def __init__(self):
+             self.quando = None
+             self.perguntas = []
++            self.identidades = []
+ 
+-        def ultima_resposta_humana(self, chat_jid, janela_minutos):
++        def ultima_resposta_humana(self, chat_jid, janela_minutos, tambem=()):
+             self.perguntas.append((chat_jid, janela_minutos))
++            self.identidades.append(tuple(tambem))
+             return self.quando
+ 
+     def setUp(self):
+@@ -961,3 +963,14 @@
+             self.presenca_humana.perguntas,
+             [(f"{self.CLIENTE}@s.whatsapp.net", 30.0)],
+         )
++
++    def test_a_pergunta_leva_junto_o_telefone_que_o_envio_anota(self):
++        """Sem isto a conversa por LID lê a própria resposta do agente como gente.
++
++        O porteiro tem as duas identidades em mãos — o `chat_jid` que arquiva a
++        mensagem e o `sender_phone` para onde a resposta é enviada. Perguntar só
++        pela primeira foi o que calou o agente por 30 minutos depois de cada
++        resposta.
++        """
++        self._cliente()
++        self.assertEqual(self.presenca_humana.identidades, [(self.CLIENTE,)])
+diff -ruN a/whatsapp-assistant/test_presenca_humana.py b/whatsapp-assistant/test_presenca_humana.py
+--- a/whatsapp-assistant/test_presenca_humana.py	2026-09-10 21:18:37.677676600 -0300
++++ b/whatsapp-assistant/test_presenca_humana.py	2026-09-10 21:18:37.720433100 -0300
+@@ -17,6 +17,14 @@
+ CHAT = "5511988887777@s.whatsapp.net"
+ OUTRO = "5511977776666@s.whatsapp.net"
+ 
++# Os dois nomes da MESMA conversa, que é onde o módulo já errou.
++#
++# `TELEFONE` é o que `send.py` anota, porque é para ele que o envio é feito.
++# `CHAT` é o que o bridge arquiva. `LID` é como o WhatsApp endereça boa parte
++# das conversas hoje — e o número antes do "@" ali não é telefone nenhum.
++TELEFONE = "5511988887777"
++LID = "199887766554433@lid"
++
+ # O bridge grava assim: espaço no lugar do T, e fuso local explícito.
+ FORMATO = "%Y-%m-%d %H:%M:%S%z"
+ 
+@@ -120,6 +128,45 @@
+         self._mensagem(self._atras(segundos=1), texto="oi")
+         self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 30))
+ 
++    # ------------------------------------------ os dois nomes da conversa
++
++    def test_anotado_pelo_telefone_e_arquivado_pelo_jid_ainda_e_nosso(self):
++        """O bug que calou o agente em TODA conversa individual.
++
++        Os testes acima passavam porque usavam a mesma string dos dois lados.
++        Em produção `send.py` anotava `5511988887777` e a busca procurava
++        `5511988887777@s.whatsapp.net` — nunca casava, e a própria resposta do
++        agente era lida como atendente humano.
++        """
++        self.presenca.anotar_saida_do_agente(TELEFONE, "claro, posso ajudar")
++        self._mensagem(self._atras(segundos=1), texto="claro, posso ajudar")
++        self.assertIsNone(self.presenca.ultima_resposta_humana(CHAT, 30))
++
++    def test_conversa_por_lid_reconhece_o_envio_pelo_telefone(self):
++        """No LID não há o que normalizar: quem chama passa a outra identidade."""
++        self.presenca.anotar_saida_do_agente(TELEFONE, "segue o orçamento")
++        self._mensagem(self._atras(segundos=1), texto="segue o orçamento", chat=LID)
++        self.assertIsNone(
++            self.presenca.ultima_resposta_humana(LID, 30, tambem=(TELEFONE,))
++        )
++
++    def test_sem_a_segunda_identidade_o_lid_erra_para_o_lado_de_pausar(self):
++        """Degradar aqui é calar o agente, e é por isso que `tambem` não é opcional na prática.
++
++        Documenta o limite de propósito: sem a identidade que falta, a conversa
++        por LID volta a ler a própria resposta como gente. Quem chama tem o
++        telefone em mãos e não tem desculpa para omiti-lo.
++        """
++        self.presenca.anotar_saida_do_agente(TELEFONE, "segue o orçamento")
++        self._mensagem(self._atras(segundos=1), texto="segue o orçamento", chat=LID)
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(LID, 30))
++
++    def test_normalizar_nao_aproxima_telefones_diferentes(self):
++        """Cortar no "@" não pode virar desculpa para casar conversa errada."""
++        self.presenca.anotar_saida_do_agente("5511977776666", "oi")
++        self._mensagem(self._atras(segundos=1), texto="oi")
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 30))
++
+     # ------------------------------------------------------ degradar calado
+ 
+     def test_sem_banco_do_bridge_ninguem_e_pausado(self):
+diff -ruN a/whatsapp-assistant/test_worker.py b/whatsapp-assistant/test_worker.py
+--- a/whatsapp-assistant/test_worker.py	2026-09-10 21:18:37.762892800 -0300
++++ b/whatsapp-assistant/test_worker.py	2026-09-10 21:18:37.806935300 -0300
+@@ -973,6 +973,55 @@
+         self.assertEqual(readiness["lastModelErrorCode"], "")
+         self.assertIsInstance(readiness["lastModelSuccessAt"], int)
+ 
++    # -- saudação de cliente: uma mensagem, não três -------------------------
++
++    def test_saudacao_de_cliente_sai_em_uma_mensagem_so(self):
++        """Três mensagens para um "Opa" foi o que o cliente recebeu em produção.
++
++        Sem `progress_model` o excedente é o ACK fixo — "Entendi, já te
++        retorno." depois de um "Opa" é tão sem sentido quanto as aberturas
++        geradas, e por isso o corte vem antes dos dois caminhos.
++        """
++        self._patch(worker_mod, "fetch_bodies", lambda _pairs, cfg=None: ["Opa"])
++        self.worker.start()
++        self.enqueue_chat("M1", "chat", sender="556596783150", owner_turn=False)
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M1") == COMPLETED))
++        self.assertEqual(self.sent, [("556596783150", "ok")])
++
++    def test_saudacao_nao_gasta_uma_ida_a_triagem(self):
++        """Não é só não enviar a abertura: a chamada nem acontece."""
++        self.worker.cfg = replace(self.cfg, progress_model="haiku")
++        self._patch(worker_mod, "fetch_bodies", lambda _pairs, cfg=None: ["Oi"])
++        self.worker.start()
++        self.enqueue_chat("M1", "chat", sender="556596783150", owner_turn=False)
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M1") == COMPLETED))
++        self.assertEqual(len(self.runs), 1, "a triagem nao pode ser chamada para um 'oi'")
++        self.assertEqual(self.sent, [("556596783150", "ok")])
++
++    def test_saudacao_partida_em_duas_mensagens_ainda_e_uma_saudacao(self):
++        self._patch(worker_mod, "fetch_bodies", lambda _pairs, cfg=None: ["Oi", "tudo bem?"])
++        self.worker.start()
++        self.enqueue_chat("M1", "chat", sender="556596783150", owner_turn=False)
++        self.enqueue_chat("M2", "chat", sender="556596783150", owner_turn=False)
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M2") == COMPLETED))
++        self.assertEqual(self.sent, [("556596783150", "ok")])
++
++    def test_pedido_de_verdade_continua_recebendo_a_abertura(self):
++        """O corte é para saudação pura; espera de verdade ainda precisa de sinal."""
++        self._patch(
++            worker_mod, "fetch_bodies", lambda _pairs, cfg=None: ["Oi, queria saber o preço"]
++        )
++        self.worker.start()
++        self.enqueue_chat("M1", "chat", sender="556596783150", owner_turn=False)
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M1") == COMPLETED))
++        self.assertEqual(len(self.sent), 2)
++        self.assertIn(self.sent[0][1], worker_mod.ACK_MESSAGES)
++        self.assertEqual(self.sent[1], ("556596783150", "ok"))
++
+     def test_saudacao_de_operador_responde_naturalmente_sem_supabase(self):
+         class OfflineVerifier:
+             def capabilities(self, *_args, **_kwargs):
+diff -ruN a/whatsapp-assistant/worker.py b/whatsapp-assistant/worker.py
+--- a/whatsapp-assistant/worker.py	2026-09-10 21:18:37.593515500 -0300
++++ b/whatsapp-assistant/worker.py	2026-09-10 21:18:37.635579900 -0300
+@@ -688,6 +688,22 @@
+         if is_operator_turn:
+             final_model = self.cfg.complex_model
+             initial_messages = []
++        elif self._so_uma_saudacao(batch):
++            # Um "oi" não precisa de aviso de que estamos indo ver.
++            #
++            # A abertura existe para cobrir espera: uma execução pode passar de
++            # um minuto e sem sinal nenhum a conversa parece morta. Uma
++            # saudação não tem o que esperar — a resposta é uma linha, sai pelo
++            # modelo simples. Mandar a abertura assim mesmo produzia dois
++            # cumprimentos antes do cumprimento de verdade, e foi exatamente o
++            # que o cliente recebeu: três mensagens seguidas para um "Opa".
++            #
++            # Vem antes do `progress_model` de propósito, e não dentro dele: no
++            # caminho sem triagem o ACK fixo ("Entendi, já te retorno.") é tão
++            # absurdo depois de um "oi" quanto as aberturas geradas.
++            initial_messages = []
++            final_model = self.cfg.simple_model
++            audit.log("triage.skipped", run_id=run_id, reason="saudacao", model=final_model)
+         elif self.cfg.progress_model:
+             complexity, initial_messages = self._triage(batch)
+             final_model = self.cfg.simple_model if complexity == "simples" else self.cfg.complex_model
+@@ -1081,6 +1097,32 @@
+             if index + 1 < len(messages[:2]):
+                 time.sleep(0.15)
+ 
++    def _so_uma_saudacao(self, batch: List[Pending]) -> bool:
++        """O turno inteiro é um "oi"? Então uma resposta só, e nada antes dela.
++
++        Decidido por regex, e não perguntando ao modelo, por dois motivos. O
++        primeiro é que a garantia precisa ser garantia: pedir à própria triagem
++        que se abstenha em saudação é pedir que ela se auto-suprima, e ela
++        acertaria quase sempre — "quase" é o defeito intermitente que ninguém
++        reproduz. O segundo é que assim a chamada nem acontece: responder "opa"
++        deixa de gastar uma ida ao Haiku só para descobrir que não precisava
++        dela, e a resposta sai mais rápida além de sair sozinha.
++
++        `fetch_bodies` vai SEM `cfg` de propósito. Com `cfg` ele transcreve
++        áudio, e a transcrição não é gravada de volta no banco do bridge: no
++        caminho quente isso transcreveria o mesmo áudio duas vezes, aqui e
++        depois no prompt. Sem `cfg`, áudio vira "(audio sem legenda)", não casa
++        com a regex e segue o fluxo normal — que é o desfecho certo para um
++        áudio de qualquer jeito.
++
++        As mensagens do lote vão juntas porque é assim que o turno é
++        respondido. "Oi" + "tudo bem?" continua sendo uma saudação; "Oi" +
++        "queria saber o preço" não é, e cai no fluxo completo.
++        """
++        bodies = fetch_bodies([(p.wa_id or p.message_id, p.chat_jid) for p in batch])
++        texto = " ".join(str(body or "") for body in bodies).strip()
++        return bool(texto) and bool(SIMPLE_GREETING_RE.fullmatch(texto))
++
+     def _triage(self, batch: List[Pending]) -> Tuple[str, List[str]]:
+         """Classifica a solicitação e cria uma abertura humana com Haiku."""
+         bodies = fetch_bodies([(p.wa_id or p.message_id, p.chat_jid) for p in batch], cfg=self.cfg)
