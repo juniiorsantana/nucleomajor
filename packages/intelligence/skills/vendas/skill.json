@@ -3,28 +3,28 @@
   "schemaVersion": "1.1",
   "slug": "vendas",
   "name": "Vendas",
-  "description": "Entende o interesse, apresenta a oferta autorizada e conduz o próximo passo.",
+  "description": "Responde a pedidos de preço, proposta e contratação com a política publicada da Major: diagnóstico antes de proposta, sem valores inventados, e próximo passo claro.",
   "audience": "customer",
   "status": "published",
-  "objective": "Conduzir oportunidades comerciais com clareza, sem inventar condições ou pressionar o cliente.",
+  "objective": "Conduzir o pedido comercial sem inventar preço, prazo ou condição: explicar como a Major trabalha, entender o gargalo, registrar o que a pessoa disse e propor o diagnóstico com o Júnior como próximo passo.",
   "activation": {
-    "keywords": ["preço", "preco", "valor", "comprar", "contratar", "proposta", "plano", "desconto", "orçamento", "orcamento", "quanto custa", "fechar"],
-    "negativeKeywords": ["erro no preço", "problema no plano que já contratei"]
+    "keywords": ["preço", "preco", "valor", "quanto custa", "quanto é", "quanto fica", "quanto sai", "orçamento", "orcamento", "proposta", "contratar", "fechar", "investimento", "mensalidade", "desconto", "comprar"],
+    "negativeKeywords": ["erro no preço", "já contratei"]
   },
   "routing": { "intent": "sales", "priority": 20, "fallback": false },
   "workflow": {
     "initialStage": "descobrir",
     "stages": [
-      { "id": "descobrir", "objective": "Entender necessidade e resultado esperado antes de recomendar uma oferta.", "requiredFields": ["need"], "allowedTools": ["crm.contact.read", "conversation.handoff.agent"], "completion": "A necessidade comercial está clara." },
-      { "id": "consultar", "objective": "Consultar a oferta externa publicada antes de citar preço ou condição.", "requiredFields": ["need"], "allowedTools": ["knowledge.search", "crm.contact.read", "conversation.handoff.agent"], "completion": "Foi encontrada uma oferta publicada ou confirmada uma exceção." },
-      { "id": "apresentar", "objective": "Apresentar somente a condição autorizada e propor um próximo passo sem pressão.", "requiredFields": ["need"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify"], "completion": "O cliente respondeu à oferta ou ao próximo passo." },
-      { "id": "avancar", "objective": "Registrar o resultado e encaminhar para agenda ou pessoa quando necessário.", "requiredFields": ["next_step"], "allowedTools": ["crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"], "completion": "O próximo passo foi confirmado, recusado ou transferido." }
+      { "id": "descobrir", "objective": "Entender negócio, objetivo e gargalo antes de falar de qualquer oferta.", "requiredFields": ["objetivo"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"], "completion": "A necessidade comercial está clara." },
+      { "id": "consultar", "objective": "Consultar o conhecimento publicado antes de dizer qualquer coisa sobre preço, condição ou prazo.", "requiredFields": ["objetivo"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"], "completion": "A política publicada foi consultada." },
+      { "id": "apresentar", "objective": "Explicar como a Major trabalha (diagnóstico → proposta) exatamente como publicado e propor o diagnóstico como próximo passo.", "requiredFields": ["objetivo"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"], "completion": "A pessoa respondeu ao próximo passo." },
+      { "id": "avancar", "objective": "Registrar o resultado e deixar a marcação com a agenda, ou transferir para uma pessoa quando pedido ou quando houver exceção comercial.", "requiredFields": ["next_step"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"], "completion": "O próximo passo foi aceito, recusado ou transferido." }
     ],
-    "delegatesTo": ["agenda"]
+    "delegatesTo": ["solicitacao-agenda"]
   },
-  "requiredFields": ["need"],
-  "questions": ["O que você precisa resolver?", "Qual resultado você espera alcançar?"],
-  "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"],
-  "guardrails": ["published_offer_only", "no_discount_without_rule", "no_false_urgency"],
-  "handoff": ["commercial_exception", "requested_human", "low_confidence", "skill_limit"]
+  "requiredFields": ["objetivo"],
+  "questions": ["Qual é o seu negócio e o que você quer que mude?", "Hoje, de onde vêm seus clientes?"],
+  "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "crm.deal.qualify", "conversation.handoff", "conversation.handoff.agent"],
+  "guardrails": ["published_offer_only", "no_price_by_message", "no_discount_without_rule", "no_false_urgency", "diagnosis_before_proposal", "no_announced_unexecuted_action"],
+  "handoff": ["commercial_exception", "requested_human", "asked_for_junior", "existing_client", "low_confidence"]
 }

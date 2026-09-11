@@ -7,8 +7,8 @@
     { "id": "boa-noite", "input": "Boa noite", "expected": { "shouldActivate": true, "stage": "acolher" } },
     { "id": "informacoes", "input": "Quero informações sobre a empresa", "expected": { "shouldActivate": true, "stage": "entender" } },
     { "id": "ajuda-generica", "input": "Pode me ajudar?", "expected": { "shouldActivate": true, "stage": "acolher" } },
-    { "id": "vendas-direta", "input": "Qual o preço do plano?", "expected": { "shouldActivate": false, "stage": "entender" } },
-    { "id": "suporte-direto", "input": "O sistema não funciona", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "sobre-voces-e-fallback", "input": "Quero saber sobre vocês", "expected": { "shouldActivate": false, "stage": "entender" } },
+    { "id": "vendas-direta", "input": "Qual o preço de um site?", "expected": { "shouldActivate": false, "stage": "entender" } },
     { "id": "agenda-direta", "input": "Quero marcar uma reunião", "expected": { "shouldActivate": false, "stage": "entender" } }
   ]
 }

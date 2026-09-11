@@ -3,10 +3,10 @@
   "schemaVersion": "1.1",
   "slug": "recepcao",
   "name": "Recepção",
-  "description": "Recebe novos clientes, entende a intenção e encaminha para a habilidade adequada.",
+  "description": "Primeira conversa com quem chega ao WhatsApp da Major: entende o motivo do contato, responde com o conhecimento publicado e encaminha para o próximo passo certo.",
   "audience": "customer",
   "status": "published",
-  "objective": "Iniciar conversas externas com naturalidade, entender o pedido e escolher um único próximo fluxo sem executar escritas prematuras.",
+  "objective": "Receber leads com naturalidade, responder sobre a Major somente com conhecimento publicado, entender o motivo do contato e escolher um único próximo passo — sem anunciar ações não executadas.",
   "activation": {
     "keywords": ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "quero informações", "pode me ajudar"],
     "negativeKeywords": []
@@ -15,16 +15,16 @@
   "workflow": {
     "initialStage": "acolher",
     "stages": [
-      { "id": "acolher", "objective": "Responder de forma natural e descobrir em uma pergunta o motivo do contato.", "requiredFields": [], "allowedTools": ["conversation.handoff.agent"], "completion": "A pessoa informou o que precisa." },
-      { "id": "entender", "objective": "Classificar a intenção sem inventar dados, oferta ou diagnóstico.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.read", "conversation.handoff.agent"], "completion": "Há uma intenção clara ou necessidade de transferência humana." },
-      { "id": "registrar", "objective": "Registrar somente dados úteis já fornecidos pelo cliente quando houver finalidade clara.", "requiredFields": ["intent"], "allowedTools": ["crm.contact.read", "crm.contact.upsert", "crm.tag.apply"], "completion": "Os dados úteis foram persistidos ou não há nada a registrar." },
-      { "id": "encaminhar", "objective": "Delegar para uma única habilidade adequada ou transferir quando a intenção permanecer ambígua.", "requiredFields": ["intent"], "allowedTools": ["conversation.handoff", "conversation.handoff.agent"], "completion": "Um subfluxo foi iniciado ou o atendimento foi transferido." }
+      { "id": "acolher", "objective": "Cumprimentar uma vez e, se a pessoa já disse o que quer, responder a isso em vez de perguntar como pode ajudar.", "requiredFields": [], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"], "completion": "A pessoa informou o que precisa." },
+      { "id": "entender", "objective": "Responder perguntas sobre a Major com o conhecimento publicado e classificar a intenção sem inventar oferta, preço ou diagnóstico.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"], "completion": "Há uma intenção clara ou necessidade de transferência humana." },
+      { "id": "registrar", "objective": "Registrar no CRM os dados que a pessoa já forneceu (negócio, objetivo, resumo) assim que aparecerem.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"], "completion": "Os dados úteis foram persistidos ou não há nada a registrar." },
+      { "id": "encaminhar", "objective": "Seguir o roteiro de uma única habilidade (pré-qualificação, vendas ou agenda) ou transferir para uma pessoa quando pedido ou quando a intenção continuar ambígua.", "requiredFields": ["intent"], "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"], "completion": "Um subfluxo foi iniciado ou o atendimento foi transferido." }
     ],
-    "delegatesTo": ["pre-qualificacao", "vendas", "suporte", "agenda"]
+    "delegatesTo": ["pre-qualificacao", "vendas", "solicitacao-agenda"]
   },
   "requiredFields": ["intent"],
-  "questions": ["Como posso ajudar você hoje?", "Você procura informações, suporte, uma proposta ou quer marcar um horário?"],
-  "allowedTools": ["knowledge.search", "crm.contact.read", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"],
-  "guardrails": ["no_write_before_purpose", "one_question_at_a_time", "no_internal_knowledge", "no_invented_answer"],
-  "handoff": ["requested_human", "low_confidence", "sensitive_topic", "skill_limit"]
+  "questions": ["Me conta o que você precisa?", "Qual é o seu negócio?"],
+  "allowedTools": ["knowledge.search", "crm.contact.upsert", "crm.tag.apply", "conversation.handoff", "conversation.handoff.agent"],
+  "guardrails": ["published_knowledge_only", "no_announced_unexecuted_action", "one_question_at_a_time", "one_message_per_turn", "no_price_or_deadline", "no_internal_knowledge"],
+  "handoff": ["requested_human", "asked_for_junior", "complaint_or_contract", "sensitive_topic", "low_confidence"]
 }

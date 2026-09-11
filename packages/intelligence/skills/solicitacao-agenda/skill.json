@@ -3,28 +3,28 @@
   "schemaVersion": "1.1",
   "slug": "solicitacao-agenda",
   "name": "Solicitação de agenda",
-  "description": "Prepara pedidos de horário de clientes e os submete à aprovação da equipe.",
+  "description": "Marca o diagnóstico com o Júnior: coleta data e horário, consulta disponibilidade, pede confirmação e submete o pedido à aprovação da equipe — nunca confirma sozinha.",
   "audience": "customer",
   "status": "published",
-  "objective": "Reservar provisoriamente um horário solicitado pelo cliente sem efetivar o compromisso antes da aprovação da equipe.",
+  "objective": "Reservar provisoriamente um horário de diagnóstico pedido pelo lead, com confirmação explícita dele e aprovação da equipe, sem efetivar o compromisso nem prometer confirmação.",
   "activation": {
-    "keywords": ["agendar", "marcar", "reunião", "horário", "disponibilidade", "consulta", "conversa", "atendimento"],
+    "keywords": ["agendar", "marcar", "horário", "horario", "reunião", "reuniao", "agenda", "disponibilidade", "que dia", "que horas", "quando podemos"],
     "negativeKeywords": ["erro na agenda", "cancelar reunião confirmada", "remarcar reunião confirmada"]
   },
-  "routing": { "intent": "calendar_request", "priority": 45, "fallback": false },
+  "routing": { "intent": "calendar_request", "priority": 10, "fallback": false },
   "workflow": {
     "initialStage": "entender",
     "stages": [
-      { "id": "entender", "objective": "Identificar o assunto e o profissional desejado sem prometer confirmação.", "requiredFields": [], "allowedTools": [], "completion": "A intenção de solicitar um horário está clara." },
-      { "id": "coletar", "objective": "Coletar título, data, horário, duração e responsável, perguntando somente o que falta.", "requiredFields": ["title", "date", "time", "duration", "responsible"], "allowedTools": ["calendar.availability"], "completion": "Os dados obrigatórios estão completos e o horário foi consultado." },
-      { "id": "confirmar_cliente", "objective": "Persistir a proposta e solicitar uma confirmação explícita do cliente em outra mensagem.", "requiredFields": ["title", "date", "time", "duration", "responsible"], "allowedTools": ["calendar.request.prepare"], "completion": "A proposta está persistida e aguarda confirmação do cliente." },
-      { "id": "submeter", "objective": "Após a confirmação do cliente, criar somente o bloqueio provisório e enviar a solicitação para aprovação da equipe.", "requiredFields": ["confirmation"], "allowedTools": ["calendar.request.submit"], "completion": "O banco confirmou que a solicitação aguarda aprovação da equipe." }
+      { "id": "entender", "objective": "Confirmar que o pedido é o diagnóstico com o Júnior e que negócio e objetivo já são conhecidos, sem prometer confirmação.", "requiredFields": [], "allowedTools": ["knowledge.search", "calendar.availability", "calendar.request.prepare", "calendar.request.submit", "conversation.handoff"], "completion": "A intenção de marcar o diagnóstico está clara." },
+      { "id": "coletar", "objective": "Coletar data e horário em data absoluta, perguntando somente o que falta, e consultar a disponibilidade.", "requiredFields": ["date", "time"], "allowedTools": ["knowledge.search", "calendar.availability", "calendar.request.prepare", "calendar.request.submit", "conversation.handoff"], "completion": "Data e horário estão definidos e a disponibilidade foi consultada." },
+      { "id": "confirmar_cliente", "objective": "Persistir a proposta e pedir confirmação explícita do lead em outra mensagem.", "requiredFields": ["date", "time"], "allowedTools": ["knowledge.search", "calendar.availability", "calendar.request.prepare", "calendar.request.submit", "conversation.handoff"], "completion": "A proposta está persistida e aguarda confirmação do lead." },
+      { "id": "submeter", "objective": "Após a confirmação, criar somente o bloqueio provisório e enviar o pedido para aprovação da equipe.", "requiredFields": ["confirmation"], "allowedTools": ["knowledge.search", "calendar.availability", "calendar.request.prepare", "calendar.request.submit", "conversation.handoff"], "completion": "O banco confirmou que a solicitação aguarda aprovação da equipe." }
     ],
-    "delegatesTo": ["recepcao", "conversation.handoff"]
+    "delegatesTo": []
   },
-  "requiredFields": ["title", "date", "time", "duration", "responsible"],
-  "questions": ["Qual dia e horário você prefere?", "Quanto tempo devemos reservar?", "Com qual profissional você deseja falar?"],
-  "allowedTools": ["calendar.availability", "calendar.request.prepare", "calendar.request.submit"],
-  "guardrails": ["customer_only", "pilot_only", "explicit_confirmation", "separate_confirmation_turn", "team_approval", "tentative_hold", "absolute_date", "idempotency", "no_direct_creation"],
-  "handoff": ["less_than_30_minutes", "no_verified_approver", "tool_unavailable", "permission_denied", "conflict", "low_confidence"]
+  "requiredFields": ["date", "time"],
+  "questions": ["Qual dia e horário ficam melhores para você?", "Prefere de manhã ou à tarde?"],
+  "allowedTools": ["knowledge.search", "calendar.availability", "calendar.request.prepare", "calendar.request.submit", "conversation.handoff"],
+  "guardrails": ["customer_only", "explicit_confirmation", "separate_confirmation_turn", "team_approval", "tentative_hold", "absolute_date", "idempotency", "no_direct_creation", "no_announced_unexecuted_action"],
+  "handoff": ["less_than_30_minutes", "no_verified_approver", "tool_unavailable", "permission_denied", "conflict", "requested_human", "low_confidence"]
 }
