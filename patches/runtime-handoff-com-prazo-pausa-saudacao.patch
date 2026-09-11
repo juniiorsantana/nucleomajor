@@ -1,0 +1,823 @@
+diff -ruN a/whatsapp-assistant/arbitro.py b/whatsapp-assistant/arbitro.py
+--- a/whatsapp-assistant/arbitro.py	2026-09-11 01:40:31.506485100 -0300
++++ b/whatsapp-assistant/arbitro.py	2026-09-11 01:40:31.564910900 -0300
+@@ -56,6 +56,37 @@
+ # cima no meio disso é pior do que o cliente esperar mais um pouco.
+ PAUSA_HUMANA_PADRAO_MINUTOS = 30.0
+ 
++# Quanto tempo um handoff AUTOMÁTICO segura a conversa antes de devolvê-la.
++#
++# Handoff automático é o que o runtime faz quando não consegue responder: o
++# modelo caiu, ou o contexto não veio, e entregar para uma pessoa é mais honesto
++# do que fingir que respondeu. Só que ninguém foi chamado — não há atendente, não
++# há pedido na fila, não há quem devolva. Sem prazo, uma falha de dez segundos
++# vira silêncio de dias: em 06/09/2026 uma saída 1 do modelo calou uma conversa
++# de cliente por cinco dias, e é isso que este vencimento existe para impedir.
++#
++# Trinta minutos, o mesmo da pausa humana e pela mesma razão: é tempo de alguém
++# perceber e assumir de verdade. Passado o prazo sem ninguém assumir, a IA volta
++# — porque cliente sem resposta é pior do que resposta a mais.
++ESPERA_DO_HANDOFF_AUTOMATICO_MINUTOS = 30.0
++
++# Os motivos que o runtime escreve quando ele mesmo entrega a conversa.
++#
++# São constantes, e não literais espalhados pelo worker, porque a migração
++# precisa reconhecer exatamente estas linhas no banco de produção para curar as
++# conversas que o defeito deixou mudas. Mudar o texto aqui sem mudar lá deixaria
++# a cura sem alvo — e é a tupla que a migração percorre, de modo que um motivo
++# novo de falha entra na cura por ter sido escrito aqui.
++MOTIVO_FALHA_DO_MODELO = "modelo indisponível"
++MOTIVO_FALHA_DO_CONTEXTO = "contexto de inteligência indisponível"
++MOTIVOS_DE_HANDOFF_AUTOMATICO = (MOTIVO_FALHA_DO_MODELO, MOTIVO_FALHA_DO_CONTEXTO)
++
++# O que fica gravado quando o prazo vence e a IA retoma.
++#
++# Motivo próprio para o painel não ler "modelo indisponível" numa conversa que
++# voltou a ser atendida: o que houve ali já passou.
++MOTIVO_ESPERA_VENCIDA = "espera do handoff automático venceu"
++
+ # Motivos terminais. Slugs estáveis: o texto em português vive na interface, e
+ # melhorar uma frase nunca pode quebrar histórico já gravado.
+ PODE_RESPONDER = "pode-responder"
+@@ -123,7 +154,14 @@
+     -- valer ao mesmo tempo — um operador que chamou o agente com `/major` e
+     -- depois passou a responder ele mesmo tem as duas preenchidas, e quem cala
+     -- ganha.
+-    humano_ate     TEXT
++    humano_ate     TEXT,
++    -- Até quando este handoff vale. NULL é para sempre, e para sempre é o normal.
++    --
++    -- Preenchido só pelo handoff automático (`assumir_por_falha`). Quem assume
++    -- de verdade — atendente pelo portal, ou o assistente chamando a
++    -- transferência — não ganha prazo nenhum: devolver a conversa de quem
++    -- assumiu é decisão de gente, nunca de relógio.
++    dono_ate       TEXT
+ );
+ 
+ -- No máximo uma sessão aberta por conversa. Índice parcial, e não checagem em
+@@ -159,6 +197,7 @@
+     routing_context: Optional[str] = None
+     agente_ate: Optional[str] = None
+     humano_ate: Optional[str] = None
++    dono_ate: Optional[str] = None
+ 
+     @property
+     def aberta(self) -> bool:
+@@ -183,6 +222,7 @@
+             "routingContext": self.routing_context,
+             "agentWindowUntil": self.agente_ate,
+             "humanPauseUntil": self.humano_ate,
++            "handoffUntil": self.dono_ate,
+         }
+ 
+ 
+@@ -236,6 +276,31 @@
+             self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN agente_ate TEXT")
+         if "humano_ate" not in cols:
+             self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN humano_ate TEXT")
++        if "dono_ate" not in cols:
++            self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN dono_ate TEXT")
++            # E cura as conversas que o defeito já deixou mudas.
++            #
++            # Um handoff automático gravado antes desta coluna não tem prazo
++            # nenhum para vencer: ele continuaria calado para sempre mesmo com a
++            # correção no ar, e o cliente que esperou dias seguiria esperando.
++            # Vencimento no passado é a forma honesta de dizer "este prazo já
++            # acabou" — a próxima mensagem devolve a conversa para a IA.
++            #
++            # A cláusula do atendente é o que separa uma conversa abandonada por
++            # falha de uma conversa que alguém assumiu: quem tem responsável
++            # registrado não é tocado aqui.
++            motivos = ", ".join("?" for _ in MOTIVOS_DE_HANDOFF_AUTOMATICO)
++            self._db.execute(
++                "UPDATE conversa_sessao SET dono_ate = ?"
++                " WHERE fechada_em IS NULL AND dono = ?"
++                f" AND motivo IN ({motivos})"
++                " AND coalesce(atendente_id, '') = ''",
++                (
++                    "1970-01-01T00:00:00.000+00:00",
++                    DONO_HUMANO,
++                    *MOTIVOS_DE_HANDOFF_AUTOMATICO,
++                ),
++            )
+ 
+     def close(self) -> None:
+         with self._lock:
+@@ -331,6 +396,7 @@
+             routing_context=linha["routing_context"],
+             agente_ate=linha["agente_ate"],
+             humano_ate=linha["humano_ate"],
++            dono_ate=linha["dono_ate"],
+         )
+ 
+     def sessao_aberta(self, connection_id: str, contato: str) -> Optional[Sessao]:
+@@ -391,9 +457,16 @@
+         agente_id: str = "",
+         agente_nome: str = "",
+         routing_context: str = "",
++        dono_ate: str = "",
+     ) -> Sessao:
+         """Transfere o atendimento. Abre a sessão se ainda não houver uma.
+ 
++        O prazo do handoff automático segue a mesma regra da identidade, e não
++        por simetria: quem chega depois manda. Uma transição sem `dono_ate`
++        apaga o vencimento que estava lá, de modo que o atendente que assume uma
++        conversa entregue por falha fica com ela — e não a perde meia hora
++        depois para um relógio que ninguém consultou.
++
+         A identidade do atendente só existe enquanto o dono é `humano`, e é
+         **apagada** em qualquer outra transição. Não é limpeza cosmética: uma
+         sessão que voltou para a IA carregando "Ana" diria que Ana atende uma
+@@ -409,7 +482,7 @@
+             db.execute(
+                 "UPDATE conversa_sessao"
+                 " SET dono = ?, motivo = ?, atendente_id = ?, atendente_nome = ?,"
+-                " agente_id = ?, agente_nome = ?, routing_context = ?"
++                " agente_id = ?, agente_nome = ?, routing_context = ?, dono_ate = ?"
+                 " WHERE id = ?",
+                 (
+                     dono,
+@@ -419,6 +492,7 @@
+                     (str(agente_id).strip() or None) if ia else None,
+                     (str(agente_nome).strip() or None) if ia else None,
+                     (str(routing_context).strip() or None) if ia else None,
++                    (str(dono_ate).strip() or None) if humano else None,
+                     linha["id"],
+                 ),
+             )
+@@ -450,6 +524,36 @@
+             connection_id, contato, DONO_HUMANO, motivo, atendente_id, atendente_nome
+         )
+ 
++    def assumir_por_falha(
++        self,
++        connection_id: str,
++        contato: str,
++        motivo: str = MOTIVO_FALHA_DO_MODELO,
++        minutos: float = ESPERA_DO_HANDOFF_AUTOMATICO_MINUTOS,
++    ) -> Sessao:
++        """O runtime não conseguiu responder e entregou a conversa — com prazo.
++
++        Irmão de `assumir`, e a diferença é quem está do outro lado. Lá existe
++        uma pessoa que clicou e que sabe que a conversa é dela agora. Aqui não
++        existe ninguém: o modelo caiu no meio do turno, e o handoff é o que
++        sobra. Como ninguém foi chamado, ninguém devolve — e é exatamente por
++        isso que este nasce com vencimento e o outro não.
++
++        Quem assumir de verdade nesse meio-tempo apaga o prazo pelo caminho
++        normal, porque `definir_dono` limpa `dono_ate` em qualquer transição: a
++        partir dali a conversa é de gente, e gente não vence.
++        """
++        limite = datetime.now(timezone.utc) + timedelta(
++            minutes=max(1.0, float(minutos or ESPERA_DO_HANDOFF_AUTOMATICO_MINUTOS))
++        )
++        return self.definir_dono(
++            connection_id,
++            contato,
++            DONO_HUMANO,
++            motivo,
++            dono_ate=limite.isoformat(timespec="milliseconds"),
++        )
++
+     def listar(self, connection_id: str, abertas: bool = True, limite: int = 100) -> List[Sessao]:
+         condicao = "fechada_em IS NULL" if abertas else "fechada_em IS NOT NULL"
+         with self._lock:
+@@ -612,6 +716,26 @@
+             limite = limite.replace(tzinfo=timezone.utc)
+         return limite > datetime.now(timezone.utc)
+ 
++    @staticmethod
++    def _handoff_vencido(sessao: Optional[Sessao]) -> bool:
++        """Só vence o handoff que tem prazo. Sem prazo é gente, e gente não vence.
++
++        Falha ABERTO, como a pausa humana e pelo mesmo motivo, mas com uma
++        diferença que vale dizer: aqui até o vencimento ilegível conta como
++        vencido. Um relógio quebrado que virasse handoff eterno é precisamente o
++        defeito que esta coluna nasceu para não repetir — e o erro na outra
++        direção custa uma resposta a mais, não um cliente a menos.
++        """
++        if sessao is None or not sessao.dono_ate:
++            return False
++        try:
++            limite = datetime.fromisoformat(str(sessao.dono_ate))
++        except ValueError:
++            return True
++        if limite.tzinfo is None:
++            limite = limite.replace(tzinfo=timezone.utc)
++        return limite <= datetime.now(timezone.utc)
++
+     # ----------------------------------------------------------- decisão
+ 
+     def decidir(self, connection_id: str, contato: str, conhecida: bool = True) -> Decisao:
+@@ -646,7 +770,20 @@
+             return Decisao(False, None, IGNORADO_PAUSADO, sessao)
+ 
+         if sessao.dono == DONO_HUMANO:
+-            return Decisao(False, None, IGNORADO_HANDOFF, sessao)
++            # Handoff com prazo é handoff automático: ninguém assumiu, o runtime
++            # entregou porque não conseguiu responder. Vencido o prazo sem
++            # ninguém aparecer, a IA retoma.
++            #
++            # E retoma AQUI, na porta de entrada, e não num varredor de fundo:
++            # é a mensagem que revela que a conversa continua viva. Devolver
++            # conversa que ninguém procurou só encheria o painel de sessões
++            # ressuscitadas sem motivo.
++            if self._handoff_vencido(sessao):
++                sessao = self.definir_dono(
++                    connection_id, contato, DONO_IA, MOTIVO_ESPERA_VENCIDA
++                )
++            else:
++                return Decisao(False, None, IGNORADO_HANDOFF, sessao)
+ 
+         # Alguém está respondendo esta conversa agora.
+         #
+diff -ruN a/whatsapp-assistant/operator_verification.py b/whatsapp-assistant/operator_verification.py
+--- a/whatsapp-assistant/operator_verification.py	2026-09-11 01:40:31.509482400 -0300
++++ b/whatsapp-assistant/operator_verification.py	2026-09-11 01:40:31.566921800 -0300
+@@ -24,6 +24,35 @@
+ 
+ REQUEST_TIMEOUT = 10
+ CODE_RE = re.compile(r"^[0-9a-fA-F]{8}$")
++# O código de erro do PostgREST/Postgres: curto, sem espaço, sem acento.
++# Serve de peneira — o que não tem esta cara não vai para o log.
++CODIGO_DE_ERRO_RE = re.compile(r"^[A-Za-z0-9_]{1,40}$")
++
++
++def _detalhe_da_recusa(response: Any) -> str:
++    """O suficiente para diagnosticar a recusa, e nada além disso.
++
++    Sem isto, toda recusa vira a mesma frase e a causa some: em 08-10/09/2026 a
++    sincronia de conversas foi recusada quase três mil vezes e não havia como
++    saber se era 429, 403 ou 500 sem abrir o Supabase do lado de lá.
++
++    Status sempre; o `code` do PostgREST quando vier e couber no formato. A
++    MENSAGEM fica de fora de propósito: é texto livre, pode carregar o que foi
++    enviado — telefone, nome, trecho de conversa — e este erro termina no
++    journal. Um 429 e um 42501 se distinguem pelo código; nenhum dos dois
++    precisa do corpo para ser entendido.
++    """
++    detalhe = f"HTTP {response.status_code}"
++    try:
++        corpo = response.json()
++    except ValueError:
++        return detalhe
++    if not isinstance(corpo, dict):
++        return detalhe
++    codigo = str(corpo.get("code") or "").strip()
++    if codigo and CODIGO_DE_ERRO_RE.fullmatch(codigo):
++        return f"{detalhe}, código {codigo}"
++    return detalhe
+ 
+ 
+ class OperatorVerificationError(RuntimeError):
+@@ -420,7 +449,9 @@
+                 credential = self._refresh(credential, force=True)
+                 continue
+             if response.status_code >= 400:
+-                raise OperatorVerificationError(f"Supabase recusou {label}")
++                raise OperatorVerificationError(
++                    f"Supabase recusou {label} ({_detalhe_da_recusa(response)})"
++                )
+             try:
+                 payload = response.json()
+             except ValueError as exc:
+diff -ruN a/whatsapp-assistant/test_arbitro.py b/whatsapp-assistant/test_arbitro.py
+--- a/whatsapp-assistant/test_arbitro.py	2026-09-11 01:40:31.511905800 -0300
++++ b/whatsapp-assistant/test_arbitro.py	2026-09-11 01:40:31.570452800 -0300
+@@ -13,6 +13,8 @@
+     IGNORADO_HUMANO_ATENDENDO,
+     IGNORADO_PAUSADO,
+     IGNORADO_SEM_CONEXAO,
++    MOTIVO_FALHA_DO_CONTEXTO,
++    MOTIVO_FALHA_DO_MODELO,
+     PODE_RESPONDER,
+     Arbitro,
+ )
+@@ -610,3 +612,217 @@
+             self.assertEqual(arbitro.sessao_aberta("conn", "contato").mensagens, 3)
+         finally:
+             arbitro.close()
++
++
++class HandoffAutomaticoTest(unittest.TestCase):
++    """O handoff que o runtime dá em si mesmo, e por que ele vence.
++
++    Nasceu de um silêncio real: em 06/09/2026 o modelo saiu com 1 no meio de um
++    turno de cliente, o runtime entregou a conversa a um humano que nunca
++    existiu, e ela ficou muda até 11/09 — dez mensagens, nenhuma resposta. O
++    handoff estava certo; o que faltava era ele saber acabar.
++
++    A regra em uma frase: handoff com prazo é do runtime e vence; handoff sem
++    prazo é de gente e não vence.
++    """
++
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.arbitro = Arbitro(Path(self.tmp.name) / "arbitro.db")
++        self.arbitro.definir_ia(CONN_A, True)
++        self.arbitro.definir_dono(CONN_A, CONTATO, DONO_IA)
++
++    def tearDown(self):
++        self.arbitro.close()
++        self.tmp.cleanup()
++
++    def _vencer(self, contato=CONTATO):
++        """Empurra o vencimento para o passado, como o tempo faria.
++
++        E como o tempo, só mexe em prazo que existe: uma sessão sem `dono_ate`
++        continua sem, porque relógio nenhum cria vencimento onde ninguém pôs.
++        """
++        with self.arbitro._db as db:
++            db.execute(
++                "UPDATE conversa_sessao SET dono_ate = ?"
++                " WHERE contato = ? AND dono_ate IS NOT NULL",
++                ("2020-01-01T00:00:00.000+00:00", contato),
++            )
++
++    def test_enquanto_o_prazo_corre_a_ia_continua_calada(self):
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO, MOTIVO_FALHA_DO_MODELO)
++        d = self.arbitro.decidir(CONN_A, CONTATO)
++        self.assertFalse(d.responder)
++        self.assertEqual(d.motivo, IGNORADO_HANDOFF)
++
++    def test_vencido_o_prazo_a_ia_volta_sozinha(self):
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO, MOTIVO_FALHA_DO_CONTEXTO)
++        self._vencer()
++
++        d = self.arbitro.decidir(CONN_A, CONTATO)
++        self.assertTrue(d.responder, "ninguém assumiu, e o cliente não pode ficar mudo")
++        self.assertEqual(d.motivo, PODE_RESPONDER)
++        self.assertEqual(self.arbitro.sessao_aberta(CONN_A, CONTATO).dono, DONO_IA)
++
++    def test_a_retomada_apaga_o_prazo_e_nao_se_repete(self):
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        self._vencer()
++        self.arbitro.decidir(CONN_A, CONTATO)
++
++        sessao = self.arbitro.sessao_aberta(CONN_A, CONTATO)
++        self.assertIsNone(sessao.dono_ate)
++        self.assertTrue(self.arbitro.decidir(CONN_A, CONTATO).responder)
++
++    def test_handoff_de_gente_nao_tem_prazo_e_nao_vence(self):
++        """A garantia oposta, e a mais importante das duas.
++
++        Um atendente que assumiu não pode perder a conversa para um relógio.
++        """
++        self.arbitro.assumir(CONN_A, CONTATO, "atendente entrou", "user-ana", "Ana")
++        self.assertIsNone(self.arbitro.sessao_aberta(CONN_A, CONTATO).dono_ate)
++
++        for _ in range(5):
++            self.assertEqual(self.arbitro.decidir(CONN_A, CONTATO).motivo, IGNORADO_HANDOFF)
++
++    def test_quem_assume_de_verdade_apaga_o_prazo_da_falha(self):
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        self.arbitro.assumir(CONN_A, CONTATO, "atendente entrou", "user-ana", "Ana")
++
++        self.assertIsNone(self.arbitro.sessao_aberta(CONN_A, CONTATO).dono_ate)
++        self._vencer()
++        self.assertEqual(self.arbitro.decidir(CONN_A, CONTATO).motivo, IGNORADO_HANDOFF)
++
++    def test_prazo_ilegivel_conta_como_vencido(self):
++        """Falha ABERTO: relógio quebrado não pode virar silêncio eterno."""
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        with self.arbitro._db as db:
++            db.execute("UPDATE conversa_sessao SET dono_ate = ?", ("ontem de manhã",))
++
++        self.assertTrue(self.arbitro.decidir(CONN_A, CONTATO).responder)
++
++    def test_a_retomada_nao_atropela_quem_esta_atendendo(self):
++        """Prazo vencido devolve o dono; não autoriza falar por cima de gente."""
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        self._vencer()
++        self.arbitro.pausar_por_humano(CONN_A, CONTATO, 30.0)
++
++        d = self.arbitro.decidir(CONN_A, CONTATO)
++        self.assertFalse(d.responder)
++        self.assertEqual(d.motivo, IGNORADO_HUMANO_ATENDENDO)
++
++    def test_o_freio_de_mao_continua_vencendo_a_retomada(self):
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        self._vencer()
++        self.arbitro.definir_ia(CONN_A, False)
++
++        self.assertEqual(self.arbitro.decidir(CONN_A, CONTATO).motivo, IGNORADO_PAUSADO)
++
++    def test_o_prazo_aparece_para_quem_le_a_sessao(self):
++        sessao = self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        self.assertIsNotNone(sessao.public()["handoffUntil"])
++        de_gente = self.arbitro.assumir(CONN_B, CONTATO, "atendente entrou")
++        self.assertIsNone(de_gente.public()["handoffUntil"])
++
++    def test_o_prazo_sobrevive_ao_reinicio(self):
++        caminho = Path(self.tmp.name) / "reinicio.db"
++        primeiro = Arbitro(caminho)
++        primeiro.definir_ia(CONN_A, True)
++        primeiro.assumir_por_falha(CONN_A, CONTATO)
++        primeiro.close()
++
++        segundo = Arbitro(caminho)
++        try:
++            self.assertEqual(segundo.decidir(CONN_A, CONTATO).motivo, IGNORADO_HANDOFF)
++        finally:
++            segundo.close()
++
++
++class CuraDasConversasMudasTest(unittest.TestCase):
++    """A migração não só abre o banco antigo: ela cura o que o defeito deixou.
++
++    Um handoff automático gravado antes da coluna não tem prazo para vencer.
++    Sem esta cura, a correção entraria no ar e as conversas já caladas
++    continuariam caladas — que é exatamente o defeito que ela conserta.
++    """
++
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        # Como cleanup, e não como tearDown: os cleanups rodam em ordem
++        # inversa, então o `arbitro.close()` de cada teste acontece ANTES de o
++        # diretório sumir. No Windows, apagar um SQLite aberto levanta erro.
++        self.addCleanup(self.tmp.cleanup)
++
++    def _banco_com(self, sessoes):
++        caminho = Path(self.tmp.name) / "antigo.db"
++        antigo = sqlite3.connect(str(caminho))
++        antigo.execute(
++            "CREATE TABLE conversa_sessao (id TEXT PRIMARY KEY, connection_id TEXT NOT NULL,"
++            " contato TEXT NOT NULL, dono TEXT NOT NULL, aberta_em TEXT NOT NULL,"
++            " ultima_em TEXT NOT NULL, mensagens INTEGER NOT NULL DEFAULT 0,"
++            " fechada_em TEXT, motivo TEXT, atendente_id TEXT)"
++        )
++        for sessao in sessoes:
++            antigo.execute(
++                "INSERT INTO conversa_sessao (id, connection_id, contato, dono, aberta_em,"
++                " ultima_em, mensagens, fechada_em, motivo, atendente_id)"
++                " VALUES (?, ?, ?, ?, '2026-08-31', '2026-09-11', 10, ?, ?, ?)",
++                sessao,
++            )
++        antigo.commit()
++        antigo.close()
++        return caminho
++
++    def _arbitro(self, caminho):
++        arbitro = Arbitro(caminho)
++        self.addCleanup(arbitro.close)
++        arbitro.definir_ia(CONN_A, True)
++        return arbitro
++
++    def test_conversa_calada_por_falha_do_modelo_volta_a_ser_atendida(self):
++        caminho = self._banco_com([
++            ("muda", CONN_A, CONTATO, DONO_HUMANO, None, MOTIVO_FALHA_DO_MODELO, None),
++        ])
++        arbitro = self._arbitro(caminho)
++
++        d = arbitro.decidir(CONN_A, CONTATO)
++        self.assertTrue(d.responder, "é esta conversa que ficou cinco dias sem resposta")
++        self.assertEqual(arbitro.sessao_aberta(CONN_A, CONTATO).dono, DONO_IA)
++
++    def test_conversa_calada_por_falta_de_contexto_tambem_volta(self):
++        caminho = self._banco_com([
++            ("muda", CONN_A, CONTATO, DONO_HUMANO, None, MOTIVO_FALHA_DO_CONTEXTO, None),
++        ])
++        arbitro = self._arbitro(caminho)
++
++        self.assertTrue(arbitro.decidir(CONN_A, CONTATO).responder)
++
++    def test_conversa_que_alguem_assumiu_nao_e_tocada(self):
++        """A cláusula que separa abandono de atendimento."""
++        caminho = self._banco_com([
++            ("de-ana", CONN_A, CONTATO, DONO_HUMANO, None, "atendente entrou", "user-ana"),
++        ])
++        arbitro = self._arbitro(caminho)
++
++        self.assertEqual(arbitro.decidir(CONN_A, CONTATO).motivo, IGNORADO_HANDOFF)
++
++    def test_handoff_por_falha_com_atendente_registrado_tambem_fica(self):
++        """Motivo de falha, mas alguém assumiu depois: a conversa é de gente."""
++        caminho = self._banco_com([
++            ("assumida", CONN_A, CONTATO, DONO_HUMANO, None, MOTIVO_FALHA_DO_MODELO, "user-ana"),
++        ])
++        arbitro = self._arbitro(caminho)
++
++        self.assertEqual(arbitro.decidir(CONN_A, CONTATO).motivo, IGNORADO_HANDOFF)
++
++    def test_sessao_ja_fechada_nao_e_reaberta_pela_cura(self):
++        caminho = self._banco_com([
++            ("fechada", CONN_A, OUTRO, DONO_HUMANO, "2026-09-07", MOTIVO_FALHA_DO_MODELO, None),
++        ])
++        arbitro = self._arbitro(caminho)
++
++        with arbitro._db as db:
++            linha = db.execute(
++                "SELECT dono_ate, fechada_em FROM conversa_sessao WHERE id = 'fechada'"
++            ).fetchone()
++        self.assertIsNone(linha["dono_ate"])
++        self.assertIsNotNone(linha["fechada_em"])
+diff -ruN a/whatsapp-assistant/test_operator_verification.py b/whatsapp-assistant/test_operator_verification.py
+--- a/whatsapp-assistant/test_operator_verification.py	2026-09-11 01:40:31.514697100 -0300
++++ b/whatsapp-assistant/test_operator_verification.py	2026-09-11 01:40:31.572653700 -0300
+@@ -6,7 +6,11 @@
+ import unittest
+ from pathlib import Path
+ 
+-from operator_verification import OperatorVerifier, is_verification_code
++from operator_verification import (
++    OperatorVerificationError,
++    OperatorVerifier,
++    is_verification_code,
++)
+ 
+ 
+ class FakeResponse:
+@@ -242,5 +246,100 @@
+             self.assertNotIn("organization_id", kwargs["json"])
+ 
+ 
++class RecusaDiagnosticavelTests(unittest.TestCase):
++    """A recusa precisa dizer o que foi, sem dizer o que estava sendo enviado.
++
++    Nasceu de um apagão de diagnóstico: entre 08 e 10/09/2026 a sincronia de
++    conversas foi recusada quase três mil vezes, e como o erro era sempre a
++    mesma frase não havia como saber, do lado de cá, se era limite de taxa,
++    permissão ou falha do banco.
++    """
++
++    def _verificador(self, directory, resposta):
++        path = Path(directory) / "robot.json"
++        credential(path)
++        return OperatorVerifier(path, session=FakeSession([resposta]))
++
++    def test_o_status_http_aparece_na_recusa(self):
++        with tempfile.TemporaryDirectory() as directory:
++            verificador = self._verificador(directory, FakeResponse(429, {}))
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.conversation_sync({"conversas": []})
++
++            self.assertIn("HTTP 429", str(erro.exception))
++            self.assertIn("sincronia de conversas", str(erro.exception))
++
++    def test_o_codigo_do_postgrest_viaja_junto(self):
++        with tempfile.TemporaryDirectory() as directory:
++            verificador = self._verificador(
++                directory, FakeResponse(403, {"code": "42501", "message": "permission denied"})
++            )
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.conversation_sync({"conversas": []})
++
++            self.assertIn("HTTP 403", str(erro.exception))
++            self.assertIn("42501", str(erro.exception))
++
++    def test_a_mensagem_do_banco_nao_vaza_para_o_log(self):
++        """O erro termina no journal, e texto livre carrega o que foi enviado."""
++        with tempfile.TemporaryDirectory() as directory:
++            verificador = self._verificador(directory, FakeResponse(400, {
++                "code": "22023",
++                "message": "conversa 556599999999 invalida",
++                "details": "contato: Fulano de Tal",
++            }))
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.conversation_sync({"conversas": []})
++
++            texto = str(erro.exception)
++            self.assertNotIn("556599999999", texto)
++            self.assertNotIn("Fulano", texto)
++            self.assertIn("22023", texto)
++
++    def test_codigo_fora_do_formato_e_descartado(self):
++        """Peneira: o que não tem cara de código não entra no log."""
++        with tempfile.TemporaryDirectory() as directory:
++            verificador = self._verificador(
++                directory, FakeResponse(500, {"code": "erro no contato 556599999999"})
++            )
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.conversation_sync({"conversas": []})
++
++            self.assertIn("HTTP 500", str(erro.exception))
++            self.assertNotIn("556599999999", str(erro.exception))
++
++    def test_corpo_que_nao_e_json_nao_derruba_a_mensagem(self):
++        class RespostaOpaca:
++            status_code = 502
++
++            def json(self):
++                raise ValueError("not json")
++
++        with tempfile.TemporaryDirectory() as directory:
++            path = Path(directory) / "robot.json"
++            credential(path)
++            verificador = OperatorVerifier(path, session=FakeSession([RespostaOpaca()]))
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.conversation_sync({"conversas": []})
++
++            self.assertIn("HTTP 502", str(erro.exception))
++
++    def test_a_reserva_de_comandos_ganha_o_mesmo_detalhe(self):
++        with tempfile.TemporaryDirectory() as directory:
++            verificador = self._verificador(directory, FakeResponse(429, {"code": "PGRST301"}))
++
++            with self.assertRaises(OperatorVerificationError) as erro:
++                verificador.runtime_commands_claim(5, "instancia")
++
++            self.assertIn("reserva de comandos do runtime", str(erro.exception))
++            self.assertIn("HTTP 429", str(erro.exception))
++            self.assertIn("PGRST301", str(erro.exception))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff -ruN a/whatsapp-assistant/test_worker.py b/whatsapp-assistant/test_worker.py
+--- a/whatsapp-assistant/test_worker.py	2026-09-11 01:40:31.516701900 -0300
++++ b/whatsapp-assistant/test_worker.py	2026-09-11 01:40:31.575695300 -0300
+@@ -15,6 +15,7 @@
+ import runner
+ import send
+ import worker as worker_mod
++from arbitro import MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
+ from config import Config
+ from intelligence import IntelligenceContext, IntelligenceContextError
+ from operator_verification import OperatorVerificationError
+@@ -427,6 +428,138 @@
+             [(connection_id, "5511999999999", "assistente solicitou transferência humana")],
+         )
+ 
++    def test_falha_do_modelo_entrega_a_conversa_com_prazo(self):
++        """Handoff por falha nasce com vencimento, e o normal continua sem.
++
++        Existe por um silêncio real: em 06/09/2026 o modelo saiu com 1 num turno
++        de cliente, a conversa foi entregue a um humano que nunca existiu, e ela
++        ficou muda até 11/09 — nenhum atendente, nenhum pedido na fila, ninguém
++        para devolver.
++        """
++        class FakeSession:
++            id = "session-falha"
++
++        class FakeArbitro:
++            def __init__(self):
++                self.assumidas = []
++                self.por_falha = []
++
++            def assumir(self, connection_id, contact, reason):
++                self.assumidas.append((connection_id, contact, reason))
++                return FakeSession()
++
++            def assumir_por_falha(self, connection_id, contact, reason):
++                self.por_falha.append((connection_id, contact, reason))
++                return FakeSession()
++
++        fake_arbitro = FakeArbitro()
++        self.worker.arbitro = fake_arbitro
++        self._patch(
++            self.worker,
++            "_resolve_intelligence_context",
++            lambda batch, run_id: self._contexto_de_cliente(),
++        )
++        self.run_behaviour = lambda _prompt: (_ for _ in ()).throw(
++            runner.RunnerError("claude saiu com 1 (0 bytes em stderr)", code="model_unavailable")
++        )
++        connection_id = "11111111-1111-4111-8111-111111111111"
++        self.worker.start()
++        self.enqueue_chat(
++            "M-MODELO-FORA",
++            "5511999999999@s.whatsapp.net",
++            sender="5511999999999",
++            owner_turn=False,
++            agent_id="3ce994b5-0b8d-41d0-9104-77e65b77d418",
++            organization_id="22222222-2222-4222-8222-222222222222",
++            connection_id=connection_id,
++        )
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-MODELO-FORA") == FAILED))
++        self.assertEqual(
++            fake_arbitro.por_falha,
++            [(connection_id, "5511999999999", MOTIVO_FALHA_DO_MODELO)],
++        )
++        self.assertEqual(
++            fake_arbitro.assumidas,
++            [],
++            "assumir sem prazo é para quem assume de verdade, e aqui não há ninguém",
++        )
++
++    def test_contexto_indisponivel_entrega_a_conversa_com_prazo(self):
++        """O mesmo prazo do handoff por modelo, e pelo mesmo motivo.
++
++        O contexto some quando o Supabase recusa — e recusa de Supabase é
++        rotina, não catástrofe. Sem prazo, cada recusa numa primeira mensagem
++        custaria um cliente calado para sempre.
++        """
++        class FakeSession:
++            id = "session-contexto"
++
++        class FakeArbitro:
++            def __init__(self):
++                self.assumidas = []
++                self.por_falha = []
++
++            def assumir(self, connection_id, contact, reason):
++                self.assumidas.append((connection_id, contact, reason))
++                return FakeSession()
++
++            def assumir_por_falha(self, connection_id, contact, reason):
++                self.por_falha.append((connection_id, contact, reason))
++                return FakeSession()
++
++        fake_arbitro = FakeArbitro()
++        self.worker.arbitro = fake_arbitro
++        self.worker.cfg = replace(self.cfg, intelligence_required=True)
++        connection_id = "438e44ca-36ab-437c-b8ac-aa7c60fee64a"
++        self.enqueue_chat(
++            "M-SEM-CONTEXTO",
++            "5566999999999@s.whatsapp.net",
++            sender="5566999999999",
++            owner_turn=False,
++            agent_id="11111111-1111-4111-8111-111111111111",
++            organization_id="338e44ca-36ab-437c-b8ac-aa7c60fee64a",
++            connection_id=connection_id,
++        )
++        self.worker.start()
++
++        self.assertTrue(self.wait_for(lambda: len(self.sent) == 1))
++        self.assertEqual(self.sent[0][1], worker_mod.INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE)
++        self.assertEqual(
++            fake_arbitro.por_falha,
++            [(connection_id, "5566999999999", MOTIVO_FALHA_DO_CONTEXTO)],
++        )
++        self.assertEqual(fake_arbitro.assumidas, [])
++
++    def _contexto_de_cliente(self):
++        """Contexto mínimo de cliente: o que faz `is_customer_turn` valer."""
++        instructions = (
++            "# Vendas\n\n"
++            + "Atenda usando somente conhecimento externo publicado pela organização. " * 3
++        )
++        return IntelligenceContext.from_payload({
++            "schemaVersion": "fase-h-2",
++            "runtimeContext": {
++                "audience": "customer",
++                "assistant": {"id": "profile", "nome": "Assistente Major"},
++                "campaign": None,
++                "activeSkill": {
++                    "id": "11111111-1111-4111-8111-111111111111",
++                    "slug": "vendas",
++                    "name": "Vendas",
++                    "version": 2,
++                    "contentHash": "c" * 64,
++                    "objective": "Atender clientes",
++                    "instructions": instructions,
++                    "allowedTools": ["knowledge.search"],
++                    "guardrails": ["published_only"],
++                    "handoff": ["low_confidence"],
++                },
++                "allowedCollections": [],
++                "policies": {"documentosComoDados": True},
++            },
++        })
++
+     def test_operador_recebe_so_o_fluxo_de_agendamento_novo(self):
+         operator_phone = "5565996985771"
+         agent_id = "3ce994b5-0b8d-41d0-9104-77e65b77d418"
+diff -ruN a/whatsapp-assistant/worker.py b/whatsapp-assistant/worker.py
+--- a/whatsapp-assistant/worker.py	2026-09-11 01:40:31.519703600 -0300
++++ b/whatsapp-assistant/worker.py	2026-09-11 01:40:31.578292500 -0300
+@@ -20,7 +20,7 @@
+ import audit
+ import runner
+ import send
+-from arbitro import Arbitro
++from arbitro import Arbitro, MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
+ from config import Config, load_api_token
+ from intelligence import IntelligenceContext, IntelligenceContextError
+ from messages import fetch_bodies
+@@ -666,10 +666,13 @@
+                 else INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE
+             )
+             if not is_operator_turn and self.arbitro and batch[0].connection_id:
+-                session = self.arbitro.assumir(
++                # Com prazo: ninguém foi chamado para esta conversa. O
++                # contexto some quando o Supabase recusa, e recusa de Supabase
++                # passa — a conversa não pode ficar muda até alguém reparar.
++                session = self.arbitro.assumir_por_falha(
+                     batch[0].connection_id,
+                     recipient,
+-                    "contexto de inteligência indisponível",
++                    MOTIVO_FALHA_DO_CONTEXTO,
+                 )
+                 audit.log(
+                     "intelligence.handoff",
+@@ -813,10 +816,12 @@
+                 and self.arbitro
+                 and batch[0].connection_id
+             ):
+-                session = self.arbitro.assumir(
++                # Com prazo, pelo mesmo motivo do handoff por contexto: o
++                # modelo cair não torna esta conversa de ninguém para sempre.
++                session = self.arbitro.assumir_por_falha(
+                     batch[0].connection_id,
+                     recipient,
+-                    "modelo indisponível",
++                    MOTIVO_FALHA_DO_MODELO,
+                 )
+                 audit.log(
+                     "model.handoff",

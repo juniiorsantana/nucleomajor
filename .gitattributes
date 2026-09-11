@@ -6,6 +6,11 @@
 *.mjs text eol=lf
 *.sql text eol=lf
 *.md text eol=lf
+
+# Um patch é conferido byte a byte e aplicado num Linux. Sem esta linha, o
+# checkout no Windows o entrega com CRLF, as linhas de contexto deixam de casar
+# com os arquivos LF da release e o `patch` recusa tudo.
+*.patch text eol=lf
 *.png binary
 *.jpg binary
 *.woff2 binary
