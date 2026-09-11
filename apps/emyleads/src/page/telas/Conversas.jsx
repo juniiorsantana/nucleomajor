@@ -5,6 +5,8 @@ import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
 import { formatPhone } from "../../lib/phone";
 import { SeloWhatsApp } from "../ui";
+import { EstadoVazioConversas, FaixaConexao, ModalConectarWhatsApp } from "./conversas/ConexaoDoWhatsApp";
+import { FASES } from "./conexoes/estadoDaConexao";
 import { FichaLateral } from "./conversas/ficha";
 import { ModalNovaConversa } from "./conversas/ModalNovaConversa";
 import { PainelAtalhos, PainelModelos } from "./conversas/paineis";
@@ -18,7 +20,9 @@ import {
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
+import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
+import { usePareamento } from "./conversas/usePareamento";
 import { useRolagemConversa } from "./conversas/useRolagemConversa";
 
 /**
@@ -136,8 +140,29 @@ export default function Conversas({
   const [atalho, setAtalho] = useState(null);
   const [fichaAberta, setFichaAberta] = useState(true);
   const [novaConversa, setNovaConversa] = useState(false);
+  const [modalConexao, setModalConexao] = useState(false);
 
   const { rolagem, aoRolar } = useRolagemConversa(atual, mensagens);
+
+  // O WhatsApp está conectado? A lista vazia precisa dizer por quê, e a lista
+  // cheia precisa avisar quando a sessão cai.
+  const organizationId = sessao?.organizacaoAtual?.id || "";
+  const podeGerenciar = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
+  const listaVazia = Array.isArray(conversas) && conversas.length === 0;
+  const { conexao, resumo: resumoConexao, carregado: conexaoCarregada } = useConexao(organizationId, {
+    atento: listaVazia || modalConexao,
+  });
+  const { qr, pedindo, pedir, ler } = usePareamento({ organizationId, conexao, aberto: modalConexao });
+  const abrirConexao = () => {
+    setModalConexao(true);
+    // Já em pareamento: só ler o código que a VPS tem. Fora disso, pedir.
+    if (resumoConexao?.fase === FASES.PAREANDO) ler(true);
+    else pedir();
+  };
+  const verCodigo = () => {
+    setModalConexao(true);
+    ler(true);
+  };
 
   const termo = busca.trim().toLowerCase();
   const visiveis = useMemo(
@@ -323,13 +348,19 @@ export default function Conversas({
           </div>}
         </div>
 
+        {!listaVazia && (
+          <FaixaConexao resumo={resumoConexao} podeGerenciar={podeGerenciar} aoConectar={abrirConexao} />
+        )}
+
         <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
           {conversas === null ? (
             <div className="px-3.5 py-6 text-[12.5px] text-sub">Carregando…</div>
           ) : visiveis.length === 0 ? (
             <div className="px-3.5 py-6 text-[12.5px] text-sub">
               {conversas.length === 0
-                ? "Nenhuma conversa ainda. Comece uma pelo + aqui em cima."
+                ? resumoConexao?.fase === FASES.CONECTADO
+                  ? "Nenhuma conversa ainda. Comece uma pelo + aqui em cima."
+                  : "Nenhuma conversa ainda."
                 : "Nada aqui com esse filtro."}
             </div>
           ) : (
@@ -352,7 +383,15 @@ export default function Conversas({
 
       {/* Coluna 2 — a conversa */}
       <section className="hidden min-w-0 flex-1 flex-col bg-bg md:flex">
-        {!conversa ? (
+        {!conversa && listaVazia ? (
+          <EstadoVazioConversas
+            resumo={resumoConexao}
+            carregado={conexaoCarregada}
+            podeGerenciar={podeGerenciar}
+            aoConectar={abrirConexao}
+            aoVerCodigo={verCodigo}
+          />
+        ) : !conversa ? (
           <div className="flex flex-1 items-center justify-center text-[13.5px] text-sub">
             Escolha uma conversa à esquerda.
           </div>
@@ -526,6 +565,15 @@ export default function Conversas({
           aoFechar={() => setNovaConversa(false)}
         />
       )}
+
+      <ModalConectarWhatsApp
+        aberto={modalConexao}
+        resumo={resumoConexao}
+        qr={qr}
+        pedindo={pedindo}
+        aoGerar={pedir}
+        aoFechar={() => setModalConexao(false)}
+      />
     </div>
   );
 }

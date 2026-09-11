@@ -1142,8 +1142,56 @@ que não veio neste lote") de ser segura. Hoje isso só importa quando a chave
 natural muda, que foi o caso desta vez e foi resolvido à mão. Fica registrado
 como pendência.
 
+## Conexões em duas camadas, e Conversas sabe se o WhatsApp está conectado
+
+Publicado na `main` em 11/09/2026, depois da limpeza total dos dados de teste
+(conversas, contatos, agenda e sessão do WhatsApp apagados; agentes e
+conhecimento preservados). A tela de Conexões mostrava quinze linhas técnicas
+com o mesmo peso — Bridge, Host, MCP, agenda, skill — e a única pergunta que a
+equipe faz ("está conectado? em que número? a IA está atendendo?") não tinha
+resposta em destaque. A caixa de entrada, por sua vez, era igual vazia com o
+número conectado ou com a sessão caída.
+
+- **`estadoDaConexao.js`** (`apps/emyleads/src/page/telas/conexoes/`) resume a
+  conexão em linguagem de gente para as duas telas: fase (`conectado`,
+  `pareando`, `desconectado`, `divergente`, `runtime_parado`), selo, título,
+  detalhe, número e sinal da VPS. Precedência: número divergente vence tudo;
+  runtime parado vence a sessão (sem heartbeat fresco a tela nunca afirma
+  "conectado" — em 08/09/2026 o número ficou 23 horas mudo com a tela verde).
+- **Conexões**: o cartão tem uma primeira camada (nome, número, selo, estado,
+  QR dentro do cartão quando está pareando, interruptor do atendimento, botão
+  "Conectar WhatsApp") e um `<details>` "Detalhes técnicos" com tudo que já
+  existia (linhas de diagnóstico, MCP e revogação, quem atende conversa nova,
+  sessões em andamento, ações locais). Nada foi removido. O laço do QR é o
+  mesmo (15 s, uma leitura por vez, pausa de 1 min após recusa), com uma
+  correção: quando a janela de pareamento fecha, o último QR lido é descartado
+  em vez de continuar na tela como se valesse.
+- **Conversas**: `useConexao` lê `api.gateway.conexoes` (6 s enquanto a lista
+  está vazia, o modal está aberto ou a sessão está fora; 30 s quando tudo está
+  bem). Lista vazia mostra um de três estados — desconectado com "Conectar
+  WhatsApp" (abre o QR ali mesmo, pela mesma fila de comandos da VPS),
+  aguardando leitura com "Ver o código", ou conectado sem conversa. Com
+  conversas e sessão caída, uma faixa no topo da lista avisa e deixa
+  conectar. `usePareamento` repete as regras de cadência de Conexões.
+- Testes: `estadoDaConexao.test.js` (9), `ConexaoDoWhatsApp.test.jsx` (14) e
+  `Conexoes.test.jsx` (4, com o `api` simulado — inclusive o QR aparecendo no
+  cartão antes de o heartbeat dizer "pareando").
+
+**O que ficou como estava, e precisa ser dito:** na conexão da VPS o
+interruptor "Atendimento automático" é **só leitura** no portal. O estado vem
+do heartbeat (`automation_enabled`), mas ligar e desligar só existe no
+endpoint local do gateway (`/connections/<id>/automation`), que na web é o
+computador de quem está olhando. A tela agora diz isso ("Definido no runtime
+da VPS") em vez de mostrar um botão apagado. Conferido em 11/09/2026 no
+`arbitro.db` da VPS: `ia_ativa = 1`, `dono_padrao = ia` — a IA responde
+assim que o número for pareado. Fazer o interruptor funcionar de longe pede um
+comando novo na fila (`connection_automation`), migration para a RPC aceitá-lo
+e uma implantação do runtime; é a próxima leva desta tela.
+
 ## Limitações e pendências conhecidas
 
+- O interruptor do atendimento automático da conexão da VPS não muda pelo
+  portal (ver a seção de Conexões em duas camadas). Hoje está ligado.
 - O limite de uso do Claude pode impedir respostas geradas pelo modelo, mesmo
   quando Bridge, WhatsApp, MCP e agenda estão saudáveis.
 - A H.5 separa esse estado no contrato e no portal; migration, portal e runtime

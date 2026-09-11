@@ -23,6 +23,7 @@ import { api } from "../../data/client";
 import { fmtRelativo } from "../../lib/formato";
 import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } from "../../ui/atendimento";
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
+import { FASES, resumirConexao } from "./conexoes/estadoDaConexao";
 
 const ROTULOS = {
   bridge_starting: "Runtime iniciando",
@@ -99,11 +100,6 @@ function EstadoLinha({ rotulo, valor, tom = "neutro" }) {
 }
 
 /**
- * Um cartão por conexão. O que ele precisa deixar claro, e antes não deixava:
- * runtime e sessão do WhatsApp são coisas diferentes, e a sessão do bridge
- * pode ser do mesmo número que o operador usa no WhatsApp Web.
- */
-/**
  * Compara a sessão do bridge com a aba do operador.
  *
  * Devolve `null` quando não dá para saber — e "não sei" é uma resposta legítima
@@ -116,66 +112,71 @@ function correspondencia(sessaoWeb, phoneMasked) {
   return sessaoWeb.last4 === doBridge.slice(-4);
 }
 
+
 /**
- * O atendimento desta conexão: quem responde, e a quem cada conversa pertence.
+ * O interruptor do atendimento, na primeira camada do cartão.
+ *
+ * É a única decisão de negócio da tela — quem pausa a IA num dia ruim precisa
+ * achá-la em um clique — e por isso fica ao lado do estado da conexão. O resto
+ * do atendimento (quem atende conversa nova, sessões em andamento) desce para
+ * os detalhes técnicos.
  *
  * Deliberadamente separado da pausa dos chatbots do CRM, que vive na faixa
  * dentro do WhatsApp. São dois automatismos no mesmo número, e foi justamente
  * a confusão entre eles que fez um contato receber duas respostas para a mesma
  * mensagem. Um controle que parecesse "o mesmo botão em outro lugar" faria o
  * operador desligar um achando que desligou os dois.
+ *
+ * Numa conexão da VPS o interruptor é só leitura: o estado vem do heartbeat e
+ * o comando de ligar/desligar ainda não atravessa a fila do runtime. Dizer
+ * isso é melhor que um botão apagado sem explicação.
  */
-function BlocoAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefinirAutomacao, aoDefinirDono, aoEncerrar }) {
-  const [sessoesAbertas, setSessoesAbertas] = useState(false);
-
-  // `undefined` enquanto não se sabe. Pintar "desligada" antes de ler seria
+function InterruptorAtendimento({ resumo, conectado, ocupado, somenteLeitura = false, aoDefinirAutomacao }) {
+  // `undefined` enquanto não se sabe. Pintar "desligado" antes de ler seria
   // mentir exatamente no momento em que alguém confere se ligou.
   if (resumo === undefined) {
     return (
-      <div className="flex min-h-11 items-center gap-2 border-b border-line px-5 text-[13px] text-sub">
+      <div className="mx-5 mb-4 flex items-center gap-2 rounded-[11px] bg-surface px-4 py-3 text-[12.5px] text-sub">
         <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> Consultando o atendimento…
       </div>
     );
   }
   if (resumo === null) {
     return (
-      <EstadoLinha rotulo="Atendimento" valor="Não foi possível consultar" tom="neutro" />
+      <div className="mx-5 mb-4 rounded-[11px] bg-surface px-4 py-3 text-[12.5px] text-sub">
+        Atendimento automático: não foi possível consultar.
+      </div>
     );
   }
-
   const ativa = !!resumo.iaAtiva;
-  const sessoes = resumo.conversations || [];
-  const abertas = resumo.abertas || {};
-  const total = Object.values(abertas).reduce((s, n) => s + (n || 0), 0);
-
   return (
-    <div className="border-b border-line">
-      <div className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {ativa ? (
-              <Bot size={15} className="flex-none text-success" aria-hidden="true" />
-            ) : (
-              <BotOff size={15} className="flex-none text-sub" aria-hidden="true" />
-            )}
-            <h3 className="text-[13.5px] font-semibold text-fg">Atendimento automático</h3>
-            <SeloEstado tom={ativa ? "sucesso" : "neutro"}>
-              {ativa ? "Ligado" : "Desligado"}
-            </SeloEstado>
-          </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-sub">
-            Decide quem responde nesta conexão, mesmo com o navegador fechado. É
-            outro controle que a pausa dos chatbots do CRM — desligar um não
-            desliga o outro.
-          </p>
-        </div>
+    <div className="mx-5 mb-4 flex items-center gap-3 rounded-[11px] bg-surface px-4 py-3">
+      {ativa ? (
+        <Bot size={16} className="flex-none text-success" aria-hidden="true" />
+      ) : (
+        <BotOff size={16} className="flex-none text-sub" aria-hidden="true" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-semibold text-fg">Atendimento automático</p>
+        <p className="text-[12px] text-sub">
+          {!ativa
+            ? "Desligado: nada responde nesta conexão, mesmo conectada."
+            : conectado
+              ? `A IA responde as conversas desta conexão${resumo.donoPadrao === "ia" ? "" : ` · conversa nova vai para ${textoDoDono(resumo.donoPadrao).toLowerCase()}`}.`
+              : "Ligado — passa a responder assim que o WhatsApp conectar."}
+          {somenteLeitura && <span className="text-faint"> Definido no runtime da VPS.</span>}
+        </p>
+      </div>
+      {somenteLeitura ? (
+        <SeloEstado tom={ativa ? "sucesso" : "neutro"}>{ativa ? "Ligado" : "Desligado"}</SeloEstado>
+      ) : (
         <button
           type="button"
           role="switch"
           aria-checked={ativa}
           aria-label="Atendimento automático desta conexão"
           onClick={() => aoDefinirAutomacao(!ativa, resumo.donoPadrao)}
-          disabled={somenteLeitura || ocupado === "automacao"}
+          disabled={ocupado === "automacao"}
           className={`relative h-6 w-11 flex-none cursor-pointer rounded-full transition-colors disabled:opacity-40 ${
             ativa ? "bg-success" : "bg-line-strong"
           }`}
@@ -186,9 +187,28 @@ function BlocoAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefinirAu
             }`}
           />
         </button>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-3">
+/**
+ * O resto do atendimento: quem recebe uma conversa nova e as sessões abertas.
+ * Vive nos detalhes técnicos porque muda raramente — e porque Conversas já é
+ * o lugar de ver e trocar quem atende cada conversa.
+ */
+function DetalhesAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefinirAutomacao, aoDefinirDono, aoEncerrar }) {
+  const [sessoesAbertas, setSessoesAbertas] = useState(false);
+  if (!resumo) return null;
+
+  const ativa = !!resumo.iaAtiva;
+  const sessoes = resumo.conversations || [];
+  const abertas = resumo.abertas || {};
+  const total = Object.values(abertas).reduce((s, n) => s + (n || 0), 0);
+
+  return (
+    <div className="border-b border-line">
+      <div className="flex flex-wrap items-center gap-3 px-5 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-medium text-fg">Quem atende uma conversa nova</p>
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-sub">
@@ -281,6 +301,69 @@ function BlocoAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefinirAu
   );
 }
 
+/**
+ * O QR e o que acontece em volta dele, dentro do cartão.
+ *
+ * Um QR que não veio precisa dizer por quê: o teto do pareamento fechado e o
+ * bridge fora do ar produziam a mesma tela — a de "aguarde" —, e quem estava
+ * com o celular na mão esperava um código que nunca ia chegar.
+ */
+function PainelQr({ qr, final4, aguardando }) {
+  if (qr?.status === "awaiting_qr" && qr?.imageData) {
+    return (
+      <div className="mx-5 mb-4 grid gap-4 rounded-[12px] border border-dashed border-line-strong p-4 sm:grid-cols-[auto_1fr] sm:items-center">
+        <img
+          src={qr.imageData}
+          alt="QR Code para conectar o WhatsApp"
+          className="mx-auto h-[148px] w-[148px] rounded-[8px] border border-line bg-white p-1.5"
+        />
+        <div className="text-[12.5px] leading-relaxed text-sub">
+          <ol className="list-decimal space-y-1 pl-4">
+            <li>No celular, abra o <b className="font-semibold text-fg">WhatsApp</b>{final4 ? ` do número final ${final4}` : ""}.</li>
+            <li>Toque em <b className="font-semibold text-fg">Aparelhos conectados › Conectar aparelho</b>.</li>
+            <li>Aponte a câmera para o código.</li>
+          </ol>
+          <p className="mt-2 text-[11.5px] text-faint">O código vale só para esta conexão e se renova sozinho enquanto a tela estiver aberta.</p>
+        </div>
+      </div>
+    );
+  }
+  if (qr?.erro) {
+    return (
+      <div className="mx-5 mb-4 flex items-start gap-3 rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] text-danger">
+        <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">O código não veio</p>
+          <p className="mt-0.5">{qr.erro}</p>
+          <p className="mt-1 text-[11.5px] opacity-80">A tela tenta de novo a cada 15 segundos.</p>
+        </div>
+      </div>
+    );
+  }
+  if (aguardando) {
+    return (
+      <div className="mx-5 mb-4 flex items-center gap-3 rounded-[12px] border border-dashed border-line-strong px-4 py-3 text-[12.5px] text-sub">
+        <LoaderCircle size={18} className="flex-none animate-spin" aria-hidden="true" />
+        Pedindo o código à VPS. Leva alguns segundos — deixe esta tela aberta.
+      </div>
+    );
+  }
+  return null;
+}
+
+/**
+ * Um cartão por conexão, em duas camadas.
+ *
+ * A primeira responde o que a equipe pergunta: está conectado, em que número,
+ * a IA está atendendo — e oferece a ação certa para o estado. A segunda,
+ * recolhida, guarda o diagnóstico: runtime, sessão, host, sinal da VPS, MCP,
+ * agenda — as linhas que antes tinham o mesmo peso do estado e o afogavam.
+ * Nada saiu da tela; só mudou de camada.
+ *
+ * O que continua verdade aqui: runtime e sessão do WhatsApp são coisas
+ * diferentes, e a sessão do bridge pode ser do mesmo número que o operador
+ * usa no WhatsApp Web.
+ */
 function CartaoConexao({
   conexao,
   robo,
@@ -299,11 +382,13 @@ function CartaoConexao({
   aoEncerrar,
 }) {
   const estado = conexao.connection || {};
+  const leitura = resumirConexao(conexao);
   const mesmaConta = correspondencia(sessaoWeb, estado.phoneMasked);
   const conectado = estado.status === "connected";
   const divergente = estado.status === "identity_mismatch";
   const runtimeOnline = conexao.runtime === "online";
   const emPareamento = EM_PAREAMENTO.includes(estado.status);
+  const final4 = String(conexao.expectedPhoneMasked || estado.phoneMasked || "").replace(/\D/g, "").slice(-4);
   const rotuloSessao = runtimeOnline
     ? ROTULOS[estado.status] || "Sem sessão do WhatsApp"
     : "Não consultada";
@@ -349,44 +434,51 @@ function CartaoConexao({
     ? `${prontidao.skillSlug}${prontidao.skillVersion ? ` v${prontidao.skillVersion}` : ""}${prontidao.skillHash ? ` · ${prontidao.skillHash.slice(0, 12)}` : ""}`
     : "Ainda não resolvida neste runtime";
 
-  const selo = divergente ? (
-    <SeloEstado tom="erro">
-      <ShieldAlert size={13} className="mr-1.5" aria-hidden="true" />
-      Número divergente
-    </SeloEstado>
-  ) : runtimeOnline && conectado ? (
-    <SeloEstado tom="sucesso">
-      <CheckCircle2 size={13} className="mr-1.5" aria-hidden="true" />
-      Operando
-    </SeloEstado>
-  ) : runtimeOnline ? (
-    <SeloEstado tom="atencao">Aguardando conexão</SeloEstado>
-  ) : conectado ? (
-    <SeloEstado tom="atencao">Último estado: conectado</SeloEstado>
-  ) : (
-    <SeloEstado tom="erro">{ROTULOS_RUNTIME[conexao.runtime] || "Runtime sem resposta"}</SeloEstado>
-  );
+  /*
+   * Conectar número existe também para a VPS: o pedido vai pela fila de
+   * comandos, e não pelo `127.0.0.1` que só respondia quando runtime e
+   * navegador eram a mesma máquina. Cargo só é exigido no caminho remoto, que
+   * é o que a RPC guarda; na conexão local, quem tem a máquina já tem o
+   * aparelho na mão.
+   */
+  const podeConectar = !conectado && !divergente && runtimeOnline && (!conexao.remoteManaged || podeGerenciar);
+  /*
+   * O QR aparece antes de o heartbeat dizer "estou em pareamento": a leitura
+   * forçada depois do clique já o traz, e o estado da VPS leva até 20 s para
+   * acompanhar. Fora do pareamento, um `qr` presente só pode ser esse — o laço
+   * limpa o resto quando a janela fecha.
+   */
+  const mostrarQr = runtimeOnline && !conectado && !divergente && (emPareamento || !!qr || ocupado === "parear");
+  const aguardandoQr = ocupado === "parear" || (emPareamento && !leitura.qrExpirado) || (!!qr && !emPareamento);
+  const somenteLeitura = !!conexao.remoteManaged;
 
   return (
     <section className="rounded-[14px] border border-line bg-bg">
-      <div className="flex items-start gap-3 border-b border-line px-5 py-4">
-        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-forte">
-          <Smartphone size={19} strokeWidth={1.75} aria-hidden="true" />
+      <div className="flex items-start gap-3 px-5 py-4">
+        <div
+          className={`flex h-11 w-11 flex-none items-center justify-center rounded-[13px] ${
+            leitura.fase === FASES.CONECTADO ? "bg-success-soft text-success" : "bg-surface-hover text-faint"
+          }`}
+        >
+          <Smartphone size={20} strokeWidth={1.75} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[15px] font-semibold text-fg">
             {conexao.name || "Conexão sem nome"}
           </h2>
-          <p className="mt-0.5 text-[12.5px] leading-relaxed text-sub">
-            Sessão do bridge, independente da aba do WhatsApp Web — e podendo ser
-            do mesmo número que o operador já usa.
+          <p className="mt-0.5 text-[12.5px] tabular-nums text-sub">
+            {leitura.numero || "Número confirmado no pareamento"}
           </p>
         </div>
-        {selo}
+        <SeloEstado tom={leitura.tom}>
+          {leitura.fase === FASES.CONECTADO && <CheckCircle2 size={13} className="mr-1.5" aria-hidden="true" />}
+          {leitura.fase === FASES.DIVERGENTE && <ShieldAlert size={13} className="mr-1.5" aria-hidden="true" />}
+          {leitura.selo}
+        </SeloEstado>
       </div>
 
       {divergente && (
-        <div className="flex items-start gap-3 border-b border-line bg-danger/5 px-5 py-3 text-[12.5px] leading-relaxed text-danger">
+        <div className="mx-5 mb-4 flex items-start gap-3 rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] leading-relaxed text-danger">
           <ShieldAlert size={17} className="mt-0.5 flex-none" aria-hidden="true" />
           <p>
             O aparelho pareado é {estado.phoneMasked || "outro número"}, mas esta
@@ -397,8 +489,80 @@ function CartaoConexao({
         </div>
       )}
 
-      <div className="grid md:grid-cols-[1fr_310px]">
-        <div className="border-b border-line md:border-b-0 md:border-r">
+      <div className="px-5 pb-4">
+        <p className="text-[13.5px] font-semibold text-fg">{leitura.titulo}</p>
+        <p className="mt-0.5 text-[12.5px] leading-relaxed text-sub">
+          {leitura.detalhe}
+          {leitura.sinal && (
+            <span className="text-faint">{leitura.detalhe ? " · " : ""}{leitura.sinal}.</span>
+          )}
+        </p>
+      </div>
+
+      {mostrarQr && <PainelQr qr={qr} final4={final4} aguardando={aguardandoQr} />}
+
+      <InterruptorAtendimento
+        resumo={resumo}
+        conectado={leitura.fase === FASES.CONECTADO}
+        ocupado={ocupado}
+        somenteLeitura={somenteLeitura}
+        aoDefinirAutomacao={aoDefinirAutomacao}
+      />
+
+      {(podeConectar || (!conexao.remoteManaged && runtimeOnline && !emPareamento)) && (
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-4">
+          {podeConectar && (
+            <BotaoPrimario
+              onClick={aoParear}
+              disabled={!!ocupado || (emPareamento && !leitura.qrExpirado)}
+              className="min-h-11 !py-2.5"
+            >
+              {ocupado === "parear" ? (
+                <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <QrCode size={16} aria-hidden="true" />
+              )}
+              {leitura.qrExpirado ? "Gerar novo código" : emPareamento ? "Aguardando leitura" : "Conectar WhatsApp"}
+            </BotaoPrimario>
+          )}
+          {!conexao.remoteManaged && runtimeOnline && !emPareamento && (
+            <button
+              type="button"
+              onClick={aoReconectar}
+              disabled={!!ocupado}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
+            >
+              <RefreshCw size={15} className={ocupado === "reconectar" ? "animate-spin" : ""} aria-hidden="true" />
+              Reconectar
+            </button>
+          )}
+          {podeConectar && (
+            <p className="basis-full text-[11.5px] text-faint">
+              Conectar não liga respostas automáticas — o atendimento acima continua como está.
+            </p>
+          )}
+        </div>
+      )}
+      {conexao.remoteManaged && !podeGerenciar && !conectado && !divergente && runtimeOnline && (
+        <p className="px-5 pb-4 text-[12px] text-sub">Conectar o número é permissão de administrador.</p>
+      )}
+
+      <details className="group border-t border-line">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-[12.5px] font-medium text-sub transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
+          <ChevronDown size={15} className="flex-none transition-transform group-open:rotate-180" aria-hidden="true" />
+          Detalhes técnicos
+          <span className="ml-auto text-[10.5px] font-bold uppercase tracking-[.08em] text-faint">runtime · VPS · Núcleo</span>
+        </summary>
+
+        <div className="border-t border-line">
+          <DetalhesAtendimento
+            resumo={resumo}
+            ocupado={ocupado}
+            somenteLeitura={somenteLeitura}
+            aoDefinirAutomacao={aoDefinirAutomacao}
+            aoDefinirDono={aoDefinirDono}
+            aoEncerrar={aoEncerrar}
+          />
           <EstadoLinha
             rotulo="Bridge"
             valor={ROTULOS_RUNTIME[conexao.runtime] || "Runtime sem resposta"}
@@ -415,7 +579,7 @@ function CartaoConexao({
             tom={estadoModelo === "available" ? "sucesso" : estadoModelo === "unavailable" || estadoModelo === "quota_exhausted" ? "erro" : "neutro"}
           />
           <EstadoLinha
-            rotulo="WhatsApp"
+            rotulo="Sessão do WhatsApp"
             valor={rotuloSessao}
             tom={conectado
               ? "sucesso"
@@ -517,126 +681,25 @@ function CartaoConexao({
             tom={prontidao?.chatbot === "online" ? "sucesso" : "neutro"}
           />
 
-          <BlocoAtendimento
-            resumo={resumo}
-            ocupado={ocupado}
-            somenteLeitura={conexao.remoteManaged}
-            aoDefinirAutomacao={aoDefinirAutomacao}
-            aoDefinirDono={aoDefinirDono}
-            aoEncerrar={aoEncerrar}
-          />
-
-          {conexao.remoteManaged && (
-            <div className="border-b border-line bg-success-soft/40 px-5 py-3 text-[12px] leading-relaxed text-sub">
-              Esta conexão opera na VPS. Ler o QR funciona daqui;
-              reconectar uma sessão existente e revogar o acesso ainda são feitos na própria VPS.
-              {!podeGerenciar && " Conectar um número é permissão de administrador."}
+          {conexao.remoteManaged ? (
+            <div className="px-5 py-3 text-[12px] leading-relaxed text-sub">
+              Esta conexão opera na VPS. Ler o QR funciona daqui; reconectar uma sessão
+              existente e revogar o acesso ainda são feitos na própria VPS.
             </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-            {/*
-              * Conectar número passa a existir também para a VPS: o pedido vai
-              * pela fila de comandos, e não pelo `127.0.0.1` que só respondia
-              * quando runtime e navegador eram a mesma máquina.
-              *
-              * Cargo só é exigido no caminho remoto, que é o que a RPC guarda.
-              * Na conexão local, quem tem a máquina já tem o aparelho na mão.
-              */}
-            {!conectado && !divergente && runtimeOnline
-              && (!conexao.remoteManaged || podeGerenciar) && (
-              <BotaoPrimario
-                onClick={aoParear}
-                disabled={!!ocupado || (emPareamento && estado.status !== "qr_expired")}
-                className="min-h-11 !py-2.5"
-              >
-                {ocupado === "parear" ? (
-                  <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <QrCode size={16} aria-hidden="true" />
-                )}
-                {estado.status === "qr_expired" ? "Gerar novo QR" : "Conectar número"}
-              </BotaoPrimario>
-            )}
-            {!conexao.remoteManaged && runtimeOnline && !emPareamento && (
-              <button
-                type="button"
-                onClick={aoReconectar}
-                disabled={!!ocupado}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
-              >
-                <RefreshCw size={15} className={ocupado === "reconectar" ? "animate-spin" : ""} aria-hidden="true" />
-                Reconectar
-              </button>
-            )}
-            {!conexao.remoteManaged && (
+          ) : (
+            <div className="flex items-center px-5 py-3">
               <button
                 type="button"
                 onClick={aoRevogar}
                 disabled={!!ocupado}
-                className="ml-auto flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
+                className="ml-auto flex min-h-10 cursor-pointer items-center gap-2 rounded-[9px] px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
               >
                 <Unplug size={15} aria-hidden="true" /> Revogar acesso local
               </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex min-h-[280px] items-center justify-center p-5">
-          {qr?.status === "awaiting_qr" && qr?.imageData ? (
-            <div className="text-center">
-              <img
-                src={qr.imageData}
-                alt={`QR Code para conectar ${conexao.name || "esta conexão"}`}
-                className="mx-auto h-52 w-52 rounded-[8px] border border-line bg-white p-2"
-              />
-              <p className="mt-3 text-[12.5px] font-medium text-fg">Leia em Aparelhos conectados</p>
-              <p className="mt-1 text-[11.5px] text-sub">
-                O código vale só para esta conexão e é renovado automaticamente.
-              </p>
-            </div>
-          ) : conectado ? (
-            <div className="text-center">
-              <CheckCircle2 size={40} className="mx-auto text-success" strokeWidth={1.5} aria-hidden="true" />
-              <p className="mt-3 text-[13.5px] font-semibold text-fg">Sessão ativa</p>
-              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">
-                Conectar não ativa respostas automáticas. A automação continua pausada.
-              </p>
-            </div>
-          ) : qr?.erro ? (
-            /*
-             * Um QR que não veio precisa dizer por quê. Enquanto isto não
-             * existia, o teto do pareamento fechado e o bridge fora do ar
-             * produziam a mesma tela — a de "aguarde" —, e quem estava com o
-             * celular na mão esperava um código que nunca ia chegar.
-             */
-            <div className="text-center">
-              <AlertTriangle size={40} className="mx-auto text-danger" strokeWidth={1.5} aria-hidden="true" />
-              <p className="mt-3 text-[13.5px] font-semibold text-fg">O QR não veio</p>
-              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">{qr.erro}</p>
-              <p className="mt-2 max-w-56 text-[11.5px] leading-relaxed text-faint">
-                A tela tenta de novo a cada 15 segundos.
-              </p>
-            </div>
-          ) : emPareamento ? (
-            <div className="text-center">
-              <LoaderCircle size={40} className="mx-auto animate-spin text-sub" strokeWidth={1.5} aria-hidden="true" />
-              <p className="mt-3 text-[13.5px] font-medium text-fg">Pedindo o código à VPS</p>
-              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">
-                Leva alguns segundos. Deixe esta tela aberta.
-              </p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <QrCode size={40} className="mx-auto text-faint" strokeWidth={1.5} aria-hidden="true" />
-              <p className="mt-3 text-[13.5px] font-medium text-fg">O QR aparecerá aqui</p>
-              <p className="mt-1 max-w-56 text-[12px] leading-relaxed text-sub">
-                Inicie a conexão e mantenha esta tela aberta durante a leitura.
-              </p>
             </div>
           )}
         </div>
-      </div>
+      </details>
     </section>
   );
 }
@@ -811,7 +874,15 @@ export default function Conexoes({ organizacao, usuario = null }) {
   // lista muda de identidade a cada 2,5s — usá-la como dependência recriaria o
   // intervalo a cada volta e devolveria a cadência rápida pela porta dos fundos.
   useEffect(() => {
-    if (!organizationId || !alguemPareando) return undefined;
+    if (!organizationId) return undefined;
+    if (!alguemPareando) {
+      // A janela de pareamento fechou (conectou, ou desistiu): o último QR
+      // lido é de um código que já morreu, e o cartão não pode exibi-lo como
+      // se ainda valesse. O QR pedido pelo clique não passa por aqui — ele
+      // chega antes de o heartbeat virar, sem mudar este booleano.
+      setQrs({});
+      return undefined;
+    }
     let ativo = true;
     const rodar = () => {
       if (ativo && document.visibilityState === "visible") lerQrs();
