@@ -695,12 +695,33 @@ testes novos por item; e as conversas de referência de novo.
 
 ### Fase 3 — Memória do lead e avisos
 
-1. Aviso de handoff no WhatsApp dos operadores (N), pela fila de avisos que
-   já existe.
+**Itens 1 e 3 implantados em 11/09/2026**, puxados por um caso real: o
+contato …3150 pediu o Júnior (00:47, runtime antigo: promessa vazia), voltou
+às 13:42 (runtime novo: o modelo tinha a ferramenta e não a chamou), foi
+transferido pela rede de segurança às 13:44 e escreveu "é urgente amigo" às
+13:46 para uma conversa que só existia no painel. Três levas no runtime
+(`5e88067`, `0b4ddb7`; releases `pedido-de-pessoa` e `lembrete-de-espera`):
+pedido de pessoa decidido pelo runtime antes do modelo (nomes da equipe em
+`EMYLEADS_TEAM_NAMES`); aviso no WhatsApp do dono a cada transferência, com
+motivo e últimas mensagens (`EMYLEADS_HANDOFF_NOTIFY_PHONES` para mais
+gente); e lembrete a cada 15 min enquanto um contato transferido e sem
+atendente insistir. O aviso vai pela rota do agente (o dono está na
+allowlist do Bridge), não pela fila de avisos da agenda.
+
+A exclusão de contatos (M) virou a etiqueta **"Não atender IA"**
+(`nao-atender-ia`): migration `20260911150000` faz
+`nucleo_customer_assistant_access` recusar quem a carrega, em qualquer modo de
+rollout (aplicada e conferida em 11/09/2026); o portal ganhou um interruptor
+"Atendimento pela IA" na Ficha do contato, em Conversas (`551c5e4` em
+`main`), que cria o contato se preciso e aplica a etiqueta em um clique. O
+rollout continua `active` — agora sem custo para amigos e família, desde que
+marcados.
+
+1. ~~Aviso de handoff no WhatsApp dos operadores (N)~~ — feito, ver acima.
 2. Resumo por conversa gravado no CRM ao fim de cada turno relevante
    (`respostas.resumo`), lido no início do próximo — memória que sobrevive a
    sessão, hash e falha.
-3. Lista de exclusão de contatos (M), do jeito que a empresa decidir.
+3. ~~Lista de exclusão de contatos (M)~~ — feito, ver acima.
 4. Recontato: quando o lead some no meio da qualificação, uma mensagem
    única de retomada depois de 24 h, uma só, com o que ficou pendente. (É
    regra de conteúdo + um job; decidir se a Major quer isso.)
@@ -765,3 +786,9 @@ não paga o custo.
   processo antigo — o último exemplo do defeito. Pendências: decisão de
   rollout (`active` × `pilot`); número de teste preso à campanha do piloto;
   prova ao vivo das quatro mensagens de teste com o runtime novo.
+- **11/09/2026, tarde** — o caso …3150 antecipou a fase 3 (itens 1 e 3):
+  pedido de pessoa determinístico, aviso e lembrete à equipe no WhatsApp,
+  etiqueta "Não atender IA" com migration aplicada e interruptor na Ficha.
+  Runtime em `lembrete-de-espera` (598 testes na VPS); portal `551c5e4` em
+  `main` com CI verde — a Hostinger ainda servia o bundle anterior 35 min
+  depois do push; conferir o deploy no painel dela.
