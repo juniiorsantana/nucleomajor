@@ -76,8 +76,9 @@ ninguém governa) > allowlist do estágio (que trava tudo) > o resto.
 
 ### 1.1 O que o lead recebeu — evidência
 
-Piloto, número de teste da própria empresa, 31/08/2026 (v3 ativo, campanha do
-piloto; nos turnos citados a skill ativa era Pré-qualificação):
+Piloto, número de teste da própria empresa, 31/08/2026 (roteamento em
+`shadow`: v2 operacional, v3 só de sombra; campanha do piloto; nos turnos
+citados a skill ativa era Pré-qualificação, presa desde a primeira mensagem):
 
 > **Lead:** Quero saber sobre vocês
 > **Agente:** Ótimo! 👋 Deixa eu contar um pouco sobre quem somos por aqui. Um momento...
@@ -87,8 +88,9 @@ piloto; nos turnos citados a skill ativa era Pré-qualificação):
 Três mensagens, três emojis, e uma descrição da empresa **inventada** — a
 Major é agência de marketing de performance para odontologia, direito e
 saúde, e o agente disse que vende "soluções de atendimento e gestão". Nenhum
-documento foi consultado: a skill ativa (Pré-qualificação, estágio
-`necessidade`) tem `allowedTools: []`.
+documento foi consultado: a skill ativa (Pré-qualificação v3) não tinha
+`knowledge.search` nem `conversation.handoff` — nem no nível da skill, que é
+o que vale sob v2, nem no estágio, que é o que valeria sob v3.
 
 > **Lead:** Quero ajuda em nosso processo de vendas
 > **Agente:** Mas antes, me conta: o que especificamente precisa ser ajustado?
@@ -126,10 +128,12 @@ cumprimentos.)
 > **Agente:** Vou conectar você com o Júnior agora. Um momento!
 
 `customer_handoff_requests` está **vazia**. A conversa continua com dono `ia`.
-O estágio `acolher` da Recepção só libera `conversation.handoff.agent`
-(transferir para outro agente de IA) — a transferência humana não existia no
-turno. O modelo, sem a ferramenta, **disse que fez**. Para um lead, esta é a
-pior falha possível: ele espera uma pessoa que nunca vai chegar.
+Sob v2, a Recepção v2 tinha `conversation.handoff` no nível da skill: a
+ferramenta **existia** no turno, o modelo não a chamou e **disse que fez**.
+(Sob v3, seria pior: o estágio `acolher` só liberava
+`conversation.handoff.agent`.) Para um lead, esta é a pior falha possível:
+ele espera uma pessoa que nunca vai chegar — e é por isso que a correção não
+pode ser só de catálogo: o runtime passou a cumprir ou desdizer a promessa.
 
 E o retorno do lead do piloto, 11/09, seis dias depois de ter dito que
 precisava gerar leads com urgência:
@@ -140,9 +144,10 @@ precisava gerar leads com urgência:
 > **Agente:** Legal! Posso ajudar com isso. Você está pensando em criar um site para uma empresa sua ou está explorando a ideia ainda?
 
 "Já te passo tudo sobre como trabalhamos com sites" — e não passou nada,
-porque não podia: Pré-qualificação de novo ("quero saber" é palavra-chave
-dela), estágio `necessidade`, zero ferramentas. Nenhuma memória da conversa
-anterior. Saudação repetida no meio da conversa.
+porque não podia: a conversa continuava presa em Pré-qualificação (v2 não
+troca de skill depois da primeira mensagem), sem conhecimento no nível da
+skill. Nenhuma memória da conversa anterior. Saudação repetida no meio da
+conversa.
 
 ### 1.2 O que existe no banco hoje (11/09/2026)
 
