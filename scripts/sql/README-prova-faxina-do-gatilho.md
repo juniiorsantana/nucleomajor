@@ -115,6 +115,38 @@ que passa pelo `psql`. Não pule isso se for rodar algum passo à mão.
 
 ## Resultado registrado
 
-> Ainda não executada. Preencher aqui depois de rodar: data, versão do
-> PostgreSQL, quantas migrations aplicaram, e o item B (a mensagem de deadlock
-> observada) — é o que dá valor ao resto.
+Executada em **11/09/2026**, PostgreSQL **17.9** userspace descartável na VPS
+(`/tmp/prova-faxina`, socket unix, `listen_addresses = ''` — sem porta TCP):
+
+- **64 migrations** do repositório aplicaram limpas, do zero;
+- **itens A–K: PASS em todos**;
+- o item B, que é o que dá valor ao resto, falhou de propósito contra o código
+  antigo e registrou a mensagem esperada:
+
+      psql:sessao-b.sql:6: ERROR: 40P01: deadlock detected
+
+- o item D rodou **o mesmo cenário** depois da migration: nenhum `40P01`;
+- o item H mediu a garantia direto: com uma linha velha travada por outra
+  sessão, a escrita terminou em **0s** e a linha travada **sobreviveu** — foi
+  pulada, não esperada;
+- o item J confirmou que reaplicar aborta, em vez de reescrever por cima;
+- o cluster foi **destruído** ao fim: `/tmp` limpo, nenhum processo `postgres`
+  sobrevivente;
+- **produção não foi tocada**: nenhum comando contra o Supabase, e os dois
+  serviços do runtime seguiram `active` com `NRestarts=0` e o mesmo
+  `ExecMainStartTimestamp` de antes (`01:45:55 -03`, o deploy do
+  `handoff-com-prazo`).
+
+### Duas correções que a própria execução exigiu
+
+Ficam registradas porque são exatamente o tipo de coisa que só aparece contra um
+banco de verdade:
+
+1. **`prova-agente-padrao-seed.sql` não serve aqui.** Ele guarda o estado
+   PRÉ-FASE C de propósito e aborta com `SEED INVALIDO: is_default ja existe`
+   quando a cadeia está completa. A prova passou a criar a própria fixture.
+2. **`whatsapp_connections_one_live_per_org`** só admite uma conexão viva por
+   organização, então as três conexões do cenário vivem em três organizações.
+   Isso não enfraquece nada: a faxina apaga por IDADE, sem filtro de
+   organização — três tenants disputando as mesmas linhas velhas é precisamente
+   o que produção faz.

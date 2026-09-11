@@ -73,17 +73,49 @@ for arquivo in $(ls "$REPO"/supabase/migrations/*.sql | sort); do
 done
 pass "$aplicadas migrations aplicadas limpas (a nova fica de fora até o item C)"
 
-tr -d '\r' < "$REPO/scripts/sql/prova-agente-padrao-seed.sql" > "$TRABALHO/seed.sql"
-"$PSQL" -q -X -v ON_ERROR_STOP=1 -d "$DB" -f "$TRABALHO/seed.sql" >/dev/null 2>&1 \
-  || morrer "o seed de fixtures não aplicou"
+# Fixture própria, e não `prova-agente-padrao-seed.sql`: aquele seed guarda o
+# estado PRÉ-FASE C de propósito e aborta com "is_default ja existe" quando a
+# cadeia está completa — que é exatamente o caso aqui. O que esta prova precisa
+# é bem menos: uma organização, e a identidade mínima que ela exige
+# (auth.users -> profiles -> organizations).
+sql "
+  insert into auth.users (id, email)
+  values ('bbbbbbbb-0000-4000-8000-00000000fa11', 'prova-faxina@exemplo.invalido')
+  on conflict (id) do nothing;
+
+  insert into public.profiles (id, full_name)
+  values ('bbbbbbbb-0000-4000-8000-00000000fa11', 'Ator da prova da faxina')
+  on conflict (id) do nothing;
+
+  insert into public.organizations (id, name, slug, created_by)
+  values
+    ('bbbbbbbb-000a-4000-8000-00000000fa11', 'Prova faxina A', 'prova-faxina-a',
+     'bbbbbbbb-0000-4000-8000-00000000fa11'),
+    ('bbbbbbbb-000b-4000-8000-00000000fa11', 'Prova faxina B', 'prova-faxina-b',
+     'bbbbbbbb-0000-4000-8000-00000000fa11'),
+    ('bbbbbbbb-000c-4000-8000-00000000fa11', 'Prova faxina C', 'prova-faxina-c',
+     'bbbbbbbb-0000-4000-8000-00000000fa11'),
+    ('bbbbbbbb-000d-4000-8000-00000000fa11', 'Prova faxina D', 'prova-faxina-d',
+     'bbbbbbbb-0000-4000-8000-00000000fa11')
+  on conflict (id) do nothing;
+" || morrer "não consegui criar as organizações da prova"
+
+[ "$(valor "select count(*) from public.organizations;")" = "4" ] \
+  || morrer "esperava quatro organizações no banco descartável"
 
 # Três conexões: duas que as sessões travam uma da outra, e uma terceira só
 # para disparar o gatilho sem disputar linha de origem.
+#
+# Uma organização cada, porque `whatsapp_connections_one_live_per_org` só
+# admite uma conexão viva por organização — e isso não enfraquece a prova, pelo
+# contrário: a faxina apaga por IDADE, sem filtro de organização, então três
+# tenants disputando as mesmas linhas velhas é exatamente o que produção faz.
 sql "
-  with organizacao as (select id from public.organizations order by id limit 1)
   insert into public.whatsapp_connections (organization_id, name)
-  select organizacao.id, alvo.nome
-  from organizacao, (values ('prova-a'), ('prova-b'), ('prova-c')) as alvo(nome);
+  values
+    ('bbbbbbbb-000a-4000-8000-00000000fa11', 'prova-a'),
+    ('bbbbbbbb-000b-4000-8000-00000000fa11', 'prova-b'),
+    ('bbbbbbbb-000c-4000-8000-00000000fa11', 'prova-c');
 " || morrer "não consegui semear as conexões da prova"
 
 # Contagem por nome DISTINTO, e não total: com duas organizações no banco, um
@@ -219,9 +251,10 @@ sql "delete from public.portal_realtime_events;"
 sql "update public.whatsapp_connections set name = name where name = 'prova-c';"
 por_update="$(valor "select count(*) from public.portal_realtime_events;")"
 sql "delete from public.portal_realtime_events;"
+# Na quarta organização, que não tem conexão viva nenhuma.
 sql "
   insert into public.whatsapp_connections (organization_id, name)
-  select id, 'prova-efemera' from public.organizations limit 1;"
+  values ('bbbbbbbb-000d-4000-8000-00000000fa11', 'prova-efemera');"
 sql "delete from public.whatsapp_connections where name = 'prova-efemera';"
 por_delete="$(valor "select count(*) from public.portal_realtime_events where topic = 'connections';")"
 [ "$por_update" -ge 1 ] && pass "UPDATE emite evento" || fail "UPDATE não emitiu evento"
