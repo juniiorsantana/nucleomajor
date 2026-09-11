@@ -99,15 +99,17 @@ begin
   end if;
 end $$;
 
--- O ACL das duas funcoes e capturado antes para ser conferido depois. CREATE OR
--- REPLACE preserva dono e privilegios, mas isso e promessa do Postgres, e a
--- divida de menor privilegio deste projeto e velha o bastante para nao se
--- conferir sozinha.
-create temporary table _faxina_acl_antes on commit drop as
-select p.oid, p.proname, p.proacl, p.proowner, p.prosecdef, p.proconfig
-from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-where (n.nspname = 'private' and p.proname = 'portal_realtime_notify')
-   or (n.nspname = 'public' and p.proname = 'nucleo_runtime_commands_claim');
+-- NAO guardar o ACL de antes numa tabela temporaria.
+--
+-- A 13B fazia isso e esta migration copiou. O SQL Editor do Supabase devolveu
+-- `42P01: relation ... does not exist` no bloco final: la os statements nao
+-- compartilham a transacao que um `on commit drop` pressupoe. A 13C, que
+-- aplicou limpa pelo mesmo caminho, nao usava tabela nenhuma.
+--
+-- Perde-se a comparacao antes/depois do ACL. Entra no lugar algo melhor do que
+-- ela: em vez de "esta igual ao que estava", o bloco final exige o estado que
+-- esta migration QUER -- quem pode executar a reserva, quem nao pode, e os nove
+-- gatilhos ainda apontando para a funcao certa.
 
 -- ---------------------------------------------------------------------------
 -- 2/4. O gatilho de realtime -- a faxina deixa de esperar
@@ -353,17 +355,26 @@ begin
     raise exception 'FALHOU: SECURITY DEFINER ou search_path mudou em alguma das duas funcoes';
   end if;
 
-  -- E o ACL, o dono e as flags sao os mesmos de antes do CREATE OR REPLACE.
+  -- Quem pode chamar a reserva de comandos continua sendo so quem podia.
+  -- `authenticated` e o papel do robo do runtime; `anon` nunca teve, e um
+  -- `revoke`/`grant` mal escrito aqui abriria uma RPC de control plane.
+  if not has_function_privilege('authenticated', 'public.nucleo_runtime_commands_claim(integer, uuid)', 'EXECUTE') then
+    raise exception 'FALHOU: authenticated perdeu o EXECUTE da reserva de comandos';
+  end if;
+  if has_function_privilege('anon', 'public.nucleo_runtime_commands_claim(integer, uuid)', 'EXECUTE') then
+    raise exception 'FALHOU: anon ganhou o EXECUTE da reserva de comandos';
+  end if;
+
+  -- E os nove gatilhos continuam pendurados na funcao que acabou de ser
+  -- reescrita. Vale mais que conferir ACL de funcao de gatilho: se um deles
+  -- tivesse se soltado, o portal pararia de receber sinal daquela tabela e
+  -- nada mais nesta migration perceberia.
   if (
-    select count(*)
-    from _faxina_acl_antes antes
-    join pg_proc p on p.oid = antes.oid
-    where p.proowner = antes.proowner
-      and p.proacl is not distinct from antes.proacl
-      and p.prosecdef = antes.prosecdef
-      and p.proconfig is not distinct from antes.proconfig
-  ) <> (select count(*) from _faxina_acl_antes) then
-    raise exception 'FALHOU: dono, ACL ou configuracao mudou em alguma das duas funcoes';
+    select count(*) from pg_trigger
+    where not tgisinternal
+      and tgfoid = 'private.portal_realtime_notify'::regproc
+  ) <> 9 then
+    raise exception 'FALHOU: nao sao mais nove gatilhos apontando para portal_realtime_notify';
   end if;
 end $$;
 
