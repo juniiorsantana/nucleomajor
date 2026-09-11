@@ -137,6 +137,23 @@ Executada em **11/09/2026**, PostgreSQL **17.9** userspace descartável na VPS
   `ExecMainStartTimestamp` de antes (`01:45:55 -03`, o deploy do
   `handoff-com-prazo`).
 
+### O SQL Editor derrubou a primeira aplicação
+
+A migration passou na prova e **mesmo assim falhou** no SQL Editor, em
+11/09/2026, com `42P01: relation "_faxina_acl_antes" does not exist`.
+
+O `psql -f` da prova roda o arquivo inteiro numa transação só, então a tabela
+temporária com `on commit drop` sobrevivia até o bloco final. No SQL Editor não
+sobrevive — lá os statements não compartilham essa transação. A 13B tem o mesmo
+padrão; a 13C, que aplicou limpa pelo mesmo caminho, não usava tabela nenhuma.
+
+Lição para a próxima migration desta casa: **prova em `psql -f` não cobre o
+SQL Editor.** O que a substituiu é mais forte do que era — em vez de comparar o
+ACL com um retrato de antes, o bloco final exige o estado desejado: quem pode
+executar a reserva, quem não pode, e os nove gatilhos ainda apontando para a
+função certa. `test/faxina-do-gatilho-migration.test.mjs` ganhou uma trava para
+a tabela temporária não voltar por cópia.
+
 ### Duas correções que a própria execução exigiu
 
 Ficam registradas porque são exatamente o tipo de coisa que só aparece contra um

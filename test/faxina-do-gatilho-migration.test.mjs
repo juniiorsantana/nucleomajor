@@ -155,7 +155,9 @@ test("a migration confere a si mesma depois de aplicar", () => {
     "FALHOU: a varredura de expiracao voltou a poder esperar",
     "FALHOU: a entrega de comandos deixou de ser FIFO",
     "FALHOU: SECURITY DEFINER ou search_path mudou em alguma das duas funcoes",
-    "FALHOU: dono, ACL ou configuracao mudou em alguma das duas funcoes",
+    "FALHOU: authenticated perdeu o EXECUTE da reserva de comandos",
+    "FALHOU: anon ganhou o EXECUTE da reserva de comandos",
+    "FALHOU: nao sao mais nove gatilhos apontando para portal_realtime_notify",
   ]) {
     assert.ok(sqlExecutavel.includes(falha), `faltou a asserção: ${falha}`);
   }
@@ -172,6 +174,15 @@ test("privilégios e isolamento continuam declarados", () => {
     sqlExecutavel,
     /grant execute on function public\.nucleo_runtime_commands_claim\(integer, uuid\) to authenticated/,
   );
+});
+
+test("a migration não depende de tabela temporária", () => {
+  // O SQL Editor do Supabase devolveu `42P01: relation ... does not exist` na
+  // primeira tentativa de aplicar: lá os statements não compartilham a
+  // transação que um `on commit drop` pressupõe. A 13B tem o mesmo padrão e
+  // esta migration o copiou — a trava existe para ele não voltar por cópia.
+  assert.doesNotMatch(sqlExecutavel, /create temporary table/i);
+  assert.doesNotMatch(sqlExecutavel, /_faxina_acl_antes/);
 });
 
 test("a migration é uma transação só", () => {
