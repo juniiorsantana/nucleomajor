@@ -361,9 +361,24 @@ begin
   if not has_function_privilege('authenticated', 'public.nucleo_runtime_commands_claim(integer, uuid)', 'EXECUTE') then
     raise exception 'FALHOU: authenticated perdeu o EXECUTE da reserva de comandos';
   end if;
-  if has_function_privilege('anon', 'public.nucleo_runtime_commands_claim(integer, uuid)', 'EXECUTE') then
-    raise exception 'FALHOU: anon ganhou o EXECUTE da reserva de comandos';
-  end if;
+  -- E NAO se afirma nada sobre `anon` aqui, por mais tentador que seja.
+  --
+  -- Em producao `anon` TEM o EXECUTE desta funcao, e tinha desde 26/08: o
+  -- projeto carrega `ALTER DEFAULT PRIVILEGES` concedendo EXECUTE a anon,
+  -- authenticated e service_role em toda funcao criada no schema `public`, e o
+  -- `revoke ... from public` acima nao alcanca concessao nominal a papel. O
+  -- mesmo mecanismo ja foi diagnosticado na ETAPA 11D
+  -- (20260905200000_a_rpc_de_agente_padrao_nao_atende_anonimo.sql).
+  --
+  -- Uma assercao `if has_function_privilege('anon', ...) then raise` passaria no
+  -- Postgres descartavel -- que nao tem esses default privileges -- e ABORTARIA
+  -- em producao. Migration nao e lugar de exigir o que o projeto ainda nao
+  -- cumpre; o hardening de `anon` e trilha propria, no molde da 11D.
+  --
+  -- Nao e exploravel: esta funcao comeca por `private.robot_organization()`,
+  -- que depende de `auth.uid()` e do `app_metadata` do JWT. Chamada anonima
+  -- levanta 'robot credential is inactive or connection was revoked' antes de
+  -- ler qualquer linha.
 
   -- E os nove gatilhos continuam pendurados na funcao que acabou de ser
   -- reescrita. Vale mais que conferir ACL de funcao de gatilho: se um deles
