@@ -252,6 +252,32 @@ indisponível" → ela é sempre indisponível).
 comportamento observado (nenhuma busca, nenhuma qualificação, transferência
 inventada).
 
+**Correção do diagnóstico (11/09/2026, ao ler o env da VPS).** Até o deploy
+da fase 2, produção rodava com `NUCLEO_INTELLIGENCE_ROUTING_MODE=shadow`: o
+resolvedor **operacional era o v2** e o v3 só rodava de sombra (foi a sombra
+que gravou as sessões de skill). Isso muda a causa imediata, não a conclusão:
+
+- No v2 a allowlist é a **da skill inteira**, não do estágio — a armadilha
+  acima era latente, e passaria a morder no dia em que o roteamento fosse
+  para `active`. A publicação da fase 1 a neutraliza antes disso.
+- O v2 tem a armadilha própria: `existing_context.active_skill_id` é lido
+  **antes** de qualquer palavra-chave, e persistido com `coalesce`. A skill
+  fica presa na **primeira mensagem** da conversa, para sempre. Foi isso que
+  prendeu o piloto em Pré-qualificação (cujo nível de skill não tinha
+  conhecimento nem transferência) desde 31/08 — e por isso "quero saber mais
+  sobre criação de site", onze dias depois, ainda caiu sem ferramenta.
+- Na conversa do contato pessoal (Recepção v2, que **tinha**
+  `conversation.handoff` no nível da skill), a ferramenta estava disponível
+  e o modelo prometeu "vou conectar você com o Júnior" sem chamá-la. Ou
+  seja: a promessa vazia acontece **mesmo com ferramenta** — é o que
+  justifica a rede de segurança da fase 2 no runtime, e não só a correção
+  do catálogo.
+- As ferramentas de marcação do cliente (`nucleo_consultar_disponibilidade_cliente`,
+  preparar, confirmar) só existem sob o contrato `fase-h-3`; sob v2 nenhum
+  lead marcaria o diagnóstico com catálogo nenhum. Por isso o deploy da fase
+  2 levou junto a troca para `active` (v3), com a sombra saudável por 14 dias
+  (64/64 resoluções, zero falhas) como prova prévia.
+
 **Correção.** Duas opções; recomendo a primeira **agora** e a segunda como
 fase própria:
 
@@ -629,11 +655,18 @@ quando pedem pessoa.
 
 ### Fase 2 — Runtime: o turno de cliente ganha caminho próprio
 
-**Estado em 11/09/2026: escrita, com testes, não implantada.** Branch
-`agente/atendimento-de-leads` do `whatsapp-mcp-hardened`, sobre
-`fix/handoff-com-prazo`. Itens 1–7 abaixo feitos; detalhes, variáveis de
-ambiente e checklist de deploy em `docs/ATENDIMENTO-DE-LEADS.md` daquele
-repositório. Suíte do assistente verde (a antiga inteira mais 13 casos de
+**Implantada em produção em 11/09/2026, 12:23 UTC (09:23 em Cuiabá).**
+Branch `agente/atendimento-de-leads` do `whatsapp-mcp-hardened` (`7f854f1`),
+sobre `fix/handoff-com-prazo`. Release `atendimento-de-leads` na VPS, criada
+por `cp -a` da `handoff-com-prazo` (que fica como alvo de rollback), 11
+arquivos copiados como blobs do git e conferidos por sha256 dos dois lados,
+suíte com o Python do serviço na própria release (584 testes, OK), symlink
+repontado, só o `whatsapp-assistant@` reiniciado (`active`, `NRestarts=0`,
+Bridge intocado). No mesmo restart, `NUCLEO_INTELLIGENCE_ROUTING_MODE`
+passou de `shadow` para **`active`** (v3), com backup do env em
+`~/.local/state/nucleo-major/deploy-backups/`. O CLI da VPS (2.1.245) aceita
+`--system-prompt`. Itens 1–7 abaixo feitos; detalhes, variáveis de ambiente
+e checklist em `docs/ATENDIMENTO-DE-LEADS.md` daquele repositório. Suíte do assistente verde (a antiga inteira mais 13 casos de
 `TurnoDeClienteTest`, cada um nascido de uma mensagem real). Deploy
 cirúrgico por release + symlink, só `whatsapp-assistant@` reinicia (ver
 memória do deploy). Cada item é pequeno e testável isolado:
@@ -718,7 +751,12 @@ não paga o custo.
   `agente/atendimento-de-leads` do runtime.
 - **11/09/2026, aplicação** — com o aval do usuário: fase 0 aplicada em
   produção (agente, conhecimento, campanha padrão, etiquetas) e fase 1
-  publicada por slug. Fase 2 continua **não implantada** (exige deploy na
-  VPS, que não é feito por aqui). Pendências: env da VPS (fase 0, item 7) até
-  o deploy da fase 2; decisão de rollout (`active` × `pilot`); número de
-  teste preso à campanha do piloto.
+  publicada por slug. Branches pushadas (`origin/agente/regras-de-atendimento`
+  e `github/agente/atendimento-de-leads`).
+- **11/09/2026, deploy** — fase 2 implantada na VPS e roteamento trocado
+  para v3 (`active`), ver Fase 2. A leitura do env corrigiu o diagnóstico
+  (produção rodava v2; ver "Correção do diagnóstico" no achado B). Dois
+  minutos antes do restart um contato pessoal recebeu seis balões do
+  processo antigo — o último exemplo do defeito. Pendências: decisão de
+  rollout (`active` × `pilot`); número de teste preso à campanha do piloto;
+  prova ao vivo das quatro mensagens de teste com o runtime novo.
