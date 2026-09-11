@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conciliarPendentes, mesmaConversa, textoDaTransferencia } from "./conversasUtils";
+import { conciliarPendentes, mesmaConversa, textoDaTransferencia, contatoMarcadoNaoAtenderIA, ehEtiquetaNaoAtenderIA } from "./conversasUtils";
 
 const msg = (texto, extra = {}) => ({
   tipo: "mensagem",
@@ -94,5 +94,21 @@ describe("textoDaTransferencia", () => {
     // respostas para a mesma mensagem.
     expect(textoDaTransferencia("ia")).toBe("Transferido para o Agente de IA");
     expect(textoDaTransferencia("bot")).toBe("Devolvido ao Robô do CRM");
+  });
+});
+
+describe("etiqueta 'Não atender IA'", () => {
+  it("reconhece pelo slug gravado ou pelo nome, com ou sem acento", () => {
+    expect(ehEtiquetaNaoAtenderIA({ id: "x", nome: "Qualquer", legacyId: "nao-atender-ia" })).toBe(true);
+    expect(ehEtiquetaNaoAtenderIA({ id: "x", nome: "Não atender IA" })).toBe(true);
+    expect(ehEtiquetaNaoAtenderIA({ id: "x", nome: "nao atender ia" })).toBe(true);
+    expect(ehEtiquetaNaoAtenderIA({ id: "x", nome: "Lead quente", legacyId: "lead-quente" })).toBe(false);
+    expect(ehEtiquetaNaoAtenderIA(null)).toBe(false);
+  });
+
+  it("um contato está marcado quando qualquer etiqueta dele é a marca", () => {
+    expect(contatoMarcadoNaoAtenderIA([{ nome: "Cliente" }, { nome: "Não atender IA" }])).toBe(true);
+    expect(contatoMarcadoNaoAtenderIA([{ nome: "Cliente" }])).toBe(false);
+    expect(contatoMarcadoNaoAtenderIA([])).toBe(false);
   });
 });

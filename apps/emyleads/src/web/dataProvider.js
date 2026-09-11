@@ -396,7 +396,7 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
     const ctx = await contexto();
     const rows = await executar(supabase.from("tags").select("*")
       .eq("organization_id", ctx.organizationId).is("deleted_at", null).order("name"), "tags-lista-falhou");
-    return (rows || []).map((row) => ({ id: row.id, remoteId: row.id, nome: row.name, cor: row.color }));
+    return (rows || []).map((row) => ({ id: row.id, remoteId: row.id, nome: row.name, cor: row.color, legacyId: row.legacy_id || "" }));
   };
 
   const salvarTags = async ({ tags = [] }) => {

@@ -15,7 +15,74 @@ import { corDoEstagio } from "../../../domain/types";
 import { TONS, fmtMoeda, fmtRelativo, fmtVencimento } from "../../../lib/formato";
 import { formatPhone } from "../../../lib/phone";
 import { PilulaEstagio, SeloWhatsApp } from "../../ui";
+import { contatoMarcadoNaoAtenderIA } from "./conversasUtils";
 import { AvatarComDono } from "./pecas";
+
+/**
+ * O interruptor "a IA atende este contato?".
+ *
+ * O número da empresa também é pessoal, e com o agente ligado para todo
+ * mundo um amigo do dono recebia três cumprimentos e uma transferência falsa.
+ * A marca é a etiqueta "Não atender IA" do CRM — o gate do agente recusa
+ * quem a carrega —, e este bloco é só o atalho de um clique para ela, em
+ * cima da mesma edição de etiquetas que a Ficha já faz. Sem contato salvo, o
+ * clique cria o contato com o que o WhatsApp entregou e aplica a marca: pedir
+ * duas ações para tirar um amigo da IA é pedir que ninguém faça.
+ */
+function AtendimentoPelaIA({ conversa, contato, etiquetas, aoDefinir }) {
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const marcado = contatoMarcadoNaoAtenderIA(etiquetas);
+  const atende = !marcado;
+
+  const alternar = async () => {
+    if (!aoDefinir || salvando) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      await aoDefinir({ conversa, contato, atender: !atende });
+    } catch (falha) {
+      setErro(falha?.message || "Não foi possível alterar o atendimento pela IA.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div
+      className={`mt-3.5 rounded-[11px] border px-3 py-2.5 ${
+        atende ? "border-line" : "border-danger/25 bg-danger/5"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
+          Atendimento pela IA
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={atende}
+          aria-label="A IA atende este contato"
+          disabled={salvando || !aoDefinir}
+          onClick={alternar}
+          className={`ml-auto flex h-[22px] w-[40px] flex-none cursor-pointer items-center rounded-full border p-[2px] transition-colors disabled:cursor-default disabled:opacity-40 ${
+            atende ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-bg"
+          }`}
+        >
+          <span className={`block h-[16px] w-[16px] rounded-full ${atende ? "bg-white" : "bg-line-strong"}`} />
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
+        {salvando
+          ? "Salvando…"
+          : atende
+            ? "A IA responde este número. Desligue para contatos pessoais — nada é enviado a quem está desligado."
+            : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
+      </p>
+      {erro && <p className="mt-1 text-[11px] text-danger">{erro}</p>}
+    </div>
+  );
+}
 
 /**
  * A ficha do contato, ao lado da conversa.
@@ -174,6 +241,7 @@ export function FichaLateral({
   aoSalvarContato,
   aoAtualizarEtiquetas,
   aoCriarEtiqueta,
+  aoDefinirAtendimentoIA,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -213,6 +281,15 @@ export function FichaLateral({
             </span>
           )}
         </div>
+
+        {!conversa.grupo && (
+          <AtendimentoPelaIA
+            conversa={conversa}
+            contato={contato}
+            etiquetas={etiquetas}
+            aoDefinir={aoDefinirAtendimentoIA}
+          />
+        )}
 
         <div className="mt-3.5 grid grid-cols-4 gap-1.5">
           {ATALHOS_DA_FICHA.map((a) => (

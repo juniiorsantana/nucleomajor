@@ -106,6 +106,7 @@ export default function Conversas({
   aoNovoContato,
   aoAtualizarEtiquetas,
   aoCriarEtiqueta,
+  aoDefinirAtendimentoIA,
   aoAbrirConversa,
   sessao,
 }) {
@@ -511,6 +512,7 @@ export default function Conversas({
           aoSalvarContato={aoNovoContato}
           aoAtualizarEtiquetas={aoAtualizarEtiquetas}
           aoCriarEtiqueta={aoCriarEtiqueta}
+          aoDefinirAtendimentoIA={aoDefinirAtendimentoIA}
         />
       )}
 

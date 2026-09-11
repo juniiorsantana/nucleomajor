@@ -954,6 +954,24 @@ três rodadas de tentativa e erro.
   escrever uma persona pelo portal — a tela de criação e edição já grava nessa
   coluna desde a FASE B.
 
+- `20260911150000_contato_marcado_nao_atender_ia.sql` **aplicada em produção**
+  em 11/09/2026 (`supabase db query --linked -f`, uma migration só) e
+  conferida por consulta ao catálogo: `nucleo_customer_assistant_access`
+  passou a recusar (`reason = contact_opted_out`) o remetente cujo contato do
+  CRM carrega a etiqueta `nao-atender-ia` ("Não atender IA"), em qualquer modo
+  de rollout, e a recusa vem **antes** do retorno de `active` — a conferência
+  mediu a posição dos dois textos no `prosrc`. Ramo do piloto, `security
+  definer` e `search_path=''` intactos. O runtime não mudou: o gateway já
+  ignorava a mensagem quando a RPC responde `allowed=false`
+  (`customer_rollout_denied`), e é isso que passa a acontecer com contato
+  pessoal marcado — nada é enviado. O atalho de um clique está na Ficha do
+  contato, em Conversas ("Atendimento pela IA"); a etiqueta também pode ser
+  aplicada pelo editor de etiquetas de sempre.
+
+  Motivo: o número da empresa também é pessoal, e com o agente de clientes em
+  `active` um amigo do dono recebeu três cumprimentos e uma transferência
+  falsa (11/09/2026). Mudar o rollout para `pilot` bloquearia os leads.
+
 ## Dívidas de menor privilégio (FASES E e F)
 
 Duas coisas encontradas durante a FASE E que **não** são dela e não foram

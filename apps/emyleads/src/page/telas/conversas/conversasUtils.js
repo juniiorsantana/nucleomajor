@@ -137,3 +137,28 @@ export function conversaDoTelefone(conversas, variantes, variantesDe = (t) => [t
     }) || null
   );
 }
+
+/**
+ * A etiqueta que tira um contato do atendimento pela IA.
+ *
+ * É uma etiqueta comum do CRM, e não uma coluna: a Ficha já sabe aplicar
+ * etiqueta, o CRM já a mostra, e o gate do agente de clientes
+ * (`nucleo_customer_assistant_access`) passou a recusar quem a carrega.
+ * Reconhecida pelo slug gravado (`legacy_id`) OU pelo nome, porque ela pode
+ * ter nascido pela tela — que gera o slug a partir do nome — ou pelo seed.
+ */
+export const SLUG_NAO_ATENDER_IA = "nao-atender-ia";
+
+export function ehEtiquetaNaoAtenderIA(tag) {
+  if (!tag) return false;
+  const nome = String(tag.nome || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  return String(tag.legacyId || "").toLowerCase() === SLUG_NAO_ATENDER_IA || nome === "naoatenderia";
+}
+
+export function contatoMarcadoNaoAtenderIA(etiquetas) {
+  return (etiquetas || []).some(ehEtiquetaNaoAtenderIA);
+}
