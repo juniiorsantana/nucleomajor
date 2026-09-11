@@ -792,3 +792,18 @@ não paga o custo.
   Runtime em `lembrete-de-espera` (598 testes na VPS); portal `551c5e4` em
   `main` com CI verde — a Hostinger ainda servia o bundle anterior 35 min
   depois do push; conferir o deploy no painel dela.
+- **11/09/2026, noite** — o portal `551c5e4` foi reimplantado à mão na
+  Hostinger (não há webhook do GitHub). Com o aval do usuário, **tudo que era
+  teste foi zerado** para a experiência de conta recém-criada: conversas,
+  contatos, compromissos, tarefas, chatbots e o espelho apagados (backups em
+  `99 - Temporários/backup-reset-2026-09-11/` e `~/backups/reset-20260911/`
+  na VPS); agentes e conhecimento preservados; sessão do WhatsApp apagada e o
+  Bridge em `awaiting_qr` — falta ler o QR com o número final 8362. A ordem
+  errada (apagar o espelho antes de parar a sincronia) reinseriu 170
+  conversas; corrigido apagando de novo com o store já limpo. Conferido no
+  `arbitro.db`: `ia_ativa = 1`, `dono_padrao = ia` — a IA responde assim que
+  parear. Depois disso, a tela de Conexões ganhou duas camadas e Conversas
+  passou a dizer se o WhatsApp está conectado, com o QR ali mesmo (`8491c5e`
+  em `main`, ver `docs/STATUS.md`); a Hostinger precisa de novo redeploy
+  manual. Ficou registrado que o interruptor "Atendimento automático" da
+  conexão da VPS é só leitura no portal — ligar de longe é a próxima leva.
