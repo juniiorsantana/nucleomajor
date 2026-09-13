@@ -35,7 +35,22 @@ const CAMPOS_CONVERSA =
   "last_message_at,last_message_from_me,unread_count,owner,attendant_id,attendant_name";
 
 const CAMPOS_MENSAGEM =
-  "message_id,content,sent_at,is_from_me,media_type,media_filename";
+  "message_id,content,sent_at,is_from_me,media_type,media_filename," +
+  "author_kind,author_name";
+
+/**
+ * O tom da bolha para cada tipo de autor.
+ *
+ * `Bolha` já sabe pintar `bot`, `ia` e `humano` desde a Leva 2 — o que faltava
+ * era o dado, que chegou em 13/09/2026. `contato` não entra aqui de propósito:
+ * a mensagem de quem está do outro lado não leva rótulo de autor, porque o
+ * nome dele já está no topo da conversa e repeti-lo em toda bolha é ruído.
+ *
+ * Um tipo desconhecido (runtime mais novo que o portal) cai fora do mapa e a
+ * bolha sai sem nome — a mesma coisa que acontece com a mensagem digitada no
+ * celular, que é o desfecho certo para "não sei quem escreveu".
+ */
+const TOM_DO_AUTOR = { bot: "bot", ia: "ia", humano: "humano" };
 
 const BUCKET_AVATARES = "contact-avatars";
 const VALIDADE_AVATAR_SEGUNDOS = 60 * 60;
@@ -327,9 +342,22 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
           minute: "2-digit",
         }),
         texto: textoDaMensagem(linha),
-        // Quem escreveu do nosso lado — robô, IA ou pessoa — o bridge não
-        // registra. Sem `tom`, a bolha sai sem rótulo de autor, que é a
-        // verdade disponível.
+        // Quem escreveu do nosso lado. O Bridge não registra isso — para ele
+        // toda saída da conta é `is_from_me = 1` — então quem responde é o
+        // runtime, que anota o que ele próprio manda e cruza na sincronia.
+        //
+        // Sem autoria a bolha sai sem rótulo, e isso É a resposta: pela regra
+        // do dono, mensagem sem registro foi digitada no aplicativo do celular,
+        // que envia direto do aparelho. Não existe rótulo "celular" porque
+        // seria palpite.
+        //
+        // O nome só sai acompanhado do tipo. Um nome sem tipo é meio dado —
+        // acontece quando o runtime é mais novo que o portal e manda um tipo
+        // que este código ainda não conhece — e meio dado numa etiqueta de
+        // autoria é pior que nenhum: a bolha afirmaria quem escreveu sem saber
+        // em que qualidade.
+        tom: TOM_DO_AUTOR[linha.author_kind] || null,
+        autor: TOM_DO_AUTOR[linha.author_kind] ? linha.author_name || null : null,
         lido: false,
       });
     }

@@ -600,6 +600,11 @@ export function useConversas(organizacaoId) {
         chave: p.chave,
         hora: p.hora,
         texto: p.texto,
+        // Quem escreveu é quem está na tela, e a bolha já diz isso antes de a
+        // mensagem voltar do WhatsApp. Sem o tom aqui, o nome apareceria de
+        // repente um ciclo depois, quando a sincronia trouxesse a autoria — e
+        // uma bolha que muda sozinha faz quem escreveu duvidar do que enviou.
+        tom: "humano",
         enviando: !p.falhou,
         falhou: Boolean(p.falhou),
         motivo: p.motivo || "",

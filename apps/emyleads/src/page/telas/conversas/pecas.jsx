@@ -246,7 +246,15 @@ function AvisoDeFalha({ motivo, aoReenviar }) {
 
 export function Bolha({ mensagem, nomeProprio, aoReenviar }) {
   const saiu = mensagem.direcao === "sai";
-  const autor = mensagem.autor || (saiu && mensagem.tom === "humano" ? nomeProprio : null);
+  // A bolha que ainda não voltou do WhatsApp foi escrita AQUI, agora, por quem
+  // está olhando: é o único caso em que o nome de quem vê é o nome de quem
+  // escreveu. Numa mensagem já espelhada o nome vem do banco — e usar
+  // `nomeProprio` ali poria o nome de quem abriu a tela numa mensagem que
+  // outra pessoa da equipe mandou.
+  const provisoria = Boolean(mensagem.enviando || mensagem.falhou);
+  const autor =
+    mensagem.autor ||
+    (saiu && provisoria && mensagem.tom === "humano" ? nomeProprio : null);
   return (
     <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`}>
       <div

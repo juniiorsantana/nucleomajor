@@ -98,6 +98,8 @@ const MENSAGENS = [
     is_from_me: true,
     media_type: "ptt",
     media_filename: "audio.ogg",
+    author_kind: "ia",
+    author_name: "Bia",
   },
   {
     message_id: "wa-2",
@@ -106,6 +108,8 @@ const MENSAGENS = [
     is_from_me: false,
     media_type: "image",
     media_filename: "foto.jpg",
+    author_kind: "contato",
+    author_name: "",
   },
   {
     message_id: "wa-1",
@@ -114,6 +118,8 @@ const MENSAGENS = [
     is_from_me: false,
     media_type: "",
     media_filename: "",
+    author_kind: "contato",
+    author_name: "",
   },
 ];
 
@@ -122,13 +128,14 @@ function bancada({
   rpc = null,
   conversas = CONVERSAS,
   contatos = CONTATOS,
+  mensagens = MENSAGENS,
   assinatura = null,
 } = {}) {
   const chamadas = [];
   const respostas = {
     whatsapp_conversations: conversas,
     contacts: contatos,
-    whatsapp_messages: MENSAGENS,
+    whatsapp_messages: mensagens,
   };
   const rpcs = [];
   const criarUrlsAssinadas = vi.fn(async (caminhos, validade) => {
@@ -314,6 +321,83 @@ describe("conversas.mensagens", () => {
     expect(bolhas[1].texto).toBe("📎 Imagem\nSegue a foto do dente");
     // Áudio sem texto vira só o rótulo — bolha vazia seria pior que dizer o tipo.
     expect(bolhas[2]).toMatchObject({ direcao: "sai", texto: "🎤 Áudio" });
+  });
+
+  /**
+   * Quem escreveu, do nosso lado.
+   *
+   * A terceira queixa do dono em 13/09/2026 — "não dá para saber, nas
+   * mensagens, quem escreveu" — é de DADO, não de tela: toda saída da empresa
+   * chega ao Bridge como `is_from_me = 1`, venha da IA, do atendente ou do
+   * celular. Quem separa as três é o runtime, que anota o que ele mesmo manda;
+   * aqui a coluna vira o rótulo da bolha.
+   */
+  it("leva o nome e o tom de quem escreveu até a bolha", async () => {
+    const { operacoes } = bancada();
+    const bolhas = (
+      await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` })
+    ).filter((l) => l.tipo === "mensagem");
+
+    expect(bolhas[2]).toMatchObject({ tom: "ia", autor: "Bia" });
+    // O contato não leva rótulo: quem ele é já está no topo da conversa, e
+    // repetir o nome em toda bolha é ruído.
+    expect(bolhas[0]).toMatchObject({ tom: null, autor: null });
+  });
+
+  it("mensagem sem autoria sai sem nome — é o celular, e não um erro", async () => {
+    const { operacoes } = bancada({
+      mensagens: [
+        {
+          message_id: "wa-9",
+          content: "respondi daqui do celular",
+          sent_at: "2026-09-01T13:10:00.000Z",
+          is_from_me: true,
+          media_type: "",
+          media_filename: "",
+          author_kind: "",
+          author_name: "",
+        },
+      ],
+    });
+    const bolhas = (
+      await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` })
+    ).filter((l) => l.tipo === "mensagem");
+
+    expect(bolhas[0]).toMatchObject({ direcao: "sai", tom: null, autor: null });
+  });
+
+  it("nome sem tipo não vira rótulo", async () => {
+    // Acontece quando o runtime é mais novo que o portal e manda um tipo que
+    // este código ainda não conhece. Meio dado numa etiqueta de autoria é pior
+    // que nenhum: a bolha afirmaria quem escreveu sem saber em que qualidade.
+    const { operacoes } = bancada({
+      mensagens: [
+        {
+          message_id: "wa-8",
+          content: "oi",
+          sent_at: "2026-09-01T13:11:00.000Z",
+          is_from_me: true,
+          media_type: "",
+          media_filename: "",
+          author_kind: "fluxo",
+          author_name: "Fluxo de boas-vindas",
+        },
+      ],
+    });
+    const bolhas = (
+      await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` })
+    ).filter((l) => l.tipo === "mensagem");
+
+    expect(bolhas[0]).toMatchObject({ tom: null, autor: null });
+  });
+
+  it("pede as colunas de autoria ao banco", async () => {
+    const { operacoes, chamadas } = bancada();
+    await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+
+    const consulta = consultaDe(chamadas, "whatsapp_messages");
+    expect(consulta.campos).toContain("author_kind");
+    expect(consulta.campos).toContain("author_name");
   });
 
   it("pede só o que a tela mostra, e nunca o material da mídia", async () => {
