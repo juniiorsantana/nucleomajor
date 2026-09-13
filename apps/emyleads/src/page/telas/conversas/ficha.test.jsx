@@ -87,6 +87,84 @@ describe("interruptor 'Atendimento pela IA' na ficha", () => {
     expect(interruptor().getAttribute("aria-checked")).toBe("true");
   });
 
+  describe("com banco: o estado é o que o banco diz, nunca a cópia local", () => {
+    it("13/09/2026: etiqueta só no navegador não aparece como desligado", async () => {
+      renderizar(
+        <FichaLateral
+          {...base}
+          contato={{ id: "k1", tags: ["t1"] }}
+          etiquetas={[{ id: "t1", nome: "Não atender IA", legacyId: "nao-atender-ia" }]}
+          aoConsultarAtendimentoIA={async () => ({ atende: true })}
+          aoDefinirAtendimentoIA={async () => ({ atende: false })}
+        />
+      );
+      await act(async () => {});
+      expect(interruptor().getAttribute("aria-checked")).toBe("true");
+      expect(container.textContent).toContain("A IA responde este número");
+    });
+
+    it("marca gravada no banco aparece desligada mesmo sem etiqueta local", async () => {
+      renderizar(
+        <FichaLateral
+          {...base}
+          aoConsultarAtendimentoIA={async () => ({ atende: false })}
+          aoDefinirAtendimentoIA={async () => ({ atende: true })}
+        />
+      );
+      await act(async () => {});
+      expect(interruptor().getAttribute("aria-checked")).toBe("false");
+    });
+
+    it("enquanto confere, o interruptor não afirma nada e não aceita clique", async () => {
+      const definir = vi.fn(async () => ({ atende: false }));
+      renderizar(
+        <FichaLateral
+          {...base}
+          aoConsultarAtendimentoIA={() => new Promise(() => {})}
+          aoDefinirAtendimentoIA={definir}
+        />
+      );
+      expect(interruptor().disabled).toBe(true);
+      expect(container.textContent).toContain("Conferindo no servidor");
+      await act(async () => {
+        interruptor().click();
+      });
+      expect(definir).not.toHaveBeenCalled();
+    });
+
+    it("depois de salvar mostra o que o banco gravou, e não o que foi pedido", async () => {
+      const definir = vi.fn(async () => ({ atende: true }));
+      renderizar(
+        <FichaLateral
+          {...base}
+          aoConsultarAtendimentoIA={async () => ({ atende: true })}
+          aoDefinirAtendimentoIA={definir}
+        />
+      );
+      await act(async () => {});
+      await act(async () => {
+        interruptor().click();
+      });
+      expect(definir).toHaveBeenCalledWith({ conversa, contato: null, atender: false });
+      expect(interruptor().getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("se não der para conferir, avisa e continua travado", async () => {
+      renderizar(
+        <FichaLateral
+          {...base}
+          aoConsultarAtendimentoIA={async () => {
+            throw new Error("Você não faz parte desta empresa.");
+          }}
+          aoDefinirAtendimentoIA={async () => ({ atende: false })}
+        />
+      );
+      await act(async () => {});
+      expect(interruptor().disabled).toBe(true);
+      expect(container.textContent).toContain("Você não faz parte desta empresa.");
+    });
+  });
+
   it("não existe para grupo: grupo não é contato de ninguém", () => {
     renderizar(
       <FichaLateral

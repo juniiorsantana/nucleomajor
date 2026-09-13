@@ -182,6 +182,8 @@ export function criarOperacoesConversas({ listarContatos }) {
   // As conversas comecadas nesta sessao da bancada, por telefone. Vivem em
   // memoria e somem ao recarregar, como todo o resto daqui.
   const novas = new Map();
+  // Os números em que a IA foi desligada pela ficha nesta sessão da bancada.
+  const semIA = new Set();
 
   const roteiroDe = (contato, indice) => {
     const base = indice === 0 ? ROTEIRO_LONGO : ROTEIRO_CURTO;
@@ -384,6 +386,19 @@ export function criarOperacoesConversas({ listarContatos }) {
 
     /** Na bancada nada fica pendente: o comando já terminou quando foi pedido. */
     "conversas.desfecho": async () => ({ situacao: "completed", motivo: "" }),
+
+    /** Bancada: quem está sem IA fica num conjunto em memória, como o banco guardaria. */
+    "conversas.atendimentoIA": async ({ telefone }) => ({
+      atende: !semIA.has(String(telefone || "").replace(/\D/g, "")),
+      contatoSalvo: false,
+    }),
+
+    "conversas.definirAtendimentoIA": async ({ telefone, atender }) => {
+      const digitos = String(telefone || "").replace(/\D/g, "");
+      if (atender) semIA.delete(digitos);
+      else semIA.add(digitos);
+      return { atende: !semIA.has(digitos) };
+    },
 
     "conversas.modelos": async () =>
       MODELOS.map((m) => ({ ...m, baralho: baralhos.get(m.id) || [] })),

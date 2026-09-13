@@ -4,7 +4,6 @@ import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
 import { paraSlug } from "../lib/texto";
-import { SLUG_NAO_ATENDER_IA, ehEtiquetaNaoAtenderIA } from "./telas/conversas/conversasUtils";
 import Contatos from "./telas/Contatos";
 import FichaContato from "./telas/FichaContato";
 import Funil from "./telas/Funil";
@@ -528,36 +527,28 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
     return tag;
   };
 
-  // Liga ou desliga o atendimento pela IA para o contato de uma conversa.
+  // Liga ou desliga o atendimento pela IA para o número de uma conversa.
   //
-  // A marca é a etiqueta "Não atender IA" (o gate do agente de clientes recusa
-  // quem a carrega). O interruptor da Ficha faz em um clique o que exigiria
-  // três: garantir a etiqueta, garantir o contato e aplicar. A etiqueta é
-  // procurada pelo id de banco — `contact_tags.tag_id` é UUID, e o objeto
-  // que `criarEtiqueta` devolve ainda carrega o slug como id.
-  const definirAtendimentoIA = async ({ conversa, contato, atender }) => {
-    let etiqueta = dados.tags.find(ehEtiquetaNaoAtenderIA);
-    if (!etiqueta) {
-      await api.tags.salvar({ tags: [{ id: SLUG_NAO_ATENDER_IA, nome: "Não atender IA", cor: "#6C3483" }] });
-      const lista = await api.tags.listar();
-      etiqueta = (lista || []).find(ehEtiquetaNaoAtenderIA);
-      if (!etiqueta) throw new Error("Não foi possível criar a etiqueta “Não atender IA”.");
-    }
-    let alvo = contato;
-    if (!alvo) {
-      if (!conversa?.telefone) throw new Error("Esta conversa não tem telefone para salvar como contato.");
-      alvo = await api.contatos.criar({
-        nome: conversa.nome === conversa.telefone ? "" : conversa.nome,
-        telefone: conversa.telefone,
-        origem: "WhatsApp",
-        tags: [],
-      });
-    }
-    const tags = new Set(alvo.tags || []);
-    if (atender) tags.delete(etiqueta.id);
-    else tags.add(etiqueta.id);
-    await api.contatos.atualizar({ id: alvo.id, patch: { tags: [...tags] } });
+  // A marca continua sendo a etiqueta "Não atender IA" (o gate do agente de
+  // clientes recusa quem a carrega), mas desde 13/09/2026 ela é gravada DIRETO
+  // no banco, numa transação que acha ou cria o contato e aplica a etiqueta.
+  // Antes ela ia para a cópia local e dependia da fila de sincronia, que a
+  // descartava em silêncio: a ficha dizia "desligado", o banco não tinha nada, e
+  // a IA seguia respondendo.
+  const consultarAtendimentoIA = ({ conversa }) =>
+    api.conversas.atendimentoIA({ telefone: conversa?.telefone || "" });
+
+  const definirAtendimentoIA = async ({ conversa, atender }) => {
+    if (!conversa?.telefone) throw new Error("Esta conversa não tem telefone para salvar como contato.");
+    const resultado = await api.conversas.definirAtendimentoIA({
+      telefone: conversa.telefone,
+      atender,
+      nome: conversa.nome === conversa.telefone ? "" : conversa.nome,
+    });
+    // A cópia local (Contatos, etiquetas) se acerta na próxima sincronia; a ficha
+    // não espera por ela, porque mostra o que o banco devolveu.
     await carregar();
+    return resultado;
   };
 
   return (
@@ -669,6 +660,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               aoNovoContato={(preenchido) => setEditando(preenchido || null)}
               aoAtualizarEtiquetas={atualizarEtiquetasDoContato}
               aoCriarEtiqueta={criarEtiqueta}
+              aoConsultarAtendimentoIA={consultarAtendimentoIA}
               aoDefinirAtendimentoIA={definirAtendimentoIA}
               aoAbrirConversa={() => {
                 if (!menuRecolhido) alternarMenu();

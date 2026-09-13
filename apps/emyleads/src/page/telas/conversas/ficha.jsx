@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   CalendarPlus,
@@ -24,23 +24,57 @@ import { AvatarComDono } from "./pecas";
  * O número da empresa também é pessoal, e com o agente ligado para todo
  * mundo um amigo do dono recebia três cumprimentos e uma transferência falsa.
  * A marca é a etiqueta "Não atender IA" do CRM — o gate do agente recusa
- * quem a carrega —, e este bloco é só o atalho de um clique para ela, em
- * cima da mesma edição de etiquetas que a Ficha já faz. Sem contato salvo, o
- * clique cria o contato com o que o WhatsApp entregou e aplica a marca: pedir
- * duas ações para tirar um amigo da IA é pedir que ninguém faça.
+ * quem a carrega —, e este bloco é o atalho de um clique para ela. Sem contato
+ * salvo, o clique cria o contato e aplica a marca: pedir duas ações para tirar
+ * um amigo da IA é pedir que ninguém faça.
+ *
+ * **O estado mostrado é o do banco, nunca o da cópia local.** Em 13/09/2026 o
+ * dono desligou alguns contatos, a ficha passou a dizer "desligado" lendo as
+ * etiquetas do navegador, e o banco não tinha marca nenhuma — a IA continuou
+ * respondendo. Por isso o interruptor pergunta ao banco ao abrir
+ * (`aoConsultar`), mostra o que o banco devolveu depois de salvar, e fica
+ * travado enquanto não sabe. A cópia local só vale na bancada sem banco, quando
+ * não existe `aoConsultar`.
  */
-function AtendimentoPelaIA({ conversa, contato, etiquetas, aoDefinir }) {
+function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefinir }) {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
-  const marcado = contatoMarcadoNaoAtenderIA(etiquetas);
-  const atende = !marcado;
+  // `null` é "ainda não sei": o interruptor não afirma nada que o banco não disse.
+  const [confirmado, setConfirmado] = useState(null);
+  const marcadoLocal = contatoMarcadoNaoAtenderIA(etiquetas);
+  const telefone = conversa?.telefone || "";
+
+  useEffect(() => {
+    if (!aoConsultar || !telefone) return undefined;
+    let vivo = true;
+    setConfirmado(null);
+    setErro("");
+    Promise.resolve(aoConsultar({ conversa }))
+      .then((estado) => {
+        if (vivo) setConfirmado(estado?.atende !== false);
+      })
+      .catch((falha) => {
+        if (vivo) setErro(falha?.message || "Não foi possível conferir se a IA atende este número.");
+      });
+    return () => {
+      vivo = false;
+    };
+    // A pergunta é por número: trocar de conversa pergunta de novo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aoConsultar, telefone]);
+
+  const conhecido = aoConsultar ? confirmado !== null : true;
+  const atende = aoConsultar ? confirmado !== false : !marcadoLocal;
 
   const alternar = async () => {
-    if (!aoDefinir || salvando) return;
+    if (!aoDefinir || salvando || !conhecido) return;
     setSalvando(true);
     setErro("");
     try {
-      await aoDefinir({ conversa, contato, atender: !atende });
+      const gravado = await aoDefinir({ conversa, contato, atender: !atende });
+      if (aoConsultar) {
+        setConfirmado(gravado && typeof gravado.atende === "boolean" ? gravado.atende : !atende);
+      }
     } catch (falha) {
       setErro(falha?.message || "Não foi possível alterar o atendimento pela IA.");
     } finally {
@@ -63,7 +97,7 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoDefinir }) {
           role="switch"
           aria-checked={atende}
           aria-label="A IA atende este contato"
-          disabled={salvando || !aoDefinir}
+          disabled={salvando || !aoDefinir || !conhecido}
           onClick={alternar}
           className={`ml-auto flex h-[22px] w-[40px] flex-none cursor-pointer items-center rounded-full border p-[2px] transition-colors disabled:cursor-default disabled:opacity-40 ${
             atende ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-bg"
@@ -75,7 +109,11 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoDefinir }) {
       <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
         {salvando
           ? "Salvando…"
-          : atende
+          : !conhecido
+            ? erro
+              ? "Não deu para conferir agora. Recarregue a conversa para tentar de novo."
+              : "Conferindo no servidor…"
+            : atende
             ? "A IA responde este número. Desligue para contatos pessoais — nada é enviado a quem está desligado."
             : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
       </p>
@@ -241,6 +279,7 @@ export function FichaLateral({
   aoSalvarContato,
   aoAtualizarEtiquetas,
   aoCriarEtiqueta,
+  aoConsultarAtendimentoIA,
   aoDefinirAtendimentoIA,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
@@ -287,6 +326,7 @@ export function FichaLateral({
             conversa={conversa}
             contato={contato}
             etiquetas={etiquetas}
+            aoConsultar={aoConsultarAtendimentoIA}
             aoDefinir={aoDefinirAtendimentoIA}
           />
         )}

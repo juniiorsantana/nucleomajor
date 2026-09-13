@@ -167,6 +167,52 @@ function bancada({
 
 const consultaDe = (chamadas, tabela) => chamadas.find((c) => c.tabela === tabela);
 
+describe("atendimento pela IA grava e lê no banco", () => {
+  it("consultar pergunta ao banco pelo número, na organização da sessão", async () => {
+    const { operacoes, rpcs } = bancada({
+      rpc: async () => ({ data: { optedOut: true, contactFound: true }, error: null }),
+    });
+    const estado = await operacoes["conversas.atendimentoIA"]({ telefone: "5511987654321" });
+
+    expect(rpcs[0]).toEqual([
+      "nucleo_contact_ai_opt_out_status",
+      { target_organization: ORGANIZATION_ID, target_chat: "5511987654321" },
+    ]);
+    expect(estado).toEqual({ atende: false, contatoSalvo: true });
+  });
+
+  it("desligar manda opt_out e devolve o que o banco gravou", async () => {
+    const { operacoes, rpcs } = bancada({
+      // O banco é quem decide o estado final: aqui ele devolve "atende".
+      rpc: async () => ({ data: { optedOut: false, contactIds: [] }, error: null }),
+    });
+    const gravado = await operacoes["conversas.definirAtendimentoIA"]({
+      telefone: "5511987654321",
+      atender: false,
+      nome: " Marina ",
+    });
+
+    const [nome, argumentos] = rpcs[0];
+    expect(nome).toBe("nucleo_contact_ai_opt_out_set");
+    expect(argumentos).toEqual({
+      target_organization: ORGANIZATION_ID,
+      target_chat: "5511987654321",
+      opt_out: true,
+      contact_name: "Marina",
+    });
+    expect(gravado).toEqual({ atende: true });
+  });
+
+  it("a recusa do banco chega em português e não vira estado", async () => {
+    const { operacoes } = bancada({
+      rpc: async () => ({ data: null, error: { message: "organization membership required" } }),
+    });
+    await expect(
+      operacoes["conversas.definirAtendimentoIA"]({ telefone: "5511987654321", atender: false })
+    ).rejects.toThrow("Você não faz parte desta empresa.");
+  });
+});
+
 describe("conversas.listar", () => {
   it("acha o contato do CRM mesmo sem o nono dígito", async () => {
     const { operacoes } = bancada();

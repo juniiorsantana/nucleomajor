@@ -467,6 +467,41 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       };
     },
 
+    /**
+     * A IA atende este número? Pergunta ao banco, com a regra do gate da VPS.
+     *
+     * Até 13/09/2026 a ficha respondia isso lendo as etiquetas da cópia local,
+     * e a cópia local mentia: a marca ficava no navegador e nunca subia. O dono
+     * via "desligado" e a IA seguia respondendo.
+     */
+    "conversas.atendimentoIA": async ({ telefone }) => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("nucleo_contact_ai_opt_out_status", {
+        target_organization: organizationId,
+        target_chat: telefoneDoWhatsApp(telefone),
+      });
+      if (error) throw erroConversas(traduzir(error.message), "conversas-atendimento-ia-falhou");
+      return { atende: data?.optedOut !== true, contatoSalvo: data?.contactFound === true };
+    },
+
+    /**
+     * Liga ou desliga a IA para o número, direto no banco e numa transação só.
+     *
+     * Devolve o estado que ficou GRAVADO, relido pelo predicado do gate — é ele
+     * que a ficha mostra, e não o que foi pedido.
+     */
+    "conversas.definirAtendimentoIA": async ({ telefone, atender, nome = "" }) => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("nucleo_contact_ai_opt_out_set", {
+        target_organization: organizationId,
+        target_chat: telefoneDoWhatsApp(telefone),
+        opt_out: !atender,
+        contact_name: String(nome || "").trim(),
+      });
+      if (error) throw erroConversas(traduzir(error.message), "conversas-atendimento-ia-falhou");
+      return { atende: data?.optedOut !== true };
+    },
+
     /** O desfecho de um comando, para a tela parar de dizer "enviando". */
     "conversas.desfecho": async ({ comandoId }) => {
       if (!comandoId) return null;
