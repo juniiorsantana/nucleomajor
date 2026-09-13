@@ -1,0 +1,1534 @@
+diff --git a/whatsapp-assistant/assinatura.py b/whatsapp-assistant/assinatura.py
+new file mode 100644
+index 0000000..1e1233d
+--- /dev/null
++++ b/whatsapp-assistant/assinatura.py
+@@ -0,0 +1,98 @@
++"""A primeira linha que diz quem escreveu, no WhatsApp de quem recebe.
++
++A queixa que originou isto (13/09/2026): "não dá para saber, nas mensagens,
++quem escreveu". Do lado do portal a resposta é uma coluna nova no banco; do
++lado do CONTATO não há coluna nenhuma — o WhatsApp dele mostra uma conversa com
++um número, e tudo que sai da empresa chega igual, venha da IA, do atendente ou
++do celular do dono. A única forma de o contato saber é o próprio texto dizer.
++
++Formato, decidido pelo dono: nome em negrito na primeira linha, texto a partir
++da segunda.
++
++    *Bia:*
++    Oi! Tudo bem?
++
++Linha própria, e não `*Bia:* Oi!` na mesma linha, porque em texto longo o nome
++se perderia no começo do parágrafo — e a maioria das respostas que importam
++(preço, prazo, endereço) é longa.
++
++**O limite físico, que nenhuma versão deste arquivo resolve:** mensagem digitada
++no aplicativo do celular sai direto do aparelho, sem passar por lugar nenhum do
++runtime, e não tem como ganhar assinatura. É por isso que a regra do dono é
++"mensagem sem registro de autor foi do celular, e fica sem nome" — e não um
++rótulo "celular", que seria um palpite.
++
++**Por que existe `remover`.** O histórico da conversa volta ao prompt a cada
++turno (`messages.fetch_recent_history`), lido cru do `messages.db` — ou seja,
++COM a assinatura. Doze mensagens começando por `*Bia:*` ensinam o modelo a
++escrevê-la sozinho, e aí ela sai de dentro do texto, fora do controle deste
++arquivo, em mensagem que talvez nem seja da Bia. O histórico entra sem
++assinatura; quem assina é o runtime, no último passo antes do envio.
++"""
++
++from __future__ import annotations
++
++import re
++
++# Teto do nome na assinatura.
++#
++# `assistant_profiles.display_name` aceita até 100 e `profiles.display_name`
++# não tem teto curto, mas uma assinatura de 100 caracteres ocuparia a bolha
++# inteira no celular de quem recebe. Cortar é melhor do que recusar: uma
++# mensagem sem nome é pior do que uma com nome abreviado.
++NOME_MAXIMO = 40
++
++# A assinatura como ela é escrita e como ela é reconhecida.
++#
++# Estrita de propósito: linha inteira, nome sem asterisco nem quebra dentro,
++# dois-pontos antes do fecho. Uma expressão frouxa aqui apagaria a primeira
++# linha de uma mensagem legítima que por acaso começasse em negrito — o
++# contrário de perder uma assinatura, que não machuca ninguém.
++ASSINATURA_RE = re.compile(r"^\*([^*\r\n]{1,%d}):\*(?:\r?\n|$)" % NOME_MAXIMO)
++
++
++def limpar_nome(nome: str) -> str:
++    """O nome pronto para entrar na assinatura, ou vazio se não houver nome.
++
++    Tira o que quebraria o formato: asterisco (que desmontaria o negrito),
++    dois-pontos no fim (que viraria `*Bia::*`) e qualquer quebra de linha, que
++    transformaria a assinatura em duas linhas e o resto da mensagem em parte
++    dela.
++    """
++    texto = str(nome or "")
++    texto = texto.replace("*", "").replace("\r", " ").replace("\n", " ")
++    texto = re.sub(r"\s+", " ", texto).strip().rstrip(":").strip()
++    return texto[:NOME_MAXIMO]
++
++
++def aplicar(texto: str, nome: str) -> str:
++    """Põe a assinatura na frente do texto. Sem nome, devolve o texto igual.
++
++    Nunca assina duas vezes: se o texto já começa por uma assinatura — porque o
++    modelo a imitou, apesar do cuidado de `remover` — a dele é trocada pela
++    nossa, que é a única que sabe de verdade quem está escrevendo.
++
++    Texto vazio continua vazio. Uma mensagem que é só assinatura não diz nada e
++    o envio já a recusaria; devolvê-la aqui só trocaria o erro de lugar.
++    """
++    corpo = str(texto or "")
++    limpo = limpar_nome(nome)
++    if not limpo or not corpo.strip():
++        return corpo
++    return f"*{limpo}:*\n{remover(corpo).lstrip()}"
++
++
++def remover(texto: str) -> str:
++    """Tira a assinatura da frente do texto, se houver uma.
++
++    Uma só, e só no começo: o que vem depois é conteúdo, e uma linha no meio da
++    mensagem que se pareça com assinatura é o contato falando, não nós.
++    """
++    corpo = str(texto or "")
++    return ASSINATURA_RE.sub("", corpo, count=1)
++
++
++def nome_assinado(texto: str) -> str:
++    """O nome que está assinando este texto, ou vazio. Para teste e diagnóstico."""
++    achado = ASSINATURA_RE.match(str(texto or ""))
++    return achado.group(1) if achado else ""
+diff --git a/whatsapp-assistant/conversation_sync.py b/whatsapp-assistant/conversation_sync.py
+index 4ce2346..678e607 100644
+--- a/whatsapp-assistant/conversation_sync.py
++++ b/whatsapp-assistant/conversation_sync.py
+@@ -31,6 +31,7 @@ import os
+ import sqlite3
+ import threading
+ import time
++from datetime import datetime, timedelta
+ from pathlib import Path
+ from typing import Any, Iterable, Optional
+ 
+@@ -39,6 +40,7 @@ from arbitro import Arbitro
+ from chat_identity import ChatIdentity, parte_de_usuario, servidor
+ from connections import Connection, ConnectionRegistry
+ from operator_verification import OperatorVerificationError, OperatorVerifier
++from presenca_humana import instante_do_bridge as _quando
+ 
+ # Quanto histórico sobe na primeira sincronia de uma instalação sem marca
+ # d'água. Mais que isso seria despejar anos de conversa numa tabela que tem
+@@ -121,6 +123,37 @@ ORDER BY timestamp ASC
+ LIMIT ?
+ """
+ 
++# As saídas da conta que JÁ subiram, para uma segunda olhada na autoria.
++#
++# Existe por uma corrida de milissegundos. O Bridge grava a linha no
++# `messages.db` durante o próprio envio; o runtime anota quem escreveu logo
++# depois de o envio confirmar. A ordem entre as duas coisas não é garantida, e
++# um ciclo de sincronia que caia exatamente no meio publicaria a mensagem sem
++# autor — que, pela regra do dono, a tela leria como "foi do celular". Para
++# sempre: a marca d'água só anda para a frente e a mensagem nunca mais seria
++# reavaliada.
++#
++# A mesma passada cobre o caso grande, que não é corrida nenhuma: a sincronia
++# parada (VPS reiniciando, Supabase fora) enquanto o agente responde.
++SQL_SAIDAS_RECENTES = """
++SELECT id, chat_jid, content, timestamp, is_from_me, media_type, filename
++FROM messages
++WHERE is_from_me = 1 AND timestamp > ? AND timestamp <= ?
++ORDER BY timestamp DESC
++LIMIT ?
++"""
++
++# Até quando vale reabrir a autoria de uma mensagem já publicada.
++#
++# Curto porque a corrida que ele fecha dura milissegundos; generoso o bastante
++# para cobrir uma sincronia que ficou minutos fora do ar. Acima disto o livro
++# de saídas ainda sabe (guarda 48 h), mas insistir custaria uma varredura por
++# ciclo para sempre.
++JANELA_DE_REPARO_MINUTOS = 20
++
++# Teto de linhas por passada de reparo.
++LIMITE_DO_REPARO = 200
++
+ 
+ def _somente_leitura(caminho: Path) -> sqlite3.Connection:
+     """O banco é do Bridge. Abrir para escrita seria disputar o dono dele."""
+@@ -207,11 +240,23 @@ class ConversationSync:
+         interval: float = 15.0,
+         limite_conversas: int = 200,
+         photos=None,
++        presenca=None,
+     ) -> None:
+         self.verifier = verifier
+         self.photos = photos
+         self.registry = registry
+         self.arbitro = arbitro
++        # O livro de saídas do runtime (`presenca_humana.PresencaHumana`), que
++        # é a ÚNICA fonte de "quem escreveu" para uma mensagem `is_from_me`.
++        # O Bridge não guarda autoria e não tem como guardar: para ele toda
++        # saída da conta é igual. Ausente — instalação com a presença humana
++        # desligada — a sincronia sobe as mensagens sem autor, como antes.
++        self.presenca = presenca
++        # As saídas que já subiram COM autor, para a passada de reparo não
++        # reenviar as mesmas linhas a cada quinze segundos. Só ids, podados
++        # junto com a janela; um reinício esvazia e no máximo custa uma
++        # reavaliação a mais por mensagem.
++        self._autoria_publicada: dict[str, float] = {}
+         self.messages_db = Path(messages_db)
+         self.state_path = Path(state_path) if state_path else self.messages_db.with_name(
+             "conversation_sync_state.json"
+@@ -344,24 +389,140 @@ class ConversationSync:
+         marca = desde
+         for linha in linhas:
+             marca = max(marca, str(linha["timestamp"] or ""))
+-            chat, _tipo = _identificador(linha["chat_jid"], self.identidade)
+-            if not chat:
++            item = self._item(linha)
++            if item is not None:
++                saida.append(item)
++        return self._com_autoria(saida, linhas), marca
++
++    def _item(self, linha) -> Optional[dict]:
++        """Uma linha do Bridge no formato que a RPC aceita, ou None se inútil."""
++        chat, _tipo = _identificador(linha["chat_jid"], self.identidade)
++        if not chat:
++            return None
++        identificador = str(linha["id"] or "").strip()
++        if not identificador:
++            return None
++        return {
++            "phone": chat,
++            "id": identificador,
++            "content": str(linha["content"] or "")[:8000],
++            "sentAt": _instante(linha["timestamp"]),
++            "fromMe": bool(linha["is_from_me"]),
++            "mediaType": str(linha["media_type"] or "")[:32],
++            "mediaFilename": str(linha["filename"] or "")[:200],
++        }
++
++    # -------------------------------------------------------- quem escreveu
++
++    def _com_autoria(self, itens: list[dict], linhas) -> list[dict]:
++        """Anexa a cada saída da conta quem a escreveu, pelo livro do runtime.
++
++        Toda mensagem que sai da empresa chega ao Bridge como `is_from_me = 1`,
++        venha da IA, do portal ou do aplicativo do celular — e o Bridge não tem
++        como distingui-las, porque do lado dele são a mesma coisa. Quem sabe é
++        o runtime, que anota o que ele próprio manda (`presenca_humana`). Aqui
++        os dois lados se encontram.
++
++        O contato entra como `contato` sem nome: quem ele é já está na conversa,
++        e repetir o nome dele em toda bolha seria ruído. A saída que o livro NÃO
++        reconhece fica sem autor nenhum — é a decisão do dono de 13/09/2026:
++        mensagem sem registro foi digitada no celular, e a bolha sai sem nome.
++
++        `linhas` é o resultado cru do SQLite, e vem junto porque a busca precisa
++        do `chat_jid` original (o identificador do Bridge) além do telefone
++        resolvido: numa conversa por LID os dois são números diferentes, e o
++        livro conhece só um deles.
++        """
++        for item in itens:
++            if not item["fromMe"]:
++                item["authorKind"] = "contato"
++        if self.presenca is None:
++            return itens
++
++        por_id = {str(linha["id"] or "").strip(): linha for linha in linhas}
++        pedidos = []
++        for item in itens:
++            if not item["fromMe"]:
+                 continue
+-            identificador = str(linha["id"] or "").strip()
+-            if not identificador:
++            linha = por_id.get(item["id"])
++            if linha is None:
+                 continue
+-            saida.append(
+-                {
+-                    "phone": chat,
+-                    "id": identificador,
+-                    "content": str(linha["content"] or "")[:8000],
+-                    "sentAt": _instante(linha["timestamp"]),
+-                    "fromMe": bool(linha["is_from_me"]),
+-                    "mediaType": str(linha["media_type"] or "")[:32],
+-                    "mediaFilename": str(linha["filename"] or "")[:200],
+-                }
++            quando = _quando(linha["timestamp"])
++            if quando is None:
++                continue
++            pedidos.append(
++                (item["id"], (str(linha["chat_jid"] or ""), item["phone"]), quando, str(linha["content"] or ""))
+             )
+-        return saida, marca
++        if not pedidos:
++            return itens
++
++        try:
++            autores = self.presenca.autores_das_saidas(pedidos)
++        except Exception as exc:  # noqa: BLE001 - autoria é acessória, espelho não é
++            audit.log("conversation.sync_author_failed", error=str(exc)[:200])
++            return itens
++
++        for item in itens:
++            achado = autores.get(item["id"])
++            if achado is None:
++                continue
++            tipo, nome, autor_id = achado
++            item["authorKind"] = tipo
++            if nome:
++                item["authorName"] = nome[:120]
++            if autor_id:
++                item["authorId"] = autor_id
++        return itens
++
++    def _reparo_de_autoria(self, conexao: sqlite3.Connection, desde: str) -> list[dict]:
++        """Uma segunda olhada nas saídas que subiram sem saber quem as escreveu.
++
++        Ver `SQL_SAIDAS_RECENTES`: a marca d'água só anda para a frente, então
++        uma mensagem publicada no instante entre o Bridge gravar e o runtime
++        anotar ficaria sem autor para sempre. Aqui ela é reoferecida — e a RPC
++        preenche o autor sem tocar em mais nada, porque autoria vazia nunca
++        sobrescreve autoria preenchida.
++
++        Só as que o livro AGORA reconhece, e cada uma uma vez só: reenviar a
++        cada ciclo as mesmas mensagens que continuam sem autor (as do celular,
++        que nunca terão) seria trabalho perpétuo para nada.
++        """
++        if self.presenca is None or not desde:
++            return []
++        agora = time.time()
++        # O carimbo do Bridge é `2026-09-10 11:46:17-03:00`: hora local da VPS,
++        # espaço no lugar do "T", com fuso. A comparação no SQLite é de STRING,
++        # então o piso precisa sair exatamente nesse formato — em UTC, ou com
++        # "T", ele ordenaria contra o que o Bridge grava e a janela pegaria o
++        # banco inteiro ou nada.
++        piso = datetime.now().astimezone() - timedelta(minutes=JANELA_DE_REPARO_MINUTOS)
++        limite = piso.isoformat(sep=" ", timespec="seconds")
++        linhas = conexao.execute(
++            SQL_SAIDAS_RECENTES, (limite, desde, LIMITE_DO_REPARO)
++        ).fetchall()
++        pendentes = [
++            linha for linha in linhas
++            if str(linha["id"] or "").strip() not in self._autoria_publicada
++        ]
++        if not pendentes:
++            self._podar_publicadas(agora)
++            return []
++
++        itens = [item for item in (self._item(linha) for linha in pendentes) if item]
++        itens = self._com_autoria(itens, pendentes)
++        # Só o que ganhou autor de verdade volta ao Supabase.
++        reparadas = [item for item in itens if item.get("authorKind") not in (None, "")]
++        for item in reparadas:
++            self._autoria_publicada[item["id"]] = agora
++        self._podar_publicadas(agora)
++        return reparadas
++
++    def _podar_publicadas(self, agora: float) -> None:
++        """Esquece o que já saiu da janela de reparo. O dicionário não cresce."""
++        corte = agora - JANELA_DE_REPARO_MINUTOS * 60
++        vencidos = [chave for chave, quando in self._autoria_publicada.items() if quando < corte]
++        for chave in vencidos:
++            del self._autoria_publicada[chave]
+ 
+     # ------------------------------------------------------------- ciclo
+ 
+@@ -403,6 +564,9 @@ class ConversationSync:
+             donos, padrao = self._donos(conexao_registrada.connection_id)
+             conversas = self._conversas(banco, donos, padrao)
+             mensagens, marca = self._mensagens(banco, desde)
++            # As reparadas vão na frente, e de propósito: são mais velhas que
++            # as novas, e o lote sai em ordem de conversa na tela.
++            mensagens = self._reparo_de_autoria(banco, desde) + mensagens
+         finally:
+             banco.close()
+ 
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index edae9da..62e2bd8 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -163,6 +163,12 @@ def main() -> int:
+             connection_id=cfg.runtime_connection_id,
+             interval=cfg.conversation_sync_seconds,
+             photos=ConversationPhotos(cfg.api_base_url, load_api_token),
++            # O mesmo livro de saídas que responde "a IA cala?" responde também
++            # "quem escreveu?" — são a mesma pergunta vista de dois lados, e um
++            # segundo registro divergiria do primeiro no primeiro dia. Com a
++            # presença humana desligada não há livro, e o espelho sobe sem
++            # autor: a bolha fica sem nome, como antes desta versão.
++            presenca=presenca,
+         )
+         conversation_syncer.start()
+     # Um código por conexão registrada, gerado a cada boot com
+diff --git a/whatsapp-assistant/messages.py b/whatsapp-assistant/messages.py
+index 780ae33..d481fff 100644
+--- a/whatsapp-assistant/messages.py
++++ b/whatsapp-assistant/messages.py
+@@ -20,6 +20,7 @@ import sqlite3
+ from pathlib import Path
+ from typing import List, Optional, Sequence, Tuple
+ 
++import assinatura
+ import audit
+ import media
+ import transcribe
+@@ -135,6 +136,15 @@ def fetch_recent_history(
+         media_type = (row["media_type"] or "").strip()
+         if not content:
+             content = f"({media_type})" if media_type else "(mensagem sem texto)"
++        elif row["is_from_me"]:
++            # A assinatura sai do historico.
++            #
++            # O que saiu daqui com o nome na frente volta assim do
++            # `messages.db`, e doze linhas desse jeito no prompt ensinam o
++            # modelo a assinar sozinho - dentro do texto, fora do controle de
++            # quem sabe QUEM esta escrevendo, e as vezes com o nome de outro
++            # agente. Quem assina e' o runtime, no ultimo passo antes do envio.
++            content = assinatura.remover(content).strip() or content
+         out.append((bool(row["is_from_me"]), content[:600]))
+         if len(out) >= limit:
+             break
+diff --git a/whatsapp-assistant/presenca_humana.py b/whatsapp-assistant/presenca_humana.py
+index dcb11b3..4f0de6b 100644
+--- a/whatsapp-assistant/presenca_humana.py
++++ b/whatsapp-assistant/presenca_humana.py
+@@ -79,6 +79,15 @@ RETENCAO_HORAS = 48
+ # empurraria a resposta de gente para fora da lista.
+ LIMITE_DE_SAIDAS = 200
+ 
++# Os tipos de autor que o livro conhece, e o que cada um quer dizer.
++#
++# `ia` e `bot` são saída automática — é por eles que `_nossa` responde "fui eu"
++# e cala o agente sobre a própria resposta. `humano` é gente que escreveu pelo
++# portal: entra no livro para a sincronia saber o NOME de quem escreveu, e
++# jamais para a presença humana confundi-la com o agente. Ver `_anotacoes`.
++TIPOS_AUTOMATICOS = ("ia", "bot")
++TIPOS_DE_AUTOR = ("ia", "bot", "humano")
++
+ SCHEMA = """
+ CREATE TABLE IF NOT EXISTS saida_do_agente (
+     chat   TEXT NOT NULL,
+@@ -90,14 +99,33 @@ CREATE INDEX IF NOT EXISTS saida_do_agente_conversa
+     ON saida_do_agente(chat, quando DESC);
+ """
+ 
+-
+-def _instante(bruto: str) -> Optional[datetime]:
++# As colunas de autoria, acrescentadas depois (13/09/2026) a um banco que já
++# roda em produção.
++#
++# `ALTER TABLE ADD COLUMN` com default constante é barato no SQLite e não
++# reescreve a tabela. O default de `tipo` é `ia` de propósito: as linhas que já
++# existem foram todas gravadas pelo único caminho que anotava até aqui, o envio
++# automático, e marcá-las de outra coisa faria o agente parar de reconhecer as
++# próprias respostas das últimas 48 h — exatamente o silêncio que o topo deste
++# arquivo diz não poder acontecer.
++COLUNAS_DE_AUTORIA = (
++    ("tipo", "TEXT NOT NULL DEFAULT 'ia'"),
++    ("autor_nome", "TEXT NOT NULL DEFAULT ''"),
++    ("autor_id", "TEXT NOT NULL DEFAULT ''"),
++)
++
++
++def instante_do_bridge(bruto: str) -> Optional[datetime]:
+     """A hora do `messages.db`, sempre com fuso.
+ 
+     O bridge grava `2026-09-10 11:46:17-03:00`. Uma linha sem fuso — banco
+     antigo, ou gravada por outra versão — seria comparada contra um `now()`
+     ciente de fuso e explodiria; assumir UTC ali é errar por no máximo o fuso,
+     e o erro empurra para "não é pausa", que é o lado seguro.
++
++    Público porque a sincronia de conversas precisa da mesma leitura para casar
++    cada saída com o livro: duas interpretações do mesmo carimbo dariam duas
++    respostas diferentes para a mesma mensagem.
+     """
+     try:
+         quando = datetime.fromisoformat(str(bruto).strip())
+@@ -108,6 +136,10 @@ def _instante(bruto: str) -> Optional[datetime]:
+     return quando
+ 
+ 
++# O nome curto que este módulo usa desde sempre.
++_instante = instante_do_bridge
++
++
+ def _chave(identidade: str) -> str:
+     """A mesma conversa escrita de um jeito só.
+ 
+@@ -149,6 +181,24 @@ class PresencaHumana:
+         self._db.row_factory = sqlite3.Row
+         with self._db:
+             self._db.executescript(SCHEMA)
++            self._migrar_autoria()
++
++    def _migrar_autoria(self) -> None:
++        """Garante as colunas de autoria num livro que pode ser mais velho.
++
++        Sem passo de migração à parte, e sem versão gravada: perguntar ao
++        próprio SQLite quais colunas existem é mais barato e não tem como
++        divergir do banco de verdade. Rodar duas vezes não faz nada.
++        """
++        existentes = {
++            str(linha["name"])
++            for linha in self._db.execute("PRAGMA table_info(saida_do_agente)")
++        }
++        for coluna, definicao in COLUNAS_DE_AUTORIA:
++            if coluna not in existentes:
++                self._db.execute(
++                    f"ALTER TABLE saida_do_agente ADD COLUMN {coluna} {definicao}"
++                )
+ 
+     def close(self) -> None:
+         with self._lock:
+@@ -156,49 +206,104 @@ class PresencaHumana:
+ 
+     # ------------------------------------------------------- o que é nosso
+ 
+-    def anotar_saida_do_agente(self, destino: str, texto: str = "") -> None:
+-        """Isto aqui saiu do runtime. Não conta como gente.
++    def anotar_saida_do_agente(
++        self,
++        destino: str,
++        texto: str = "",
++        tipo: str = "ia",
++        autor_nome: str = "",
++        autor_id: str = "",
++    ) -> None:
++        """Isto aqui saiu por aqui — e foi fulano quem escreveu.
+ 
+         Chamada de dentro do `send.py`, depois do envio confirmado. Antes da
+         confirmação seria pior do que não anotar: uma tentativa que falhou não
+         gera linha no `messages.db`, e a anotação sobraria para silenciar a
+         próxima mensagem de uma pessoa.
++
++        Desde 13/09/2026 o livro responde duas perguntas, não uma. A antiga é
++        "fui eu?", e continua valendo só para `tipo` automático. A nova é "quem
++        foi?", e é o que a sincronia leva ao portal: sem ela, `is_from_me = 1`
++        é tudo o que existe no dado e a tela não tem como dizer se quem falou
++        foi a IA, o atendente ou o celular.
++
++        Por isso o envio do portal (`tipo='humano'`) passou a ser anotado
++        também — o comentário de `send.py` que dizia o contrário está corrigido
++        lá. Ele não vira "nosso": `_anotacoes` filtra por tipo antes de decidir.
+         """
+         chat = _chave(destino)
+         if not chat:
+             return
++        limpo = tipo if tipo in TIPOS_DE_AUTOR else "ia"
+         agora = datetime.now(timezone.utc)
+         corte = (agora - timedelta(hours=RETENCAO_HORAS)).isoformat(timespec="seconds")
+         with self._lock, self._db as db:
+             db.execute(
+-                "INSERT INTO saida_do_agente (chat, quando, texto) VALUES (?, ?, ?)",
+-                (chat, agora.isoformat(timespec="milliseconds"), str(texto or "")[:400]),
++                "INSERT INTO saida_do_agente (chat, quando, texto, tipo, autor_nome,"
++                " autor_id) VALUES (?, ?, ?, ?, ?, ?)",
++                (
++                    chat,
++                    agora.isoformat(timespec="milliseconds"),
++                    str(texto or "")[:400],
++                    limpo,
++                    str(autor_nome or "")[:120],
++                    str(autor_id or "")[:64],
++                ),
+             )
+             db.execute("DELETE FROM saida_do_agente WHERE quando < ?", (corte,))
+ 
+-    def _anotacoes(self, chaves: Sequence[str], desde: datetime) -> list:
+-        """O que o agente mandou nesta conversa a partir de `desde`, já com hora.
++    def _anotacoes(
++        self,
++        chaves: Sequence[str],
++        desde: datetime,
++        tipos: Sequence[str] = TIPOS_AUTOMATICOS,
++    ) -> list:
++        """O que saiu por aqui nesta conversa a partir de `desde`, já com hora.
+ 
+         Uma leitura só por pergunta, e a comparação fica em Python: o carimbo do
+         bridge vem no fuso local (`-03:00`) e a anotação é gravada em UTC.
+         Comparadas como string, "11:54-03:00" e "14:54+00:00" são o mesmo
+         instante e ordenam-se ao contrário.
++
++        `tipos` é o que separa as duas perguntas que este livro responde. O
++        padrão são só os tipos AUTOMÁTICOS, porque quem chama por padrão é
++        `_nossa` — e contar a mensagem que um atendente digitou no portal como
++        "nossa" devolveria, com outro nome, o defeito de 13/09/2026: a IA
++        seguiria falando por cima de uma pessoa que acabou de responder. A
++        sincronia, que quer o nome de todo mundo, passa a lista inteira.
++
++        Cada item é `(quando, texto, tipo, autor_nome, autor_id, chat)`. O
++        `chat` vai junto para quem lê VÁRIAS conversas de uma vez poder separar
++        as anotações por conversa: "ok" às 14h em dois atendimentos diferentes
++        são duas anotações que casam pelo mesmo par (texto, hora), e sem o chat
++        a bolha de um contato levaria o nome de quem atendeu o outro.
+         """
+-        if not chaves:
++        if not chaves or not tipos:
+             return []
+         inicio = desde.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+         vagas = ",".join("?" for _ in chaves)
++        vagas_tipo = ",".join("?" for _ in tipos)
+         with self._lock:
+             linhas = self._db.execute(
+-                f"SELECT quando, texto FROM saida_do_agente WHERE chat IN ({vagas})"
+-                " AND quando >= ?",
+-                (*chaves, inicio),
++                "SELECT quando, texto, tipo, autor_nome, autor_id, chat FROM"
++                f" saida_do_agente WHERE chat IN ({vagas}) AND quando >= ?"
++                f" AND tipo IN ({vagas_tipo})",
++                (*chaves, inicio, *tipos),
+             ).fetchall()
+         saida = []
+         for linha in linhas:
+             quando = _instante(linha["quando"])
+             if quando is not None:
+-                saida.append((quando, str(linha["texto"] or "").strip()[:400]))
++                saida.append(
++                    (
++                        quando,
++                        str(linha["texto"] or "").strip()[:400],
++                        str(linha["tipo"] or "ia"),
++                        str(linha["autor_nome"] or ""),
++                        str(linha["autor_id"] or ""),
++                        str(linha["chat"] or ""),
++                    )
++                )
+         return saida
+ 
+     def _nossa(self, anotacoes: Sequence, quando: datetime, conteudo: str) -> bool:
+@@ -218,15 +323,36 @@ class PresencaHumana:
+         mais de um nome, e procurar por um só era o bug que fazia o agente se
+         calar depois da primeira resposta.
+         """
++        return self._casa(anotacoes, quando, conteudo) is not None
++
++    def _casa(self, anotacoes: Sequence, quando: datetime, conteudo: str):
++        """A anotação que corresponde a esta linha do `messages.db`, ou None.
++
++        O coração da comparação vive aqui, e não em dois lugares, porque
++        `_nossa` (a IA cala?) e `autor_da_saida` (quem escreveu?) precisam
++        concordar sempre. Duas cópias que divergissem dariam uma conversa em
++        que a bolha diz "Bia" e o agente responde por cima dela.
++        """
+         referencia = quando.astimezone(timezone.utc)
+         texto = str(conteudo or "").strip()[:400]
+         if texto:
+             folga = timedelta(minutes=TOLERANCIA_TEXTO_MINUTOS)
+-            return any(
+-                anotado == texto and abs(hora - referencia) <= folga
+-                for hora, anotado in anotacoes
+-            )
+-        return any(abs(hora - referencia) <= self.tolerancia for hora, _ in anotacoes)
++            candidatas = [
++                item for item in anotacoes
++                if item[1] == texto and abs(item[0] - referencia) <= folga
++            ]
++        else:
++            candidatas = [
++                item for item in anotacoes
++                if abs(item[0] - referencia) <= self.tolerancia
++            ]
++        if not candidatas:
++            return None
++        # A mais próxima no tempo. Com texto repetido na mesma conversa — "ok",
++        # "obrigado" — mais de uma anotação casa, e a que importa é a que foi
++        # escrita junto desta mensagem: é dela que sai o nome certo quando IA e
++        # atendente mandaram a mesma palavra com minutos de diferença.
++        return min(candidatas, key=lambda item: abs(item[0] - referencia))
+ 
+     # --------------------------------------------------- o que é de gente
+ 
+@@ -305,6 +431,65 @@ class PresencaHumana:
+                 return quando
+         return None
+ 
++    # ------------------------------------------------------ quem escreveu
++
++    def autores_das_saidas(
++        self, saidas: Sequence, desde: Optional[datetime] = None
++    ) -> dict:
++        """Para cada saída da conta, quem a escreveu — ou nada, que é o celular.
++
++        Recebe uma lista de `(chave_de_busca, chaves, quando, texto)` e devolve
++        `{chave_de_busca: (tipo, nome, id)}`, só para as que o livro reconhece.
++        A ausência é resposta, e é a do dono (13/09/2026): mensagem sem registro
++        de autor foi digitada no aparelho, e a bolha sai sem nome.
++
++        Um lote, uma leitura. A sincronia processa até 2000 mensagens por ciclo
++        e uma consulta por mensagem transformaria um trabalho de milissegundos
++        em milhares de idas ao SQLite.
++
++        `chaves` é plural pelo mesmo motivo que `ultima_resposta_humana` tem o
++        argumento `tambem`: numa conversa endereçada por LID, o JID que arquiva
++        a mensagem e o telefone para onde o envio foi feito são números
++        diferentes de verdade. Procurar por um só devolveria "foi o celular"
++        para toda conversa por LID — inclusive a que provou o diagnóstico.
++        """
++        pedidos = [
++            (referencia, tuple(_chave(item) for item in chaves if _chave(item)), quando, texto)
++            for referencia, chaves, quando, texto in saidas
++            if quando is not None
++        ]
++        pedidos = [item for item in pedidos if item[1]]
++        if not pedidos:
++            return {}
++
++        todas_as_chaves = tuple(
++            dict.fromkeys(chave for _, chaves, _, _ in pedidos for chave in chaves)
++        )
++        # A folga do texto por baixo: uma saída carimbada pelo WhatsApp logo
++        # depois do corte pode ter sido anotada um pouco antes dele.
++        piso = min(quando for _, _, quando, _ in pedidos)
++        if desde is not None and desde < piso:
++            piso = desde
++        anotacoes = self._anotacoes(
++            todas_as_chaves,
++            piso - timedelta(minutes=TOLERANCIA_TEXTO_MINUTOS),
++            tipos=TIPOS_DE_AUTOR,
++        )
++        if not anotacoes:
++            return {}
++
++        por_chat: dict = {}
++        for item in anotacoes:
++            por_chat.setdefault(item[5], []).append(item)
++
++        saida = {}
++        for referencia, chaves, quando, texto in pedidos:
++            candidatas = [item for chave in chaves for item in por_chat.get(chave, ())]
++            achada = self._casa(candidatas, quando, texto)
++            if achada is not None:
++                saida[referencia] = (achada[2], achada[3], achada[4])
++        return saida
++
+     def instante_da_mensagem(self, message_id: str, chat_jid: str) -> Optional[datetime]:
+         """Quando o WhatsApp carimbou esta mensagem — a do contato que o turno responde.
+ 
+diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
+index 7fada39..27369f0 100644
+--- a/whatsapp-assistant/runtime_commands.py
++++ b/whatsapp-assistant/runtime_commands.py
+@@ -13,6 +13,7 @@ import time
+ import uuid
+ from typing import Optional
+ 
++import assinatura
+ import audit
+ import send
+ from arbitro import DONOS, DONO_HUMANO, DONO_IA, MOTIVO_RESPONDIDO_NO_PORTAL, Arbitro
+@@ -326,9 +327,30 @@ class RuntimeCommandPoller:
+             self._complete(command_id, "failed", "sending_disabled")
+             return
+ 
++        # Quem escreveu vem da RPC, nunca do navegador.
++        #
++        # `nucleo_conversation_command_enqueue` resolve o nome curto do
++        # `auth.uid()` dentro da transação, com a mesma regra que já vale para
++        # `attendantName`. Aceitar um nome digitado pelo cliente seria deixar
++        # qualquer membro assinar com o nome de outro — numa mensagem que sai
++        # para fora da empresa e não tem como ser desmentida depois.
++        #
++        # Ausente significa portal antigo, de antes desta versão: a mensagem sai
++        # sem assinatura, como saía ontem, e é registrada sem nome.
++        autor_nome = assinatura.limpar_nome(payload.get("authorName"))
++        autor_id = str(payload.get("authorId") or "").strip()[:64]
++        texto_assinado = assinatura.aplicar(texto, autor_nome)
++
+         destino = f"{chat}@g.us" if tipo == "grupo" else chat
+         try:
+-            send.send_human_message(self.api_base_url, self.human_send_token, destino, texto)
++            send.send_human_message(
++                self.api_base_url,
++                self.human_send_token,
++                destino,
++                texto_assinado,
++                author_name=autor_nome,
++                author_id=autor_id,
++            )
+         except send.SendError as exc:
+             self._complete(command_id, "failed", _motivo_da_recusa(exc))
+             audit.log(
+diff --git a/whatsapp-assistant/send.py b/whatsapp-assistant/send.py
+index 9a8bf4d..e5a9aa9 100644
+--- a/whatsapp-assistant/send.py
++++ b/whatsapp-assistant/send.py
+@@ -20,9 +20,9 @@ import requests
+ 
+ REQUEST_TIMEOUT = 30
+ 
+-# Quem quer saber o que o runtime mandou.
++# Quem quer saber o que saiu por aqui, e de quem.
+ #
+-# Existe para uma regra sozinha: a IA cala quando uma PESSOA responde a
++# Nasceu para uma regra sozinha: a IA cala quando uma PESSOA responde a
+ # conversa, e para isso e' preciso separar a saida de gente da saida do proprio
+ # agente - as duas chegam ao `messages.db` do bridge como `is_from_me = 1`.
+ #
+@@ -31,27 +31,39 @@ REQUEST_TIMEOUT = 30
+ # uma vez e emudece, tendo confundido a propria resposta com um atendente. Um
+ # lugar so, por onde tudo passa.
+ #
+-# Envio humano (`send_human_message`) NAO e' anotado de proposito: aquilo e'
+-# gente digitando no portal, e e' exatamente o que deve pausar a IA.
+-_registrador: Optional[Callable[[str, str], None]] = None
++# Desde 13/09/2026 o registro carrega tambem QUEM escreveu (tipo, nome e id), e
++# por isso o envio humano do portal - que antes ficava de fora de proposito -
++# passou a ser anotado como `tipo='humano'`. Ele continua pausando a IA
++# exatamente como antes: quem decide isso e' o lado de la, que so considera
++# "nossa" a saida de tipo automatico. O que se ganha e' o nome do atendente na
++# bolha do portal, que sem isto nao existe em lugar nenhum do dado.
++_registrador: Optional[Callable[..., None]] = None
+ 
+ 
+-def registrar_saidas(callback: Optional[Callable[[str, str], None]]) -> None:
+-    """Instala (ou remove, com None) o observador das saidas automaticas."""
++def registrar_saidas(callback: Optional[Callable[..., None]]) -> None:
++    """Instala (ou remove, com None) o observador das saidas da conta."""
+     global _registrador
+     _registrador = callback
+ 
+ 
+-def _anotar(recipient: str, message: str) -> None:
++def _anotar(
++    recipient: str,
++    message: str,
++    tipo: str = "ia",
++    autor_nome: str = "",
++    autor_id: str = "",
++) -> None:
+     """Nunca deixa o registro derrubar um envio que ja aconteceu.
+ 
+     A mensagem saiu; falhar aqui so poderia transformar um sucesso em excecao,
+-    e o chamador marcaria como nao enviada algo que o cliente ja leu.
++    e o chamador marcaria como nao enviada algo que o cliente ja leu. Vale
++    tambem para um registrador de assinatura antiga: um TypeError no registro
++    nunca pode virar mensagem reenviada.
+     """
+     if _registrador is None:
+         return
+     try:
+-        _registrador(recipient, message)
++        _registrador(recipient, message, tipo, autor_nome, autor_id)
+     except Exception:  # noqa: BLE001 - registro e' acessorio, envio nao e'
+         pass
+ 
+@@ -73,7 +85,13 @@ class NotificationSendError(SendError):
+ 
+ 
+ def send_message(
+-    api_base_url: str, token: str, recipient: str, message: str, media_path: str = ""
++    api_base_url: str,
++    token: str,
++    recipient: str,
++    message: str,
++    media_path: str = "",
++    author_name: str = "",
++    author_id: str = "",
+ ) -> str:
+     """Envia e devolve a mensagem de sucesso do bridge.
+ 
+@@ -82,6 +100,12 @@ def send_message(
+     recusa qualquer outro. `message` vira legenda do arquivo nesse caso, e
+     continua obrigatorio.
+ 
++    `author_name` e `author_id` sao o agente que o Router escolheu para ESTE
++    turno, e existem so para o registro de saidas: e' o que faz a bolha do
++    portal dizer "Bia" em vez de nao dizer nada. Vazios em todo envio que nao
++    e' de turno de cliente (aviso a equipe, lembrete), que sai como IA sem
++    nome. Nao viajam para o bridge nem para o WhatsApp.
++
+     Levanta SendError em qualquer desfecho que nao seja envio confirmado. O
+     chamador nunca deve marcar a mensagem como concluida sem isto ter retornado.
+     """
+@@ -115,7 +139,7 @@ def send_message(
+     if status != 200 or not body.get("success"):
+         raise SendError(f"fase 2 falhou: HTTP {status} {body.get('message', '')}".strip())
+ 
+-    _anotar(recipient, message)
++    _anotar(recipient, message, "ia", author_name, author_id)
+     return str(body.get("message", "sent"))
+ 
+ 
+@@ -165,8 +189,10 @@ def send_notification(
+ 
+     if response.status_code == 200 and body.get("success"):
+         # Lembrete de agenda tambem e' saida automatica: quem manda e' o
+-        # runtime, e ela nao pode ser lida como "tem gente atendendo".
+-        _anotar(str(recipient), str(message))
++        # runtime, e ela nao pode ser lida como "tem gente atendendo". Vai como
++        # `bot` e nao como `ia` porque nao houve turno nem agente - e a bolha
++        # do portal ja sabe pintar os dois de cores diferentes.
++        _anotar(str(recipient), str(message), "bot")
+         return str(body.get("message", "sent"))
+ 
+     detail = str(body.get("message", "")).strip()
+@@ -226,7 +252,14 @@ def set_chat_presence(
+         raise SendError(f"presença recusada: HTTP {response.status_code} {detail}".strip())
+ 
+ 
+-def send_human_message(api_base_url: str, token: str, recipient: str, message: str) -> str:
++def send_human_message(
++    api_base_url: str,
++    token: str,
++    recipient: str,
++    message: str,
++    author_name: str = "",
++    author_id: str = "",
++) -> str:
+     """Entrega uma mensagem que uma PESSOA escreveu no portal.
+ 
+     Rota e bearer separados de ``send_message``, e é essa separação que carrega
+@@ -270,6 +303,16 @@ def send_human_message(api_base_url: str, token: str, recipient: str, message: s
+         detail = str(body.get("message", "")).strip()
+         raise SendError(f"envio manual falhou: HTTP {response.status_code} {detail}".strip())
+ 
++    # Anotado como GENTE, e e' a diferenca inteira.
++    #
++    # Ate 13/09/2026 este envio nao era anotado, e o comentario no topo do
++    # arquivo explicava por que: anota-lo como saida do agente faria a IA
++    # confundi-lo consigo mesma e voltar a falar por cima do atendente. O
++    # motivo continua valendo - o que mudou e' que agora ha um campo para dizer
++    # que foi gente, e o lado que decide "fui eu?" so olha os tipos
++    # automaticos. Sem esta linha, a mensagem que o atendente digitou chega ao
++    # portal indistinguivel de uma digitada no celular, e sai sem nome.
++    _anotar(recipient, message, "humano", author_name, author_id)
+     return str(body.get("message", "sent"))
+ 
+ 
+diff --git a/whatsapp-assistant/test_presenca_humana.py b/whatsapp-assistant/test_presenca_humana.py
+index 6adde57..42c8d98 100644
+--- a/whatsapp-assistant/test_presenca_humana.py
++++ b/whatsapp-assistant/test_presenca_humana.py
+@@ -270,5 +270,141 @@ class DonoEIaNoMesmoSegundoTest(PresencaHumanaTest):
+         self.assertIsNone(self.presenca.instante_da_mensagem("nao-existe", CHAT))
+ 
+ 
++class AutoriaDasSaidasTest(PresencaHumanaTest):
++    """Quem escreveu cada saída da conta — a pergunta que a Fase 2 acrescentou.
++
++    O mesmo livro responde duas coisas, e a segunda não pode estragar a
++    primeira: a resposta do atendente pelo portal passou a ser anotada (para ter
++    nome) e continua contando como GENTE (para a IA sair da conversa). As duas
++    afirmações ficam lado a lado de propósito — quem mexer numa lê a outra.
++    """
++
++    def _pedido(self, quando, texto, chaves=(CHAT,), referencia="M1"):
++        return (referencia, chaves, quando, texto)
++
++    def test_a_saida_da_ia_leva_o_nome_do_agente(self):
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente(
++            TELEFONE, "Oi! Tudo bem?", "ia", "Bia", "agente-1"
++        )
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(quando, "Oi! Tudo bem?")]
++        )
++        self.assertEqual(autores["M1"], ("ia", "Bia", "agente-1"))
++
++    def test_a_saida_do_portal_leva_o_nome_do_atendente(self):
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente(
++            TELEFONE, "já te respondo", "humano", "Marina", "pessoa-1"
++        )
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(quando, "já te respondo")]
++        )
++        self.assertEqual(autores["M1"], ("humano", "Marina", "pessoa-1"))
++
++    def test_a_saida_do_portal_continua_sendo_gente_para_a_presenca(self):
++        """O freio da Fase 1, afirmado do lado que poderia tê-lo soltado.
++
++        Anotar o envio do portal era exatamente o que o módulo se proibia de
++        fazer até 13/09/2026, porque anotá-lo como saída do agente faria a IA
++        confundi-lo consigo mesma e voltar a responder por cima de quem está
++        atendendo. Anotar COM TIPO é o que torna isso seguro — e este teste é a
++        prova de que o tipo está sendo respeitado.
++        """
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente(
++            TELEFONE, "já te respondo", "humano", "Marina", "pessoa-1"
++        )
++        self._mensagem(quando, texto="já te respondo")
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 30))
++
++    def test_a_saida_da_ia_continua_nao_sendo_gente(self):
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Oi! Tudo bem?", "ia", "Bia")
++        self._mensagem(quando, texto="Oi! Tudo bem?")
++        self.assertIsNone(self.presenca.ultima_resposta_humana(CHAT, 30))
++
++    def test_sem_anotacao_nao_ha_autor(self):
++        """A mensagem digitada no celular. A ausência é a resposta: o aparelho
++        envia direto, sem passar pelo runtime, e a bolha sai sem nome."""
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(self._atras(minutos=1), "bom dia, tudo certo?")]
++        )
++        self.assertEqual(autores, {})
++
++    def test_a_conversa_ao_lado_nao_empresta_o_autor(self):
++        """Duas conversas, o mesmo "ok", a mesma hora.
++
++        Sem separar as anotações por conversa, a bolha de um contato levaria o
++        nome de quem atendeu o outro — e ninguém desconfiaria, porque o nome
++        existe e é de alguém da equipe.
++        """
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente("5511977776666", "ok", "humano", "Marina")
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(quando, "ok", chaves=(CHAT,))]
++        )
++        self.assertEqual(autores, {})
++
++    def test_conversa_por_lid_encontra_o_autor_pelo_telefone(self):
++        """O erro que já custou caro neste módulo, agora do lado da autoria.
++
++        Numa conversa endereçada por LID o Bridge arquiva sob um número que não
++        é telefone, e o envio foi feito para o telefone de verdade. Procurar por
++        um só devolveria "foi o celular" em toda conversa por LID — inclusive na
++        que originou este trabalho.
++        """
++        quando = self._atras(minutos=1)
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Eai! Show", "ia", "Bia")
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(quando, "Eai! Show", chaves=(LID, TELEFONE))]
++        )
++        self.assertEqual(autores["M1"][1], "Bia")
++
++    def test_entre_dois_iguais_vence_o_mais_proximo_no_tempo(self):
++        """Um "ok" da IA e um "ok" da Marina são a mesma string."""
++        self.presenca.anotar_saida_do_agente(TELEFONE, "ok", "humano", "Marina")
++        autores = self.presenca.autores_das_saidas(
++            [self._pedido(self._atras(segundos=5), "ok")]
++        )
++        self.assertEqual(autores["M1"][1], "Marina")
++
++    def test_o_livro_antigo_ganha_as_colunas_sem_perder_o_que_tinha(self):
++        """A migração roda num banco que já está em produção.
++
++        E o tipo das linhas que já existiam precisa continuar sendo `ia`: elas
++        foram gravadas pelo único caminho que anotava até aqui, o envio
++        automático. Marcá-las de outra coisa faria a IA parar de reconhecer as
++        próprias respostas das últimas 48 h e se calar sozinha.
++        """
++        registro = self.root / "antigo.db"
++        banco = sqlite3.connect(registro)
++        banco.execute(
++            "CREATE TABLE saida_do_agente (chat TEXT NOT NULL, quando TEXT NOT NULL,"
++            " texto TEXT NOT NULL DEFAULT '')"
++        )
++        banco.execute(
++            "INSERT INTO saida_do_agente (chat, quando, texto) VALUES (?, ?, ?)",
++            (TELEFONE,
++             datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
++             "resposta de ontem"),
++        )
++        banco.commit()
++        banco.close()
++
++        # Fechado aqui dentro, e não por `addCleanup`: a limpeza do diretório
++        # temporário roda no `tearDown`, ANTES dos cleanups, e no Windows um
++        # SQLite ainda aberto prende o arquivo — o teste passaria e a limpeza
++        # quebraria, que é a pior combinação para quem for ler o resultado.
++        presenca = PresencaHumana(messages_db=self.messages_db, registro=registro)
++        try:
++            autores = presenca.autores_das_saidas(
++                [("M9", (CHAT, TELEFONE), self._atras(segundos=2), "resposta de ontem")]
++            )
++        finally:
++            presenca.close()
++        self.assertEqual(autores["M9"][0], "ia")
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
+index 1bbefc6..370bd91 100644
+--- a/whatsapp-assistant/test_runtime_commands.py
++++ b/whatsapp-assistant/test_runtime_commands.py
+@@ -243,7 +243,8 @@ class ConversationCommandTests(Bancada, unittest.TestCase):
+                  mock.patch.object(send, "send_message") as do_agente:
+                 poller.poll_once()
+             manual.assert_called_once_with(
+-                BASE, HUMAN_TOKEN, "5511987654321", "Bom dia, Marina!"
++                BASE, HUMAN_TOKEN, "5511987654321", "Bom dia, Marina!",
++                author_name="", author_id="",
+             )
+             # O bearer genérico do bridge (`store/api_token`, aqui "secret")
+             # não pode aparecer neste caminho.
+diff --git a/whatsapp-assistant/test_send.py b/whatsapp-assistant/test_send.py
+index b9ba73b..2426bdb 100644
+--- a/whatsapp-assistant/test_send.py
++++ b/whatsapp-assistant/test_send.py
+@@ -26,6 +26,10 @@ class BridgeStub:
+         self.presence_body = {"success": True, "state": "composing"}
+         self.check_status = 200
+         self.check_body = {"success": True, "onWhatsApp": True}
++        # Fase única, como `/notify` e pelo mesmo motivo: as duas fases existem
++        # para um humano revisar o que a IA escreveu, e aqui o humano é o autor.
++        self.human_status = 200
++        self.human_body = {"success": True, "message": "Message sent"}
+ 
+         stub = self
+ 
+@@ -42,6 +46,8 @@ class BridgeStub:
+                     status, body = stub.presence_status, stub.presence_body
+                 elif self.path.endswith("/notify"):
+                     status, body = stub.notify_status, stub.notify_body
++                elif self.path.endswith("/send/human"):
++                    status, body = stub.human_status, stub.human_body
+                 elif payload.get("confirm"):
+                     status, body = stub.phase2_status, stub.phase2_body
+                 else:
+@@ -285,12 +291,49 @@ class RegistroDasSaidasTest(unittest.TestCase):
+         self.bridge = BridgeStub()
+         self.addCleanup(self.bridge.close)
+         self.anotadas = []
+-        send.registrar_saidas(lambda destino, texto: self.anotadas.append((destino, texto)))
++        send.registrar_saidas(
++            lambda destino, texto, tipo, nome, autor_id: self.anotadas.append(
++                (destino, texto, tipo, nome, autor_id)
++            )
++        )
+         self.addCleanup(send.registrar_saidas, None)
+ 
+     def test_envio_confirmado_e_anotado(self):
+         send.send_message(self.bridge.base_url, TOKEN, "556592178164", "claro, posso ajudar")
+-        self.assertEqual(self.anotadas, [("556592178164", "claro, posso ajudar")])
++        self.assertEqual(
++            self.anotadas, [("556592178164", "claro, posso ajudar", "ia", "", "")]
++        )
++
++    def test_a_anotacao_leva_o_agente_que_respondeu(self):
++        """Sem isto a bolha do portal não tem como dizer QUAL agente falou —
++        `is_from_me = 1` é tudo o que o Bridge sabe sobre a própria saída."""
++        send.send_message(
++            self.bridge.base_url, TOKEN, "556592178164", "claro!",
++            author_name="Bia", author_id="11111111-1111-4111-8111-111111111111",
++        )
++        self.assertEqual(
++            self.anotadas,
++            [("556592178164", "claro!", "ia", "Bia",
++              "11111111-1111-4111-8111-111111111111")],
++        )
++
++    def test_o_envio_do_portal_e_anotado_como_gente(self):
++        """A exceção que deixou de existir em 13/09/2026.
++
++        Antes o envio manual não era anotado, para a IA não confundi-lo consigo
++        mesma. Agora é anotado COM tipo, e é o tipo que carrega a distinção: o
++        nome do atendente chega ao portal, e a presença humana continua vendo
++        gente porque só conta como "nossa" a saída de tipo automático.
++        """
++        send.send_human_message(
++            self.bridge.base_url, TOKEN, "556592178164", "já te respondo",
++            author_name="Marina", author_id="22222222-2222-4222-8222-222222222222",
++        )
++        self.assertEqual(
++            self.anotadas,
++            [("556592178164", "já te respondo", "humano", "Marina",
++              "22222222-2222-4222-8222-222222222222")],
++        )
+ 
+     def test_envio_que_falhou_nao_e_anotado(self):
+         """A linha só existe no banco do bridge se a mensagem saiu. Anotar uma
+@@ -311,6 +354,9 @@ class RegistroDasSaidasTest(unittest.TestCase):
+             "556592178164", "lembrete: reunião às 10h",
+         )
+         self.assertEqual(len(self.anotadas), 1)
++        # Como `bot`, e não como `ia`: não houve turno nem agente, e a bolha do
++        # portal pinta os dois de cores diferentes.
++        self.assertEqual(self.anotadas[0][2], "bot")
+ 
+     def test_sem_observador_o_envio_segue_igual(self):
+         send.registrar_saidas(None)
+@@ -323,7 +369,7 @@ class RegistroDasSaidasTest(unittest.TestCase):
+         """A mensagem já saiu. Falhar aqui transformaria um sucesso em exceção,
+         e o chamador marcaria como não enviada uma resposta que o cliente leu.
+         """
+-        def explode(destino, texto):
++        def explode(*args):
+             raise RuntimeError("banco travado")
+ 
+         send.registrar_saidas(explode)
+@@ -331,3 +377,16 @@ class RegistroDasSaidasTest(unittest.TestCase):
+             send.send_message(self.bridge.base_url, TOKEN, "556592178164", "oi"),
+             "Message sent",
+         )
++
++    def test_um_observador_de_assinatura_antiga_nao_derruba_o_envio(self):
++        """O registrador ganhou três argumentos em 13/09/2026.
++
++        Um observador da versão anterior levanta TypeError ao ser chamado com
++        cinco, e o único desfecho aceitável é o envio seguir válido: a mensagem
++        já saiu, e transformar isso em exceção faria o chamador reenviá-la.
++        """
++        send.registrar_saidas(lambda destino, texto: None)
++        self.assertEqual(
++            send.send_message(self.bridge.base_url, TOKEN, "556592178164", "oi"),
++            "Message sent",
++        )
+diff --git a/whatsapp-assistant/test_worker.py b/whatsapp-assistant/test_worker.py
+index 3eaa0c1..a6234ce 100644
+--- a/whatsapp-assistant/test_worker.py
++++ b/whatsapp-assistant/test_worker.py
+@@ -109,6 +109,7 @@ class WorkerTest(unittest.TestCase):
+         self.include_vault_calls = []
+         self.sent = []          # um item por envio bem-sucedido (ack e resposta final)
+         self.sent_media = []    # media_path recebido em cada envio (paralelo a self.sent)
++        self.sent_authors = []  # (nome, id) do autor em cada envio (paralelo a self.sent)
+         self.presences = []     # composing/paused do chat do operador
+         self.concurrent = 0
+         self.max_concurrent = 0
+@@ -195,11 +196,21 @@ class WorkerTest(unittest.TestCase):
+             with self._lock:
+                 self.concurrent -= 1
+ 
+-    def fake_send(self, api_base_url, token, recipient, message, media_path=""):
++    def fake_send(
++        self, api_base_url, token, recipient, message, media_path="",
++        author_name="", author_id="",
++    ):
++        """O dublê acompanha a assinatura de `send.send_message`.
++
++        `author_name` e `author_id` entraram em 13/09/2026 e não viajam para o
++        bridge: servem ao registro de saídas, que é o que dá nome à bolha do
++        portal. Guardados aqui porque a autoria do turno é asserção de teste.
++        """
+         if self.send_behaviour:
+             return self.send_behaviour(recipient, message)
+         self.sent.append((recipient, message))
+         self.sent_media.append(media_path)
++        self.sent_authors.append((author_name, author_id))
+         return "sent"
+ 
+     def fake_presence(self, api_base_url, token, recipient, state, *, connection_id=""):
+@@ -1677,6 +1688,19 @@ class TurnoDeClienteTest(WorkerTest):
+ 
+     LEAD = "5566999999999"
+ 
++    # O nome do agente na fixture, que é o que assina o que sai para o lead.
++    AGENTE = "Assistente Major"
++
++    def assinado(self, texto):
++        """O que o contato recebe de verdade: a assinatura e depois o texto.
++
++        Existe para o formato viver num lugar só. Espalhar `*Assistente Major:*`
++        por vinte asserções faria o dia em que ele mudar custar vinte edições —
++        e o teste que passasse batido viraria uma afirmação falsa sobre o que
++        chega ao WhatsApp de quem recebe.
++        """
++        return f"*{self.AGENTE}:*\n{texto}"
++
+     def _atende_como_cliente(self):
+         self._patch(
+             self.worker,
+@@ -1715,7 +1739,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead()
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, "ok")])
++        self.assertEqual(self.sent, [(self.LEAD, self.assinado("ok"))])
+         self.assertEqual(len(self.runs), 1, "a triagem não roda para lead")
+         self.assertEqual(self.models, [self.cfg.complex_model])
+         self.assertEqual(
+@@ -1724,6 +1748,38 @@ class TurnoDeClienteTest(WorkerTest):
+             "o lead vê 'digitando' no lugar das aberturas",
+         )
+ 
++    def test_a_resposta_ao_lead_sai_assinada_pelo_agente(self):
++        """A terceira queixa do dono, do lado de quem recebe.
++
++        No WhatsApp do contato não existe coluna de autoria: tudo que sai da
++        empresa chega de um número só, venha da IA, do atendente ou do celular.
++        A única forma de ele saber quem está falando é o texto dizer — e o nome
++        é o do agente que o Router escolheu, não um rótulo fixo.
++        """
++        self._atende_como_cliente()
++        self.worker.start()
++        self._enfileira_lead()
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
++        _, texto = self.sent[0]
++        self.assertEqual(texto, "*Assistente Major:*\nok")
++        # E o registro de saídas leva o mesmo nome: é dele que sai a bolha do
++        # portal. Sem isto a mensagem chegaria assinada ao contato e anônima na
++        # tela da equipe.
++        self.assertEqual(self.sent_authors[0], ("Assistente Major", "profile"))
++
++    def test_o_turno_do_operador_nao_e_assinado(self):
++        """Quem lê é a equipe, que já sabe com quem está falando.
++
++        Assinar aqui poria `*Assistente Major:*` em toda resposta do assistente
++        interno — e, pior, o texto assinado entraria no registro de saídas e no
++        histórico, ensinando o modelo a imitar a assinatura onde ela não vale.
++        """
++        self.worker.start()
++        self.enqueue("M1")
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M1") == COMPLETED))
++        self.assertTrue(all("*" not in texto for _, texto in self.sent), self.sent)
++
+     def test_execucao_demorada_nao_manda_frase_de_espera(self):
+         """13/09/2026: "Um instante, estou vendo isso." saiu meio segundo antes da resposta.
+ 
+@@ -1740,7 +1796,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead()
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, "ok")])
++        self.assertEqual(self.sent, [(self.LEAD, self.assinado("ok"))])
+         self.assertFalse(hasattr(worker_mod, "CUSTOMER_WAIT_NOTICE"))
+ 
+     def test_prompt_do_lead_tem_hora_historico_nome_e_so_ferramentas_do_turno(self):
+@@ -1889,7 +1945,10 @@ class TurnoDeClienteTest(WorkerTest):
+         # Aviso ao dono antes, resposta ao lead depois.
+         self.assertEqual(self.sent[0][0], self.cfg.owner)
+         self.assertIn("prometeu passar a conversa", self.sent[0][1])
+-        self.assertEqual(self.sent[1], (self.LEAD, "Vou conectar você com o Júnior agora. Um momento!"))
++        self.assertEqual(
++            self.sent[1],
++            (self.LEAD, self.assinado("Vou conectar você com o Júnior agora. Um momento!")),
++        )
+ 
+     def test_promessa_sem_ferramenta_vira_resposta_honesta_quando_a_rpc_falha(self):
+         self.worker.cfg = replace(self.cfg)
+@@ -1904,7 +1963,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead(texto="Agora")
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE)])
++        self.assertEqual(
++            self.sent,
++            [(self.LEAD, self.assinado(worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE))],
++        )
+         self.assertEqual(arbitro.assumidas, [], "sem transferência de verdade, ninguém assume")
+ 
+     def test_promessa_sem_credencial_tambem_vira_resposta_honesta(self):
+@@ -1920,7 +1982,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead(texto="Alô?")
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE)])
++        self.assertEqual(
++            self.sent,
++            [(self.LEAD, self.assinado(worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE))],
++        )
+         self.assertEqual(arbitro.assumidas, [])
+ 
+     def test_transferencia_feita_pela_ferramenta_nao_e_pedida_duas_vezes(self):
+@@ -1955,7 +2020,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+         self.assertEqual(verificador.handoffs, [])
+         self.assertEqual(arbitro.assumidas, [])
+-        self.assertEqual(self.sent, [(self.LEAD, "Não vou transferir agora; me conta qual é o seu negócio?")])
++        self.assertEqual(
++            self.sent,
++            [(self.LEAD, self.assinado("Não vou transferir agora; me conta qual é o seu negócio?"))],
++        )
+ 
+     # -- pedido de pessoa e aviso à equipe -----------------------------------
+ 
+@@ -1993,7 +2061,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertIn("o cliente pediu uma pessoa", aviso)
+         self.assertIn("- contato: Como eu falo com o Júnior?", aviso)
+         self.assertIn("- Major: Boa noite! O que traz você por aqui?", aviso)
+-        self.assertEqual(self.sent[1], (self.LEAD, worker_mod.CUSTOMER_HANDOFF_DONE_NOTICE))
++        self.assertEqual(
++            self.sent[1],
++            (self.LEAD, self.assinado(worker_mod.CUSTOMER_HANDOFF_DONE_NOTICE)),
++        )
+ 
+     def test_pedido_de_pessoa_com_rpc_fora_responde_a_verdade_e_avisa_mesmo_assim(self):
+         self.worker.cfg = replace(self.cfg)
+@@ -2009,7 +2080,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(len(self.sent), 2)
+         self.assertEqual(self.sent[0][0], self.cfg.owner)
+         self.assertIn("NÃO foi registrada", self.sent[0][1])
+-        self.assertEqual(self.sent[1], (self.LEAD, worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE))
++        self.assertEqual(
++            self.sent[1],
++            (self.LEAD, self.assinado(worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE)),
++        )
+ 
+     def test_nomes_da_equipe_vem_da_configuracao(self):
+         self.worker.cfg = replace(self.cfg, team_names=("marina",))
+@@ -2034,7 +2108,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+         self.assertEqual(verificador.handoffs, [])
+         self.assertEqual(len(self.runs), 1, "conversa comum vai para o modelo")
+-        self.assertEqual(self.sent, [(self.LEAD, "ok")])
++        self.assertEqual(self.sent, [(self.LEAD, self.assinado("ok"))])
+ 
+     def test_transferencia_pela_ferramenta_avisa_o_dono(self):
+         self.worker.cfg = replace(self.cfg)
+@@ -2053,7 +2127,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(len(self.sent), 2)
+         self.assertEqual(self.sent[0][0], self.cfg.owner)
+         self.assertIn("o assistente pediu a transferência", self.sent[0][1])
+-        self.assertEqual(self.sent[1], (self.LEAD, "Passei a conversa para a equipe; alguém te responde por aqui."))
++        self.assertEqual(
++            self.sent[1],
++            (self.LEAD, self.assinado("Passei a conversa para a equipe; alguém te responde por aqui.")),
++        )
+ 
+     def test_aviso_vai_para_os_telefones_configurados_e_nunca_para_o_proprio_contato(self):
+         self.worker.cfg = replace(
+@@ -2089,7 +2166,10 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead(texto="quero falar com o Júnior")
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, worker_mod.CUSTOMER_HANDOFF_DONE_NOTICE)])
++        self.assertEqual(
++            self.sent,
++            [(self.LEAD, self.assinado(worker_mod.CUSTOMER_HANDOFF_DONE_NOTICE))],
++        )
+ 
+     def test_lembrete_de_espera_respeita_o_intervalo_e_nunca_ecoa_no_contato(self):
+         """Um lembrete por contato a cada intervalo; contato da equipe não é
+@@ -2241,7 +2321,7 @@ class ConversaQueSaiuDaIaTest(TurnoDeClienteTest):
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD-2") == COMPLETED))
+         self.assertEqual(self.store.status_of("M-LEAD"), COMPLETED)
+-        self.assertEqual(self.sent, [(self.LEAD, "resposta às duas")])
++        self.assertEqual(self.sent, [(self.LEAD, self.assinado("resposta às duas"))])
+ 
+     def test_modelo_caiu_depois_que_a_equipe_entrou_nao_vira_handoff_por_falha(self):
+         """Handoff por falha vence em 30 min e devolveria à IA uma conversa de gente."""
+diff --git a/whatsapp-assistant/worker.py b/whatsapp-assistant/worker.py
+index 10241c7..6c3792d 100644
+--- a/whatsapp-assistant/worker.py
++++ b/whatsapp-assistant/worker.py
+@@ -19,6 +19,7 @@ from pathlib import Path
+ from typing import List, Optional, Tuple, Union
+ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+ 
++import assinatura
+ import audit
+ import runner
+ import send
+@@ -819,7 +820,9 @@ class Worker:
+         # mesmo desenho da confirmação de operador acima: decisão que precisa
+         # ser garantia não passa por escolha de ferramenta.
+         if is_customer_turn and not is_group and self._customer_asked_for_human(batch):
+-            self._handoff_customer_on_request(batch, recipient, token, run_id, ids, started)
++            self._handoff_customer_on_request(
++                batch, recipient, token, run_id, ids, started, intelligence_context
++            )
+             return
+         final_model = None
+         if is_operator_turn:
+@@ -1080,8 +1083,28 @@ class Worker:
+         if handoff_executed and is_customer_turn and not is_group:
+             self._notify_team_of_handoff(token, batch, run_id, handoff_motivo)
+ 
++        # A assinatura entra por ÚLTIMO, e é de propósito.
++        #
++        # Depois do filtro de vazamento (`_safe_customer_reply`), que de outro
++        # jeito teria de aprender a não barrar a própria assinatura; depois dos
++        # descartes, para não assinar uma resposta que não vai sair; e antes do
++        # envio, para o registro de saídas anotar o texto COM assinatura — que é
++        # exatamente o que o Bridge grava no `messages.db`. Anotar sem ela faria
++        # o agente não reconhecer a própria resposta e se calar sozinho.
++        #
++        # Só turno de cliente e só conversa direta: em grupo o agente não
++        # atende, e no turno do operador quem lê é a equipe, que já sabe com
++        # quem está falando.
+         try:
+-            send.send_message(self.cfg.api_base_url, token or "", recipient, reply_text, media_path=media_path)
++            if is_customer_turn and not is_group:
++                self._enviar_ao_contato(
++                    token, recipient, reply_text, intelligence_context, media_path
++                )
++            else:
++                send.send_message(
++                    self.cfg.api_base_url, token or "", recipient, reply_text,
++                    media_path=media_path,
++                )
+         except send.SendError as e:
+             # Nao marcamos concluido e nao reenviamos: a fase 2 pode ter saido
+             # antes de falhar, e um reenvio duplicaria a resposta.
+@@ -1967,6 +1990,58 @@ Mensagens do usuário:
+ 
+     # -- turno de cliente (lead) ------------------------------------------
+ 
++    def _enviar_ao_contato(
++        self,
++        token: Optional[str],
++        recipient: str,
++        texto: str,
++        intelligence_context: Optional[IntelligenceContext],
++        media_path: str = "",
++    ) -> str:
++        """Manda ao CONTATO: assinado pelo agente do turno e com autoria anotada.
++
++        Existe por um erro cometido ao escrever isto, em 13/09/2026: a
++        assinatura foi posta no envio da resposta do modelo e esqueceu o outro
++        caminho que fala com o contato — o atalho de "pediu uma pessoa", que
++        responde sem consultar o modelo. O contato recebia uma mensagem
++        assinada e outra anônima, na mesma conversa, sem nada que explicasse a
++        diferença.
++
++        É o mesmo raciocínio que `presenca_humana` já registra sobre o gancho
++        de saídas: um lugar só, por onde tudo passa, porque esquecer um ponto
++        não dá erro — dá um comportamento errado que ninguém nota.
++
++        Não engole falha: `SendError` sobe para quem chamou decidir, porque
++        cada caminho trata o fracasso de um jeito (um marca a mensagem como não
++        entregue, outro só registra).
++        """
++        nome, identificador = self._autoria_do_agente(intelligence_context)
++        return send.send_message(
++            self.cfg.api_base_url,
++            token or "",
++            recipient,
++            assinatura.aplicar(texto, nome),
++            media_path=media_path,
++            author_name=nome,
++            author_id=identificador,
++        )
++
++    @staticmethod
++    def _autoria_do_agente(
++        intelligence_context: Optional[IntelligenceContext],
++    ) -> Tuple[str, str]:
++        """O nome e o id do agente que o Router escolheu para este turno.
++
++        Vazios sem contexto de inteligência — e aí a mensagem sai sem
++        assinatura e sem autor, que é melhor do que sair com o nome errado.
++        """
++        if intelligence_context is None:
++            return "", ""
++        return (
++            assinatura.limpar_nome(intelligence_context.assistant.get("nome")),
++            str(intelligence_context.assistant.get("id") or "")[:64],
++        )
++
+     def _safe_customer_reply(self, reply: str, run_id: str) -> str:
+         """O mesmo bloqueio do operador, com a lista do cliente.
+ 
+@@ -2289,6 +2364,7 @@ Mensagens do usuário:
+         run_id: str,
+         ids: List[str],
+         started: float,
++        intelligence_context: Optional[IntelligenceContext] = None,
+     ) -> None:
+         """Transfere sem consultar o modelo, avisa a equipe e responde o lead.
+ 
+@@ -2347,7 +2423,10 @@ Mensagens do usuário:
+         )
+         notice = CUSTOMER_HANDOFF_DONE_NOTICE if transferido else CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE
+         try:
+-            send.send_message(self.cfg.api_base_url, token or "", recipient, notice)
++            # Assinada como qualquer outra coisa que o contato recebe. Este é o
++            # caminho que passa longe do modelo, e foi exatamente o que ficou
++            # de fora na primeira versão da assinatura.
++            self._enviar_ao_contato(token, recipient, notice, intelligence_context)
+         except send.SendError as exc:
+             self._fail(ids, run_id, "send", str(exc), started)
+             return
