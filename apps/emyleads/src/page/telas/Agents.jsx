@@ -670,7 +670,12 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
   const [pedido, setPedido] = useState(null);
   const [falha, setFalha] = useState("");
 
-  const grupos = useMemo(() => agruparPorAudiencia(agents), [agents]);
+  const [filtroStatus, setFiltroStatus] = useState("todos");
+  const ativos = (agents ?? []).filter((agent) => agent.status === "active").length;
+
+  const grupos = useMemo(() => agruparPorAudiencia((agents ?? [])
+    .filter((agent) => filtroStatus === "todos" || agent.status === filtroStatus)
+    .slice().sort((a, b) => Number(b.status === "active") - Number(a.status === "active"))), [agents, filtroStatus]);
   const selecionado = useMemo(
     () => (agents ?? []).find((agent) => agent.id === selecionadoId) ?? null,
     [agents, selecionadoId],
@@ -772,6 +777,11 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
 
       {falha ? <p className="mx-4 mt-3 rounded-[9px] bg-danger/10 p-2.5 text-[11.5px] text-danger md:mx-5" role="alert">{falha}</p> : null}
 
+      <div className="agents-status-filter" aria-label="Filtrar agentes por status">
+        {[["todos", `Todos (${(agents ?? []).length})`], ["active", `Ativos (${ativos})`], ["inactive", `Inativos (${(agents ?? []).length - ativos})`]].map(([status, label]) => (
+          <button type="button" key={status} aria-pressed={filtroStatus === status} onClick={() => setFiltroStatus(status)}>{label}</button>
+        ))}
+      </div>
       <div className="agents-grid">
         {grupos.length ? grupos.flatMap((grupo) => grupo.agents.map((agent) => (
                 <CartaoAgent key={agent.id} agent={agent}

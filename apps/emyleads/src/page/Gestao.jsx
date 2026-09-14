@@ -552,7 +552,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   };
 
   return (
-    <div className="flex h-screen bg-surface text-fg">
+    <div className="portal-shell flex h-dvh bg-surface text-fg">
       {/*
         O menu recolhe pela LARGURA de quem o envolve, e não deixando de ser
         desenhado. A diferença importa: `Rail` desenha duas navegações, a de
@@ -636,7 +636,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         ícones, há um lugar melhor — dentro do próprio menu, embaixo da marca,
         onde o punho tem âncora e não disputa espaço com ninguém.
       */}
-      <main className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
+      <main className="portal-main flex min-h-0 min-w-0 flex-1 flex-col">
         <AvisoMigracao migracao={migracaoPendente} />
         {erro ? (
           <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">

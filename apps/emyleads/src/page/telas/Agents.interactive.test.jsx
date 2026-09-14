@@ -321,7 +321,7 @@ describe("EDITAR — não vaza campo estrutural", () => {
   it("editar nome envia só os campos permitidos, e a UI reflete o novo estado", async () => {
     await montar({ inicial: [agent({ id: "closer", name: "Closer" })] });
 
-    await clicar(container.querySelector('button[aria-pressed]'));
+    await clicar(container.querySelector('.agent-card'));
     await tick();
 
     const campoNome = inputPorRotulo("Nome");
@@ -347,7 +347,7 @@ describe("EDITAR — não vaza campo estrutural", () => {
 
   it("erro ao editar não mente: mostra o erro e não apaga o que foi digitado", async () => {
     await montar({ inicial: [agent({ id: "closer", name: "Closer" })] });
-    await clicar(container.querySelector('button[aria-pressed]'));
+    await clicar(container.querySelector('.agent-card'));
     await tick();
 
     await digitar(inputPorRotulo("Nome"), "Closer Editado");

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useId, useRef } from "react";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import NavegacaoMobile from "./NavegacaoMobile";
 
 /**
  * Peças da página de gestão.
@@ -224,17 +225,7 @@ export function Rail({ telas, ativa, aoTrocar, rodape, recolhido = false, aoAlte
 
         {rodape && <div className="flex-none p-3">{rodape}</div>}
       </nav>
-      <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch gap-1 overflow-x-auto border-t border-line bg-bg/95 px-2 py-1.5 backdrop-blur md:hidden">
-        {telas.map((t) => {
-          const on = t.id === ativa;
-          return (
-            <button key={t.id} onClick={() => aoTrocar(t.id)} className={`flex min-w-[62px] cursor-pointer flex-col items-center justify-center gap-1 rounded-[8px] px-2 text-[9px] font-semibold ${on ? "bg-accent-soft text-accent-forte" : "text-sub"}`}>
-              <t.icone size={18} strokeWidth={1.8} />
-              <span>{t.rotulo}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <NavegacaoMobile telas={telas} ativa={ativa} aoTrocar={aoTrocar} rodape={rodape} />
     </>
   );
 }
@@ -279,7 +270,7 @@ export function CampoBusca({ valor, aoMudar, placeholder }) {
 export function BotaoPrimario({ children, className = "", ...props }) {
   return (
     <button
-      className={`flex flex-none cursor-pointer items-center gap-2 rounded-[10px] bg-accent px-5 py-3 text-[14px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40 ${className}`}
+      className={`flex min-h-11 flex-none cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent px-5 py-3 text-[14px] font-semibold text-white transition-[filter,box-shadow] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
       {...props}
     >
       {children}

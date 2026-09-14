@@ -27,23 +27,29 @@
      A hierarquia vem daí: bloco de conteúdo flutua sobre a base, em vez de ser
      separado por régua. */
   --el-bg: #ffffff;
-  --el-surface: #f5f6f8;
-  --el-surface-hover: #eef0f3;
-  --el-line: #e6e9ed;
-  --el-line-strong: #d3d8de;
+  --el-surface: #f4f6f9;
+  --el-surface-hover: #eaf0f6;
+  --el-line: #e1e6ee;
+  --el-line-strong: #c8d1de;
   /* Amostrado do "Emy" da marca. */
-  --el-fg: #121730;
-  --el-sub: #667085;
-  --el-faint: #98a2b3;
+  --el-fg: #182438;
+  --el-sub: #53637a;
+  --el-faint: #68788e;
   /* Roxo é a MARCA; verde é SUCESSO. Separar os dois é o que impede o produto
      de virar extensão visual do WhatsApp.
 
      Os valores saem da logo, não de uma paleta pronta: `accent` é o roxo do
      símbolo e `accent-forte` é o roxo do "Leads" — que já é mais escuro
      justamente porque ali ele é TEXTO, e precisa de contraste. */
-  --el-accent: #4f3cfc;
-  --el-accent-forte: #3d29db;
-  --el-accent-soft: #eeebff;
+  --el-accent: #2456c7;
+  --el-accent-forte: #1945a5;
+  --el-accent-soft: #eaf0fc;
+  --el-on-accent: #ffffff;
+  --el-control-height: 44px;
+  --el-radius-control: 10px;
+  --el-radius-panel: 20px;
+  --el-space-page: 24px;
+  --el-shadow-floating: 0 8px 32px #12173024;
   --el-success: #16a34a;
   --el-success-soft: #dcfce7;
   --el-warning: #b45309;
@@ -60,10 +66,10 @@
     --el-line-strong: #333c4a;
     --el-fg: #e8ecf1;
     --el-sub: #9aa5b4;
-    --el-faint: #6b7686;
-    --el-accent: #8b7cff;
-    --el-accent-forte: #a99dff;
-    --el-accent-soft: #1d1940;
+    --el-faint: #95a2b5;
+    --el-accent: #3064d8;
+    --el-accent-forte: #a7c4ff;
+    --el-accent-soft: #1b2b49;
     --el-success: #3ecf8e;
     --el-success-soft: #10291d;
     --el-warning: #d99341;
@@ -88,10 +94,35 @@
   --color-warning: var(--el-warning);
   --color-danger: var(--el-danger);
 
-  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --radius-el: 6px;
   --radius-el-lg: 8px;
+}
+
+/* Shared product controls and mobile navigation. */
+.portal-shell { font-family: var(--font-sans); }
+.ds-icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: var(--el-control-height); min-height: var(--el-control-height); border-radius: var(--el-radius-control); cursor: pointer; }
+.ds-icon-button:hover { background: var(--el-surface-hover); }
+.mobile-dock, .mobile-menu { display: none; }
+
+@media (max-width: 767px) {
+  .portal-main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .portal-shell :where(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: var(--el-control-height); }
+  .portal-shell :where(button) { touch-action: manipulation; }
+  .mobile-dock { position: fixed; z-index: 20; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 4px; width: min(360px, calc(100% - 32px)); padding: 6px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-panel); background: var(--el-bg); box-shadow: var(--el-shadow-floating); }
+  .mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 44px; height: 52px; border-radius: 14px; color: var(--el-sub); cursor: pointer; transition: background-color 150ms, color 150ms; }
+  .mobile-dock-item[aria-current=page], .mobile-dock-item[data-active] { color: var(--el-accent-forte); background: var(--el-accent-soft); }
+  .mobile-dock-item[aria-current=page]::after { content: ''; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+  .mobile-dock-item:active { background: var(--el-surface-hover); }
+  .mobile-menu[open] { display: block; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 85dvh; border: 0; padding: 0; background: transparent; color: var(--el-fg); overflow-y: auto; }
+  .mobile-menu::backdrop { background: #10182770; }
+  .mobile-menu-surface { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--el-bg); border-radius: 24px 24px 0 0; }
+  .mobile-menu-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 18px; font-weight: 600; }
+  .mobile-menu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .mobile-menu-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 88px; padding: 8px; border-radius: 14px; background: var(--el-surface); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+  .mobile-menu-grid button[aria-current=page] { background: var(--el-accent-soft); color: var(--el-accent-forte); }
+  .mobile-menu-account { border-top: 1px solid var(--el-line); padding-top: 16px; margin-top: 16px; }
 }
 
 @layer utilities {
