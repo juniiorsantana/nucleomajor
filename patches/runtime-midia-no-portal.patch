@@ -1,0 +1,2203 @@
+diff --git a/whatsapp-assistant/chat_identity.py b/whatsapp-assistant/chat_identity.py
+index 29b3622..ba74da6 100644
+--- a/whatsapp-assistant/chat_identity.py
++++ b/whatsapp-assistant/chat_identity.py
+@@ -52,6 +52,17 @@ import audit
+ # Cinco minutos é mais rápido que qualquer pessoa notar um nome desatualizado.
+ VALIDADE_DO_CACHE = 300.0
+ 
++# Quanto tempo um LID que o store ainda NÃO traduz fica sem ser perguntado de
++# novo.
++#
++# O cache de cinco minutos custou uma conversa dividida em 15/09/2026: o par do
++# contato entrou no store segundos depois de o mapa ter sido lido, a mensagem
++# dele subiu com o LID no lugar do telefone, e a linha nunca mais convergiu. Um
++# LID ausente do cache agora é perguntado ao store na hora — consulta por chave
++# primária, barata — e só a resposta negativa é lembrada, por menos que um
++# ciclo, para a mesma pergunta não se repetir a cada mensagem do mesmo lote.
++VALIDADE_DA_FALTA = 10.0
++
+ # Teto de linhas por tabela. O store do whatsmeow acompanha a agenda inteira do
+ # telefone, que numa organização grande passa de dezenas de milhares; a lista
+ # de conversas nunca passa de algumas centenas. O teto impede que a sincronia
+@@ -102,6 +113,8 @@ class ChatIdentity:
+         self._carregado_em: Optional[float] = None
+         self._telefone_por_lid: dict[str, str] = {}
+         self._nome_por_usuario: dict[str, str] = {}
++        # LID → até quando a ausência de par vale sem nova consulta.
++        self._falta_ate: dict[str, float] = {}
+ 
+     # ----------------------------------------------------------- leitura
+ 
+@@ -154,8 +167,39 @@ class ChatIdentity:
+ 
+         self._telefone_por_lid = telefones
+         self._nome_por_usuario = nomes
++        self._falta_ate = {}
+         self._carregado_em = self._relogio()
+ 
++    def _consultar_lid(self, lid: str) -> str:
++        """Pergunta ao store por UM par, agora, sem esperar o cache vencer.
++
++        Chamado com o lock tomado. Devolve o telefone, ou vazio quando o store
++        também não sabe — e nesse caso lembra a falta por `VALIDADE_DA_FALTA`.
++        Qualquer erro do SQLite vale como "não sabe": o mapa em memória continua
++        sendo a resposta, e a sincronia nunca para por causa disto.
++        """
++        agora = self._relogio()
++        if self._falta_ate.get(lid, 0.0) > agora:
++            return ""
++        try:
++            banco = self._abrir()
++            try:
++                linha = banco.execute(
++                    "SELECT pn FROM whatsmeow_lid_map WHERE lid = ? OR lid = ? LIMIT 1",
++                    (lid + "@lid", lid),
++                ).fetchone()
++            finally:
++                banco.close()
++        except sqlite3.Error:
++            linha = None
++        telefone = "".join(c for c in str(linha["pn"] if linha else "") if c.isdigit())
++        if 6 <= len(telefone) <= 20:
++            self._telefone_por_lid[lid] = telefone
++            self._falta_ate.pop(lid, None)
++            return telefone
++        self._falta_ate[lid] = agora + VALIDADE_DA_FALTA
++        return ""
++
+     def _garantir(self) -> None:
+         agora = self._relogio()
+         if self._carregado_em is not None and agora - self._carregado_em < self.validade:
+@@ -189,6 +233,8 @@ class ChatIdentity:
+             with self._lock:
+                 self._garantir()
+                 traduzido = self._telefone_por_lid.get(chave, "")
++                if not traduzido and servidor_do_jid == "lid":
++                    traduzido = self._consultar_lid(chave)
+             if traduzido:
+                 return traduzido
+         return chave
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 542ecbe..97b3fcd 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -152,6 +152,23 @@ class Config:
+     # equipe é lembrada, no máximo uma vez por este intervalo, por contato.
+     # Zero desliga o lembrete (o aviso da transferência continua).
+     handoff_wait_reminder_minutes: float = 15.0
++    # Mídia das conversas (desde 16/09/2026).
++    #
++    # `media_mirror_enabled` liga o espelho de arquivos: áudio e imagem
++    # recebidos sobem para o bucket privado, e o portal passa a tocar/mostrar.
++    # Desligado, a mídia sobe só com rótulo, como antes — a saída de emergência
++    # sem deploy, como as outras.
++    #
++    # `outbox_dir` é onde o runtime deixa o arquivo que a equipe mandou pelo
++    # portal, para o Bridge ler. Tem que ser o MESMO `outbox/` que o Bridge
++    # resolve a partir do diretório dele (`allowed_media_dirs`), senão a rota
++    # recusa com 403. O padrão segue o repositório desta cópia; quando Bridge e
++    # runtime rodam de releases diferentes, aponte pelo env.
++    media_mirror_enabled: bool = True
++    outbox_dir: Path = REPO_ROOT / "whatsapp-bridge" / "outbox"
++    # O navegador grava áudio em WebM/Opus; o WhatsApp só toca mensagem de voz
++    # em Ogg/Opus. A conversão é do ffmpeg, e este é o binário.
++    ffmpeg_bin: str = "ffmpeg"
+ 
+     @classmethod
+     def from_env(cls) -> "Config":
+@@ -280,6 +297,11 @@ class Config:
+             handoff_wait_reminder_minutes=max(
+                 0.0, _env_float("EMYLEADS_HANDOFF_WAIT_REMINDER_MINUTES", 15.0)
+             ),
++            media_mirror_enabled=_env_str("EMYLEADS_MEDIA_MIRROR", "1") != "0",
++            outbox_dir=Path(
++                _env_str("WHATSAPP_OUTBOX_DIR", str(REPO_ROOT / "whatsapp-bridge" / "outbox"))
++            ).expanduser(),
++            ffmpeg_bin=_env_str("EMYLEADS_FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg",
+         )
+ 
+ 
+diff --git a/whatsapp-assistant/conversation_sync.py b/whatsapp-assistant/conversation_sync.py
+index 678e607..596bf17 100644
+--- a/whatsapp-assistant/conversation_sync.py
++++ b/whatsapp-assistant/conversation_sync.py
+@@ -8,8 +8,10 @@ portal lê de lá com RLS por organização.
+ O Bridge não é tocado: nem reiniciado, nem alterado, nem consultado por HTTP.
+ Reiniciá-lo derrubaria o canal, e o dado que interessa já está no disco dele.
+ 
+-O que NÃO sobe: bytes de mídia, chave de mídia e URL do CDN. Da mídia vai só o
+-tipo e o nome do arquivo, o bastante para a tela dizer "📎 Imagem".
++O que NÃO sobe por aqui: chave de mídia e URL do CDN. Da mídia vai o tipo, o
++nome do arquivo e — desde 16/09/2026, para áudio e imagem — o caminho do
++arquivo no bucket, que `media_mirror.py` publica com a credencial do robô um
++ciclo depois da mensagem. Ver o cabeçalho daquele módulo.
+ 
+ O que passou a subir na Leva 2, e por quê:
+ 
+@@ -115,8 +117,13 @@ ORDER BY c.last_message_time DESC
+ LIMIT ?
+ """
+ 
++# `tem_arquivo` diz se a mídia pode ser baixada — a chave e a URL em si nunca
++# saem da consulta. Saída digitada no celular chega sem as duas (o Bridge não
++# guarda o material do que ele mesmo mandou), e é isso que poupa o espelho de
++# arquivos de tentar o impossível.
+ SQL_MENSAGENS = """
+-SELECT id, chat_jid, content, timestamp, is_from_me, media_type, filename
++SELECT id, chat_jid, content, timestamp, is_from_me, media_type, filename,
++       (COALESCE(url, '') <> '' AND COALESCE(LENGTH(media_key), 0) > 0) AS tem_arquivo
+ FROM messages
+ WHERE timestamp > ?
+ ORDER BY timestamp ASC
+@@ -175,7 +182,10 @@ def _identificador(jid: str, identidade: Optional[ChatIdentity] = None) -> tuple
+     — o que é o resultado certo, e não perda: são a mesma conversa.
+     """
+     cru = str(jid or "")
+-    if "@broadcast" in cru:
++    # Canal (`@newsletter`) não é conversa: ninguém responde nele, e o
++    # identificador de 18 dígitos passaria no check e viraria um "contato" sem
++    # nome na caixa de entrada — foi assim que um apareceu em 15/09/2026.
++    if "@broadcast" in cru or "@newsletter" in cru:
+         return "", ""
+     usuario = parte_de_usuario(cru)
+     if not usuario:
+@@ -241,9 +251,13 @@ class ConversationSync:
+         limite_conversas: int = 200,
+         photos=None,
+         presenca=None,
++        media=None,
+     ) -> None:
+         self.verifier = verifier
+         self.photos = photos
++        # O espelho de arquivos (`media_mirror.MediaMirror`). Ausente, a mídia
++        # sobe só com rótulo, como antes de 16/09/2026.
++        self.media = media
+         self.registry = registry
+         self.arbitro = arbitro
+         # O livro de saídas do runtime (`presenca_humana.PresencaHumana`), que
+@@ -346,16 +360,29 @@ class ConversationSync:
+             }
+         return por_contato, padrao
+ 
+-    def _conversas(self, conexao: sqlite3.Connection, donos, padrao) -> list[dict]:
+-        """Uma linha por conversa, com prévia e quantas aguardam resposta."""
++    def _conversas(self, conexao: sqlite3.Connection, donos, padrao) -> tuple[list[dict], list[dict]]:
++        """Uma linha por conversa, com prévia e quantas aguardam resposta.
++
++        Devolve também os pares LID→telefone que ESTE ciclo conseguiu traduzir.
++        A RPC usa a lista para dobrar uma conversa que subiu sob o LID — em
++        15/09/2026, quatro mensagens de um lead ficaram numa linha que ninguém
++        abria — na linha do telefone. Os pares saem do store do whatsmeow e
++        nunca do payload de outra conexão: são só o que o Bridge desta conexão
++        tem em `chats`.
++        """
+         linhas = conexao.execute(SQL_CONVERSAS, (self.limite_conversas,)).fetchall()
+ 
+         saida = []
++        aliases = []
+         for linha in linhas:
+             jid = linha["jid"]
+             identificador, tipo = _identificador(jid, self.identidade)
+             if not identificador:
+                 continue
++            if tipo == "direto" and servidor(jid) == "lid":
++                lid = parte_de_usuario(jid)
++                if lid and lid != identificador:
++                    aliases.append({"lid": lid, "phone": identificador})
+             previa = str(linha["previa"] or "").strip()
+             if not previa and linha["previa_midia"]:
+                 previa = f"📎 {linha['previa_midia']}"
+@@ -379,11 +406,13 @@ class ConversationSync:
+                     "attendantName": (atendimento or {}).get("attendantName", ""),
+                 }
+             )
+-        return saida
++        return saida, aliases
+ 
+     def _mensagens(self, conexao: sqlite3.Connection, desde: str) -> tuple[list[dict], str]:
+         """As mensagens novas desde a marca, e a marca nova."""
+         linhas = conexao.execute(SQL_MENSAGENS, (desde, LOTE_MENSAGENS * 10)).fetchall()
++        if self.media is not None:
++            self.media.anotar(linhas)
+ 
+         saida = []
+         marca = desde
+@@ -466,12 +495,18 @@ class ConversationSync:
+             achado = autores.get(item["id"])
+             if achado is None:
+                 continue
+-            tipo, nome, autor_id = achado
++            tipo, nome, autor_id, anexo_caminho, anexo_mime = achado
+             item["authorKind"] = tipo
+             if nome:
+                 item["authorName"] = nome[:120]
+             if autor_id:
+                 item["authorId"] = autor_id
++            # O arquivo que saiu pelo portal. O Bridge não tem como baixá-lo
++            # de novo (não guarda a chave do que ele mesmo mandou), mas ele já
++            # está no bucket desde antes de o comando ser enfileirado.
++            if anexo_caminho and not item.get("mediaPath"):
++                item["mediaPath"] = anexo_caminho[:300]
++                item["mediaMime"] = (anexo_mime or "")[:80]
+         return itens
+ 
+     def _reparo_de_autoria(self, conexao: sqlite3.Connection, desde: str) -> list[dict]:
+@@ -562,11 +597,12 @@ class ConversationSync:
+         banco = _somente_leitura(self.messages_db)
+         try:
+             donos, padrao = self._donos(conexao_registrada.connection_id)
+-            conversas = self._conversas(banco, donos, padrao)
++            conversas, aliases = self._conversas(banco, donos, padrao)
+             mensagens, marca = self._mensagens(banco, desde)
+             # As reparadas vão na frente, e de propósito: são mais velhas que
+             # as novas, e o lote sai em ordem de conversa na tela.
+             mensagens = self._reparo_de_autoria(banco, desde) + mensagens
++            mensagens = self._com_arquivo(banco, mensagens, conexao_registrada)
+         finally:
+             banco.close()
+ 
+@@ -582,15 +618,65 @@ class ConversationSync:
+             self.verifier.conversation_sync({"conversations": [], "messages": fatia})
+             enviadas += len(fatia)
+ 
++        # Os pares LID→telefone vão junto da PRIMEIRA fatia da lista, e antes
++        # dela dentro da RPC: a linha do LID é dobrada na do telefone e só então
++        # a lista fresca é gravada, para a prévia não vir da linha que acabou de
++        # sumir. Reenviar o mesmo par a cada ciclo é inócuo — sem linha sob o
++        # LID a RPC não faz nada.
+         for fatia in self._fatias(conversas, LOTE_CONVERSAS):
+             if self.photos is not None:
+                 self.photos.enrich(fatia)
+-            self.verifier.conversation_sync({"conversations": fatia, "messages": []})
++            lote = {"conversations": fatia, "messages": []}
++            if aliases:
++                lote["aliases"] = aliases[:LOTE_CONVERSAS]
++                aliases = []
++            self.verifier.conversation_sync(lote)
+ 
+         if marca != desde:
+             self._gravar_marca(marca)
++
++        # Depois de tudo, e fora do banco do Bridge: a poda fala só com o
++        # Storage, e uma vez por dia. Falha dela é dela.
++        if self.media is not None:
++            try:
++                self.media.podar(conexao_registrada)
++            except Exception as exc:  # noqa: BLE001 - poda é acessória, espelho não é
++                audit.log("media.prune_failed", error_code="unexpected", error=type(exc).__name__)
+         return {"conversations": len(conversas), "messages": enviadas}
+ 
++    def _com_arquivo(self, banco: sqlite3.Connection, itens: list[dict], conexao) -> list[dict]:
++        """Junta ao lote as mensagens cuja mídia acabou de ganhar arquivo.
++
++        Uma mensagem pode estar nas duas listas — chegou neste ciclo E teve o
++        arquivo publicado neste ciclo. Ela vai UMA vez, com o caminho: o mesmo
++        id duas vezes no mesmo lote é o `ON CONFLICT ... cannot affect row a
++        second time` do Postgres, que derrubaria o lote inteiro e travaria a
++        marca d'água.
++        """
++        if self.media is None:
++            return itens
++        try:
++            com_arquivo = self.media.espelhar(banco, self._item, conexao)
++        except Exception as exc:  # noqa: BLE001 - arquivo é acessório, espelho não é
++            audit.log("media.mirror_failed", error_code="unexpected", error=type(exc).__name__)
++            return itens
++        if not com_arquivo:
++            return itens
++        por_id = {item["id"]: item for item in itens}
++        for novo in com_arquivo:
++            existente = por_id.get(novo["id"])
++            if existente is not None:
++                existente["mediaPath"] = novo["mediaPath"]
++                existente["mediaMime"] = novo["mediaMime"]
++            else:
++                # Reoferecida sozinha: a mesma regra de autoria do lote normal,
++                # para uma mensagem que por acaso nunca subiu não entrar sem
++                # dizer que foi do contato.
++                if not novo["fromMe"]:
++                    novo.setdefault("authorKind", "contato")
++                itens.append(novo)
++        return itens
++
+     def start(self) -> None:
+         if self._thread and self._thread.is_alive():
+             return
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index 62e2bd8..bb2cceb 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -150,11 +150,26 @@ def main() -> int:
+             interval=cfg.runtime_commands_poll_seconds,
+             instance_id=heartbeat.instance_id if heartbeat is not None else "",
+             equipe_assume=cfg.human_takeover_lookback_hours > 0,
++            # O anexo do portal passa pelo outbox do Bridge; ver Config.outbox_dir.
++            outbox_dir=cfg.outbox_dir,
++            ffmpeg_bin=cfg.ffmpeg_bin,
+         )
+         command_poller.start()
+     conversation_syncer = None
+     if cfg.conversation_sync_enabled and verifier is not None:
+         from conversation_photos import ConversationPhotos
++        media_mirror = None
++        if cfg.media_mirror_enabled:
++            from media_mirror import MediaMirror
++            # O espelho de arquivos guarda o próprio estado ao lado do da
++            # sincronia, na pasta da conexão — a mesma que já é só desta
++            # instância.
++            media_mirror = MediaMirror(
++                verifier=verifier,
++                api_base_url=cfg.api_base_url,
++                token_loader=load_api_token,
++                state_path=messages.configured_messages_db().with_name("media_mirror_state.json"),
++            )
+         conversation_syncer = conversation_sync.ConversationSync(
+             verifier=verifier,
+             registry=registry,
+@@ -169,6 +184,7 @@ def main() -> int:
+             # presença humana desligada não há livro, e o espelho sobe sem
+             # autor: a bolha fica sem nome, como antes desta versão.
+             presenca=presenca,
++            media=media_mirror,
+         )
+         conversation_syncer.start()
+     # Um código por conexão registrada, gerado a cada boot com
+@@ -235,6 +251,10 @@ def main() -> int:
+         # E qual regra está no ar para o cliente. Mesma razão: "a IA respondeu
+         # por cima de mim" precisa poder ser conferido sem adivinhação.
+         human_takeover_lookback_hours=cfg.human_takeover_lookback_hours or None,
++        # E se a mídia das conversas está subindo. "A bolha continua só com
++        # rótulo" se confere aqui antes de se procurar defeito.
++        media_mirror=cfg.media_mirror_enabled and cfg.conversation_sync_enabled,
++        outbox_dir=str(cfg.outbox_dir),
+     )
+ 
+     return _wait_forever(
+diff --git a/whatsapp-assistant/media_mirror.py b/whatsapp-assistant/media_mirror.py
+new file mode 100644
+index 0000000..fc095f2
+--- /dev/null
++++ b/whatsapp-assistant/media_mirror.py
+@@ -0,0 +1,363 @@
++"""O arquivo da mídia recebida, do Bridge para o Storage do plano de controle.
++
++Até 16/09/2026 o espelho subia de uma mídia só o rótulo — "sem bytes, sem
++chave, sem URL" —, e a tela dizia "🎤 Áudio" sem ninguém conseguir ouvir. A
++decisão do dono, em 15/09/2026, foi guardar o arquivo com prazo: bucket
++PRIVADO, lido só por membro da organização com URL assinada, apagado com a
++mesma janela de 90 dias das mensagens.
++
++O caminho continua o mesmo de sempre: o Bridge é quem fala com o WhatsApp
++(`/api/download` baixa e decripta para o disco da VPS), e este módulo só leva
++o arquivo dali para `<org>/<conexão>/<chat>/<id>.<ext>` no bucket, com a
++credencial do robô. A chave da mídia e a URL do CDN nunca saem do Bridge.
++
++Três limites, e por quê:
++
++  * ORÇAMENTO POR CICLO. Baixar e subir um arquivo custa segundos, e a
++    sincronia roda a cada quinze. Um lote antigo de cem fotos não pode segurar
++    a lista de conversas por minutos; sobe aos poucos, e o texto da mensagem já
++    está no espelho desde o primeiro ciclo — o arquivo chega uma sincronia
++    depois, e a RPC preenche `media_path` sobre valor vazio.
++  * TENTATIVAS. Uma mídia que o WhatsApp já expirou (o CDN some depois de um
++    tempo) falha sempre; insistir para sempre seria trabalho perpétuo. Três
++    tentativas espaçadas e a mensagem fica só com o rótulo, como antes.
++  * TETO DE TAMANHO. O bucket recusa acima de 16 MB, e conferir o tamanho que
++    o Bridge já conhece (`file_length`) evita baixar o que não vai subir.
++
++Falhar aqui nunca derruba a sincronia. O pior desfecho é o de ontem: a bolha
++com rótulo e sem arquivo.
++"""
++
++from __future__ import annotations
++
++import json
++import os
++import re
++import sqlite3
++import time
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++from typing import Any, Callable, Optional
++
++import audit
++import media
++from operator_verification import OperatorVerificationError
++
++BUCKET = "whatsapp-media"
++
++# O que ganha arquivo. Documento, vídeo e figurinha continuam como rótulo —
++# decisão de escopo de 15/09/2026, não limitação técnica.
++TIPOS_COM_ARQUIVO = frozenset({"audio", "ptt", "image"})
++
++ORCAMENTO_POR_CICLO = 4
++TETO_BYTES = 16 * 1024 * 1024
++TENTATIVAS = 3
++ESPERA_ENTRE_TENTATIVAS = 300.0
++
++# Quantas mensagens já publicadas o estado lembra. Serve só para não subir a
++# mesma mídia duas vezes quando a marca d'água recua; acima disto, o pior caso
++# é um upload repetido, que o `x-upsert` engole.
++LIMITE_DE_PUBLICADAS = 3000
++
++# O que o bucket aceita, pela extensão que o Bridge dá ao arquivo.
++MIME_POR_EXTENSAO = {
++    "ogg": "audio/ogg",
++    "opus": "audio/ogg",
++    "mp3": "audio/mpeg",
++    "m4a": "audio/mp4",
++    "mp4": "audio/mp4",
++    "aac": "audio/aac",
++    "wav": "audio/wav",
++    "jpg": "image/jpeg",
++    "jpeg": "image/jpeg",
++    "png": "image/png",
++    "webp": "image/webp",
++}
++
++# A janela do espelho, e portanto a do bucket.
++RETENCAO_DIAS = 90
++INTERVALO_DA_PODA = 24 * 3600.0
++# Tetos de uma passada de poda. O resto fica para amanhã.
++PODA_MAX_PASTAS = 300
++PODA_MAX_OBJETOS = 2000
++
++SQL_LINHA = """
++SELECT id, chat_jid, content, timestamp, is_from_me, media_type, filename, file_length,
++       (COALESCE(url, '') <> '' AND COALESCE(LENGTH(media_key), 0) > 0) AS tem_arquivo
++FROM messages
++WHERE id = ? AND chat_jid = ?
++"""
++
++
++def _extensao(nome: str) -> str:
++    return str(nome or "").rsplit(".", 1)[-1].lower() if "." in str(nome or "") else ""
++
++
++def _seguro(texto: str, limite: int) -> str:
++    return re.sub(r"[^A-Za-z0-9_-]", "", str(texto or ""))[:limite]
++
++
++class MediaMirror:
++    def __init__(
++        self,
++        *,
++        verifier,
++        api_base_url: str,
++        token_loader: Callable[[], Optional[str]],
++        state_path: Path,
++        orcamento: int = ORCAMENTO_POR_CICLO,
++        relogio: Callable[[], float] = time.time,
++    ) -> None:
++        self.verifier = verifier
++        self.api_base_url = str(api_base_url or "").rstrip("/")
++        self.token_loader = token_loader
++        self.state_path = Path(state_path)
++        self.orcamento = max(1, int(orcamento))
++        self._relogio = relogio
++        # id da mensagem → o que falta para publicá-la.
++        self._pendentes: dict[str, dict[str, Any]] = {}
++        # id da mensagem → caminho no bucket.
++        self._publicadas: dict[str, str] = {}
++        self._podado_em = 0.0
++        self._carregar()
++
++    # ------------------------------------------------------------- estado
++
++    def _carregar(self) -> None:
++        try:
++            dados = json.loads(self.state_path.read_text(encoding="utf-8"))
++        except (OSError, ValueError):
++            return
++        if not isinstance(dados, dict):
++            return
++        pendentes = dados.get("pendentes")
++        if isinstance(pendentes, dict):
++            self._pendentes = {
++                str(chave): dict(valor) for chave, valor in pendentes.items() if isinstance(valor, dict)
++            }
++        publicadas = dados.get("publicadas")
++        if isinstance(publicadas, dict):
++            self._publicadas = {str(chave): str(valor) for chave, valor in publicadas.items()}
++        try:
++            self._podado_em = float(dados.get("podadoEm") or 0.0)
++        except (TypeError, ValueError):
++            self._podado_em = 0.0
++
++    def _salvar(self) -> None:
++        if len(self._publicadas) > LIMITE_DE_PUBLICADAS:
++            excedente = len(self._publicadas) - LIMITE_DE_PUBLICADAS
++            for chave in list(self._publicadas)[:excedente]:
++                del self._publicadas[chave]
++        temporario = self.state_path.with_suffix(".tmp")
++        try:
++            temporario.write_text(
++                json.dumps(
++                    {
++                        "pendentes": self._pendentes,
++                        "publicadas": self._publicadas,
++                        "podadoEm": self._podado_em,
++                    },
++                    ensure_ascii=False,
++                ),
++                encoding="utf-8",
++            )
++            os.replace(temporario, self.state_path)
++        except OSError as exc:  # pragma: no cover - disco cheio ou permissão
++            audit.log("media.mirror_state_failed", error_code="state_write", error=str(exc))
++
++    # ------------------------------------------------------------ entrada
++
++    @staticmethod
++    def _candidata(linha) -> bool:
++        """Só o que tem arquivo para baixar. Saída digitada no celular chega
++        sem `url`/`media_key` (o Bridge não guarda o que ele mesmo mandou), e
++        fica como rótulo — como antes."""
++        tipo = str(linha["media_type"] or "").strip().lower()
++        if tipo not in TIPOS_COM_ARQUIVO:
++            return False
++        return "tem_arquivo" not in linha.keys() or bool(linha["tem_arquivo"])
++
++    def anotar(self, linhas) -> None:
++        """As linhas do Bridge deste ciclo que ainda precisam de arquivo."""
++        for linha in linhas:
++            if not self._candidata(linha):
++                continue
++            identificador = str(linha["id"] or "").strip()
++            if not identificador or identificador in self._publicadas or identificador in self._pendentes:
++                continue
++            self._pendentes[identificador] = {
++                "chat": str(linha["chat_jid"] or ""),
++                "tentativas": 0,
++                "proxima": 0.0,
++            }
++
++    # ----------------------------------------------------------- espelho
++
++    def espelhar(
++        self,
++        banco: sqlite3.Connection,
++        construir_item: Callable[[Any], Optional[dict]],
++        connection,
++    ) -> list[dict]:
++        """Publica até `orcamento` pendentes e devolve os itens para reoferecer
++        à RPC, já com `mediaPath` e `mediaMime`.
++
++        `construir_item` é o mesmo tradutor de linha da sincronia, para o item
++        reoferecido ser idêntico ao que subiu antes — a RPC só preenche o que
++        estava vazio, e um item diferente não mudaria nada mesmo. `connection`
++        é a conexão registrada que a sincronia resolveu: organização e conexão
++        do caminho saem dela, nunca de um campo do payload.
++        """
++        prefixo = _prefixo(connection)
++        if not prefixo:
++            return []
++        agora = self._relogio()
++        prontos = sorted(
++            (float(valor.get("proxima") or 0.0), chave)
++            for chave, valor in self._pendentes.items()
++            if float(valor.get("proxima") or 0.0) <= agora
++        )[: self.orcamento]
++        if not prontos:
++            return []
++
++        saida = []
++        for _, identificador in prontos:
++            pendente = self._pendentes[identificador]
++            linha = banco.execute(SQL_LINHA, (identificador, pendente.get("chat", ""))).fetchone()
++            item = construir_item(linha) if linha is not None else None
++            if item is None:
++                # A linha sumiu do Bridge ou a conversa não sobe: nada a fazer.
++                del self._pendentes[identificador]
++                continue
++            try:
++                caminho, mime = self._publicar(linha, item["phone"], prefixo)
++            except (media.MediaError, OperatorVerificationError, OSError, ValueError) as exc:
++                self._falhou(identificador, pendente, exc, agora)
++                continue
++            del self._pendentes[identificador]
++            self._publicadas[identificador] = caminho
++            item["mediaPath"] = caminho
++            item["mediaMime"] = mime
++            saida.append(item)
++        self._salvar()
++        return saida
++
++    def _falhou(self, identificador: str, pendente: dict, exc: Exception, agora: float) -> None:
++        tentativas = int(pendente.get("tentativas") or 0) + 1
++        # Só o tipo do erro vai para o log: a mensagem pode carregar o caminho
++        # do arquivo, e o caminho carrega o telefone.
++        if tentativas >= TENTATIVAS or isinstance(exc, ValueError):
++            del self._pendentes[identificador]
++            audit.log("media.mirror_abandoned", error_code=type(exc).__name__, attempts=tentativas)
++            return
++        pendente["tentativas"] = tentativas
++        pendente["proxima"] = agora + ESPERA_ENTRE_TENTATIVAS
++        audit.log("media.mirror_failed", error_code=type(exc).__name__, attempts=tentativas)
++
++    def _publicar(self, linha, chat: str, prefixo: str) -> tuple[str, str]:
++        tamanho = int(linha["file_length"] or 0) if "file_length" in linha.keys() else 0
++        if tamanho > TETO_BYTES:
++            raise ValueError("mídia acima do teto do bucket")
++        extensao = _extensao(linha["filename"])
++        mime = MIME_POR_EXTENSAO.get(extensao)
++        if not mime:
++            raise ValueError("extensão sem tipo conhecido")
++
++        token = self.token_loader() or ""
++        local = media.download_media(
++            self.api_base_url, token, str(linha["id"]), str(linha["chat_jid"])
++        )
++        caminho_local = Path(local)
++        if caminho_local.stat().st_size > TETO_BYTES:
++            raise ValueError("mídia acima do teto do bucket")
++        dados = caminho_local.read_bytes()
++
++        identificador = _seguro(linha["id"], 96)
++        pasta = re.sub(r"[^0-9-]", "", str(chat or ""))[:40]
++        if not identificador or not pasta:
++            raise ValueError("caminho do objeto incompleto")
++        caminho = f"{prefixo}/{pasta}/{identificador}.{extensao}"
++        self.verifier.storage_upload(BUCKET, caminho, dados, mime)
++
++        # O arquivo já vive no bucket; a cópia local só ocuparia disco. Se a
++        # transcrição para a IA precisar dele de novo, o Bridge baixa outra vez.
++        try:
++            caminho_local.unlink()
++        except OSError:
++            pass
++        return caminho, mime
++
++    # --------------------------------------------------------------- poda
++
++    def podar(self, connection) -> int:
++        """Apaga do bucket o que passou da janela. Uma vez por dia, por pastas.
++
++        A listagem do Storage é por nível: primeiro as pastas de chat desta
++        conexão, depois os arquivos de cada uma, com `created_at`. Nada aqui
++        depende do espelho de mensagens — um arquivo cuja mensagem já foi
++        podada também some, e um órfão de upload interrompido também.
++        """
++        agora = self._relogio()
++        if agora - self._podado_em < INTERVALO_DA_PODA:
++            return 0
++        prefixo = _prefixo(connection)
++        if not prefixo:
++            return 0
++        self._podado_em = agora
++        self._salvar()
++
++        corte = datetime.now(timezone.utc) - timedelta(days=RETENCAO_DIAS)
++        apagados = 0
++        try:
++            pastas = self.verifier.storage_list(BUCKET, prefixo, limit=PODA_MAX_PASTAS)
++            for pasta in pastas:
++                nome = str(pasta.get("name") or "").strip("/")
++                if not nome or pasta.get("id"):
++                    continue
++                vencidos = []
++                deslocamento = 0
++                while len(vencidos) < PODA_MAX_OBJETOS:
++                    pagina = self.verifier.storage_list(
++                        BUCKET, f"{prefixo}/{nome}", limit=1000, offset=deslocamento
++                    )
++                    for objeto in pagina:
++                        if not objeto.get("id"):
++                            continue
++                        quando = _instante(objeto.get("created_at"))
++                        if quando is not None and quando < corte:
++                            vencidos.append(f"{prefixo}/{nome}/{objeto.get('name')}")
++                    if len(pagina) < 1000:
++                        break
++                    deslocamento += 1000
++                for inicio in range(0, len(vencidos), 100):
++                    self.verifier.storage_delete(BUCKET, vencidos[inicio : inicio + 100])
++                apagados += len(vencidos)
++                if apagados >= PODA_MAX_OBJETOS:
++                    break
++        except OperatorVerificationError as exc:
++            audit.log("media.prune_failed", error_code="storage", error=str(exc)[:120])
++        if apagados:
++            audit.log("media.pruned", count=apagados)
++        return apagados
++
++
++def _prefixo(connection) -> str:
++    """`<org>/<conexão>`, ou vazio quando a conexão não tem os dois ids."""
++    organizacao = str(getattr(connection, "organization_id", "") or "").strip()
++    conexao = str(getattr(connection, "connection_id", "") or "").strip()
++    if not re.fullmatch(r"[0-9a-fA-F-]{36}", organizacao) or not re.fullmatch(r"[0-9a-fA-F-]{36}", conexao):
++        return ""
++    return f"{organizacao}/{conexao}"
++
++
++def _instante(valor: Any) -> Optional[datetime]:
++    texto = str(valor or "").strip()
++    if not texto:
++        return None
++    try:
++        quando = datetime.fromisoformat(texto.replace("Z", "+00:00"))
++    except ValueError:
++        return None
++    if quando.tzinfo is None:
++        quando = quando.replace(tzinfo=timezone.utc)
++    return quando
+diff --git a/whatsapp-assistant/operator_verification.py b/whatsapp-assistant/operator_verification.py
+index 3117b8a..16ef312 100644
+--- a/whatsapp-assistant/operator_verification.py
++++ b/whatsapp-assistant/operator_verification.py
+@@ -23,6 +23,9 @@ from credential_lock import CredentialLockTimeout, CredentialRefreshLock
+ 
+ 
+ REQUEST_TIMEOUT = 10
++# Mídia é maior que uma RPC: um áudio de um minuto passa de 500 KB, e a VPS
++# sobe para o Storage por uma ligação que não é a mesma do loopback.
++STORAGE_TIMEOUT = 60
+ CODE_RE = re.compile(r"^[0-9a-fA-F]{8}$")
+ # O código de erro do PostgREST/Postgres: curto, sem espaço, sem acento.
+ # Serve de peneira — o que não tem esta cara não vai para o log.
+@@ -466,22 +469,59 @@ class OperatorVerifier:
+         )
+ 
+     def _rpc(self, name: str, body: dict[str, Any], label: str) -> dict[str, Any]:
++        response = self._chamar(
++            "POST", f"/rest/v1/rpc/{name}", label, json=body,
++            headers={"Content-Type": "application/json"},
++        )
++        try:
++            payload = response.json()
++        except ValueError as exc:
++            raise OperatorVerificationError(f"{label} devolveu uma resposta inválida") from exc
++        if not isinstance(payload, dict):
++            raise OperatorVerificationError(f"{label} devolveu um formato inválido")
++        return payload
++
++    def _chamar(
++        self,
++        method: str,
++        path: str,
++        label: str,
++        *,
++        json: Any = None,
++        data: Optional[bytes] = None,
++        headers: Optional[dict[str, str]] = None,
++        timeout: float = REQUEST_TIMEOUT,
++    ) -> requests.Response:
++        """Uma chamada autenticada ao Supabase, com a credencial do robô.
++
++        A mesma sessão serve a REST e o Storage: organização e conexão saem do
++        JWT, e é o banco (RPC ou policy do bucket) que decide o que este robô
++        pode tocar. Um 401 renova a sessão uma vez; qualquer outro 4xx/5xx vira
++        `OperatorVerificationError` sem o corpo, pelo motivo de
++        `_detalhe_da_recusa`.
++        """
+         credential = self._load()
+         if credential.expires_at <= int(time.time()) + 60:
+             credential = self._refresh(credential)
+ 
+         for attempt in range(2):
++            cabecalhos = {
++                "apikey": credential.publishable_key,
++                "Authorization": f"Bearer {credential.access_token}",
++            }
++            cabecalhos.update(headers or {})
++            url = f"{credential.supabase_url}{path}"
+             try:
+-                response = self.session.post(
+-                    f"{credential.supabase_url}/rest/v1/rpc/{name}",
+-                    json=body,
+-                    headers={
+-                        "apikey": credential.publishable_key,
+-                        "Authorization": f"Bearer {credential.access_token}",
+-                        "Content-Type": "application/json",
+-                    },
+-                    timeout=REQUEST_TIMEOUT,
+-                )
++                # `post` continua sendo a porta das RPCs, com a mesma forma de
++                # sempre; `request` só entra para os verbos do Storage.
++                if method == "POST" and data is None:
++                    response = self.session.post(
++                        url, json=json, headers=cabecalhos, timeout=timeout
++                    )
++                else:
++                    response = self.session.request(
++                        method, url, json=json, data=data, headers=cabecalhos, timeout=timeout
++                    )
+             except requests.RequestException as exc:
+                 raise OperatorVerificationError(f"Supabase indisponível durante {label}") from exc
+             if response.status_code == 401 and attempt == 0:
+@@ -491,11 +531,77 @@ class OperatorVerifier:
+                 raise OperatorVerificationError(
+                     f"Supabase recusou {label} ({_detalhe_da_recusa(response)})"
+                 )
+-            try:
+-                payload = response.json()
+-            except ValueError as exc:
+-                raise OperatorVerificationError(f"{label} devolveu uma resposta inválida") from exc
+-            if not isinstance(payload, dict):
+-                raise OperatorVerificationError(f"{label} devolveu um formato inválido")
+-            return payload
++            return response
+         raise OperatorVerificationError(f"{label} não foi autorizado")
++
++    # ------------------------------------------------------------ storage
++    #
++    # O bucket de mídia das conversas. O caminho já carrega organização e
++    # conexão (`<org>/<conexão>/...`), e é a policy do bucket — não este código
++    # — que recusa o robô fora do seu prefixo. Aqui só se cuida do formato do
++    # caminho, para um nome estranho não virar uma URL estranha.
++
++    @staticmethod
++    def _caminho_de_objeto(path: str) -> str:
++        limpo = str(path or "").strip().strip("/")
++        if not limpo or ".." in limpo.split("/") or not re.fullmatch(r"[A-Za-z0-9._/-]{1,300}", limpo):
++            raise OperatorVerificationError("caminho de objeto do Storage é inválido")
++        return limpo
++
++    def storage_upload(self, bucket: str, path: str, data: bytes, content_type: str) -> None:
++        objeto = self._caminho_de_objeto(path)
++        self._chamar(
++            "POST",
++            f"/storage/v1/object/{bucket}/{objeto}",
++            "envio de mídia ao Storage",
++            data=data,
++            headers={
++                "Content-Type": str(content_type or "application/octet-stream"),
++                "x-upsert": "true",
++            },
++            timeout=STORAGE_TIMEOUT,
++        )
++
++    def storage_download(self, bucket: str, path: str) -> bytes:
++        objeto = self._caminho_de_objeto(path)
++        response = self._chamar(
++            "GET",
++            f"/storage/v1/object/authenticated/{bucket}/{objeto}",
++            "leitura de mídia do Storage",
++            timeout=STORAGE_TIMEOUT,
++        )
++        return response.content
++
++    def storage_list(self, bucket: str, prefix: str, limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
++        """Uma página de um nível do bucket: pastas vêm sem `id`, arquivos com."""
++        response = self._chamar(
++            "POST",
++            f"/storage/v1/object/list/{bucket}",
++            "listagem de mídia do Storage",
++            json={
++                "prefix": str(prefix or "").strip("/"),
++                "limit": max(1, min(int(limit), 1000)),
++                "offset": max(0, int(offset)),
++                "sortBy": {"column": "name", "order": "asc"},
++            },
++            headers={"Content-Type": "application/json"},
++            timeout=STORAGE_TIMEOUT,
++        )
++        try:
++            itens = response.json()
++        except ValueError as exc:
++            raise OperatorVerificationError("listagem do Storage devolveu uma resposta inválida") from exc
++        return [item for item in itens if isinstance(item, dict)] if isinstance(itens, list) else []
++
++    def storage_delete(self, bucket: str, paths: list[str]) -> None:
++        objetos = [self._caminho_de_objeto(path) for path in paths]
++        if not objetos:
++            return
++        self._chamar(
++            "DELETE",
++            f"/storage/v1/object/{bucket}",
++            "remoção de mídia do Storage",
++            json={"prefixes": objetos},
++            headers={"Content-Type": "application/json"},
++            timeout=STORAGE_TIMEOUT,
++        )
+diff --git a/whatsapp-assistant/presenca_humana.py b/whatsapp-assistant/presenca_humana.py
+index 4f0de6b..86f885d 100644
+--- a/whatsapp-assistant/presenca_humana.py
++++ b/whatsapp-assistant/presenca_humana.py
+@@ -112,6 +112,12 @@ COLUNAS_DE_AUTORIA = (
+     ("tipo", "TEXT NOT NULL DEFAULT 'ia'"),
+     ("autor_nome", "TEXT NOT NULL DEFAULT ''"),
+     ("autor_id", "TEXT NOT NULL DEFAULT ''"),
++    # O anexo que saiu pelo portal (16/09/2026): caminho no bucket e tipo. O
++    # Bridge não guarda chave nem URL do que ele mesmo manda, então o arquivo
++    # de uma saída só chega ao espelho por aqui — o portal já o subiu antes de
++    # enfileirar, e a sincronia só precisa saber onde está.
++    ("anexo_caminho", "TEXT NOT NULL DEFAULT ''"),
++    ("anexo_mime", "TEXT NOT NULL DEFAULT ''"),
+ )
+ 
+ 
+@@ -213,6 +219,8 @@ class PresencaHumana:
+         tipo: str = "ia",
+         autor_nome: str = "",
+         autor_id: str = "",
++        anexo_caminho: str = "",
++        anexo_mime: str = "",
+     ) -> None:
+         """Isto aqui saiu por aqui — e foi fulano quem escreveu.
+ 
+@@ -240,7 +248,7 @@ class PresencaHumana:
+         with self._lock, self._db as db:
+             db.execute(
+                 "INSERT INTO saida_do_agente (chat, quando, texto, tipo, autor_nome,"
+-                " autor_id) VALUES (?, ?, ?, ?, ?, ?)",
++                " autor_id, anexo_caminho, anexo_mime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                 (
+                     chat,
+                     agora.isoformat(timespec="milliseconds"),
+@@ -248,6 +256,8 @@ class PresencaHumana:
+                     limpo,
+                     str(autor_nome or "")[:120],
+                     str(autor_id or "")[:64],
++                    str(anexo_caminho or "")[:300],
++                    str(anexo_mime or "")[:80],
+                 ),
+             )
+             db.execute("DELETE FROM saida_do_agente WHERE quando < ?", (corte,))
+@@ -272,7 +282,8 @@ class PresencaHumana:
+         seguiria falando por cima de uma pessoa que acabou de responder. A
+         sincronia, que quer o nome de todo mundo, passa a lista inteira.
+ 
+-        Cada item é `(quando, texto, tipo, autor_nome, autor_id, chat)`. O
++        Cada item é `(quando, texto, tipo, autor_nome, autor_id, chat,
++        anexo_caminho, anexo_mime)`. O
+         `chat` vai junto para quem lê VÁRIAS conversas de uma vez poder separar
+         as anotações por conversa: "ok" às 14h em dois atendimentos diferentes
+         são duas anotações que casam pelo mesmo par (texto, hora), e sem o chat
+@@ -285,7 +296,8 @@ class PresencaHumana:
+         vagas_tipo = ",".join("?" for _ in tipos)
+         with self._lock:
+             linhas = self._db.execute(
+-                "SELECT quando, texto, tipo, autor_nome, autor_id, chat FROM"
++                "SELECT quando, texto, tipo, autor_nome, autor_id, chat,"
++                " anexo_caminho, anexo_mime FROM"
+                 f" saida_do_agente WHERE chat IN ({vagas}) AND quando >= ?"
+                 f" AND tipo IN ({vagas_tipo})",
+                 (*chaves, inicio, *tipos),
+@@ -302,6 +314,8 @@ class PresencaHumana:
+                         str(linha["autor_nome"] or ""),
+                         str(linha["autor_id"] or ""),
+                         str(linha["chat"] or ""),
++                        str(linha["anexo_caminho"] or ""),
++                        str(linha["anexo_mime"] or ""),
+                     )
+                 )
+         return saida
+@@ -439,7 +453,9 @@ class PresencaHumana:
+         """Para cada saída da conta, quem a escreveu — ou nada, que é o celular.
+ 
+         Recebe uma lista de `(chave_de_busca, chaves, quando, texto)` e devolve
+-        `{chave_de_busca: (tipo, nome, id)}`, só para as que o livro reconhece.
++        `{chave_de_busca: (tipo, nome, id, anexo_caminho, anexo_mime)}`, só para
++        as que o livro reconhece. Os dois últimos são vazios para tudo que não
++        saiu do portal com arquivo.
+         A ausência é resposta, e é a do dono (13/09/2026): mensagem sem registro
+         de autor foi digitada no aparelho, e a bolha sai sem nome.
+ 
+@@ -487,7 +503,7 @@ class PresencaHumana:
+             candidatas = [item for chave in chaves for item in por_chat.get(chave, ())]
+             achada = self._casa(candidatas, quando, texto)
+             if achada is not None:
+-                saida[referencia] = (achada[2], achada[3], achada[4])
++                saida[referencia] = (achada[2], achada[3], achada[4], achada[6], achada[7])
+         return saida
+ 
+     def instante_da_mensagem(self, message_id: str, chat_jid: str) -> Optional[datetime]:
+diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
+index 27369f0..ca5cfe7 100644
+--- a/whatsapp-assistant/runtime_commands.py
++++ b/whatsapp-assistant/runtime_commands.py
+@@ -7,10 +7,13 @@ em loopback. Telefones e códigos nunca entram nos logs.
+ 
+ from __future__ import annotations
+ 
++import os
+ import re
++import subprocess
+ import threading
+ import time
+ import uuid
++from pathlib import Path
+ from typing import Optional
+ 
+ import assinatura
+@@ -40,6 +43,34 @@ CHAT_RE = re.compile(r"^[0-9][0-9-]{5,39}$")
+ # própria RPC a montá-lo.
+ LIMITE_DO_TEXTO = 4000
+ 
++# O anexo que o portal manda (desde 16/09/2026). O caminho é o objeto no bucket
++# `whatsapp-media`, e só o `outbox` DESTA organização e conexão serve — a RPC
++# já garante, e este lado confere de novo pela mesma razão do texto. O mime
++# vem da mesma lista do bucket, e diz a extensão com que o Bridge lê o arquivo.
++BUCKET_DE_MIDIA = "whatsapp-media"
++ANEXO_RE = re.compile(r"^[0-9a-fA-F-]{36}/[0-9a-fA-F-]{36}/outbox/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")
++EXTENSAO_POR_MIME = {
++    "audio/ogg": "ogg",
++    "audio/webm": "webm",
++    "audio/mpeg": "mp3",
++    "audio/mp4": "m4a",
++    "audio/aac": "aac",
++    "audio/wav": "wav",
++    "image/jpeg": "jpg",
++    "image/png": "png",
++    "image/webp": "webp",
++}
++# Quanto o ffmpeg pode levar para virar um áudio do navegador em Ogg/Opus.
++CONVERSAO_TIMEOUT = 60
++
++
++class AnexoIndisponivel(RuntimeError):
++    """O anexo não chegou ao outbox. `motivo` é o slug que a tela traduz."""
++
++    def __init__(self, motivo: str):
++        super().__init__(motivo)
++        self.motivo = motivo
++
+ COMANDOS = frozenset(
+     {
+         "operator_verification_send",
+@@ -138,11 +169,19 @@ class RuntimeCommandPoller:
+         interval: float = 2.0,
+         instance_id: str = "",
+         equipe_assume: bool = False,
++        outbox_dir: Optional[Path] = None,
++        ffmpeg_bin: str = "ffmpeg",
+     ) -> None:
+         self.verifier = verifier
+         self.registry = registry
+         self.manager = manager
+         self.arbitro = arbitro
++        # Onde o anexo do portal é deixado para o Bridge ler. Tem que ser o
++        # `outbox/` que o Bridge resolve a partir do diretório DELE; ver
++        # `Config.outbox_dir`. Vazio significa que esta instância não manda
++        # anexo: o comando falha com motivo próprio, e o texto continua saindo.
++        self.outbox_dir = Path(outbox_dir) if outbox_dir else None
++        self.ffmpeg_bin = str(ffmpeg_bin or "ffmpeg")
+         # A base HTTP do Bridge, que é outra que a do controle interno usado por
+         # `manager.control_for`. Vazia significa que esta instância não envia: o
+         # comando falha com um motivo próprio em vez de montar uma URL pela
+@@ -314,19 +353,47 @@ class RuntimeCommandPoller:
+         chat = str(payload.get("chat") or "").strip()
+         tipo = str(payload.get("kind") or "direto").strip()
+         texto = str(payload.get("text") or "").strip()
++        midia_caminho = str(payload.get("mediaPath") or "").strip()
++        midia_mime = str(payload.get("mediaMime") or "").strip().lower()
+         if (
+             not CHAT_RE.fullmatch(chat)
+             or tipo not in {"direto", "grupo"}
+-            or not texto
++            or (not texto and not midia_caminho)
+             or len(texto) > LIMITE_DO_TEXTO
+         ):
+             self._complete(command_id, "failed", "invalid_payload")
+             return
++        if midia_caminho and (
++            not ANEXO_RE.fullmatch(midia_caminho)
++            or not midia_caminho.startswith(
++                f"{connection.organization_id}/{connection.connection_id}/outbox/"
++            )
++            or midia_mime not in EXTENSAO_POR_MIME
++        ):
++            self._complete(command_id, "failed", "invalid_payload")
++            return
+ 
+         if not self.api_base_url or not self.human_send_token:
+             self._complete(command_id, "failed", "sending_disabled")
+             return
+ 
++        # O anexo desce do bucket para o outbox ANTES de qualquer envio: se
++        # não der, nada sai — mandar só a legenda seria entregar meia mensagem
++        # e marcar o comando como concluído.
++        anexo = ""
++        if midia_caminho:
++            try:
++                anexo = self._preparar_anexo(midia_caminho, midia_mime)
++            except AnexoIndisponivel as exc:
++                self._complete(command_id, "failed", exc.motivo)
++                audit.log(
++                    "runtime.command_failed",
++                    command_id=command_id,
++                    command_type="conversation_send",
++                    error_code=exc.motivo,
++                )
++                return
++
+         # Quem escreveu vem da RPC, nunca do navegador.
+         #
+         # `nucleo_conversation_command_enqueue` resolve o nome curto do
+@@ -339,7 +406,9 @@ class RuntimeCommandPoller:
+         # sem assinatura, como saía ontem, e é registrada sem nome.
+         autor_nome = assinatura.limpar_nome(payload.get("authorName"))
+         autor_id = str(payload.get("authorId") or "").strip()[:64]
+-        texto_assinado = assinatura.aplicar(texto, autor_nome)
++        # Anexo sem legenda sai sem assinatura: `*Nome:*` sozinho embaixo de
++        # um áudio seria uma legenda que ninguém escreveu.
++        texto_assinado = assinatura.aplicar(texto, autor_nome) if texto else ""
+ 
+         destino = f"{chat}@g.us" if tipo == "grupo" else chat
+         try:
+@@ -350,6 +419,10 @@ class RuntimeCommandPoller:
+                 texto_assinado,
+                 author_name=autor_nome,
+                 author_id=autor_id,
++                **(
++                    {"media_path": anexo, "media_ref": midia_caminho, "media_mime": midia_mime}
++                    if anexo else {}
++                ),
+             )
+         except send.SendError as exc:
+             self._complete(command_id, "failed", _motivo_da_recusa(exc))
+@@ -360,6 +433,15 @@ class RuntimeCommandPoller:
+                 error_code=_motivo_da_recusa(exc),
+             )
+             return
++        finally:
++            # O Bridge já leu o arquivo (ou recusou). O outbox não é arquivo
++            # morto: o que fica ali seria uma cópia da mídia do cliente fora
++            # de qualquer janela de retenção.
++            if anexo:
++                try:
++                    os.remove(anexo)
++                except OSError:
++                    pass
+ 
+         # Quem escreveu isto foi gente, e o agente precisa saber.
+         #
+@@ -389,6 +471,77 @@ class RuntimeCommandPoller:
+             command_type="conversation_send",
+         )
+ 
++    def _preparar_anexo(self, caminho_no_bucket: str, mime: str) -> str:
++        """Do bucket para o outbox do Bridge; devolve o caminho absoluto.
++
++        Áudio vira SEMPRE Ogg/Opus, mono, 48 kHz: é o único formato que o
++        WhatsApp toca como mensagem de voz, e o Bridge lê o cabeçalho
++        (`analyzeOggOpus`) para mandar duração e forma de onda. O navegador
++        grava WebM/Opus (Chrome) ou Ogg/Opus (Firefox); reencodar os dois
++        custa um segundo e garante o cabeçalho certo nos dois casos.
++
++        Os slugs de falha são os que a tela traduz: `media_unavailable`
++        (bucket, disco), `media_conversion_failed` (ffmpeg) e
++        `sending_disabled` quando esta instância não tem outbox.
++        """
++        if self.outbox_dir is None:
++            raise AnexoIndisponivel("sending_disabled")
++        extensao = EXTENSAO_POR_MIME[mime]
++        nome = caminho_no_bucket.rsplit("/", 1)[-1]
++        raiz = nome.rsplit(".", 1)[0] if "." in nome else nome
++        try:
++            dados = self.verifier.storage_download(BUCKET_DE_MIDIA, caminho_no_bucket)
++        except OperatorVerificationError as exc:
++            audit.log("media.outbox_download_failed", error=str(exc)[:120])
++            raise AnexoIndisponivel("media_unavailable") from exc
++        if not dados:
++            raise AnexoIndisponivel("media_unavailable")
++
++        try:
++            self.outbox_dir.mkdir(parents=True, exist_ok=True)
++            bruto = self.outbox_dir / f"{raiz}.{extensao}"
++            bruto.write_bytes(dados)
++        except OSError as exc:
++            audit.log("media.outbox_write_failed", error_code=type(exc).__name__)
++            raise AnexoIndisponivel("media_unavailable") from exc
++
++        if not mime.startswith("audio/"):
++            return os.path.realpath(bruto)
++
++        convertido = self.outbox_dir / f"{raiz}.ogg"
++        if convertido == bruto:
++            # Já é .ogg pelo nome; o reencode precisa de destino diferente.
++            bruto = bruto.with_name(f"{raiz}.entrada.{extensao}")
++            os.replace(convertido, bruto)
++        try:
++            resultado = subprocess.run(
++                [
++                    self.ffmpeg_bin, "-y", "-loglevel", "error", "-i", str(bruto),
++                    "-vn", "-c:a", "libopus", "-b:a", "32k", "-ar", "48000", "-ac", "1",
++                    "-application", "voip", str(convertido),
++                ],
++                capture_output=True,
++                timeout=CONVERSAO_TIMEOUT,
++                check=False,
++            )
++        except (OSError, subprocess.SubprocessError) as exc:
++            self._descartar(bruto)
++            audit.log("media.outbox_convert_failed", error_code=type(exc).__name__)
++            raise AnexoIndisponivel("media_conversion_failed") from exc
++        self._descartar(bruto)
++        if resultado.returncode != 0 or not convertido.exists():
++            self._descartar(convertido)
++            audit.log("media.outbox_convert_failed", error_code=f"ffmpeg_{resultado.returncode}")
++            raise AnexoIndisponivel("media_conversion_failed")
++        return os.path.realpath(convertido)
++
++    @staticmethod
++    def _descartar(caminho: Path) -> None:
++        try:
++            caminho.unlink()
++        except OSError:
++            pass
++
+     def _conversa_verificar(self, command_id: str, payload: dict) -> None:
+         """Pergunta ao Bridge se um número existe no WhatsApp.
+ 
+diff --git a/whatsapp-assistant/send.py b/whatsapp-assistant/send.py
+index e5a9aa9..8b4038b 100644
+--- a/whatsapp-assistant/send.py
++++ b/whatsapp-assistant/send.py
+@@ -19,6 +19,8 @@ from typing import Callable, Optional, Tuple
+ import requests
+ 
+ REQUEST_TIMEOUT = 30
++# Com anexo o Bridge sobe o arquivo para o WhatsApp antes de responder.
++MEDIA_TIMEOUT = 90
+ 
+ # Quem quer saber o que saiu por aqui, e de quem.
+ #
+@@ -52,6 +54,8 @@ def _anotar(
+     tipo: str = "ia",
+     autor_nome: str = "",
+     autor_id: str = "",
++    anexo_caminho: str = "",
++    anexo_mime: str = "",
+ ) -> None:
+     """Nunca deixa o registro derrubar um envio que ja aconteceu.
+ 
+@@ -62,8 +66,11 @@ def _anotar(
+     """
+     if _registrador is None:
+         return
++    # O anexo so vai quando existe: um registrador antigo, de cinco argumentos,
++    # continua recebendo o que sempre recebeu.
++    extras = (anexo_caminho, anexo_mime) if anexo_caminho else ()
+     try:
+-        _registrador(recipient, message, tipo, autor_nome, autor_id)
++        _registrador(recipient, message, tipo, autor_nome, autor_id, *extras)
+     except Exception:  # noqa: BLE001 - registro e' acessorio, envio nao e'
+         pass
+ 
+@@ -259,6 +266,9 @@ def send_human_message(
+     message: str,
+     author_name: str = "",
+     author_id: str = "",
++    media_path: str = "",
++    media_ref: str = "",
++    media_mime: str = "",
+ ) -> str:
+     """Entrega uma mensagem que uma PESSOA escreveu no portal.
+ 
+@@ -272,6 +282,14 @@ def send_human_message(
+     ``send_message`` existem para um humano revisar o que a IA escreveu, e aqui
+     o humano é o autor. Pedir que ele aprove o próprio texto é teatro.
+ 
++    ``media_path`` (desde 16/09/2026) é um arquivo que a pessoa escolheu no
++    portal e o runtime pôs no outbox do Bridge; com ele o texto é legenda e pode
++    faltar. O Bridge revalida o caminho contra ``allowed_media_dirs``.
++    ``media_ref``/``media_mime`` são o mesmo arquivo como o portal o conhece —
++    o objeto no bucket —, e vão só para o livro de saídas: é por eles que a
++    sincronia dá à bolha desta mensagem o arquivo, já que o Bridge não guarda
++    chave nem URL do que ele mesmo manda.
++
+     Levanta ``SendError`` em qualquer desfecho que não seja envio confirmado. O
+     chamador nunca deve marcar o comando como concluído sem isto ter retornado.
+     """
+@@ -279,15 +297,18 @@ def send_human_message(
+         raise SendError("token de envio manual ausente; configure WHATSAPP_HUMAN_SEND_TOKEN")
+     if not recipient:
+         raise SendError("destinatario vazio")
+-    if not message.strip():
++    if not message.strip() and not media_path:
+         raise SendError("resposta vazia; nada a enviar")
+ 
++    payload = {"recipient": recipient, "message": message}
++    if media_path:
++        payload["media_path"] = media_path
+     try:
+         response = requests.post(
+             f"{api_base_url}/send/human",
+-            json={"recipient": recipient, "message": message},
++            json=payload,
+             headers={"Authorization": f"Bearer {token}"},
+-            timeout=REQUEST_TIMEOUT,
++            timeout=MEDIA_TIMEOUT if media_path else REQUEST_TIMEOUT,
+         )
+     except requests.RequestException as exc:
+         raise SendError(f"bridge inalcancavel: {exc}") from exc
+@@ -312,7 +333,7 @@ def send_human_message(
+     # que foi gente, e o lado que decide "fui eu?" so olha os tipos
+     # automaticos. Sem esta linha, a mensagem que o atendente digitou chega ao
+     # portal indistinguivel de uma digitada no celular, e sai sem nome.
+-    _anotar(recipient, message, "humano", author_name, author_id)
++    _anotar(recipient, message, "humano", author_name, author_id, media_ref, media_mime)
+     return str(body.get("message", "sent"))
+ 
+ 
+diff --git a/whatsapp-assistant/test_conversation_sync.py b/whatsapp-assistant/test_conversation_sync.py
+index ee280ce..7317ac4 100644
+--- a/whatsapp-assistant/test_conversation_sync.py
++++ b/whatsapp-assistant/test_conversation_sync.py
+@@ -548,6 +548,93 @@ class ConversationSyncTests(unittest.TestCase):
+             self.sincronia().poll_once()
+         self.assertIn("não encontrado", str(capturado.exception))
+ 
++    # ------------------------------------------- o LID que chega tarde
++
++    def test_o_par_que_o_store_aprende_depois_do_cache_vale_na_hora(self):
++        """A conversa do Juliano, 15/09/2026: o mapa em cache não tinha o par,
++        a mensagem subiu sob o LID e a linha nunca convergiu. Agora um LID fora
++        do cache é perguntado ao store na hora, sem esperar os cinco minutos."""
++        self.conversa(jid=CLIENTE_LID, nome="Contato novo")
++        self.mensagem("wa-1", jid=CLIENTE_LID, quando=instante(2, "12:00:00"))
++        sincronia = self.sincronia()
++        sincronia.poll_once()
++        self.assertEqual([m["phone"] for m in self.enviadas], ["185474454974600"])
++
++        # O par entra no store DEPOIS de o cache ter sido carregado, e o ciclo
++        # seguinte vem depois da falta negativa vencer — como em produção, onde
++        # o ciclo é de quinze segundos.
++        self.par_de_lid("185474454974600@lid", "5511987654321@s.whatsapp.net")
++        self.mensagem("wa-2", jid=CLIENTE_LID, quando=instante(2, "12:00:30"))
++        relogio = sincronia.identidade._relogio
++        sincronia.identidade._relogio = lambda: relogio() + 15.0
++        self.verifier.lotes.clear()
++        sincronia.poll_once()
++
++        self.assertEqual([m["phone"] for m in self.enviadas], ["5511987654321"])
++        (conversa,) = self.listadas
++        self.assertEqual(conversa["phone"], "5511987654321")
++
++    def test_o_par_traduzido_sobe_como_alias_para_o_banco_dobrar_a_linha(self):
++        self.conversa(jid=CLIENTE_LID, nome="Contato novo")
++        self.mensagem("wa-1", jid=CLIENTE_LID)
++        self.par_de_lid("185474454974600@lid", "5511987654321@s.whatsapp.net")
++
++        self.sincronia().poll_once()
++
++        lote_da_lista = next(lote for lote in self.verifier.lotes if lote["conversations"])
++        self.assertEqual(
++            lote_da_lista["aliases"], [{"lid": "185474454974600", "phone": "5511987654321"}]
++        )
++        # O lote das mensagens não carrega alias: é a lista que dobra a linha.
++        for lote in self.verifier.lotes:
++            if lote["messages"]:
++                self.assertNotIn("aliases", lote)
++
++    def test_sem_lid_nenhum_o_lote_nao_leva_aliases(self):
++        self.conversa()
++        self.mensagem("wa-1")
++
++        self.sincronia().poll_once()
++
++        for lote in self.verifier.lotes:
++            self.assertNotIn("aliases", lote)
++
++    def test_um_lid_sem_par_e_perguntado_uma_vez_por_ciclo_e_nao_por_mensagem(self):
++        """A resposta negativa é lembrada por menos que um ciclo: a mesma
++        pergunta não se repete para cada mensagem do lote, e o contato que de
++        fato não tem par continua na lista com o LID."""
++        self.conversa(jid=CLIENTE_LID, nome="Contato novo")
++        for numero in range(1, 6):
++            self.mensagem(f"wa-{numero}", jid=CLIENTE_LID, quando=instante(2, f"12:00:0{numero}"))
++        sincronia = self.sincronia()
++        sincronia.poll_once()
++
++        aberturas = []
++        original = sincronia.identidade._abrir
++        sincronia.identidade._abrir = lambda: aberturas.append(1) or original()
++        self.verifier.lotes.clear()
++        self.mensagem("wa-9", jid=CLIENTE_LID, quando=instante(2, "12:00:09"))
++        relogio = sincronia.identidade._relogio
++        sincronia.identidade._relogio = lambda: relogio() + 15.0
++        sincronia.poll_once()
++
++        self.assertEqual(len(aberturas), 1)
++        (conversa,) = self.listadas
++        self.assertEqual(conversa["phone"], "185474454974600")
++
++    def test_o_canal_nao_entra_na_lista(self):
++        """`@newsletter` é canal, e canal não é conversa: passava no check da
++        coluna como um contato de 18 dígitos sem nome."""
++        self.conversa(jid="120363404701403742@newsletter", nome="Canal")
++        self.mensagem("wa-1", jid="120363404701403742@newsletter")
++        self.conversa()
++        self.mensagem("wa-2")
++
++        self.sincronia().poll_once()
++
++        self.assertEqual([c["phone"] for c in self.listadas], ["5511987654321"])
++        self.assertEqual([m["phone"] for m in self.enviadas], ["5511987654321"])
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/whatsapp-assistant/test_media_mirror.py b/whatsapp-assistant/test_media_mirror.py
+new file mode 100644
+index 0000000..787f574
+--- /dev/null
++++ b/whatsapp-assistant/test_media_mirror.py
+@@ -0,0 +1,368 @@
++"""O arquivo da mídia sobe para o bucket, um ciclo depois da mensagem.
++
++O que estes testes prendem: o caminho do objeto (organização, conexão, chat e
++id — nunca a chave nem a URL do CDN), o orçamento por ciclo, a desistência
++depois de três falhas, e a regra de o mesmo id nunca aparecer duas vezes no
++mesmo lote. E a poda: uma vez por dia, só o que passou de 90 dias.
++"""
++
++import sqlite3
++import tempfile
++import unittest
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++from unittest import mock
++
++import media
++from arbitro import Arbitro
++from connections import Connection, ConnectionRegistry
++from conversation_sync import ConversationSync
++from media_mirror import BUCKET, MediaMirror, ORCAMENTO_POR_CICLO
++from operator_verification import OperatorVerificationError
++from test_conversation_sync import CLIENTE, CONN, ORG, SCHEMA, SCHEMA_STORE, instante
++
++
++class FakeVerifier:
++    def __init__(self):
++        self.lotes = []
++        self.uploads = []
++        self.listagens = []
++        self.removidos = []
++        self.falhar_upload = 0
++        self.pastas = []
++        self.objetos = {}
++
++    def conversation_sync(self, payload):
++        self.lotes.append(payload)
++        return {"accepted": True}
++
++    def storage_upload(self, bucket, path, data, content_type):
++        if self.falhar_upload > 0:
++            self.falhar_upload -= 1
++            raise OperatorVerificationError("Supabase recusou envio de mídia ao Storage (HTTP 500)")
++        self.uploads.append((bucket, path, bytes(data), content_type))
++
++    def storage_list(self, bucket, prefix, limit=1000, offset=0):
++        self.listagens.append(prefix)
++        if prefix.count("/") == 1:
++            return [{"name": pasta, "id": None} for pasta in self.pastas]
++        return self.objetos.get(prefix, [])[offset : offset + limit]
++
++    def storage_delete(self, bucket, paths):
++        self.removidos.extend(paths)
++
++
++class MediaMirrorTests(unittest.TestCase):
++    def setUp(self):
++        self.diretorio = tempfile.TemporaryDirectory()
++        self.addCleanup(self.diretorio.cleanup)
++        self.raiz = Path(self.diretorio.name)
++        self.banco = self.raiz / "messages.db"
++        db = sqlite3.connect(self.banco)
++        db.executescript(SCHEMA)
++        db.close()
++        store = sqlite3.connect(self.raiz / "whatsapp.db")
++        store.executescript(SCHEMA_STORE)
++        store.close()
++
++        self.registry = ConnectionRegistry(self.raiz / "connections.json")
++        self.registry.register(Connection(
++            connection_id=CONN,
++            organization_id=ORG,
++            name="WhatsApp principal",
++            internal_base_url="http://127.0.0.1:8100/api/internal/v1",
++            store_dir=str(self.raiz / "store"),
++        ))
++        self.arbitro = Arbitro(self.raiz / "arbitro.db")
++        self.addCleanup(self.arbitro.close)
++        self.arbitro.definir_ia(CONN, True, dono_padrao="bot")
++        self.verifier = FakeVerifier()
++        self.baixados = []
++        self.relogio = [1_000_000.0]
++
++        # O Bridge "baixa" para um arquivo de verdade no temporário: o espelho
++        # lê e apaga esse arquivo, e o teste confere as duas coisas.
++        def baixar(api_base_url, token, message_id, chat_jid):
++            self.baixados.append((message_id, chat_jid, token))
++            pasta = self.raiz / "store" / chat_jid.replace(":", "_")
++            pasta.mkdir(parents=True, exist_ok=True)
++            arquivo = pasta / f"{message_id}.ogg"
++            arquivo.write_bytes(b"OggS-conteudo-" + message_id.encode())
++            return str(arquivo)
++
++        self.baixar = baixar
++        patcher = mock.patch.object(media, "download_media", side_effect=baixar)
++        patcher.start()
++        self.addCleanup(patcher.stop)
++
++    # ------------------------------------------------------------ auxiliares
++
++    def mensagem(self, identificador, *, jid=CLIENTE, quando=instante(2), minha=False,
++                 tipo="audio", arquivo="audio_x.ogg", com_chaves=True, tamanho=1024):
++        db = sqlite3.connect(self.banco)
++        db.execute(
++            "INSERT OR REPLACE INTO chats (jid, name, last_message_time) VALUES (?, ?, ?)",
++            (jid, "Marina", quando),
++        )
++        db.execute(
++            "INSERT OR REPLACE INTO messages (id, chat_jid, sender, content, timestamp,"
++            " is_from_me, media_type, filename, url, media_key, file_sha256, file_length)"
++            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
++            (identificador, jid, "5511987654321", "", quando, 1 if minha else 0, tipo, arquivo,
++             "https://mmg.whatsapp.net/x.enc" if com_chaves else "",
++             b"chave" if com_chaves else b"", b"sha", tamanho),
++        )
++        db.commit()
++        db.close()
++
++    def espelho(self, **extras):
++        return MediaMirror(
++            verifier=self.verifier,
++            api_base_url="http://127.0.0.1:8080/api",
++            token_loader=lambda: "token-do-agente",
++            state_path=self.raiz / "media.json",
++            relogio=lambda: self.relogio[0],
++            **extras,
++        )
++
++    def sincronia(self, espelho=None):
++        return ConversationSync(
++            verifier=self.verifier,
++            registry=self.registry,
++            arbitro=self.arbitro,
++            messages_db=self.banco,
++            state_path=self.raiz / "estado.json",
++            store_db=self.raiz / "whatsapp.db",
++            connection_id=CONN,
++            media=espelho if espelho is not None else self.espelho(),
++        )
++
++    @property
++    def enviadas(self):
++        return [item for lote in self.verifier.lotes for item in lote["messages"]]
++
++    # ---------------------------------------------------------------- testes
++
++    def test_o_audio_recebido_sobe_para_o_bucket_no_caminho_da_conversa(self):
++        self.mensagem("wa-1")
++
++        self.sincronia().poll_once()
++
++        (upload,) = self.verifier.uploads
++        bucket, caminho, dados, mime = upload
++        self.assertEqual(bucket, BUCKET)
++        self.assertEqual(caminho, f"{ORG}/{CONN}/5511987654321/wa-1.ogg")
++        self.assertEqual(mime, "audio/ogg")
++        self.assertEqual(dados, b"OggS-conteudo-wa-1")
++        self.assertEqual(self.baixados, [("wa-1", CLIENTE, "token-do-agente")])
++        # A cópia local não fica: o arquivo já vive no bucket.
++        self.assertFalse((self.raiz / "store" / CLIENTE / "wa-1.ogg").exists())
++
++    def test_a_mensagem_sobe_uma_vez_so_e_ja_com_o_caminho(self):
++        self.mensagem("wa-1")
++
++        self.sincronia().poll_once()
++
++        (item,) = self.enviadas
++        self.assertEqual(item["id"], "wa-1")
++        self.assertEqual(item["mediaPath"], f"{ORG}/{CONN}/5511987654321/wa-1.ogg")
++        self.assertEqual(item["mediaMime"], "audio/ogg")
++        self.assertEqual(item["authorKind"], "contato")
++
++    def test_a_chave_e_a_url_do_cdn_continuam_fora_do_lote(self):
++        self.mensagem("wa-1")
++
++        self.sincronia().poll_once()
++
++        import json
++        cru = json.dumps(self.verifier.lotes, ensure_ascii=False, default=str)
++        for proibido in ("mmg.whatsapp.net", "chave", "media_key", "tem_arquivo"):
++            self.assertNotIn(proibido, cru)
++
++    def test_a_imagem_ganha_o_mime_da_extensao(self):
++        self.mensagem("wa-1", tipo="image", arquivo="image_20260915.jpg")
++
++        self.sincronia().poll_once()
++
++        (upload,) = self.verifier.uploads
++        self.assertEqual(upload[1], f"{ORG}/{CONN}/5511987654321/wa-1.jpg")
++        self.assertEqual(upload[3], "image/jpeg")
++
++    def test_midia_digitada_no_celular_nao_tem_chave_e_fica_como_rotulo(self):
++        self.mensagem("wa-1", minha=True, com_chaves=False)
++
++        self.sincronia().poll_once()
++
++        self.assertEqual(self.verifier.uploads, [])
++        self.assertEqual(self.baixados, [])
++        (item,) = self.enviadas
++        self.assertEqual(item["mediaType"], "audio")
++        self.assertNotIn("mediaPath", item)
++
++    def test_documento_e_video_continuam_como_rotulo(self):
++        self.mensagem("wa-1", tipo="document", arquivo="contrato.pdf")
++        self.mensagem("wa-2", tipo="video", arquivo="video.mp4", quando=instante(2, "12:00:01"))
++
++        self.sincronia().poll_once()
++
++        self.assertEqual(self.verifier.uploads, [])
++
++    def test_acima_do_teto_nao_baixa_e_desiste_na_hora(self):
++        self.mensagem("wa-1", tamanho=17 * 1024 * 1024)
++        espelho = self.espelho()
++
++        self.sincronia(espelho).poll_once()
++
++        self.assertEqual(self.baixados, [])
++        self.assertEqual(espelho._pendentes, {})
++
++    def test_o_orcamento_por_ciclo_deixa_o_resto_para_o_proximo(self):
++        for numero in range(1, ORCAMENTO_POR_CICLO + 3):
++            self.mensagem(f"wa-{numero}", quando=instante(2, f"12:00:{numero:02d}"))
++        espelho = self.espelho()
++        sincronia = self.sincronia(espelho)
++
++        sincronia.poll_once()
++        self.assertEqual(len(self.verifier.uploads), ORCAMENTO_POR_CICLO)
++        # Todas as mensagens subiram, as primeiras já com caminho.
++        self.assertEqual(len(self.enviadas), ORCAMENTO_POR_CICLO + 2)
++        self.assertEqual(
++            sum(1 for item in self.enviadas if "mediaPath" in item), ORCAMENTO_POR_CICLO
++        )
++
++        self.verifier.lotes.clear()
++        sincronia.poll_once()
++        self.assertEqual(len(self.verifier.uploads), ORCAMENTO_POR_CICLO + 2)
++        # As duas que faltavam voltam SOZINHAS, só para ganhar o caminho.
++        reoferecidas = self.enviadas
++        self.assertEqual(sorted(item["id"] for item in reoferecidas), ["wa-5", "wa-6"])
++        for item in reoferecidas:
++            self.assertIn("mediaPath", item)
++            self.assertEqual(item["authorKind"], "contato")
++        self.assertEqual(espelho._pendentes, {})
++
++    def test_a_falha_do_storage_tenta_de_novo_mais_tarde_e_desiste_na_terceira(self):
++        self.mensagem("wa-1")
++        self.verifier.falhar_upload = 5
++        espelho = self.espelho()
++        sincronia = self.sincronia(espelho)
++
++        sincronia.poll_once()
++        (item,) = self.enviadas
++        self.assertNotIn("mediaPath", item)
++        self.assertEqual(espelho._pendentes["wa-1"]["tentativas"], 1)
++
++        # Ciclo seguinte, antes da espera: não tenta.
++        sincronia.poll_once()
++        self.assertEqual(espelho._pendentes["wa-1"]["tentativas"], 1)
++
++        self.relogio[0] += 301
++        sincronia.poll_once()
++        self.assertEqual(espelho._pendentes["wa-1"]["tentativas"], 2)
++        self.relogio[0] += 301
++        sincronia.poll_once()
++        self.assertEqual(espelho._pendentes, {})
++        self.assertEqual(self.verifier.uploads, [])
++
++    def test_a_marca_dagua_que_recua_nao_sobe_a_mesma_midia_duas_vezes(self):
++        self.mensagem("wa-1")
++        espelho = self.espelho()
++        sincronia = self.sincronia(espelho)
++        sincronia.poll_once()
++
++        # O estado sobrevive ao processo, e a mensagem "volta" num lote novo.
++        outro = self.sincronia(self.espelho())
++        (self.raiz / "estado.json").unlink()
++        outro.poll_once()
++
++        self.assertEqual(len(self.verifier.uploads), 1)
++
++    def test_o_anexo_que_saiu_pelo_portal_vem_do_livro_de_saidas(self):
++        """O Bridge não guarda chave nem URL do que ele mesmo manda, então a
++        saída com anexo não tem como ser baixada de novo — mas o arquivo já
++        está no bucket desde antes do envio, e o livro sabe onde."""
++        self.mensagem("wa-1", minha=True, tipo="image", arquivo="foto.jpg", com_chaves=False)
++
++        class Livro:
++            def autores_das_saidas(self, pedidos):
++                return {
++                    pedido[0]: ("humano", "Bia", "", f"{ORG}/{CONN}/outbox/abc.jpg", "image/jpeg")
++                    for pedido in pedidos
++                }
++
++        sincronia = ConversationSync(
++            verifier=self.verifier,
++            registry=self.registry,
++            arbitro=self.arbitro,
++            messages_db=self.banco,
++            state_path=self.raiz / "estado.json",
++            store_db=self.raiz / "whatsapp.db",
++            connection_id=CONN,
++            media=self.espelho(),
++            presenca=Livro(),
++        )
++        sincronia.poll_once()
++
++        (item,) = self.enviadas
++        self.assertEqual(item["authorKind"], "humano")
++        self.assertEqual(item["mediaPath"], f"{ORG}/{CONN}/outbox/abc.jpg")
++        self.assertEqual(item["mediaMime"], "image/jpeg")
++        # Nada foi baixado do Bridge para isso.
++        self.assertEqual(self.baixados, [])
++        self.assertEqual(self.verifier.uploads, [])
++
++    def test_o_bridge_fora_do_ar_nao_derruba_a_sincronia(self):
++        self.mensagem("wa-1")
++        with mock.patch.object(media, "download_media", side_effect=media.MediaError("bridge inalcancavel")):
++            resultado = self.sincronia().poll_once()
++
++        self.assertEqual(resultado["messages"], 1)
++        (item,) = self.enviadas
++        self.assertEqual(item["mediaType"], "audio")
++
++    # ------------------------------------------------------------------ poda
++
++    def test_a_poda_apaga_so_o_que_passou_de_noventa_dias_e_uma_vez_por_dia(self):
++        agora = datetime.now(timezone.utc)
++        prefixo = f"{ORG}/{CONN}"
++        self.verifier.pastas = ["5511987654321", "outbox"]
++        self.verifier.objetos = {
++            f"{prefixo}/5511987654321": [
++                {"name": "velha.ogg", "id": "1", "created_at": (agora - timedelta(days=91)).isoformat()},
++                {"name": "nova.ogg", "id": "2", "created_at": (agora - timedelta(days=2)).isoformat()},
++            ],
++            f"{prefixo}/outbox": [
++                {"name": "antiga.jpg", "id": "3", "created_at": (agora - timedelta(days=120)).isoformat().replace("+00:00", "Z")},
++            ],
++        }
++        espelho = self.espelho()
++        conexao = self.registry.find(ORG, CONN)
++
++        self.assertEqual(espelho.podar(conexao), 2)
++        self.assertEqual(
++            sorted(self.verifier.removidos),
++            sorted([f"{prefixo}/5511987654321/velha.ogg", f"{prefixo}/outbox/antiga.jpg"]),
++        )
++
++        # Mesmo dia: não lista de novo.
++        listagens = len(self.verifier.listagens)
++        self.assertEqual(espelho.podar(conexao), 0)
++        self.assertEqual(len(self.verifier.listagens), listagens)
++
++        # Dia seguinte: volta.
++        self.relogio[0] += 24 * 3600 + 1
++        espelho.podar(conexao)
++        self.assertGreater(len(self.verifier.listagens), listagens)
++
++    def test_a_poda_que_falha_e_registrada_e_nao_levanta(self):
++        def listar(*_args, **_kwargs):
++            raise OperatorVerificationError("Supabase recusou listagem (HTTP 500)")
++
++        self.verifier.storage_list = listar
++        espelho = self.espelho()
++
++        self.assertEqual(espelho.podar(self.registry.find(ORG, CONN)), 0)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/whatsapp-assistant/test_presenca_humana.py b/whatsapp-assistant/test_presenca_humana.py
+index 42c8d98..192929b 100644
+--- a/whatsapp-assistant/test_presenca_humana.py
++++ b/whatsapp-assistant/test_presenca_humana.py
+@@ -290,7 +290,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
+         autores = self.presenca.autores_das_saidas(
+             [self._pedido(quando, "Oi! Tudo bem?")]
+         )
+-        self.assertEqual(autores["M1"], ("ia", "Bia", "agente-1"))
++        self.assertEqual(autores["M1"], ("ia", "Bia", "agente-1", "", ""))
+ 
+     def test_a_saida_do_portal_leva_o_nome_do_atendente(self):
+         quando = self._atras(minutos=1)
+@@ -300,7 +300,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
+         autores = self.presenca.autores_das_saidas(
+             [self._pedido(quando, "já te respondo")]
+         )
+-        self.assertEqual(autores["M1"], ("humano", "Marina", "pessoa-1"))
++        self.assertEqual(autores["M1"], ("humano", "Marina", "pessoa-1", "", ""))
+ 
+     def test_a_saida_do_portal_continua_sendo_gente_para_a_presenca(self):
+         """O freio da Fase 1, afirmado do lado que poderia tê-lo soltado.
+diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
+index 370bd91..8e08848 100644
+--- a/whatsapp-assistant/test_runtime_commands.py
++++ b/whatsapp-assistant/test_runtime_commands.py
+@@ -9,6 +9,7 @@ from arbitro import MOTIVO_RESPONDIDO_NO_PORTAL, Arbitro
+ from connection_manager import ConnectionManager
+ from connections import Connection, ConnectionRegistry
+ from bridge_control import BridgeUnavailable
++from operator_verification import OperatorVerificationError
+ from runtime_commands import (
+     RuntimeCommandPoller,
+     _motivo_da_recusa,
+@@ -840,3 +841,196 @@ class EquipeAssumePeloPortalTests(Bancada, unittest.TestCase):
+         finally:
+             arbitro.close()
+             directory.cleanup()
++
++
++class AnexoPeloPortalTests(Bancada, unittest.TestCase):
++    """O anexo escolhido no portal desce do bucket, passa pelo outbox do Bridge
++    e sai pela mesma rota manual. Áudio vira Ogg/Opus antes; imagem vai como
++    está. Se o anexo não chegar ao outbox, NADA sai — mandar só a legenda seria
++    entregar meia mensagem e marcar o comando como concluído.
++    """
++
++    CAMINHO = f"{ORG}/{CONN}/outbox/b1f2c3d4.jpg"
++    AUDIO = f"{ORG}/{CONN}/outbox/e5f6a7b8.webm"
++
++    def _bancada(self, payload, **extras):
++        directory, poller, verifier, _control, arbitro = self._runtime(
++            self._comando_de_conversa("conversation_send", payload), **extras
++        )
++        root = Path(directory.name)
++        poller.outbox_dir = root / "outbox"
++        verifier.downloads = []
++        verifier.arquivos = {self.CAMINHO: b"\xff\xd8JPEG", self.AUDIO: b"webm-opus"}
++
++        def baixar(bucket, caminho):
++            verifier.downloads.append((bucket, caminho))
++            dados = verifier.arquivos.get(caminho)
++            if dados is None:
++                raise OperatorVerificationError("Supabase recusou leitura de mídia (HTTP 404)")
++            return dados
++
++        verifier.storage_download = baixar
++        return directory, poller, verifier, arbitro
++
++    def test_a_imagem_vai_do_bucket_ao_outbox_e_dali_ao_bridge(self):
++        directory, poller, verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "Segue a foto",
++             "mediaPath": self.CAMINHO, "mediaMime": "image/jpeg",
++             "authorName": "Bia", "authorId": ATENDENTE}
++        )
++        try:
++            vistos = {}
++
++            def enviar(base, token, destino, texto, **kwargs):
++                caminho = Path(kwargs["media_path"])
++                vistos["existia"] = caminho.exists()
++                vistos["bytes"] = caminho.read_bytes()
++                vistos["caminho"] = caminho
++                vistos["texto"] = texto
++                return "sent"
++
++            with mock.patch.object(send, "send_human_message", side_effect=enviar):
++                poller.poll_once()
++
++            self.assertEqual(verifier.downloads, [("whatsapp-media", self.CAMINHO)])
++            self.assertTrue(vistos["existia"])
++            self.assertEqual(vistos["bytes"], b"\xff\xd8JPEG")
++            self.assertEqual(vistos["caminho"].parent, poller.outbox_dir.resolve())
++            self.assertEqual(vistos["caminho"].name, "b1f2c3d4.jpg")
++            self.assertEqual(vistos["texto"], "*Bia:*\nSegue a foto")
++            # O outbox não guarda a mídia do cliente depois do envio.
++            self.assertFalse(vistos["caminho"].exists())
++            self.assertEqual(verifier.completed[0][1], "completed")
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_anexo_sem_legenda_sai_sem_assinatura(self):
++        directory, poller, _verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "",
++             "mediaPath": self.CAMINHO, "mediaMime": "image/jpeg", "authorName": "Bia"}
++        )
++        try:
++            with mock.patch.object(send, "send_human_message", return_value="sent") as enviado:
++                poller.poll_once()
++            self.assertEqual(enviado.call_args.args[3], "")
++            self.assertIn("media_path", enviado.call_args.kwargs)
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_o_audio_do_navegador_vira_ogg_opus_pelo_ffmpeg(self):
++        directory, poller, _verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "",
++             "mediaPath": self.AUDIO, "mediaMime": "audio/webm"}
++        )
++        try:
++            chamadas = []
++
++            def ffmpeg(argv, **kwargs):
++                chamadas.append(argv)
++                Path(argv[-1]).write_bytes(b"OggS-opus")
++                return mock.Mock(returncode=0)
++
++            enviados = {}
++
++            def enviar(base, token, destino, texto, **kwargs):
++                enviados["caminho"] = Path(kwargs["media_path"])
++                enviados["bytes"] = enviados["caminho"].read_bytes()
++                return "sent"
++
++            with mock.patch("runtime_commands.subprocess.run", side_effect=ffmpeg), \
++                 mock.patch.object(send, "send_human_message", side_effect=enviar):
++                poller.poll_once()
++
++            (argv,) = chamadas
++            self.assertEqual(argv[0], "ffmpeg")
++            self.assertIn("libopus", argv)
++            self.assertTrue(argv[-1].endswith("e5f6a7b8.ogg"))
++            self.assertEqual(enviados["caminho"].name, "e5f6a7b8.ogg")
++            self.assertEqual(enviados["bytes"], b"OggS-opus")
++            # Nem o bruto nem o convertido ficam no outbox.
++            self.assertEqual(list(poller.outbox_dir.iterdir()), [])
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_ffmpeg_que_falha_tem_motivo_proprio_e_nada_sai(self):
++        directory, poller, verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "legenda",
++             "mediaPath": self.AUDIO, "mediaMime": "audio/webm"}
++        )
++        try:
++            with mock.patch("runtime_commands.subprocess.run", return_value=mock.Mock(returncode=1)), \
++                 mock.patch.object(send, "send_human_message") as enviado:
++                poller.poll_once()
++            enviado.assert_not_called()
++            self.assertEqual(verifier.completed[0][1:3], ("failed", "media_conversion_failed"))
++            self.assertEqual(list(poller.outbox_dir.iterdir()), [])
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_anexo_que_nao_esta_no_bucket_nao_manda_nem_a_legenda(self):
++        directory, poller, verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "legenda",
++             "mediaPath": f"{ORG}/{CONN}/outbox/sumiu.jpg", "mediaMime": "image/jpeg"}
++        )
++        try:
++            with mock.patch.object(send, "send_human_message") as enviado:
++                poller.poll_once()
++            enviado.assert_not_called()
++            self.assertEqual(verifier.completed[0][1:3], ("failed", "media_unavailable"))
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_caminho_fora_do_outbox_desta_conexao_e_payload_invalido(self):
++        outra = "11111111-2222-3333-4444-555555555555"
++        for caminho in (
++            f"{outra}/{CONN}/outbox/x.jpg",
++            f"{ORG}/{CONN}/5511987654321/x.jpg",
++            f"{ORG}/{CONN}/outbox/../x.jpg",
++        ):
++            directory, poller, verifier, arbitro = self._bancada(
++                {"chat": "5511987654321", "kind": "direto", "text": "",
++                 "mediaPath": caminho, "mediaMime": "image/jpeg"}
++            )
++            try:
++                with mock.patch.object(send, "send_human_message") as enviado:
++                    poller.poll_once()
++                enviado.assert_not_called()
++                self.assertEqual(verifier.completed[0][1:3], ("failed", "invalid_payload"), caminho)
++                self.assertEqual(verifier.downloads, [])
++            finally:
++                arbitro.close()
++                directory.cleanup()
++
++    def test_mime_fora_da_lista_e_payload_invalido(self):
++        directory, poller, verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "",
++             "mediaPath": self.CAMINHO, "mediaMime": "application/x-sh"}
++        )
++        try:
++            with mock.patch.object(send, "send_human_message") as enviado:
++                poller.poll_once()
++            enviado.assert_not_called()
++            self.assertEqual(verifier.completed[0][1:3], ("failed", "invalid_payload"))
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_sem_outbox_o_anexo_falha_com_motivo_proprio(self):
++        directory, poller, verifier, arbitro = self._bancada(
++            {"chat": "5511987654321", "kind": "direto", "text": "",
++             "mediaPath": self.CAMINHO, "mediaMime": "image/jpeg"}
++        )
++        try:
++            poller.outbox_dir = None
++            with mock.patch.object(send, "send_human_message") as enviado:
++                poller.poll_once()
++            enviado.assert_not_called()
++            self.assertEqual(verifier.completed[0][1:3], ("failed", "sending_disabled"))
++        finally:
++            arbitro.close()
++            directory.cleanup()
+diff --git a/whatsapp-assistant/test_send.py b/whatsapp-assistant/test_send.py
+index 2426bdb..6194b1b 100644
+--- a/whatsapp-assistant/test_send.py
++++ b/whatsapp-assistant/test_send.py
+@@ -335,6 +335,30 @@ class RegistroDasSaidasTest(unittest.TestCase):
+               "22222222-2222-4222-8222-222222222222")],
+         )
+ 
++    def test_o_anexo_do_portal_vai_no_mesmo_pedido_e_dispensa_o_texto(self):
++        """`media_path` entra no corpo da rota manual; sem ele, texto vazio
++        continua recusado antes de sair qualquer pedido."""
++        send.send_human_message(
++            self.bridge.base_url, TOKEN, "556592178164", "",
++            author_name="Marina", media_path="/srv/bridge/outbox/abc.ogg",
++        )
++        (_auth, body), = self.bridge.calls
++        self.assertEqual(body, {
++            "recipient": "556592178164", "message": "",
++            "media_path": "/srv/bridge/outbox/abc.ogg",
++        })
++        self.assertEqual(self.anotadas[0][:3], ("556592178164", "", "humano"))
++
++        self.bridge.calls.clear()
++        with self.assertRaises(send.SendError):
++            send.send_human_message(self.bridge.base_url, TOKEN, "556592178164", "   ")
++        self.assertEqual(self.bridge.calls, [])
++
++    def test_sem_anexo_o_corpo_da_rota_manual_nao_muda(self):
++        send.send_human_message(self.bridge.base_url, TOKEN, "556592178164", "oi")
++        (_auth, body), = self.bridge.calls
++        self.assertEqual(body, {"recipient": "556592178164", "message": "oi"})
++
+     def test_envio_que_falhou_nao_e_anotado(self):
+         """A linha só existe no banco do bridge se a mensagem saiu. Anotar uma
+         tentativa que falhou deixaria a anotação sobrando para silenciar a
+diff --git a/whatsapp-bridge/human_send.go b/whatsapp-bridge/human_send.go
+index 171dc8e..3983fa2 100644
+--- a/whatsapp-bridge/human_send.go
++++ b/whatsapp-bridge/human_send.go
+@@ -21,8 +21,14 @@ import (
+ const humanMessageLimit = 4096
+ 
+ // validateHumanMessage devolve o texto pronto para envio, ou o motivo da recusa.
+-func validateHumanMessage(message string) (string, error) {
++//
++// Com anexo o texto e legenda, e legenda pode faltar; sem anexo continua
++// obrigatorio. O anexo em si e validado por ResolveMediaPath, no handler.
++func validateHumanMessage(message string, hasMedia bool) (string, error) {
+ 	limpo := strings.TrimSpace(message)
++	if limpo == "" && hasMedia {
++		return "", nil
++	}
+ 	if limpo == "" || len(limpo) > humanMessageLimit {
+ 		return "", fmt.Errorf("message is required (max %d)", humanMessageLimit)
+ 	}
+diff --git a/whatsapp-bridge/human_send_test.go b/whatsapp-bridge/human_send_test.go
+index 3353d3c..041b86e 100644
+--- a/whatsapp-bridge/human_send_test.go
++++ b/whatsapp-bridge/human_send_test.go
+@@ -28,7 +28,7 @@ func TestValidateHumanMessage(t *testing.T) {
+ 
+ 	for _, caso := range casos {
+ 		t.Run(caso.nome, func(t *testing.T) {
+-			resultado, err := validateHumanMessage(caso.entrada)
++			resultado, err := validateHumanMessage(caso.entrada, false)
+ 			if caso.recusa {
+ 				if err == nil {
+ 					t.Fatalf("validateHumanMessage(%q) devia recusar, devolveu %q", caso.entrada, resultado)
+@@ -45,6 +45,38 @@ func TestValidateHumanMessage(t *testing.T) {
+ 	}
+ }
+ 
++// Com anexo o texto vira legenda: pode faltar, mas o que vier continua
++// passando pelas mesmas regras (teto, NUL).
++func TestValidateHumanMessageComAnexo(t *testing.T) {
++	resultado, err := validateHumanMessage("   ", true)
++	if err != nil || resultado != "" {
++		t.Fatalf("legenda vazia com anexo devia passar; = %q, %v", resultado, err)
++	}
++	resultado, err = validateHumanMessage("  Segue a foto  ", true)
++	if err != nil || resultado != "Segue a foto" {
++		t.Fatalf("legenda com anexo = %q, %v; quero %q", resultado, err, "Segue a foto")
++	}
++	if _, err := validateHumanMessage("oi\x00tudo bem", true); err == nil {
++		t.Fatal("legenda com NUL devia ser recusada mesmo com anexo")
++	}
++	if _, err := validateHumanMessage(strings.Repeat("a", humanMessageLimit+1), true); err == nil {
++		t.Fatal("legenda acima do teto devia ser recusada mesmo com anexo")
++	}
++}
++
++// O anexo da rota humana passa pelo MESMO cerco de diretorio da rota do
++// agente. Este teste e sobre a politica, que e o que da para exercitar sem
++// subir o WhatsApp: fora de allowed_media_dirs e recusa, e nada sai.
++func TestAnexoDaRotaHumanaRespeitaOsDiretoriosPermitidos(t *testing.T) {
++	cfg := &Config{AllowedMediaDirs: []string{"outbox"}}
++	if _, err := cfg.ResolveMediaPath("../store/whatsapp.db"); err == nil {
++		t.Fatal("caminho fora do outbox devia ser recusado")
++	}
++	if _, err := cfg.ResolveMediaPath("store/api_token"); err == nil {
++		t.Fatal("caminho em outro diretorio devia ser recusado")
++	}
++}
++
+ // A separacao das duas portas, afirmada dos dois lados.
+ //
+ // Este e o teste que importa nesta mudanca, e ele nao e sobre a rota nova: e
+diff --git a/whatsapp-bridge/main.go b/whatsapp-bridge/main.go
+index 4905bca..a779341 100644
+--- a/whatsapp-bridge/main.go
++++ b/whatsapp-bridge/main.go
+@@ -347,6 +347,10 @@ type NotificationSendRequest struct {
+ type HumanSendRequest struct {
+ 	Recipient string `json:"recipient"`
+ 	Message   string `json:"message"`
++	// MediaPath e um arquivo que a PESSOA escolheu no portal e o runtime pos
++	// no outbox. Passa pela mesma ResolveMediaPath da rota do agente: o
++	// diretorio permitido e a unica coisa que as duas rotas partilham.
++	MediaPath string `json:"media_path,omitempty"`
+ }
+ 
+ // OperatorVerificationSendRequest e deliberadamente menor que SendMessageRequest.
+@@ -1447,7 +1451,8 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, deps
+ 				writeJSONError(w, http.StatusBadRequest, "Invalid request format")
+ 				return
+ 			}
+-			mensagem, err := validateHumanMessage(req.Message)
++			mediaPath := strings.TrimSpace(req.MediaPath)
++			mensagem, err := validateHumanMessage(req.Message, mediaPath != "")
+ 			if err != nil {
+ 				writeJSONError(w, http.StatusBadRequest, err.Error())
+ 				return
+@@ -1457,14 +1462,26 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, deps
+ 				writeJSONError(w, http.StatusBadRequest, err.Error())
+ 				return
+ 			}
++			// O anexo so pode vir do diretorio que a politica permite - o
++			// mesmo cerco da rota do agente. Fora dele e 403, e nada sai.
++			resolvedMediaPath := ""
++			if mediaPath != "" {
++				resolvedMediaPath, err = cfg.ResolveMediaPath(mediaPath)
++				if err != nil {
++					writeJSONError(w, http.StatusForbidden, err.Error())
++					return
++				}
++			}
+ 
+-			// O log diz que houve envio manual e para que TIPO de conversa, e
+-			// nunca para quem: numero e conteudo continuam fora do journal,
+-			// como em todo o resto deste arquivo.
+-			fmt.Printf("Human send requested: type=%s\n", chatLogKind(recipientJID))
++			// O log diz que houve envio manual, para que TIPO de conversa e se
++			// levou anexo - e nunca para quem: numero, conteudo e nome do
++			// arquivo continuam fora do journal, como em todo o resto deste
++			// arquivo.
++			fmt.Printf("Human send requested: type=%s media=%v\n",
++				chatLogKind(recipientJID), resolvedMediaPath != "")
+ 
+ 			success, message := sendWhatsAppMessage(
+-				client, messageStore, lids, recipientJID.String(), mensagem, "",
++				client, messageStore, lids, recipientJID.String(), mensagem, resolvedMediaPath,
+ 			)
+ 			status := http.StatusOK
+ 			if !success {
