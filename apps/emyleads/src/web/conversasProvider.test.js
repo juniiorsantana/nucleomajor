@@ -130,6 +130,7 @@ function bancada({
   contatos = CONTATOS,
   mensagens = MENSAGENS,
   assinatura = null,
+  upload = { error: null },
 } = {}) {
   const chamadas = [];
   const respostas = {
@@ -148,12 +149,22 @@ function bancada({
       error: null,
     };
   });
+  const uploads = [];
   const supabase = {
     from: vi.fn((tabela) =>
       criarConsulta(tabela, { data: respostas[tabela], error: null }, chamadas)
     ),
     storage: {
-      from: vi.fn(() => ({ createSignedUrls: criarUrlsAssinadas })),
+      from: vi.fn((bucket) => ({
+        createSignedUrls: (caminhos, validade) => {
+          uploads.bucketAssinado = bucket;
+          return criarUrlsAssinadas(caminhos, validade);
+        },
+        upload: vi.fn(async (caminho, arquivo, opcoes) => {
+          uploads.push([bucket, caminho, arquivo, opcoes]);
+          return upload;
+        }),
+      })),
     },
     rpc: vi.fn(async (nome, argumentos) => {
       rpcs.push([nome, argumentos]);
@@ -169,6 +180,7 @@ function bancada({
     criarUrlsAssinadas,
     supabase,
     rpcs,
+    uploads,
   };
 }
 
@@ -734,5 +746,198 @@ describe("modelos de mensagem", () => {
     await operacoes["conversas.guardarBaralho"]({ id: modelo.id, baralho: ["t1b", "t1c"] });
     const [depois] = await operacoes["conversas.modelos"]();
     expect(depois.baralho).toEqual(["t1b", "t1c"]);
+  });
+});
+
+describe("mídia com arquivo", () => {
+  const COM_ARQUIVO = [
+    {
+      message_id: "wa-5",
+      content: "*Bia:*\nSegue o áudio",
+      sent_at: "2026-09-16T13:06:00.000Z",
+      is_from_me: true,
+      media_type: "ptt",
+      media_filename: "audio.ogg",
+      media_path: `${ORGANIZATION_ID}/${CONNECTION_ID}/outbox/abc.webm`,
+      media_mime: "audio/webm",
+      author_kind: "humano",
+      author_name: "Bia",
+    },
+    {
+      message_id: "wa-4",
+      content: "",
+      sent_at: "2026-09-16T13:05:00.000Z",
+      is_from_me: false,
+      media_type: "image",
+      media_filename: "foto.jpg",
+      media_path: `${ORGANIZATION_ID}/${CONNECTION_ID}/5511987654321/wa-4.jpg`,
+      media_mime: "image/jpeg",
+      author_kind: "contato",
+      author_name: "",
+    },
+    // Ainda sem arquivo: o runtime sobe um ciclo depois da mensagem.
+    {
+      message_id: "wa-3",
+      content: "",
+      sent_at: "2026-09-16T13:04:00.000Z",
+      is_from_me: false,
+      media_type: "audio",
+      media_filename: "audio.ogg",
+      media_path: "",
+      media_mime: "",
+      author_kind: "contato",
+      author_name: "",
+    },
+  ];
+
+  it("assina os caminhos do bucket de mídia num lote só e entrega a URL à bolha", async () => {
+    const { operacoes, criarUrlsAssinadas, uploads } = bancada({ mensagens: COM_ARQUIVO });
+    const lista = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+
+    expect(uploads.bucketAssinado).toBe("whatsapp-media");
+    expect(criarUrlsAssinadas).toHaveBeenCalledTimes(1);
+    expect(criarUrlsAssinadas.mock.calls[0][0]).toEqual([
+      `${ORGANIZATION_ID}/${CONNECTION_ID}/outbox/abc.webm`,
+      `${ORGANIZATION_ID}/${CONNECTION_ID}/5511987654321/wa-4.jpg`,
+    ]);
+    expect(criarUrlsAssinadas.mock.calls[0][1]).toBe(3600);
+
+    const bolhas = lista.filter((item) => item.tipo === "mensagem");
+    expect(bolhas[0]).toMatchObject({ messageId: "wa-3", texto: "🎤 Áudio", midia: null });
+    expect(bolhas[1]).toMatchObject({
+      messageId: "wa-4",
+      texto: "",
+      midia: {
+        tipo: "imagem",
+        url: `https://storage.test/${ORGANIZATION_ID}/${CONNECTION_ID}/5511987654321/wa-4.jpg`,
+        nome: "foto.jpg",
+        mime: "image/jpeg",
+      },
+    });
+    expect(bolhas[2].midia).toMatchObject({ tipo: "audio", mime: "audio/webm" });
+  });
+
+  it("tira a assinatura do runtime do texto de quem já tem nome na bolha", async () => {
+    const { operacoes } = bancada({ mensagens: COM_ARQUIVO });
+    const lista = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    const bolhas = lista.filter((item) => item.tipo === "mensagem");
+    expect(bolhas[2]).toMatchObject({ autor: "Bia", tom: "humano", texto: "Segue o áudio" });
+  });
+
+  it("sem URL assinada a bolha volta ao rótulo, como antes", async () => {
+    const { operacoes } = bancada({
+      mensagens: COM_ARQUIVO,
+      assinatura: { data: null, error: { message: "storage indisponível" } },
+    });
+    const lista = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    const bolhas = lista.filter((item) => item.tipo === "mensagem");
+    expect(bolhas[1]).toMatchObject({ texto: "📎 Imagem", midia: null });
+    expect(bolhas[2]).toMatchObject({ texto: "🎤 Áudio\nSegue o áudio", midia: null });
+  });
+
+  it("pede as colunas do arquivo, e continua sem pedir o material da mídia", async () => {
+    const { operacoes, chamadas } = bancada();
+    await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    const consulta = consultaDe(chamadas, "whatsapp_messages");
+    expect(consulta.campos).toContain("media_path");
+    expect(consulta.campos).toContain("media_mime");
+    expect(consulta.campos).not.toContain("media_key");
+  });
+
+  it("um texto do contato que se parece com assinatura fica como veio", async () => {
+    const { operacoes } = bancada({
+      mensagens: [
+        {
+          message_id: "wa-9",
+          content: "*Marina:*\nsou eu mesma",
+          sent_at: "2026-09-16T13:04:00.000Z",
+          is_from_me: false,
+          media_type: "",
+          media_filename: "",
+          author_kind: "contato",
+          author_name: "",
+        },
+      ],
+    });
+    const lista = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    expect(lista.at(-1).texto).toBe("*Marina:*\nsou eu mesma");
+  });
+});
+
+describe("enviar arquivo pela fila", () => {
+  const id = `${CONNECTION_ID}:5511987654321`;
+  const imagem = { name: "foto.jpg", type: "image/jpeg", size: 1024 };
+
+  it("sobe para o outbox da conexão com o clientId por nome, e enfileira o caminho", async () => {
+    const { operacoes, rpcs, uploads } = bancada();
+    await operacoes["conversas.enviar"]({
+      id,
+      texto: " legenda ",
+      arquivo: imagem,
+      clientId: "b1f2c3d4-0000-4000-8000-000000000001",
+    });
+
+    const caminho = `${ORGANIZATION_ID}/${CONNECTION_ID}/outbox/b1f2c3d4-0000-4000-8000-000000000001.jpg`;
+    expect(uploads).toEqual([
+      ["whatsapp-media", caminho, imagem, { contentType: "image/jpeg", cacheControl: "3600" }],
+    ]);
+    const [nome, argumentos] = rpcs.at(-1);
+    expect(nome).toBe("nucleo_conversation_command_enqueue");
+    expect(argumentos.requested_command).toBe("conversation_send");
+    expect(argumentos.command_payload).toEqual({
+      clientId: "b1f2c3d4-0000-4000-8000-000000000001",
+      text: "legenda",
+      mediaPath: caminho,
+      mediaMime: "image/jpeg",
+    });
+  });
+
+  it("o áudio gravado perde os parâmetros do mime e ganha a extensão certa", async () => {
+    const { operacoes, rpcs, uploads } = bancada();
+    await operacoes["conversas.enviar"]({
+      id,
+      texto: "",
+      arquivo: { name: "gravacao.webm", type: "audio/webm;codecs=opus", size: 2048 },
+      clientId: "e5f6a7b8-0000-4000-8000-000000000002",
+    });
+    expect(uploads[0][1].endsWith("/outbox/e5f6a7b8-0000-4000-8000-000000000002.webm")).toBe(true);
+    expect(uploads[0][3].contentType).toBe("audio/webm");
+    expect(rpcs.at(-1)[1].command_payload).toMatchObject({ text: "", mediaMime: "audio/webm" });
+  });
+
+  it("o reenvio encontra o arquivo já no bucket e segue para a fila", async () => {
+    const { operacoes, rpcs } = bancada({
+      upload: { error: { message: "The resource already exists", statusCode: "409" } },
+    });
+    await operacoes["conversas.enviar"]({ id, texto: "", arquivo: imagem, clientId: "aaaa-1" });
+    expect(rpcs.at(-1)[0]).toBe("nucleo_conversation_command_enqueue");
+  });
+
+  it("upload que falha não enfileira nada, e diz o que fazer", async () => {
+    const { operacoes, rpcs } = bancada({ upload: { error: { message: "network down" } } });
+    await expect(
+      operacoes["conversas.enviar"]({ id, texto: "", arquivo: imagem, clientId: "aaaa-2" })
+    ).rejects.toThrow(/não subiu/);
+    expect(rpcs).toEqual([]);
+  });
+
+  it("tipo de arquivo fora da lista é recusado antes de subir", async () => {
+    const { operacoes, rpcs, uploads } = bancada();
+    await expect(
+      operacoes["conversas.enviar"]({
+        id,
+        texto: "",
+        arquivo: { name: "x.pdf", type: "application/pdf", size: 10 },
+      })
+    ).rejects.toThrow(/tipo de arquivo/);
+    expect(uploads).toEqual([]);
+    expect(rpcs).toEqual([]);
+  });
+
+  it("sem arquivo o envio continua exatamente como era", async () => {
+    const { operacoes, rpcs, uploads } = bancada();
+    await operacoes["conversas.enviar"]({ id, texto: "oi", clientId: "aaaa-3" });
+    expect(uploads).toEqual([]);
+    expect(rpcs.at(-1)[1].command_payload).toEqual({ clientId: "aaaa-3", text: "oi" });
   });
 });

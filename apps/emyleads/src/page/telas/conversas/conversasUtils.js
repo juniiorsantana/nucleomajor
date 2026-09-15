@@ -53,7 +53,7 @@ export function conciliarPendentes(pendentes, mensagens, conversaAtual) {
     const conhecidas = new Set(pendente.messageIdsConhecidos || []);
     const entregue = enviadas.find(
       (mensagem) =>
-        mensagem.texto === pendente.texto &&
+        eAVoltaDaPendente(mensagem, pendente) &&
         !conhecidas.has(mensagem.messageId) &&
         !usadas.has(mensagem.messageId)
     );
@@ -61,6 +61,27 @@ export function conciliarPendentes(pendentes, mensagens, conversaAtual) {
     usadas.add(entregue.messageId);
     return false;
   });
+}
+
+const ROTULO_DA_PENDENTE = { audio: "🎤 Áudio", imagem: "📎 Imagem" };
+
+/**
+ * Esta mensagem espelhada é a volta desta bolha provisória?
+ *
+ * Texto casa com texto. Anexo casa com anexo do mesmo tipo e mesma legenda —
+ * e, quando o espelho ainda não tem o arquivo assinado (a URL falhou, ou o
+ * runtime é anterior à mídia), com o rótulo que a bolha mostra no lugar dele.
+ * Sem esta segunda forma, um áudio mandado do portal ficaria com o relógio
+ * para sempre num runtime que só sobe o rótulo.
+ */
+export function eAVoltaDaPendente(mensagem, pendente) {
+  if (!pendente.midia) return !mensagem.midia && mensagem.texto === pendente.texto;
+  const legenda = String(pendente.texto || "");
+  if (mensagem.midia) {
+    return mensagem.midia.tipo === pendente.midia.tipo && mensagem.texto === legenda;
+  }
+  const rotulo = ROTULO_DA_PENDENTE[pendente.midia.tipo] || "📎 Anexo";
+  return mensagem.texto === (legenda ? `${rotulo}\n${legenda}` : rotulo);
 }
 
 /**

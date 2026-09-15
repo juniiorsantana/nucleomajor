@@ -36,7 +36,7 @@ const CAMPOS_CONVERSA =
 
 const CAMPOS_MENSAGEM =
   "message_id,content,sent_at,is_from_me,media_type,media_filename," +
-  "author_kind,author_name";
+  "media_path,media_mime,author_kind,author_name";
 
 /**
  * O tom da bolha para cada tipo de autor.
@@ -56,11 +56,23 @@ const BUCKET_AVATARES = "contact-avatars";
 const VALIDADE_AVATAR_SEGUNDOS = 60 * 60;
 
 /**
- * O que a bolha mostra quando a mensagem é mídia.
+ * O bucket privado da mídia das conversas (desde 16/09/2026).
  *
- * Os bytes ficam na VPS — daqui não dá para abrir o anexo, e dizer o tipo é
- * mais honesto que uma bolha vazia. Legenda de imagem chega como conteúdo
- * normal e ganha o rótulo junto.
+ * O runtime da VPS sobe para lá o áudio e a imagem que chegam, e o portal sobe
+ * o que a equipe manda. A tela nunca lê o objeto direto: pede uma URL assinada
+ * de uma hora, que é o que a policy do bucket permite a um membro da
+ * organização — e a URL vale só pelo tempo da tela aberta.
+ */
+const BUCKET_MIDIA = "whatsapp-media";
+const VALIDADE_MIDIA_SEGUNDOS = 60 * 60;
+
+/**
+ * O que a bolha mostra quando a mensagem é mídia SEM arquivo.
+ *
+ * É o caso de tudo que chegou antes de 16/09/2026, do que o runtime ainda não
+ * subiu (o arquivo chega um ciclo depois da mensagem) e do que continua fora
+ * do escopo — documento, vídeo, figurinha. Dizer o tipo é mais honesto que uma
+ * bolha vazia. Legenda chega como conteúdo normal e ganha o rótulo junto.
  */
 const ROTULO_DE_MIDIA = {
   image: "📎 Imagem",
@@ -70,6 +82,34 @@ const ROTULO_DE_MIDIA = {
   document: "📎 Documento",
   sticker: "📎 Figurinha",
 };
+
+/** Como a bolha trata cada tipo de arquivo que tem URL. */
+const TIPO_DE_MIDIA = { image: "imagem", audio: "audio", ptt: "audio" };
+
+/**
+ * A extensão com que o anexo sobe para o bucket, pelo tipo que o navegador
+ * declarou. O runtime lê a extensão para dar o arquivo ao Bridge, e o áudio
+ * gravado aqui (WebM/Opus no Chrome, Ogg/Opus no Firefox) é convertido lá para
+ * o formato de mensagem de voz do WhatsApp.
+ */
+const EXTENSAO_POR_MIME = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/wav": "wav",
+};
+
+/** `audio/webm;codecs=opus` → `audio/webm`. O bucket e a RPC leem só o tipo. */
+const mimeLimpo = (mime) =>
+  String(mime || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
 
 function erroConversas(mensagem, codigo) {
   const erro = new Error(mensagem);
@@ -122,6 +162,14 @@ const RECUSAS = [
     "too many conversations started",
     "Muitas conversas novas na última hora. Espere um pouco antes de começar outra.",
   ],
+  // O anexo. A RPC confere que o arquivo existe no bucket e foi enviado por
+  // quem está mandando; "não achei" quase sempre é um upload que falhou no
+  // meio, e a saída é anexar de novo.
+  ["media path is invalid", "O arquivo não chegou ao servidor. Anexe de novo."],
+  [
+    "media type is not allowed",
+    "Esse tipo de arquivo não pode ser enviado. Use JPG, PNG, WebP ou o áudio gravado aqui.",
+  ],
 ];
 
 function traduzir(mensagem) {
@@ -131,23 +179,18 @@ function traduzir(mensagem) {
 }
 
 /**
- * Converte os caminhos privados dos contatos em URLs temporárias para a tela.
+ * Converte caminhos privados de um bucket em URLs temporárias para a tela.
  *
- * Uma falha do Storage não pode derrubar a caixa de entrada: avatar é
- * enriquecimento visual, e as iniciais continuam sendo um fallback completo.
+ * Uma falha do Storage não pode derrubar a caixa de entrada: avatar e arquivo
+ * de mídia são enriquecimento visual, e o que fica sem URL cai no fallback
+ * completo — as iniciais para o avatar, o rótulo "🎤 Áudio" para a bolha.
  */
-async function assinarAvatares(supabase, contatos) {
-  const caminhos = [
-    ...new Set(
-      contatos.map((contato) => String(contato.avatar_path || "").trim()).filter(Boolean)
-    ),
-  ];
-  if (caminhos.length === 0) return new Map();
+async function assinarCaminhos(supabase, bucket, caminhos, validade) {
+  const unicos = [...new Set(caminhos.map((c) => String(c || "").trim()).filter(Boolean))];
+  if (unicos.length === 0) return new Map();
 
   try {
-    const { data, error } = await supabase.storage
-      .from(BUCKET_AVATARES)
-      .createSignedUrls(caminhos, VALIDADE_AVATAR_SEGUNDOS);
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(unicos, validade);
     if (error) return new Map();
 
     return new Map(
@@ -159,6 +202,14 @@ async function assinarAvatares(supabase, contatos) {
     return new Map();
   }
 }
+
+const assinarAvatares = (supabase, contatos) =>
+  assinarCaminhos(
+    supabase,
+    BUCKET_AVATARES,
+    contatos.map((contato) => contato.avatar_path),
+    VALIDADE_AVATAR_SEGUNDOS
+  );
 
 /**
  * O id de uma conversa na tela: conexão e o identificador do chat.
@@ -204,11 +255,51 @@ const acharContato = (indice, telefone) => {
   return null;
 };
 
+/**
+ * A assinatura que o runtime põe na frente do que sai pelo portal e pela IA:
+ * `*Nome:*` e uma quebra de linha. Mesmo formato de `assinatura.py` na VPS.
+ */
+const ASSINATURA_RE = /^\*([^*\r\n]{1,120}):\*(?:\r?\n|$)/;
+
+/**
+ * O texto sem a assinatura, quando a bolha já diz quem escreveu.
+ *
+ * Só para saída da conta com autor conhecido: é o runtime que assina, e a
+ * etiqueta de autor da bolha é a mesma informação. Deixar as duas seria dizer
+ * "Bia" duas vezes — e quebrava a conciliação da bolha provisória, que casa
+ * pelo texto digitado, sem assinatura. O que o contato escreve fica como
+ * veio, mesmo que se pareça com uma assinatura.
+ */
+function semAssinatura(linha) {
+  const conteudo = String(linha.content || "");
+  if (!linha.is_from_me || !TOM_DO_AUTOR[linha.author_kind]) return conteudo;
+  return conteudo.replace(ASSINATURA_RE, "");
+}
+
 function textoDaMensagem(linha) {
-  const conteudo = String(linha.content || "").trim();
+  const conteudo = semAssinatura(linha).trim();
   const rotulo = ROTULO_DE_MIDIA[linha.media_type] || (linha.media_type ? "📎 Anexo" : "");
   if (conteudo && rotulo) return `${rotulo}\n${conteudo}`;
   return conteudo || rotulo;
+}
+
+/**
+ * O arquivo da mensagem, quando ele existe E a tela consegue abri-lo.
+ *
+ * Sem URL assinada não há `midia`: a bolha volta ao rótulo, que é o
+ * comportamento de antes de 16/09/2026. Tipo desconhecido com URL vira
+ * "outro" — a bolha oferece o link, e não finge saber tocar.
+ */
+function midiaDaMensagem(linha, urls) {
+  const caminho = String(linha.media_path || "").trim();
+  const url = caminho ? urls.get(caminho) : null;
+  if (!url) return null;
+  return {
+    tipo: TIPO_DE_MIDIA[linha.media_type] || "outro",
+    url,
+    nome: String(linha.media_filename || "").trim(),
+    mime: String(linha.media_mime || "").trim(),
+  };
 }
 
 export function criarOperacoesConversasWeb({ supabase, area }) {
@@ -321,6 +412,15 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       "conversas-mensagens-falharam"
     );
 
+    // As URLs dos arquivos, assinadas de uma vez para a conversa inteira: uma
+    // chamada, e não uma por bolha.
+    const urls = await assinarCaminhos(
+      supabase,
+      BUCKET_MIDIA,
+      linhas.map((linha) => linha.media_path),
+      VALIDADE_MIDIA_SEGUNDOS
+    );
+
     // O divisor de data não vem do banco — é derivado, e por isso nasce aqui e
     // não numa coluna que precisaria ser mantida em dia.
     const saida = [];
@@ -332,6 +432,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         saida.push({ tipo: "data", texto: fmtDiaDaConversa(linha.sent_at) });
         diaAnterior = dia;
       }
+      const midia = midiaDaMensagem(linha, urls);
       saida.push({
         tipo: "mensagem",
         messageId: linha.message_id,
@@ -341,7 +442,10 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
           hour: "2-digit",
           minute: "2-digit",
         }),
-        texto: textoDaMensagem(linha),
+        // Com arquivo, o texto é só a legenda: o rótulo "🎤 Áudio" em cima de
+        // um player seria dizer duas vezes a mesma coisa.
+        texto: midia ? semAssinatura(linha).trim() : textoDaMensagem(linha),
+        midia,
         // Quem escreveu do nosso lado. O Bridge não registra isso — para ele
         // toda saída da conta é `is_from_me = 1` — então quem responde é o
         // runtime, que anota o que ele próprio manda e cruza na sincronia.
@@ -429,12 +533,55 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
      * trouxer de volta do aparelho, como qualquer outra — inventar a bolha aqui
      * faria a tela afirmar que saiu antes de alguém ter enviado nada. Quem
      * mostra "enviando" é a tela, a partir do comando que volta daqui.
+     *
+     * Com `arquivo` (imagem escolhida ou áudio gravado), o arquivo sobe antes
+     * para o `outbox` da conexão no bucket, com o `clientId` por nome — é a
+     * mesma identidade do clique que a RPC usa para não mandar duas vezes, e é
+     * por isso que o reenvio de uma bolha que falhou encontra o objeto já lá e
+     * não sobe de novo. O texto vira legenda e pode ficar vazio.
      */
-    "conversas.enviar": async ({ id, texto, clientId = null }) =>
-      enfileirar(id, "conversation_send", {
-        text: String(texto || "").trim(),
-        ...(clientId ? { clientId } : {}),
-      }),
+    "conversas.enviar": async ({ id, texto, clientId = null, arquivo = null }) => {
+      const limpo = String(texto || "").trim();
+      if (!arquivo) {
+        return enfileirar(id, "conversation_send", {
+          text: limpo,
+          ...(clientId ? { clientId } : {}),
+        });
+      }
+
+      const alvo = separarId(id);
+      if (!alvo) throw erroConversas("Conversa inválida.", "conversas-id-invalido");
+      const mime = mimeLimpo(arquivo.type);
+      const extensao = EXTENSAO_POR_MIME[mime];
+      if (!extensao) {
+        throw erroConversas(
+          "Esse tipo de arquivo não pode ser enviado. Use JPG, PNG, WebP ou o áudio gravado aqui.",
+          "conversas-anexo-invalido"
+        );
+      }
+      const identidade = clientId || crypto.randomUUID();
+      const organizationId = await organizacao();
+      const caminho = `${organizationId}/${alvo.connectionId}/outbox/${identidade}.${extensao}`;
+
+      const { error } = await supabase.storage
+        .from(BUCKET_MIDIA)
+        .upload(caminho, arquivo, { contentType: mime, cacheControl: "3600" });
+      // "Já existe" é o reenvio do mesmo clique: o objeto subiu na tentativa
+      // anterior e a fila é quem falhou. Qualquer outro erro é o upload.
+      if (error && !/exists|duplicate/i.test(String(error.message || ""))) {
+        throw erroConversas(
+          "O arquivo não subiu para o servidor. Confira a conexão e tente de novo.",
+          "conversas-anexo-falhou"
+        );
+      }
+
+      return enfileirarEm(alvo, "conversation_send", {
+        text: limpo,
+        mediaPath: caminho,
+        mediaMime: mime,
+        clientId: identidade,
+      });
+    },
 
     /**
      * Atribui a conversa: ao robô, à IA, ou a uma pessoa da equipe.

@@ -39,6 +39,24 @@ const horaDeAgora = () =>
   new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 /**
+ * O arquivo escolhido, como a bolha provisória o mostra.
+ *
+ * A URL é local ao navegador (`createObjectURL`) e vale só até a bolha de
+ * verdade chegar com a URL assinada do bucket. Fora do navegador — a bancada
+ * de testes — não há URL, e a bolha cai no rótulo.
+ */
+function midiaProvisoria(arquivo) {
+  const tipo = String(arquivo?.type || "").startsWith("audio/") ? "audio" : "imagem";
+  let url = null;
+  try {
+    url = typeof URL !== "undefined" && URL.createObjectURL ? URL.createObjectURL(arquivo) : null;
+  } catch {
+    url = null;
+  }
+  return { tipo, url, nome: String(arquivo?.name || ""), mime: String(arquivo?.type || "") };
+}
+
+/**
  * O estado da tela de Conversas.
  *
  * Fica fora do componente pelo mesmo motivo que `useOperadores` na Equipe: a
@@ -303,11 +321,19 @@ export function useConversas(organizacaoId) {
     return { situacao: "expired", motivo: "expired" };
   }, []);
 
+  /**
+   * Manda texto, ou um arquivo com legenda.
+   *
+   * `arquivo` (imagem escolhida ou áudio gravado) segue o mesmo caminho do
+   * texto: bolha provisória na hora, comando na fila, desfecho acompanhado. A
+   * bolha provisória mostra o próprio arquivo, por uma URL local do navegador,
+   * antes de a mensagem voltar do WhatsApp com o arquivo do bucket.
+   */
   const enviar = useCallback(
-    async (texto, reaproveitar = null) => {
+    async (texto, reaproveitar = null, arquivo = null) => {
       if (!atual) return;
       const limpo = String(texto || "").trim();
-      if (!limpo) return;
+      if (!limpo && !arquivo) return;
       setAviso("");
 
       // A bolha aparece antes do desfecho, marcada como enviando. Sem ela a
@@ -355,7 +381,16 @@ export function useConversas(organizacaoId) {
       } else {
         setPendentes((antes) =>
           antes.concat([
-            { chave, conversa, texto: limpo, hora, messageIdsConhecidos, clienteId: clienteDoClique },
+            {
+              chave,
+              conversa,
+              texto: limpo,
+              hora,
+              messageIdsConhecidos,
+              clienteId: clienteDoClique,
+              arquivo,
+              midia: arquivo ? midiaProvisoria(arquivo) : null,
+            },
           ])
         );
       }
@@ -372,6 +407,7 @@ export function useConversas(organizacaoId) {
           id: conversa,
           texto: limpo,
           clientId: clienteDoClique,
+          ...(arquivo ? { arquivo } : {}),
         });
       } catch (falha) {
         largar();
@@ -428,7 +464,7 @@ export function useConversas(organizacaoId) {
     async (chave) => {
       const pendente = pendentes.find((p) => p.chave === chave);
       if (!pendente || !pendente.falhou) return;
-      await enviar(pendente.texto, chave).catch(() => {});
+      await enviar(pendente.texto, chave, pendente.arquivo || null).catch(() => {});
     },
     [pendentes, enviar]
   );
@@ -600,6 +636,7 @@ export function useConversas(organizacaoId) {
         chave: p.chave,
         hora: p.hora,
         texto: p.texto,
+        midia: p.midia || null,
         // Quem escreveu é quem está na tela, e a bolha já diz isso antes de a
         // mensagem voltar do WhatsApp. Sem o tom aqui, o nome apareceria de
         // repente um ciclo depois, quando a sincronia trouxesse a autoria — e

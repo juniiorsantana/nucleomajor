@@ -234,6 +234,61 @@ describe("conciliação de mensagens pendentes", () => {
   });
 });
 
+describe("enviar com arquivo", () => {
+  it("a bolha provisória mostra o arquivo, e a fila recebe o arquivo com a legenda", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    conversasApi.mensagens.mockResolvedValue([]);
+    await renderizar("org-a");
+    await drenar();
+
+    const foto = new File(["x"], "foto.jpg", { type: "image/jpeg" });
+    await act(async () => estado.enviar("legenda", null, foto));
+    await drenar();
+
+    const provisoria = estado.mensagens.find((item) => item.enviando);
+    expect(provisoria.texto).toBe("legenda");
+    expect(provisoria.midia).toMatchObject({ tipo: "imagem", nome: "foto.jpg" });
+    expect(conversasApi.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "org-a:5511", texto: "legenda", arquivo: foto })
+    );
+  });
+
+  it("arquivo sem legenda também sai — e texto vazio sem arquivo continua não saindo", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+
+    await act(async () => estado.enviar("", null, null));
+    expect(conversasApi.enviar).not.toHaveBeenCalled();
+
+    const audio = new File(["x"], "gravacao.webm", { type: "audio/webm" });
+    await act(async () => estado.enviar("", null, audio));
+    await drenar();
+    expect(conversasApi.enviar).toHaveBeenCalledTimes(1);
+    expect(estado.mensagens.find((item) => item.enviando).midia.tipo).toBe("audio");
+  });
+
+  it("a nova tentativa reaproveita o arquivo da bolha que falhou", async () => {
+    vi.useFakeTimers();
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    conversasApi.desfecho.mockResolvedValue({ situacao: "failed", motivo: "media_unavailable" });
+    await renderizar("org-a");
+    await drenar();
+
+    const foto = new File(["x"], "foto.jpg", { type: "image/jpeg" });
+    await act(async () => estado.enviar("", null, foto));
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+    await drenar();
+    const falha = estado.mensagens.find((item) => item.falhou);
+    expect(falha).toBeTruthy();
+
+    conversasApi.enviar.mockClear();
+    await act(async () => estado.reenviar(falha.chave));
+    await drenar();
+    expect(conversasApi.enviar).toHaveBeenCalledWith(expect.objectContaining({ arquivo: foto }));
+  });
+});
+
 describe("atualização e desmontagem", () => {
   it("recarrega lista e conversa quando chega o tópico de Realtime", async () => {
     conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);

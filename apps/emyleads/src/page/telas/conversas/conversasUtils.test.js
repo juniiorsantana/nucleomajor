@@ -112,3 +112,49 @@ describe("etiqueta 'Não atender IA'", () => {
     expect(contatoMarcadoNaoAtenderIA([])).toBe(false);
   });
 });
+
+describe("a volta de uma bolha provisória com anexo", () => {
+  const base = { conversa: "c1", messageIdsConhecidos: [] };
+  const entregue = (extra) => ({ tipo: "mensagem", direcao: "sai", messageId: "wa-x", ...extra });
+
+  it("anexo casa com o mesmo tipo de arquivo e a mesma legenda", () => {
+    const pendente = { ...base, texto: "olha", midia: { tipo: "imagem", url: "blob:1" } };
+    const sobra = conciliarPendentes(
+      [pendente],
+      [entregue({ texto: "olha", midia: { tipo: "imagem", url: "https://s/x.jpg" } })],
+      "c1"
+    );
+    expect(sobra).toEqual([]);
+  });
+
+  it("anexo de outro tipo não é a volta", () => {
+    const pendente = { ...base, texto: "", midia: { tipo: "audio", url: "blob:1" } };
+    const sobra = conciliarPendentes(
+      [pendente],
+      [entregue({ texto: "", midia: { tipo: "imagem", url: "https://s/x.jpg" } })],
+      "c1"
+    );
+    expect(sobra).toEqual([pendente]);
+  });
+
+  it("num espelho que só tem o rótulo, o rótulo é a volta", () => {
+    const pendente = { ...base, texto: "legenda", midia: { tipo: "audio", url: "blob:1" } };
+    expect(
+      conciliarPendentes([pendente], [entregue({ texto: "🎤 Áudio\nlegenda", midia: null })], "c1")
+    ).toEqual([]);
+    const semLegenda = { ...base, texto: "", midia: { tipo: "imagem", url: "blob:2" } };
+    expect(
+      conciliarPendentes([semLegenda], [entregue({ texto: "📎 Imagem", midia: null })], "c1")
+    ).toEqual([]);
+  });
+
+  it("texto puro não casa com uma mensagem que tem arquivo", () => {
+    const pendente = { ...base, texto: "olha", midia: null };
+    const sobra = conciliarPendentes(
+      [pendente],
+      [entregue({ texto: "olha", midia: { tipo: "imagem", url: "https://s/x.jpg" } })],
+      "c1"
+    );
+    expect(sobra).toEqual([pendente]);
+  });
+});

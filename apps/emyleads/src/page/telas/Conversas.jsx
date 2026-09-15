@@ -17,6 +17,7 @@ import {
   DivisorData,
   FaixaAtendimento,
   FaixaNaoLidas,
+  Lightbox,
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
@@ -142,6 +143,8 @@ export default function Conversas({
   const [fichaAberta, setFichaAberta] = useState(true);
   const [novaConversa, setNovaConversa] = useState(false);
   const [modalConexao, setModalConexao] = useState(false);
+  // A imagem aberta em tela cheia, ou nada.
+  const [midiaAberta, setMidiaAberta] = useState(null);
 
   const { rolagem, aoRolar } = useRolagemConversa(atual, mensagens);
 
@@ -238,15 +241,24 @@ export default function Conversas({
     if (nome !== "atalhos") setAtalho(null);
   };
 
-  const mandar = async (texto) => {
+  const mandar = async (texto, arquivo = null) => {
     try {
-      await enviar(texto);
+      await enviar(texto, null, arquivo);
       setRascunho("");
       setAba(null);
     } catch {
       // O texto fica na caixa de propósito: quem escreveu não deve perder o que
       // escreveu porque o envio falhou. O motivo aparece abaixo dela.
     }
+  };
+
+  // O anexo segue o mesmo caminho do texto; a legenda é o rascunho. A caixa
+  // espera a promessa para saber se solta o arquivo ou o mantém para a nova
+  // tentativa.
+  const mandarArquivo = async (arquivo, legenda) => {
+    await enviar(legenda, null, arquivo);
+    setRascunho("");
+    setAba(null);
   };
 
   const abrirAtalho = (qual) => {
@@ -470,7 +482,13 @@ export default function Conversas({
                 if (m.tipo === "sistema")
                   return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
                 return (
-                  <Bolha key={chave} mensagem={m} nomeProprio={eu} aoReenviar={reenviar} />
+                  <Bolha
+                    key={chave}
+                    mensagem={m}
+                    nomeProprio={eu}
+                    aoReenviar={reenviar}
+                    aoAbrirMidia={setMidiaAberta}
+                  />
                 );
               })}
             </div>
@@ -513,10 +531,12 @@ export default function Conversas({
               aoTrocar={trocarDono}
             />
 
+            <Lightbox midia={midiaAberta} aoFechar={() => setMidiaAberta(null)} />
             <Composer
               rascunho={rascunho}
               aoMudar={setRascunho}
               aoEnviar={() => mandar(rascunho)}
+              aoEnviarArquivo={mandarArquivo}
               aba={aba}
               aoAlternarAba={alternarAba}
               aviso={

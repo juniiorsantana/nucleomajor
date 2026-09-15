@@ -14,7 +14,10 @@ import {
   RotateCw,
   Smile,
   Sparkles,
+  Square,
+  Trash2,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -244,7 +247,98 @@ function AvisoDeFalha({ motivo, aoReenviar }) {
   );
 }
 
-export function Bolha({ mensagem, nomeProprio, aoReenviar }) {
+/** O rótulo da mídia que a bolha mostra quando não tem o arquivo. */
+const ROTULO_DA_MIDIA = { audio: "🎤 Áudio", imagem: "📎 Imagem", outro: "📎 Anexo" };
+
+/**
+ * O arquivo dentro da bolha: player para áudio, miniatura para imagem, link
+ * para o resto. Sem URL — a provisória fora do navegador, ou a assinatura que
+ * falhou — volta ao rótulo, que é o que a bolha sempre mostrou.
+ */
+function MidiaDaBolha({ midia, aoAbrir }) {
+  if (!midia) return null;
+  if (!midia.url) {
+    return <span className="block">{ROTULO_DA_MIDIA[midia.tipo] || ROTULO_DA_MIDIA.outro}</span>;
+  }
+  if (midia.tipo === "audio") {
+    return (
+      // `preload="none"`: uma conversa com trinta áudios não baixa trinta
+      // arquivos ao abrir. O navegador busca quando alguém aperta play.
+      <audio
+        controls
+        preload="none"
+        src={midia.url}
+        className="my-0.5 block h-9 w-[260px] max-w-full"
+        aria-label={midia.nome || "Áudio"}
+      />
+    );
+  }
+  if (midia.tipo === "imagem") {
+    return (
+      <button
+        type="button"
+        onClick={() => aoAbrir?.(midia)}
+        title="Abrir imagem"
+        className="my-0.5 block cursor-zoom-in overflow-hidden rounded-[8px]"
+      >
+        <img
+          src={midia.url}
+          alt={midia.nome || "Imagem"}
+          loading="lazy"
+          className="block max-h-72 max-w-full object-cover"
+        />
+      </button>
+    );
+  }
+  return (
+    <a
+      href={midia.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block underline decoration-accent/60 underline-offset-2"
+    >
+      📎 {midia.nome || "Abrir anexo"}
+    </a>
+  );
+}
+
+/** A imagem em tela cheia. Esc ou clique fora fecha. */
+export function Lightbox({ midia, aoFechar }) {
+  useEffect(() => {
+    if (!midia) return undefined;
+    const aoTeclar = (e) => {
+      if (e.key === "Escape") aoFechar();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [midia, aoFechar]);
+  if (!midia) return null;
+  return (
+    <div
+      role="dialog"
+      aria-label={midia.nome || "Imagem"}
+      onClick={aoFechar}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+    >
+      <button
+        type="button"
+        onClick={aoFechar}
+        title="Fechar"
+        className="absolute right-4 top-4 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+      >
+        <X size={18} strokeWidth={2} />
+      </button>
+      <img
+        src={midia.url}
+        alt={midia.nome || "Imagem"}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-full max-w-full rounded-[6px] object-contain"
+      />
+    </div>
+  );
+}
+
+export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
   const saiu = mensagem.direcao === "sai";
   // A bolha que ainda não voltou do WhatsApp foi escrita AQUI, agora, por quem
   // está olhando: é o único caso em que o nome de quem vê é o nome de quem
@@ -277,7 +371,8 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar }) {
             <span className="block truncate text-[11.5px] text-sub">{mensagem.cita.texto}</span>
           </span>
         )}
-        <span className="whitespace-pre-wrap">{mensagem.texto}</span>
+        <MidiaDaBolha midia={mensagem.midia} aoAbrir={aoAbrirMidia} />
+        {mensagem.texto && <span className="whitespace-pre-wrap">{mensagem.texto}</span>}
         {/* Espaço reservado para a hora não sentar em cima da última palavra. */}
         <span className={`inline-block h-px ${saiu ? "w-[58px]" : "w-10"}`} />
         <span className="absolute bottom-1.5 right-2.5 flex items-center gap-[3px] text-[10.5px] tabular-nums text-faint">
@@ -426,6 +521,45 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
 }
 
 /**
+ * O teto do arquivo escolhido, conferido aqui antes de qualquer upload. O
+ * bucket recusa acima de 16 MB; dez é o que uma foto de celular ocupa com
+ * folga, e o que a tela consegue mandar sem a pessoa achar que travou.
+ */
+const TETO_DO_ANEXO_BYTES = 10 * 1024 * 1024;
+const TIPOS_DE_IMAGEM = "image/jpeg,image/png,image/webp";
+/** Gravação máxima. O WhatsApp aceita mais; ninguém ouve mais. */
+const GRAVACAO_MAXIMA_SEGUNDOS = 5 * 60;
+
+/** O formato que o navegador sabe gravar, na ordem em que o WhatsApp prefere. */
+const FORMATOS_DE_GRAVACAO = [
+  "audio/webm;codecs=opus",
+  "audio/ogg;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+];
+
+const formatoDeGravacao = () => {
+  if (typeof MediaRecorder === "undefined") return "";
+  return FORMATOS_DE_GRAVACAO.find((f) => MediaRecorder.isTypeSupported?.(f)) || "";
+};
+
+const podeGravarAqui = () =>
+  Boolean(formatoDeGravacao()) &&
+  typeof navigator !== "undefined" &&
+  Boolean(navigator.mediaDevices?.getUserMedia);
+
+const relogio = (segundos) =>
+  `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
+
+const urlLocal = (arquivo) => {
+  try {
+    return typeof URL !== "undefined" && URL.createObjectURL ? URL.createObjectURL(arquivo) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * A caixa de escrita.
  *
  * Enter envia e Shift+Enter quebra linha, como no WhatsApp. O microfone vira
@@ -434,26 +568,160 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
  *
  * Digitar `/` numa caixa vazia abre as mensagens padrão: é o atalho que
  * dispensa procurar o botão.
+ *
+ * Desde 16/09/2026 a caixa também manda arquivo. O clipe escolhe uma imagem;
+ * o microfone grava um áudio. Os dois viram um ANEXO acima da caixa — com a
+ * imagem ou o player para conferir — e o texto vira legenda. Só o botão de
+ * enviar manda; nada sai ao soltar o microfone, porque num portal de equipe
+ * um áudio errado sai para um cliente, e ouvir antes custa um clique.
  */
 export function Composer({
   rascunho,
   aoMudar,
   aoEnviar,
+  aoEnviarArquivo,
   aba,
   aoAlternarAba,
   aviso,
 }) {
   const escrevendo = String(rascunho || "").trim().length > 0;
+  // O arquivo escolhido ou gravado, ainda não enviado.
+  const [anexo, setAnexo] = useState(null);
+  // A gravação em curso: { segundos }.
+  const [gravacao, setGravacao] = useState(null);
+  const [erroLocal, setErroLocal] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const entradaDeArquivo = useRef(null);
+  const gravadorRef = useRef(null);
+
+  const podeAnexar = typeof aoEnviarArquivo === "function";
+  const podeGravar = podeAnexar && podeGravarAqui();
+
+  const largarAnexo = () => {
+    setAnexo((atual) => {
+      if (atual?.url) {
+        try {
+          URL.revokeObjectURL(atual.url);
+        } catch {
+          // Sem URL para revogar fora do navegador.
+        }
+      }
+      return null;
+    });
+  };
+
+  // A gravação não sobrevive à caixa: sair da conversa no meio dela solta o
+  // microfone, senão o ícone do navegador fica aceso numa tela que já mudou.
+  useEffect(
+    () => () => {
+      const gravador = gravadorRef.current;
+      if (gravador && gravador.state !== "inactive") {
+        gravador.descartar = true;
+        gravador.stop();
+      }
+    },
+    []
+  );
+
+  const escolherImagem = (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!arquivo) return;
+    setErroLocal("");
+    if (!TIPOS_DE_IMAGEM.split(",").includes(arquivo.type)) {
+      setErroLocal("Só JPG, PNG ou WebP. Documento e vídeo ainda não saem por aqui.");
+      return;
+    }
+    if (arquivo.size > TETO_DO_ANEXO_BYTES) {
+      setErroLocal("A imagem passa de 10 MB. Reduza antes de enviar.");
+      return;
+    }
+    largarAnexo();
+    setAnexo({ arquivo, tipo: "imagem", url: urlLocal(arquivo), nome: arquivo.name });
+  };
+
+  const comecarGravacao = async () => {
+    setErroLocal("");
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setErroLocal("O navegador não liberou o microfone. Confira a permissão do site.");
+      return;
+    }
+    const formato = formatoDeGravacao();
+    let gravador;
+    try {
+      gravador = new MediaRecorder(stream, formato ? { mimeType: formato } : undefined);
+    } catch {
+      stream.getTracks().forEach((t) => t.stop());
+      setErroLocal("Este navegador não grava áudio em um formato que o WhatsApp toque.");
+      return;
+    }
+    const pedacos = [];
+    gravador.ondataavailable = (evento) => {
+      if (evento.data && evento.data.size > 0) pedacos.push(evento.data);
+    };
+    gravador.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      window.clearInterval(gravador.cronometro);
+      gravadorRef.current = null;
+      setGravacao(null);
+      if (gravador.descartar || pedacos.length === 0) return;
+      const tipo = String(gravador.mimeType || formato || "audio/webm");
+      const blob = new Blob(pedacos, { type: tipo });
+      const extensao = tipo.includes("ogg") ? "ogg" : tipo.includes("mp4") ? "m4a" : "webm";
+      const arquivo = new File([blob], `gravacao.${extensao}`, { type: tipo });
+      largarAnexo();
+      setAnexo({ arquivo, tipo: "audio", url: urlLocal(arquivo), nome: arquivo.name });
+    };
+    gravadorRef.current = gravador;
+    gravador.start(250);
+    const inicio = Date.now();
+    gravador.cronometro = window.setInterval(() => {
+      const segundos = Math.floor((Date.now() - inicio) / 1000);
+      setGravacao({ segundos });
+      if (segundos >= GRAVACAO_MAXIMA_SEGUNDOS && gravador.state === "recording") gravador.stop();
+    }, 250);
+    setGravacao({ segundos: 0 });
+  };
+
+  const pararGravacao = (descartar = false) => {
+    const gravador = gravadorRef.current;
+    if (!gravador) return;
+    gravador.descartar = descartar;
+    if (gravador.state !== "inactive") gravador.stop();
+  };
+
+  const mandar = async () => {
+    if (gravacao) return;
+    if (!anexo) {
+      aoEnviar();
+      return;
+    }
+    if (enviando) return;
+    setEnviando(true);
+    setErroLocal("");
+    try {
+      await aoEnviarArquivo(anexo.arquivo, rascunho);
+      largarAnexo();
+    } catch {
+      // O aviso do envio vem por `aviso`, de quem chamou; o anexo fica para a
+      // pessoa tentar de novo sem escolher o arquivo outra vez.
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   const aoTeclar = (e) => {
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
-    aoEnviar();
+    mandar();
   };
 
   const aoDigitar = (e) => {
     const valor = e.target.value;
-    if (valor === "/") {
+    if (valor === "/" && !anexo) {
       aoMudar("");
       aoAlternarAba("modelos", true);
       return;
@@ -473,26 +741,84 @@ export function Composer({
     </button>
   );
 
+  const mostrarEnviar = escrevendo || Boolean(anexo);
+  const rodape = erroLocal || aviso;
+
   return (
     <div className="flex-none bg-bg px-3.5 pb-3.5 pt-2.5">
+      {anexo && (
+        <div
+          data-testid="anexo"
+          className="mb-1.5 flex items-center gap-2.5 rounded-[12px] border border-line bg-surface px-2.5 py-2"
+        >
+          {anexo.tipo === "imagem" ? (
+            <img
+              src={anexo.url || undefined}
+              alt={anexo.nome}
+              className="h-14 w-14 flex-none rounded-[8px] object-cover"
+            />
+          ) : (
+            <audio
+              controls
+              src={anexo.url || undefined}
+              className="h-9 min-w-0 flex-1"
+              aria-label="Áudio gravado"
+            />
+          )}
+          <span className="min-w-0 flex-1 truncate text-[12px] text-sub">
+            {anexo.tipo === "imagem" ? anexo.nome : "Ouça antes de enviar"}
+          </span>
+          <button
+            type="button"
+            onClick={largarAnexo}
+            title="Remover anexo"
+            className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub hover:bg-surface-hover hover:text-fg"
+          >
+            <X size={17} strokeWidth={2} />
+          </button>
+        </div>
+      )}
       <div className="flex items-end gap-1.5 rounded-[14px] border border-line bg-bg px-1.5 py-1 shadow-[0_6px_22px_rgba(18,23,48,.06)]">
+        <input
+          ref={entradaDeArquivo}
+          type="file"
+          accept={TIPOS_DE_IMAGEM}
+          onChange={escolherImagem}
+          className="hidden"
+          data-testid="entrada-de-imagem"
+        />
         <button
-          title="Anexar — ainda sem envio de arquivo"
-          disabled
-          className="flex h-8 w-8 flex-none items-center justify-center rounded-[9px] text-sub opacity-40"
+          type="button"
+          title={podeAnexar ? "Anexar imagem" : "Anexar — indisponível aqui"}
+          disabled={!podeAnexar || Boolean(gravacao)}
+          onClick={() => entradaDeArquivo.current?.click()}
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-[9px] text-sub ${
+            podeAnexar ? "cursor-pointer hover:bg-surface-hover hover:text-fg" : "opacity-40"
+          }`}
         >
           <Paperclip size={18} strokeWidth={1.9} />
         </button>
         {botao("modelos", MessageSquareText, "Mensagens padrão")}
         {botao("atalhos", Zap, "Atalhos rápidos")}
-        <textarea
-          rows={1}
-          value={rascunho}
-          onChange={aoDigitar}
-          onKeyDown={aoTeclar}
-          placeholder="Escreva uma mensagem"
-          className="max-h-24 min-w-0 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-[13.5px] leading-5 text-fg outline-none placeholder:text-faint"
-        />
+        {gravacao ? (
+          <div
+            data-testid="gravando"
+            className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-2 text-[13px] text-fg"
+          >
+            <span className="h-2.5 w-2.5 flex-none animate-pulse rounded-full bg-danger" />
+            <span className="tabular-nums">{relogio(gravacao.segundos)}</span>
+            <span className="truncate text-sub">Gravando…</span>
+          </div>
+        ) : (
+          <textarea
+            rows={1}
+            value={rascunho}
+            onChange={aoDigitar}
+            onKeyDown={aoTeclar}
+            placeholder={anexo ? "Legenda (opcional)" : "Escreva uma mensagem"}
+            className="max-h-24 min-w-0 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-[13.5px] leading-5 text-fg outline-none placeholder:text-faint"
+          />
+        )}
         <button
           title="Emoji — ainda sem seletor"
           disabled
@@ -500,26 +826,50 @@ export function Composer({
         >
           <Smile size={18} strokeWidth={1.8} />
         </button>
-        {escrevendo ? (
+        {gravacao ? (
+          <>
+            <button
+              type="button"
+              onClick={() => pararGravacao(true)}
+              title="Descartar gravação"
+              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] text-sub hover:bg-surface-hover hover:text-danger"
+            >
+              <Trash2 size={18} strokeWidth={1.9} />
+            </button>
+            <button
+              type="button"
+              onClick={() => pararGravacao(false)}
+              title="Parar gravação"
+              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] bg-danger text-white transition-all hover:brightness-110"
+            >
+              <Square size={16} strokeWidth={2.2} />
+            </button>
+          </>
+        ) : mostrarEnviar ? (
           <button
-            onClick={aoEnviar}
+            onClick={mandar}
+            disabled={enviando}
             title="Enviar"
-            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] bg-accent text-white transition-all hover:brightness-110"
+            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] bg-accent text-white transition-all hover:brightness-110 disabled:opacity-60"
           >
             <SendHorizontal size={17} strokeWidth={2} />
           </button>
         ) : (
           <button
-            title="Gravar áudio — ainda sem gravação"
-            disabled
-            className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] text-sub opacity-40"
+            type="button"
+            title={podeGravar ? "Gravar áudio" : "Gravar áudio — indisponível neste navegador"}
+            disabled={!podeGravar}
+            onClick={comecarGravacao}
+            className={`flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] text-sub ${
+              podeGravar ? "cursor-pointer hover:bg-surface-hover hover:text-fg" : "opacity-40"
+            }`}
           >
             <Mic size={18} strokeWidth={1.9} />
           </button>
         )}
       </div>
       <div className="mt-[7px] flex items-center gap-1.5 pl-1 text-[10.5px] text-faint">
-        {aviso || (
+        {rodape || (
           <>
             <strong className="font-semibold text-sub">Enter</strong> envia ·{" "}
             <strong className="font-semibold text-sub">Shift+Enter</strong> quebra linha ·{" "}

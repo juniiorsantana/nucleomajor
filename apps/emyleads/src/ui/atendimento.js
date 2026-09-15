@@ -107,6 +107,13 @@ export const MOTIVOS_DE_ENVIO = {
   expired:
     "O runtime não pegou este pedido a tempo. Confira se o assistente da VPS" +
     " está de pé e tente de novo.",
+  // O anexo não chegou ao WhatsApp — e nada saiu, nem a legenda. Os dois
+  // motivos pedem ações diferentes: o primeiro é "tente de novo", o segundo é
+  // "o servidor não converte áudio", que só um administrador resolve.
+  media_unavailable:
+    "O arquivo não chegou ao servidor. Tente enviar de novo.",
+  media_conversion_failed:
+    "O servidor não conseguiu converter este áudio para o WhatsApp. Avise um administrador.",
 };
 
 export const textoDoMotivoDeEnvio = (motivo) =>
