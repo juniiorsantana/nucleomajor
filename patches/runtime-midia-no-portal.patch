@@ -325,13 +325,13 @@ index 678e607..596bf17 100644
          if self._thread and self._thread.is_alive():
              return
 diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
-index 62e2bd8..bb2cceb 100644
+index 08f4132..e389d7f 100644
 --- a/whatsapp-assistant/main.py
 +++ b/whatsapp-assistant/main.py
-@@ -150,11 +150,26 @@ def main() -> int:
-             interval=cfg.runtime_commands_poll_seconds,
-             instance_id=heartbeat.instance_id if heartbeat is not None else "",
-             equipe_assume=cfg.human_takeover_lookback_hours > 0,
+@@ -155,11 +155,26 @@ def main() -> int:
+             # regra de `worker._team_notice_recipients`, para as duas não
+             # divergirem.
+             team_notice_phones=tuple(cfg.handoff_notify_phones or ()) or (cfg.owner,),
 +            # O anexo do portal passa pelo outbox do Bridge; ver Config.outbox_dir.
 +            outbox_dir=cfg.outbox_dir,
 +            ffmpeg_bin=cfg.ffmpeg_bin,
@@ -355,7 +355,7 @@ index 62e2bd8..bb2cceb 100644
          conversation_syncer = conversation_sync.ConversationSync(
              verifier=verifier,
              registry=registry,
-@@ -169,6 +184,7 @@ def main() -> int:
+@@ -174,6 +189,7 @@ def main() -> int:
              # presença humana desligada não há livro, e o espelho sobe sem
              # autor: a bolha fica sem nome, como antes desta versão.
              presenca=presenca,
@@ -363,7 +363,7 @@ index 62e2bd8..bb2cceb 100644
          )
          conversation_syncer.start()
      # Um código por conexão registrada, gerado a cada boot com
-@@ -235,6 +251,10 @@ def main() -> int:
+@@ -240,6 +256,10 @@ def main() -> int:
          # E qual regra está no ar para o cliente. Mesma razão: "a IA respondeu
          # por cima de mim" precisa poder ser conferido sem adivinhação.
          human_takeover_lookback_hours=cfg.human_takeover_lookback_hours or None,
@@ -376,10 +376,10 @@ index 62e2bd8..bb2cceb 100644
      return _wait_forever(
 diff --git a/whatsapp-assistant/media_mirror.py b/whatsapp-assistant/media_mirror.py
 new file mode 100644
-index 0000000..fc095f2
+index 0000000..0d12a41
 --- /dev/null
 +++ b/whatsapp-assistant/media_mirror.py
-@@ -0,0 +1,363 @@
+@@ -0,0 +1,368 @@
 +"""O arquivo da mídia recebida, do Bridge para o Storage do plano de controle.
 +
 +Até 16/09/2026 o espelho subia de uma mídia só o rótulo — "sem bytes, sem
@@ -594,16 +594,21 @@ index 0000000..fc095f2
 +        if not prefixo:
 +            return []
 +        agora = self._relogio()
-+        prontos = sorted(
-+            (float(valor.get("proxima") or 0.0), chave)
-+            for chave, valor in self._pendentes.items()
++        # As mais NOVAS primeiro. A entrada segue a ordem do Bridge (timestamp
++        # crescente), então o fim do dicionário é o presente — e é o áudio que
++        # o cliente acabou de mandar que a equipe está esperando ouvir, não a
++        # foto de grupo de anteontem que entrou na fila quando a marca d'água
++        # recuou. O que ficou para trás sobe nos ciclos seguintes.
++        prontos = [
++            chave
++            for chave, valor in reversed(list(self._pendentes.items()))
 +            if float(valor.get("proxima") or 0.0) <= agora
-+        )[: self.orcamento]
++        ][: self.orcamento]
 +        if not prontos:
 +            return []
 +
 +        saida = []
-+        for _, identificador in prontos:
++        for identificador in prontos:
 +            pendente = self._pendentes[identificador]
 +            linha = banco.execute(SQL_LINHA, (identificador, pendente.get("chat", ""))).fetchone()
 +            item = construir_item(linha) if linha is not None else None
@@ -1006,7 +1011,7 @@ index 4f0de6b..86f885d 100644
  
      def instante_da_mensagem(self, message_id: str, chat_jid: str) -> Optional[datetime]:
 diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
-index 27369f0..ca5cfe7 100644
+index acea110..2d3673e 100644
 --- a/whatsapp-assistant/runtime_commands.py
 +++ b/whatsapp-assistant/runtime_commands.py
 @@ -7,10 +7,13 @@ em loopback. Telefones e códigos nunca entram nos logs.
@@ -1023,7 +1028,7 @@ index 27369f0..ca5cfe7 100644
  from typing import Optional
  
  import assinatura
-@@ -40,6 +43,34 @@ CHAT_RE = re.compile(r"^[0-9][0-9-]{5,39}$")
+@@ -48,6 +51,34 @@ CHAT_RE = re.compile(r"^[0-9][0-9-]{5,39}$")
  # própria RPC a montá-lo.
  LIMITE_DO_TEXTO = 4000
  
@@ -1058,10 +1063,10 @@ index 27369f0..ca5cfe7 100644
  COMANDOS = frozenset(
      {
          "operator_verification_send",
-@@ -138,11 +169,19 @@ class RuntimeCommandPoller:
-         interval: float = 2.0,
+@@ -156,11 +187,19 @@ class RuntimeCommandPoller:
          instance_id: str = "",
          equipe_assume: bool = False,
+         team_notice_phones: tuple = (),
 +        outbox_dir: Optional[Path] = None,
 +        ffmpeg_bin: str = "ffmpeg",
      ) -> None:
@@ -1078,7 +1083,7 @@ index 27369f0..ca5cfe7 100644
          # A base HTTP do Bridge, que é outra que a do controle interno usado por
          # `manager.control_for`. Vazia significa que esta instância não envia: o
          # comando falha com um motivo próprio em vez de montar uma URL pela
-@@ -314,19 +353,47 @@ class RuntimeCommandPoller:
+@@ -347,19 +386,47 @@ class RuntimeCommandPoller:
          chat = str(payload.get("chat") or "").strip()
          tipo = str(payload.get("kind") or "direto").strip()
          texto = str(payload.get("text") or "").strip()
@@ -1127,7 +1132,7 @@ index 27369f0..ca5cfe7 100644
          # Quem escreveu vem da RPC, nunca do navegador.
          #
          # `nucleo_conversation_command_enqueue` resolve o nome curto do
-@@ -339,7 +406,9 @@ class RuntimeCommandPoller:
+@@ -372,7 +439,9 @@ class RuntimeCommandPoller:
          # sem assinatura, como saía ontem, e é registrada sem nome.
          autor_nome = assinatura.limpar_nome(payload.get("authorName"))
          autor_id = str(payload.get("authorId") or "").strip()[:64]
@@ -1138,7 +1143,7 @@ index 27369f0..ca5cfe7 100644
  
          destino = f"{chat}@g.us" if tipo == "grupo" else chat
          try:
-@@ -350,6 +419,10 @@ class RuntimeCommandPoller:
+@@ -383,6 +452,10 @@ class RuntimeCommandPoller:
                  texto_assinado,
                  author_name=autor_nome,
                  author_id=autor_id,
@@ -1149,7 +1154,7 @@ index 27369f0..ca5cfe7 100644
              )
          except send.SendError as exc:
              self._complete(command_id, "failed", _motivo_da_recusa(exc))
-@@ -360,6 +433,15 @@ class RuntimeCommandPoller:
+@@ -393,6 +466,15 @@ class RuntimeCommandPoller:
                  error_code=_motivo_da_recusa(exc),
              )
              return
@@ -1165,7 +1170,7 @@ index 27369f0..ca5cfe7 100644
  
          # Quem escreveu isto foi gente, e o agente precisa saber.
          #
-@@ -389,6 +471,77 @@ class RuntimeCommandPoller:
+@@ -422,6 +504,77 @@ class RuntimeCommandPoller:
              command_type="conversation_send",
          )
  
@@ -1244,10 +1249,10 @@ index 27369f0..ca5cfe7 100644
          """Pergunta ao Bridge se um número existe no WhatsApp.
  
 diff --git a/whatsapp-assistant/send.py b/whatsapp-assistant/send.py
-index e5a9aa9..8b4038b 100644
+index a6b487f..0ce0e47 100644
 --- a/whatsapp-assistant/send.py
 +++ b/whatsapp-assistant/send.py
-@@ -19,6 +19,8 @@ from typing import Callable, Optional, Tuple
+@@ -19,6 +19,8 @@ from typing import Callable, Optional, Sequence, Tuple
  import requests
  
  REQUEST_TIMEOUT = 30
@@ -1288,7 +1293,7 @@ index e5a9aa9..8b4038b 100644
  ) -> str:
      """Entrega uma mensagem que uma PESSOA escreveu no portal.
  
-@@ -272,6 +282,14 @@ def send_human_message(
+@@ -272,10 +282,18 @@ def send_human_message(
      ``send_message`` existem para um humano revisar o que a IA escreveu, e aqui
      o humano é o autor. Pedir que ele aprove o próprio texto é teatro.
  
@@ -1303,7 +1308,34 @@ index e5a9aa9..8b4038b 100644
      Levanta ``SendError`` em qualquer desfecho que não seja envio confirmado. O
      chamador nunca deve marcar o comando como concluído sem isto ter retornado.
      """
-@@ -279,15 +297,18 @@ def send_human_message(
+-    body = _post_manual(api_base_url, token, recipient, message)
++    body = _post_manual(api_base_url, token, recipient, message, media_path)
+ 
+     # Anotado como GENTE, e e' a diferenca inteira.
+     #
+@@ -286,7 +304,7 @@ def send_human_message(
+     # que foi gente, e o lado que decide "fui eu?" so olha os tipos
+     # automaticos. Sem esta linha, a mensagem que o atendente digitou chega ao
+     # portal indistinguivel de uma digitada no celular, e sai sem nome.
+-    _anotar(recipient, message, "humano", author_name, author_id)
++    _anotar(recipient, message, "humano", author_name, author_id, media_ref, media_mime)
+     return str(body.get("message", "sent"))
+ 
+ 
+@@ -320,21 +338,29 @@ def send_bot_message(
+     return str(body.get("message", "sent"))
+ 
+ 
+-def _post_manual(api_base_url: str, token: str, recipient: str, message: str) -> dict:
+-    """O POST da rota manual, com as recusas que valem para quem a usa."""
++def _post_manual(
++    api_base_url: str, token: str, recipient: str, message: str, media_path: str = ""
++) -> dict:
++    """O POST da rota manual, com as recusas que valem para quem a usa.
++
++    ``media_path`` (16/09/2026) vai no corpo quando existe, e dispensa o texto.
++    """
+     if not token:
          raise SendError("token de envio manual ausente; configure WHATSAPP_HUMAN_SEND_TOKEN")
      if not recipient:
          raise SendError("destinatario vazio")
@@ -1325,15 +1357,6 @@ index e5a9aa9..8b4038b 100644
          )
      except requests.RequestException as exc:
          raise SendError(f"bridge inalcancavel: {exc}") from exc
-@@ -312,7 +333,7 @@ def send_human_message(
-     # que foi gente, e o lado que decide "fui eu?" so olha os tipos
-     # automaticos. Sem esta linha, a mensagem que o atendente digitou chega ao
-     # portal indistinguivel de uma digitada no celular, e sai sem nome.
--    _anotar(recipient, message, "humano", author_name, author_id)
-+    _anotar(recipient, message, "humano", author_name, author_id, media_ref, media_mime)
-     return str(body.get("message", "sent"))
- 
- 
 diff --git a/whatsapp-assistant/test_conversation_sync.py b/whatsapp-assistant/test_conversation_sync.py
 index ee280ce..7317ac4 100644
 --- a/whatsapp-assistant/test_conversation_sync.py
@@ -1434,10 +1457,10 @@ index ee280ce..7317ac4 100644
      unittest.main()
 diff --git a/whatsapp-assistant/test_media_mirror.py b/whatsapp-assistant/test_media_mirror.py
 new file mode 100644
-index 0000000..787f574
+index 0000000..a33b378
 --- /dev/null
 +++ b/whatsapp-assistant/test_media_mirror.py
-@@ -0,0 +1,368 @@
+@@ -0,0 +1,375 @@
 +"""O arquivo da mídia sobe para o bucket, um ciclo depois da mensagem.
 +
 +O que estes testes prendem: o caminho do objeto (organização, conexão, chat e
@@ -1670,12 +1693,19 @@ index 0000000..787f574
 +            sum(1 for item in self.enviadas if "mediaPath" in item), ORCAMENTO_POR_CICLO
 +        )
 +
++        # As mais novas primeiro: a fila que a marca d'água recuada enche é de
++        # fotos de grupo antigas, e o áudio do cliente de agora não espera.
++        self.assertEqual(
++            [u[1].rsplit("/", 1)[-1] for u in self.verifier.uploads],
++            ["wa-6.ogg", "wa-5.ogg", "wa-4.ogg", "wa-3.ogg"],
++        )
++
 +        self.verifier.lotes.clear()
 +        sincronia.poll_once()
 +        self.assertEqual(len(self.verifier.uploads), ORCAMENTO_POR_CICLO + 2)
 +        # As duas que faltavam voltam SOZINHAS, só para ganhar o caminho.
 +        reoferecidas = self.enviadas
-+        self.assertEqual(sorted(item["id"] for item in reoferecidas), ["wa-5", "wa-6"])
++        self.assertEqual(sorted(item["id"] for item in reoferecidas), ["wa-1", "wa-2"])
 +        for item in reoferecidas:
 +            self.assertIn("mediaPath", item)
 +            self.assertEqual(item["authorKind"], "contato")
@@ -1807,10 +1837,10 @@ index 0000000..787f574
 +if __name__ == "__main__":
 +    unittest.main()
 diff --git a/whatsapp-assistant/test_presenca_humana.py b/whatsapp-assistant/test_presenca_humana.py
-index 42c8d98..192929b 100644
+index c93f162..eba8793 100644
 --- a/whatsapp-assistant/test_presenca_humana.py
 +++ b/whatsapp-assistant/test_presenca_humana.py
-@@ -290,7 +290,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
+@@ -327,7 +327,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
          autores = self.presenca.autores_das_saidas(
              [self._pedido(quando, "Oi! Tudo bem?")]
          )
@@ -1819,7 +1849,7 @@ index 42c8d98..192929b 100644
  
      def test_a_saida_do_portal_leva_o_nome_do_atendente(self):
          quando = self._atras(minutos=1)
-@@ -300,7 +300,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
+@@ -337,7 +337,7 @@ class AutoriaDasSaidasTest(PresencaHumanaTest):
          autores = self.presenca.autores_das_saidas(
              [self._pedido(quando, "já te respondo")]
          )
@@ -1829,7 +1859,7 @@ index 42c8d98..192929b 100644
      def test_a_saida_do_portal_continua_sendo_gente_para_a_presenca(self):
          """O freio da Fase 1, afirmado do lado que poderia tê-lo soltado.
 diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
-index 370bd91..8e08848 100644
+index 0e1e68f..dd93efd 100644
 --- a/whatsapp-assistant/test_runtime_commands.py
 +++ b/whatsapp-assistant/test_runtime_commands.py
 @@ -9,6 +9,7 @@ from arbitro import MOTIVO_RESPONDIDO_NO_PORTAL, Arbitro
@@ -1840,10 +1870,10 @@ index 370bd91..8e08848 100644
  from runtime_commands import (
      RuntimeCommandPoller,
      _motivo_da_recusa,
-@@ -840,3 +841,196 @@ class EquipeAssumePeloPortalTests(Bancada, unittest.TestCase):
-         finally:
-             arbitro.close()
-             directory.cleanup()
+@@ -1009,3 +1010,196 @@ class LeadDoSiteTests(Bancada, unittest.TestCase):
+             self._lead(), team_notice_phones=("", "abc", self.JUNIOR, self.JUNIOR)
+         )
+         self.assertEqual(poller.team_notice_phones, (self.JUNIOR,))
 +
 +
 +class AnexoPeloPortalTests(Bancada, unittest.TestCase):
@@ -2038,12 +2068,12 @@ index 370bd91..8e08848 100644
 +            arbitro.close()
 +            directory.cleanup()
 diff --git a/whatsapp-assistant/test_send.py b/whatsapp-assistant/test_send.py
-index 2426bdb..6194b1b 100644
+index 79026c8..6a22ebc 100644
 --- a/whatsapp-assistant/test_send.py
 +++ b/whatsapp-assistant/test_send.py
-@@ -335,6 +335,30 @@ class RegistroDasSaidasTest(unittest.TestCase):
-               "22222222-2222-4222-8222-222222222222")],
-         )
+@@ -365,6 +365,30 @@ class RegistroDasSaidasTest(unittest.TestCase):
+             send.send_bot_message(self.bridge.base_url, TOKEN, "5565999998164", "Oi")
+         self.assertEqual(self.anotadas, [])
  
 +    def test_o_anexo_do_portal_vai_no_mesmo_pedido_e_dispensa_o_texto(self):
 +        """`media_path` entra no corpo da rota manual; sem ele, texto vazio

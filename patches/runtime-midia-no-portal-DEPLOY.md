@@ -1,11 +1,12 @@
 # Deploy — mídia nas conversas e conversa sob LID (16/09/2026)
 
 > **Estado em 15/09/2026 (Brasília), ao fechar o código:**
-> - **Nada implantado.** Migrations escritas; runtime em
->   `feat/midia-no-portal` @ `c239e08` (789 testes OK na máquina de
->   desenvolvimento, eram 761; `go vet` e `go test ./...` do Bridge OK);
->   portal em `feat/midia-nas-conversas` (715 testes OK, build OK).
-> - Validação ao vivo (seção 6) pendente.
+> - Runtime em `feat/midia-no-portal` @ `19dea15`, rebaseado sobre a base
+>   REAL de produção `feat/leads-do-site` @ `a2dd77a` (release `leads-do-site`;
+>   a release `fase2-autoria` já tinha sido superada). 823 testes OK na máquina
+>   de desenvolvimento; `go vet` e `go test ./...` do Bridge OK. Portal em
+>   `feat/midia-nas-conversas` (715 testes OK, build OK).
+> - O andamento do deploy está no fim deste arquivo (seção 7).
 
 O diagnóstico e o plano: `C:\Users\junin\.claude\plans\eu-preciso-que-voc-graceful-eagle.md`
 (a conversa do Juliano dividida entre o LID `20525648752707` e o telefone
@@ -64,8 +65,12 @@ policyname like 'whatsapp_media_%';` → quatro policies.
 
 ### Base esperada
 
-Release ativa = `feat/fase2-nome-de-quem-escreveu` @ `36fc0af` (a que subiu a
-autoria em 13–14/09). Conferir por hash, **nunca pelo `HEAD` do release**:
+Release ativa = `leads-do-site` = `feat/leads-do-site` @ `a2dd77a`
+(conferido em 15/09/2026 por hash dos oito arquivos do assistente). O
+processo do **Bridge**, porém, ainda rodava do binário de `lembrete-de-espera`
+(`/proc/<pid>/exe`) — o Bridge não tinha sido reiniciado desde 10/09. Os
+arquivos Go são os mesmos em todas as releases desde então. Conferir por hash,
+**nunca pelo `HEAD` do release**:
 
 ```bash
 cd /home/nucleo/releases/whatsapp-mcp-hardened/<release-ativa>
@@ -79,8 +84,9 @@ aec8024d4004fafa7c08ba0f16ce462ae7b55548946a230eeea05c590fa3e6d8  whatsapp-bridg
 
 Se divergirem, **pare**: a VPS já divergiu do git uma vez.
 
-Patch (runtime e Bridge juntos): `runtime-midia-no-portal.patch`, sha256
-`fbbfb218436e5553333f3d3f7b54c24b0f2c55d7126413644dfde66d14e5cf42`.
+Patch (runtime e Bridge juntos): `runtime-midia-no-portal.patch` =
+`git diff a2dd77a 19dea15`, sha256
+`e3c234838ee0e82b332580b525f24a39f064c6900b7fa9c77115ccd8b86c511b`.
 
 ### 2.1 Construir a release nova
 
@@ -151,12 +157,17 @@ no env da unit.
 
 ```bash
 cd "$NOVA/whatsapp-assistant"
-sha256sum chat_identity.py config.py conversation_sync.py main.py operator_verification.py presenca_humana.py runtime_commands.py send.py
-# Base (36fc0af, LF):
-# 999ff9aee62bf73464e82294ea34c6620543813e01bfd40c7253a7296c368ca9  chat_identity.py   ← ANTES do patch
-# (os hashes acima são da base; depois do patch eles mudam, e é esperado)
+# Base a2dd77a (ANTES do patch; depois dele os hashes mudam, e é esperado):
+#   999ff9aee62bf73464e82294ea34c6620543813e01bfd40c7253a7296c368ca9  chat_identity.py
+#   27de59d3955ab29e0b6f80ee5adadbfa6e2e286ac861e9c728d1e8469d25aadd  config.py
+#   cbda36950763a15f6785647ceac56a8161d55f4a12d4da07c918940836a70524  conversation_sync.py
+#   0c89be776bd4d99c2adc9c094fbd7e295fd1882aa143c52a8b0060347b5317a0  main.py
+#   d76ac1d39f3d5d70202bb69b56cfa7f93863b8c63cdacda40f0da4828921f243  operator_verification.py
+#   1547769097a70013f70a8e2d626e0a30f4f3cb81e6c99ccdb753f60d5613820f  presenca_humana.py
+#   e64ebacfb381344d834381029e5b5a8c1b3bc0367ea1cf65b8dc8fcc0ecdd879  runtime_commands.py
+#   9d1d4b616af1bf39ceeb6abf87622e4655ed9ac68858151a99f35de2991c2db4  send.py
 ~/.venvs/whatsapp-assistant/bin/python -B -m unittest discover -s . -p 'test_*.py' 2>&1 | tail -3
-# Esperado: Ran 789 tests … OK
+# Esperado: Ran 823 tests … OK
 ```
 
 ### 3.3 Reiniciar só o assistente
@@ -224,3 +235,30 @@ publica no push; conferir o `operations-<hash>.js` novo em nucleomajor.com/app.
    media=true`).
 6. **Navegadores:** Chrome/Edge/Firefox/Android tocam Ogg/Opus e WebM/Opus.
    iOS Safari só a partir do 17.5 — limitação conhecida, não defeito.
+
+## 7. O que foi feito em 15/09/2026 (Brasília, 19:10–20:20)
+
+1. **Migrations aplicadas** por `supabase db query --linked -f`, cada uma
+   ensaiada antes com `rollback` no lugar do `commit` (as duas passaram limpas
+   no banco real). Conferido: 2 colunas, 4 policies, bucket privado de 16 MB,
+   `organizacao_do_caminho`, sync com `aliases`, enqueue com `mediaPath`.
+2. **Release `midia-no-portal`** criada por `cp -a` de `leads-do-site` +
+   `git apply` do patch; `go vet`, `go test ./...` e a suíte Python (823 OK,
+   com o venv do serviço) na própria release. O binário do Bridge foi
+   compilado lá com `/usr/local/go/bin/go`.
+3. **Bridge reiniciado** às 22:56 UTC: `/proc/<pid>/exe` e `cwd` na release
+   nova, `Connected to WhatsApp` 3 s depois, sem QR; `/api/send/human` → 401.
+4. **Assistente reiniciado**: `service.started` com `media_mirror: true` e
+   `outbox_dir` na release nova. A conversa do Juliano convergiu no primeiro
+   ciclo (uma linha, `556593264109`, 16 mensagens); as diretas caíram de 23
+   para 17. A linha do canal `120363404701403742` foi apagada à mão do
+   espelho (a sincronia já não a alimenta).
+5. **Marca d'água recuada 3 dias** (`conversation_sync_state.json`, backup ao
+   lado) para o espelho de arquivos alcançar a mídia dos últimos dias: 790
+   pendentes, 4 por ciclo — ~50 min para drenar. O ajuste `19dea15` (mais
+   novas primeiro) foi aplicado por cópia do blob e restart do assistente.
+6. **Portal** publicado com `git push origin feat/midia-nas-conversas:main`.
+
+Rollback do runtime: `ln -sfn ~/releases/whatsapp-mcp-hardened/leads-do-site
+~/whatsapp-mcp-hardened` e reiniciar as duas units (o binário do Bridge de
+`leads-do-site` é o de 10/09, válido).
