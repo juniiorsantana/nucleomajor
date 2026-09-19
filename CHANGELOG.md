@@ -5,6 +5,17 @@ sendo a fonte detalhada.
 
 ## Não lançado
 
+- quem compra o Núcleo pelo Link de Pagamento do Asaas recebe por e-mail o
+  link de ativação, cria a conta e ativa a empresa sozinho. Antes, o código
+  só nascia pela mão de um administrador da plataforma e chegava ao cliente
+  copiado à mão. A venda que chega sem e-mail, ou cujo e-mail não foi
+  entregue, aparece no painel da plataforma com "Reenviar ativação";
+- a assinatura passa a valer: atraso vira aviso por 7 dias e depois
+  suspensão; estorno e contestação suspendem; cancelamento vale até o fim do
+  período pago. Os dados da empresa continuam guardados — o que fecha é a
+  porta. As empresas que já existiam seguem ativas como sempre;
+- o plano Base (sem IA) tira Inteligência e Chatbots do menu;
+- criar empresa passa a exigir e-mail confirmado, como o aceite de convite;
 - colocar alguém numa tarefa passa a AVISAR essa pessoa, e ela assume ou
   recusa. Quem delegou para de precisar perguntar no corredor se o outro
   viu; e quem recusa devolve a tarefa com o motivo, em vez de ela sumir;

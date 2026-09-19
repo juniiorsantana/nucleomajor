@@ -60,6 +60,132 @@ const entrada =
 
 /* ------------------------------------------------------------------ */
 
+const SITUACAO_DA_VENDA = {
+  active: "Paga",
+  past_due: "Em atraso",
+  suspended: "Suspensa",
+  canceled: "Cancelada",
+};
+
+function situacaoDaAtivacao(venda) {
+  if (venda.empresa) return `Ativada: ${venda.empresa}`;
+  if (venda.codigoStatus === "pending" && venda.ativacaoFalhou) return "E-mail de ativação falhou";
+  if (venda.codigoStatus === "pending") return venda.ativacaoEnviada ? "Aguardando o cliente ativar" : "Código emitido";
+  if (venda.codigoStatus === "expired") return "Código vencido";
+  if (venda.codigoStatus === "revoked") return "Código revogado";
+  return venda.email ? "Sem código" : "Venda sem e-mail";
+}
+
+/**
+ * As vendas que chegaram pelo webhook do Asaas. Reenviar emite OUTRO código
+ * (o anterior não existe em texto em lugar nenhum) e manda o e-mail de novo;
+ * quando a venda chegou sem e-mail, é aqui que ele entra.
+ */
+export function VendasDoAsaas() {
+  const [vendas, setVendas] = useState(null);
+  const [erro, setErro] = useState("");
+  const [ocupado, setOcupado] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [emailDe, setEmailDe] = useState({});
+
+  const carregar = async () => {
+    try {
+      setVendas(await api.plataforma.vendas());
+      setErro("");
+    } catch (e) {
+      // Antes da migration de cobrança a RPC não existe: o bloco some.
+      setVendas([]);
+      setErro(/billing_subscriptions_admin_list/i.test(e?.message || "") ? "" : e?.message || "Não foi possível carregar as vendas.");
+    }
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const reenviar = async (venda) => {
+    const email = venda.email ? "" : String(emailDe[venda.id] || "").trim();
+    if (!venda.email && !email) {
+      setErro("Informe o e-mail do cliente para enviar a ativação.");
+      return;
+    }
+    setOcupado(venda.id);
+    setAviso("");
+    setErro("");
+    try {
+      const resposta = await api.plataforma.reenviarAtivacao({ id: venda.id, email });
+      setAviso(`Novo código enviado para ${resposta.email}.`);
+      await carregar();
+    } catch (e) {
+      setErro(e?.message || "Não foi possível reenviar.");
+    } finally {
+      setOcupado("");
+    }
+  };
+
+  const revogar = async (venda) => {
+    setOcupado(venda.id);
+    setAviso("");
+    setErro("");
+    try {
+      await api.plataforma.revogarAtivacao({ codigoId: venda.codigoId });
+      setAviso("Código revogado.");
+      await carregar();
+    } catch (e) {
+      setErro(e?.message || "Não foi possível revogar.");
+    } finally {
+      setOcupado("");
+    }
+  };
+
+  if (vendas === null) return null;
+
+  return (
+    <div className="border-t border-line px-5 py-4">
+      <h3 className="text-[13px] font-semibold text-fg">Vendas pelo Asaas</h3>
+      {vendas.length === 0 && !erro && (
+        <p className="mt-1 text-[12.5px] text-sub">Nenhuma venda recebida ainda.</p>
+      )}
+      {aviso && <p role="status" className="mt-2 text-[12.5px] text-success">{aviso}</p>}
+      {erro && <p role="alert" className="mt-2 text-[12.5px] text-danger">{erro}</p>}
+      {vendas.length > 0 && (
+        <ul className="mt-2 divide-y divide-line rounded-[10px] border border-line">
+          {vendas.map((venda) => {
+            const podeReenviar = !venda.empresa && ["active", "past_due"].includes(venda.status);
+            const podeRevogar = !venda.empresa && venda.codigoStatus === "pending" && venda.codigoId;
+            return (
+              <li key={venda.id} className="flex flex-wrap items-center gap-3 px-3.5 py-2.5 text-[12.5px]">
+                <div className="min-w-[220px] flex-1">
+                  <div className="font-medium text-fg">{venda.email || "(sem e-mail)"}</div>
+                  <div className="text-sub">
+                    Plano {venda.plano} · {SITUACAO_DA_VENDA[venda.status] || venda.status} · {situacaoDaAtivacao(venda)}
+                  </div>
+                </div>
+                {podeReenviar && !venda.email && (
+                  <input type="email" placeholder="e-mail do cliente" aria-label="E-mail do cliente"
+                    value={emailDe[venda.id] || ""}
+                    onChange={(e) => setEmailDe({ ...emailDe, [venda.id]: e.target.value })}
+                    className={`${entrada} w-52`} />
+                )}
+                {podeReenviar && (
+                  <button type="button" disabled={ocupado === venda.id} onClick={() => reenviar(venda)}
+                    className="cursor-pointer rounded-[8px] border border-line bg-bg px-3 py-1.5 font-medium text-sub hover:text-fg disabled:opacity-40">
+                    {ocupado === venda.id ? "Enviando…" : "Reenviar ativação"}
+                  </button>
+                )}
+                {podeRevogar && (
+                  <button type="button" disabled={ocupado === venda.id} onClick={() => revogar(venda)}
+                    className="cursor-pointer rounded-[8px] px-3 py-1.5 font-medium text-danger hover:bg-danger/10 disabled:opacity-40">
+                    Revogar
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AdministracaoPlataforma() {
   const [administrador, setAdministrador] = useState(false);
   const [carregando, setCarregando] = useState(true);
@@ -136,6 +262,7 @@ function AdministracaoPlataforma() {
           <p className="mt-2 text-[11.5px] text-sub">Uso único · vinculado ao e-mail · validade de 7 dias.</p>
         </div>
       )}
+      <VendasDoAsaas />
     </Bloco>
   );
 }

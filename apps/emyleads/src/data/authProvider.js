@@ -239,11 +239,15 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       };
     },
 
-    "auth.cadastrar": async ({ email, senha, nome = "" }) => {
+    "auth.cadastrar": async ({ email, senha, nome = "", redirectTo = "" }) => {
+      // Quem chega pelo link de ativação volta para ele depois de confirmar o
+      // e-mail, mesmo que abra a confirmação em outro navegador.
+      const options = { data: { full_name: nome.trim() } };
+      if (redirectTo) options.emailRedirectTo = redirectTo;
       const { data, error } = await supabase.auth.signUp({
         email: email?.trim(),
         password: senha,
-        options: { data: { full_name: nome.trim() } },
+        options,
       });
       if (error) throw erroDaResposta(error, "cadastro-falhou");
       if (!data.session) {
@@ -296,12 +300,87 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       return Array.isArray(data) ? data[0] : data;
     },
 
+    /**
+     * O estado da assinatura da empresa: `ok`, `past_due` (aviso) ou
+     * `blocked`. Antes da migration 20260920100000 a RPC não existe; aí a
+     * resposta é `ok` desconhecido, para o portal publicado antes do banco
+     * não trancar ninguém do lado de fora.
+     */
+    "organizacoes.acesso": async ({ id } = {}) => {
+      if (!id) return { estado: "ok", desconhecido: true, recursos: null };
+      const { data, error } = await supabase.rpc("organization_access_state", { target_organization: id });
+      if (error) {
+        if (error.code === "PGRST202" || /organization_access_state/i.test(error.message || "")) {
+          return { estado: "ok", desconhecido: true, recursos: null };
+        }
+        throw erroDaResposta(error, "organizacao-acesso-falhou");
+      }
+      const linha = Array.isArray(data) ? data[0] : data;
+      if (!linha) return { estado: "blocked", desconhecido: false, recursos: {} };
+      return {
+        estado: linha.state,
+        desconhecido: false,
+        plano: linha.plan_code,
+        nomePlano: linha.plan_name,
+        recursos: linha.features || {},
+        limites: linha.limits || {},
+        status: linha.subscription_status,
+        fimDoPeriodo: linha.current_period_ends_at,
+        atrasoDesde: linha.past_due_since,
+        bloqueiaEm: linha.blocks_at,
+      };
+    },
+
+    "plataforma.vendas": async () => {
+      const { data, error } = await supabase.rpc("billing_subscriptions_admin_list");
+      if (error) throw erroDaResposta(error, "plataforma-vendas-falhou");
+      return (data || []).map((linha) => ({
+        id: linha.id,
+        email: linha.email,
+        plano: linha.plan_code,
+        status: linha.status,
+        assinaturaExterna: linha.external_subscription_id,
+        empresaId: linha.organization_id,
+        empresa: linha.organization_name,
+        codigoId: linha.grant_id,
+        codigoStatus: linha.grant_status,
+        codigoVence: linha.grant_expires_at,
+        ativacaoEnviada: linha.activation_sent_at,
+        ativacaoFalhou: linha.activation_failed_at,
+        atrasoDesde: linha.past_due_since,
+        criadaEm: linha.created_at,
+      }));
+    },
+
+    // Reenviar é emitir outro código, e quem manda o e-mail é o servidor.
+    "plataforma.reenviarAtivacao": async ({ id, email = "" } = {}) => {
+      if (!id) throw new Error("Venda não informada.");
+      return portalRequest(`/api/billing/activations/${encodeURIComponent(id)}/resend`, {
+        method: "POST",
+        body: { email: String(email || "").trim() },
+      });
+    },
+
+    "plataforma.revogarAtivacao": async ({ codigoId } = {}) => {
+      if (!codigoId) throw new Error("Código não informado.");
+      const { error } = await supabase.rpc("revoke_onboarding_access", { target_grant: codigoId });
+      if (error) throw erroDaResposta(error, "plataforma-revogar-falhou");
+      return { ok: true };
+    },
+
     "organizacoes.criar": async ({ nome, codigo }) => {
       const { data, error } = await supabase.rpc("create_organization", {
         organization_name: nome?.trim(),
         access_code: codigo?.trim(),
       });
-      if (error) throw erroDaResposta(error, "organizacao-criacao-falhou");
+      if (error) {
+        if (/confirmed email required/i.test(error.message || "")) {
+          const erro = new Error("Confirme seu e-mail antes de ativar a empresa. O link está na sua caixa de entrada.");
+          erro.codigo = "email-nao-confirmado";
+          throw erro;
+        }
+        throw erroDaResposta(error, "organizacao-criacao-falhou");
+      }
       await area.set({ [CHAVE_WORKSPACE]: data });
       return estado();
     },

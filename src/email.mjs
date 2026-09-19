@@ -27,13 +27,17 @@ export function createMailer(env = process.env) {
   return { transport, config };
 }
 
-export async function sendInviteEmail({ mailer, email, message }) {
+export async function sendEmail({ mailer, to, message }) {
   if (!mailer?.transport || !mailer?.config) throw new Error("Mailer indisponível.");
   return mailer.transport.sendMail({
     from: `${mailer.config.fromName} <${mailer.config.fromEmail}>`,
-    to: email,
+    to,
     subject: message.subject,
     text: message.text,
     html: message.html,
   });
+}
+
+export async function sendInviteEmail({ mailer, email, message }) {
+  return sendEmail({ mailer, to: email, message });
 }

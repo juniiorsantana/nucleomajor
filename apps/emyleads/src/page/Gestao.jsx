@@ -79,6 +79,48 @@ const TELAS = [
   { id: "config", rotulo: "Configurações", icone: Settings, grupo: "Ambiente" },
 ];
 
+/**
+ * Tela que depende de um recurso do plano. Inteligência e Chatbots só existem
+ * para quem tem IA: no plano Base eles saem do menu e, se alguém chegar pela
+ * rota direta, encontra o aviso em vez de uma tela que não faz nada.
+ *
+ * Sem o estado da assinatura (`recursos` nulo: banco antigo ou falha de
+ * leitura) nada some — esconder por dúvida seria tirar de quem pagou.
+ */
+const RECURSO_DA_TELA = { conhecimento: "assistant", chatbots: "chatbots" };
+
+export function telaLiberada(id, recursos) {
+  const recurso = RECURSO_DA_TELA[id];
+  return !recurso || !recursos || recursos[recurso] !== false;
+}
+
+function DisponivelNoPlano() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-8">
+      <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
+        <h2 className="text-[16px] font-semibold text-fg">Disponível no plano com IA</h2>
+        <p className="mt-2 text-[13px] leading-5 text-sub">
+          O seu plano inclui WhatsApp no portal, contatos, funil, tarefas, agenda e equipe.
+          Agentes de IA e chatbots fazem parte do plano com IA — fale com a equipe do Núcleo Major para incluir.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AvisoAssinatura({ acesso }) {
+  if (acesso?.estado !== "past_due") return null;
+  const quando = acesso.bloqueiaEm
+    ? new Date(acesso.bloqueiaEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
+    : null;
+  return (
+    <div role="status" className="mx-6 mt-4 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
+      Pagamento em atraso.{quando ? ` O acesso será suspenso em ${quando}` : " O acesso será suspenso em breve"} se a cobrança não for
+      paga — o link está no e-mail enviado pelo Asaas.
+    </div>
+  );
+}
+
 const VAZIO = {
   nome: "",
   telefone: "",
@@ -374,6 +416,8 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
 }
 
 export default function Gestao({ sessao = null, atualizarSessao = null, migracaoPendente = null, telaInicial = null, aoTrocarTela = null }) {
+  const recursos = sessao?.acesso?.recursos || null;
+  const telasDoPlano = TELAS.filter((item) => telaLiberada(item.id, recursos));
   const [tela, setTela] = useState(telaInicial || (PLATAFORMA_WEB ? "conversas" : "contatos"));
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
@@ -584,7 +628,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         }`}
       >
       <Rail
-        telas={TELAS}
+        telas={telasDoPlano}
         ativa={tela}
         aoTrocar={trocarTela}
         recolhido={menuRecolhido}
@@ -638,6 +682,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
       */}
       <main className="portal-main flex min-h-0 min-w-0 flex-1 flex-col">
         <AvisoMigracao migracao={migracaoPendente} />
+        <AvisoAssinatura acesso={sessao?.acesso} />
         {erro ? (
           <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
             {erro}
@@ -646,6 +691,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           <div className="flex flex-1 items-center justify-center text-[14px] text-sub">
             Carregando…
           </div>
+        ) : !telaLiberada(tela, recursos) ? (
+          <DisponivelNoPlano />
         ) : tela === "conversas" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conversas…</div>}>
             <Conversas

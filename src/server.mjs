@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import { buildInviteEmail, inviteUrl, normalizeInviteId, normalizeInviteInput } from "./invite.mjs";
 import { FERRAMENTA_LER_DOCUMENTO, knowledgeContext, readKnowledgeDocument, searchKnowledge } from "./knowledgeSearch.mjs";
 import { contextoParaPrompt } from "./intelligenceContext.mjs";
-import { createMailer, sendInviteEmail } from "./email.mjs";
+import { createMailer, sendEmail, sendInviteEmail } from "./email.mjs";
+import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./activation.mjs";
+import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
@@ -22,6 +24,7 @@ const ALLOWED_ORIGINS = new Set(
     .map((origin) => origin.trim())
     .filter(Boolean),
 );
+const BILLING = billingConfig();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 8;
 const attempts = new Map();
@@ -108,6 +111,11 @@ async function supabaseRequest(path, token, options = {}) {
     if (/invite (invalid|not found|was already|was cancelled)/i.test(message)) throw new HttpError(409, "Este convite não está mais disponível.", "invite-closed");
     if (/different email/i.test(message)) throw new HttpError(403, "Esta conta usa outro e-mail. Entre com o e-mail convidado.", "invite-email-mismatch");
     if (/confirmed email/i.test(message)) throw new HttpError(403, "Confirme seu e-mail antes de aceitar o convite.", "email-not-confirmed");
+    if (/platform administrator/i.test(message)) throw new HttpError(403, "Só a administração da plataforma pode fazer isso.", "not-platform-admin");
+    if (/already activated/i.test(message)) throw new HttpError(409, "Esta venda já virou uma empresa ativa.", "billing-already-activated");
+    if (/subscription is not paid/i.test(message)) throw new HttpError(409, "Esta assinatura não está paga.", "billing-not-paid");
+    if (/subscription not found/i.test(message)) throw new HttpError(404, "Venda não encontrada.", "billing-not-found");
+    if (/invalid email/i.test(message)) throw new HttpError(422, "Informe um e-mail válido.", "invalid-email");
     if (path.includes("assistant_calendar_event_confirm")) {
       if (/permission denied|membership|required|member calendar/i.test(message)) {
         throw new HttpError(403, "Seu cargo não permite criar esse compromisso.", "calendar-permission-denied");
@@ -603,11 +611,111 @@ async function deliverInvite({ token, organizationId, invite }) {
   };
 }
 
+// Chamada sem sessão de usuário: só a chave publicável, como o formulário do
+// site. Quem autoriza é o token de intake que a própria RPC confere.
+async function publicRpc(fn, payload) {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) throw new Error("supabase not configured");
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const raw = await response.text();
+  let data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+  if (!response.ok) throw new Error(String(data?.message || `rpc ${fn} failed`));
+  return data;
+}
+
+async function sendActivationEmail({ email, code, planCode, expiresAt }) {
+  const mailer = createMailer();
+  const link = activationUrl({ publicOrigin: PUBLIC_ORIGIN, code, email });
+  const message = buildActivationEmail({ email, code, link, planCode, expiresAt });
+  await sendEmail({ mailer, to: email, message });
+}
+
+async function notifySale({ email, planCode, delivered }) {
+  if (!BILLING.opsEmails.length) return;
+  const mailer = createMailer();
+  const message = buildSaleNoticeEmail({
+    email,
+    planCode,
+    subscriptionResult: delivered ? "activation_issued" : "e-mail de ativação FALHOU — reenviar pelo painel",
+  });
+  await sendEmail({ mailer, to: BILLING.opsEmails.join(", "), message });
+}
+
+async function markActivationDelivered(grantId, delivered) {
+  await publicRpc("nucleo_billing_activation_delivered", {
+    intake_token: BILLING.intakeToken,
+    target_grant: grantId,
+    delivered,
+  });
+}
+
+async function billingWebhook(req, res) {
+  const outcome = await processAsaasWebhook({
+    token: req.headers["asaas-access-token"],
+    rawBody: await readRawBody(req),
+    config: BILLING,
+    deps: {
+      fetchEmail: (customerId) => fetchAsaasCustomerEmail({ apiUrl: BILLING.apiUrl, apiKey: BILLING.apiKey, customerId }),
+      receive: (event, email) => publicRpc("nucleo_billing_asaas_receive", {
+        intake_token: BILLING.intakeToken,
+        event,
+        customer_email: email,
+      }),
+      sendActivation: sendActivationEmail,
+      markDelivered: markActivationDelivered,
+      notifySale,
+      log: (message) => console.error(message),
+    },
+  });
+  return json(res, outcome.status, outcome.body);
+}
+
+// Reenviar é emitir outro código (o texto do anterior não existe em lugar
+// nenhum). A RPC confere se quem pede é da administração da plataforma.
+async function resendActivation(req, res, token, user, subscriptionId) {
+  const body = await readJson(req);
+  countAttempt(`${user.id}:billing-resend:${subscriptionId}`);
+  const email = String(body.email || "").trim().toLowerCase() || null;
+  const data = await supabaseRequest("/rest/v1/rpc/billing_activation_rotate", token, {
+    method: "POST",
+    body: JSON.stringify({ target_subscription: subscriptionId, target_email: email }),
+  });
+  const activation = rowOf(data);
+  let delivered = false;
+  try {
+    await sendActivationEmail({
+      email: activation.email,
+      code: activation.access_code,
+      planCode: activation.plan_code,
+      expiresAt: activation.expires_at,
+    });
+    delivered = true;
+  } catch {
+    delivered = false;
+  }
+  try {
+    await markActivationDelivered(activation.grant_id, delivered);
+  } catch {
+    // A marca é só informativa; o código novo já está valendo.
+  }
+  if (!delivered) throw new HttpError(502, "O código novo foi emitido, mas o e-mail não pôde ser enviado.", "email-delivery-failed");
+  return json(res, 200, { email: activation.email, expiresAt: activation.expires_at, delivery: "sent" });
+}
+
 async function api(req, res, url) {
   const token = bearer(req);
   const user = await authenticatedUser(token);
   if (url.pathname.startsWith("/api/assistant/")) {
     return assistantApi(req, res, url, token, user);
+  }
+  const resend = url.pathname.match(/^\/api\/billing\/activations\/([0-9a-f-]{36})\/resend$/i);
+  if (resend && req.method === "POST") {
+    return resendActivation(req, res, token, user, normalizeInviteId(resend[1]));
   }
   const organizationId = url.searchParams.get("organizationId");
   const match = url.pathname.match(/^\/api\/invitations(?:\/([0-9a-f-]+)\/(resend|cancel))?$/i);
@@ -699,21 +807,24 @@ async function staticFile(req, res, url) {
   }
 }
 
-export function createServer({ apiHandler = api } = {}) {
+export function createServer({ apiHandler = api, billingHandler = billingWebhook } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
       const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
       if (req.method === "OPTIONS") return res.writeHead(204).end();
       if (url.pathname === "/api/config" && req.method === "GET") {
-        return json(res, 200, { supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN });
+        return json(res, 200, { supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, checkoutUrl: BILLING.checkoutUrl });
       }
       if (url.pathname === "/api/config.js" && req.method === "GET") {
         securityHeaders(res);
-        const body = `globalThis.__NUCLEO_CONFIG__=${JSON.stringify({ supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN })};`;
+        const body = `globalThis.__NUCLEO_CONFIG__=${JSON.stringify({ supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, checkoutUrl: BILLING.checkoutUrl })};`;
         res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store" });
         return res.end(body);
       }
+      // O webhook do Asaas chega sem sessão de usuário: vem antes de `api`,
+      // que exige uma.
+      if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
       return await staticFile(req, res, url);
     } catch (error) {
