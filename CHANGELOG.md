@@ -16,6 +16,11 @@ sendo a fonte detalhada.
   porta. As empresas que já existiam seguem ativas como sempre;
 - o plano Base (sem IA) tira Inteligência e Chatbots do menu;
 - criar empresa passa a exigir e-mail confirmado, como o aceite de convite;
+- plano sem IA (e empresa bloqueada) nunca chega ao Claude: o portão do
+  atendimento a clientes recusa, os resolvedores de contexto não entregam
+  contrato, a Liberação recusa piloto/ativo e o assistente web responde 402.
+  As quatro funções vivas foram movidas intactas para `private`; a Major não
+  sente diferença (provado antes/depois);
 - colocar alguém numa tarefa passa a AVISAR essa pessoa, e ela assume ou
   recusa. Quem delegou para de precisar perguntar no corredor se o outro
   viu; e quem recusa devolve a tarefa com o motivo, em vez de ela sumir;

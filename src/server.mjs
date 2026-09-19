@@ -153,6 +153,25 @@ async function organizationMembership(organizationId, userId, token) {
   return membership;
 }
 
+// Tudo que chama o Claude é do plano com IA. Antes da migration de cobrança
+// (20260920100000) a RPC não existe: aí vale o que valia, sem trava.
+export async function requireAssistantPlan(organizationId, token, request = supabaseRequest) {
+  let row;
+  try {
+    const data = await request("/rest/v1/rpc/organization_access_state", token, {
+      method: "POST",
+      body: JSON.stringify({ target_organization: organizationId }),
+    });
+    row = Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    if (error?.status === 404) return;
+    throw error;
+  }
+  if (!row || row.state === "blocked" || row.features?.assistant !== true) {
+    throw new HttpError(402, "O assistente faz parte do plano com IA.", "plan-without-assistant");
+  }
+}
+
 async function assistantThread(threadId, organizationId, userId, token) {
   const query = `/rest/v1/assistant_threads?select=id,title,status&id=eq.${encodeURIComponent(threadId)}&organization_id=eq.${encodeURIComponent(organizationId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`;
   const rows = await supabaseRequest(query, token, { method: "GET" });
@@ -397,6 +416,7 @@ async function assistantApi(req, res, url, token, user) {
     const content = String(body.content || "").trim().slice(0, 8000);
     if (!targetOrganization || !content) throw new HttpError(400, "Escreva uma mensagem e informe a organização.", "assistant-message-required");
     const membership = await organizationMembership(targetOrganization, user.id, token);
+    await requireAssistantPlan(targetOrganization, token);
     let threadId = String(body.threadId || "").trim();
     if (!threadId) {
       const thread = await insertRow("assistant_threads", token, {
