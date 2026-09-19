@@ -19,6 +19,7 @@ export const FASES = {
   DESCONECTADO: "desconectado",
   DIVERGENTE: "divergente",
   RUNTIME_PARADO: "runtime_parado",
+  PREPARANDO: "preparando",
   DESCONHECIDO: "desconhecido",
 };
 
@@ -77,6 +78,20 @@ export function resumirConexao(conexao, agora = Date.now()) {
       selo: "Número divergente",
       titulo: "O aparelho pareado não é o número desta conexão.",
       detalhe: `Esperava ${conexao?.expectedPhoneMasked || "outro número"}; o envio está bloqueado até um administrador corrigir.`,
+      numero,
+      sinal,
+      podeConectar: false,
+    };
+  }
+  // Pedida pelo portal e ainda sem runtime na VPS: nunca deu sinal nenhum.
+  // Não é "o serviço caiu" — é "a Major ainda está montando".
+  if (!conexao?.controlPlane && !runtimeOnline && ["created", "provisioning"].includes(status)) {
+    return {
+      fase: FASES.PREPARANDO,
+      tom: "atencao",
+      selo: "Em preparação",
+      titulo: "Estamos preparando o seu WhatsApp.",
+      detalhe: `Quando estiver pronto, o QR aparece aqui para você ler com o celular${final4 ? ` do número final ${final4}` : ""}.`,
       numero,
       sinal,
       podeConectar: false,

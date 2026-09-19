@@ -21,6 +21,12 @@ sendo a fonte detalhada.
   contrato, a Liberação recusa piloto/ativo e o assistente web responde 402.
   As quatro funções vivas foram movidas intactas para `private`; a Major não
   sente diferença (provado antes/depois);
+- a empresa nova pede o WhatsApp pelo portal (Conversas ou Conexões) em vez
+  de ficar presa em "Consultando a conexão…" ou ser mandada para
+  127.0.0.1:8090. A equipe recebe o comando que monta a conexão na VPS
+  (scripts/vps/provision-connection.sh, no runtime), e o portal mostra
+  "Estamos preparando o seu WhatsApp" até o primeiro sinal; aí o QR de
+  sempre. `conexao_da_organizacao` deixa de usar min(uuid), que não existe;
 - colocar alguém numa tarefa passa a AVISAR essa pessoa, e ela assume ou
   recusa. Quem delegou para de precisar perguntar no corredor se o outro
   viu; e quem recusa devolve a tarefa com o motivo, em vez de ela sumir;

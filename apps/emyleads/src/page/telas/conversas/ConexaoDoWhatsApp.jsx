@@ -1,6 +1,66 @@
-import { useEffect } from "react";
-import { AlertTriangle, CheckCircle2, LoaderCircle, MessageCircle, QrCode, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock3, LoaderCircle, MessageCircle, QrCode, X } from "lucide-react";
+import { api } from "../../../data/client";
 import { FASES } from "../conexoes/estadoDaConexao";
+
+/**
+ * "Conectar meu WhatsApp" de uma empresa que ainda não tem conexão.
+ *
+ * O número entra aqui porque é ele que a VPS vai aceitar no pareamento: o QR
+ * lido por outro celular é recusado. O pedido não sobe nada sozinho — a
+ * equipe da Major monta a conexão e o QR aparece depois, nesta mesma tela.
+ */
+export function PedirConexao({ organizationId, podeGerenciar, aoPedir }) {
+  const [telefone, setTelefone] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  if (!podeGerenciar) {
+    return (
+      <span className="text-[11.5px] text-faint">
+        Quem administra a empresa pede a conexão do WhatsApp em Conversas ou em Conexões.
+      </span>
+    );
+  }
+
+  const enviar = async (evento) => {
+    evento.preventDefault();
+    setEnviando(true);
+    setErro("");
+    try {
+      await api.gateway.solicitar({ organizationId, telefone });
+      await aoPedir?.();
+    } catch (e) {
+      setErro(e?.message || "Não foi possível pedir a conexão.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <form onSubmit={enviar} className="flex w-full flex-col items-stretch gap-2 text-left">
+      <label className="block">
+        <span className="mb-1 block text-[12px] font-medium text-sub">Número do WhatsApp da empresa</span>
+        <input
+          type="tel"
+          required
+          inputMode="tel"
+          autoComplete="tel"
+          value={telefone}
+          onChange={(e) => setTelefone(e.target.value)}
+          placeholder="(65) 99999-9999"
+          className="h-10 w-full rounded-[9px] border border-line bg-bg px-3 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+        />
+      </label>
+      {erro && <span role="alert" className="text-[12px] text-danger">{erro}</span>}
+      <button type="submit" disabled={enviando || telefone.replace(/\D/g, "").length < 10} className={`${BOTAO_PRIMARIO} justify-center disabled:opacity-40`}>
+        {enviando && <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />}
+        Conectar meu WhatsApp
+      </button>
+      <span className="text-center text-[11.5px] text-faint">A gente prepara a conexão e o QR aparece aqui.</span>
+    </form>
+  );
+}
 
 /**
  * O estado vazio de Conversas — que antes era o silêncio.
@@ -14,12 +74,30 @@ import { FASES } from "../conexoes/estadoDaConexao";
  * O botão abre o QR aqui mesmo: o pedido de código é um comando do runtime e
  * funciona de qualquer tela. Conexões continua sendo a origem para o resto.
  */
-export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConectar, aoVerCodigo }) {
-  if (!carregado || !resumo) {
+export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConectar, aoVerCodigo, organizationId = "", aoPedirConexao = null }) {
+  if (!carregado) {
     return (
       <div className="flex flex-1 items-center justify-center text-[13.5px] text-sub">
         <LoaderCircle size={16} className="mr-2 animate-spin" aria-hidden="true" /> Consultando a conexão…
       </div>
+    );
+  }
+
+  // Empresa sem conexão nenhuma: até aqui, era o spinner para sempre.
+  if (!resumo) {
+    return (
+      <Vazio icone={<MessageCircle size={26} strokeWidth={1.8} aria-hidden="true" />} tom="accent" titulo="Conecte o WhatsApp da empresa">
+        As conversas do número aparecem aqui, e a equipe responde pelo portal.
+        <PedirConexao organizationId={organizationId} podeGerenciar={podeGerenciar} aoPedir={aoPedirConexao} />
+      </Vazio>
+    );
+  }
+
+  if (resumo.fase === FASES.PREPARANDO) {
+    return (
+      <Vazio icone={<Clock3 size={26} strokeWidth={1.8} aria-hidden="true" />} tom="accent" titulo={resumo.titulo}>
+        {resumo.detalhe}
+      </Vazio>
     );
   }
 
@@ -101,7 +179,7 @@ function Vazio({ icone, tom, titulo, children }) {
  * número ficou 23 horas mudo.
  */
 export function FaixaConexao({ resumo, podeGerenciar, aoConectar }) {
-  if (!resumo || resumo.fase === FASES.CONECTADO || resumo.fase === FASES.PAREANDO) return null;
+  if (!resumo || [FASES.CONECTADO, FASES.PAREANDO, FASES.PREPARANDO].includes(resumo.fase)) return null;
   const erro = resumo.fase === FASES.DIVERGENTE || resumo.fase === FASES.RUNTIME_PARADO;
   return (
     <div

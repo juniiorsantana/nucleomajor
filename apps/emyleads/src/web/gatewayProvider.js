@@ -550,6 +550,27 @@ export function criarOperacoesGateway() {
       return conexoes({ organizationId: organizacao });
     },
 
+    /**
+     * Pede o WhatsApp da empresa. Não sobe nada: registra o pedido (a RPC
+     * confere papel, plano e limite) e o servidor avisa a equipe da Major,
+     * que monta a conexão na VPS. Quando o heartbeat chega, o QR aparece
+     * pelo caminho de sempre.
+     */
+    "gateway.solicitar": async ({ organizationId, telefone, nome = "" } = {}) => {
+      const organizacao = exigirOrganizacao(organizationId);
+      const { data, error } = await obterSupabaseWeb().auth.getSession();
+      const token = data?.session?.access_token;
+      if (error || !token) throw erroGateway("Sua sessão expirou. Entre novamente.", "auth-expirada");
+      const resposta = await fetch("/api/connections/request", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: organizacao, phone: String(telefone || ""), name: String(nome || "") }),
+      });
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw erroGateway(corpo?.error || "Não foi possível pedir a conexão.", corpo?.code || "pedido-de-conexao-falhou");
+      return corpo;
+    },
+
     "gateway.criar": async ({ organizationId, connectionId, nome } = {}) => {
       const organizacao = exigirOrganizacao(organizationId);
       return comCredencial(organizacao, null, (token) =>

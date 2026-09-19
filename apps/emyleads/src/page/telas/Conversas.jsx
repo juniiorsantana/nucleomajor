@@ -153,7 +153,7 @@ export default function Conversas({
   const organizationId = sessao?.organizacaoAtual?.id || "";
   const podeGerenciar = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
   const listaVazia = Array.isArray(conversas) && conversas.length === 0;
-  const { conexao, resumo: resumoConexao, carregado: conexaoCarregada } = useConexao(organizationId, {
+  const { conexao, resumo: resumoConexao, carregado: conexaoCarregada, recarregar: recarregarConexao } = useConexao(organizationId, {
     atento: listaVazia || modalConexao,
   });
   const { qr, pedindo, pedir, ler } = usePareamento({ organizationId, conexao, aberto: modalConexao });
@@ -403,6 +403,8 @@ export default function Conversas({
             podeGerenciar={podeGerenciar}
             aoConectar={abrirConexao}
             aoVerCodigo={verCodigo}
+            organizationId={organizationId}
+            aoPedirConexao={recarregarConexao}
           />
         ) : !conversa ? (
           <div className="flex flex-1 items-center justify-center text-[13.5px] text-sub">

@@ -354,6 +354,23 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       });
     },
 
+    "plataforma.pedidosDeConexao": async () => {
+      const { data, error } = await supabase.rpc("platform_connection_requests_list");
+      if (error) throw erroDaResposta(error, "plataforma-pedidos-falhou");
+      return (data || []).map((linha) => ({
+        conexaoId: linha.connection_id,
+        empresaId: linha.organization_id,
+        empresa: linha.organization_name,
+        dono: linha.owner_email,
+        nome: linha.connection_name,
+        final: linha.expected_phone_last4,
+        status: linha.connection_status,
+        plano: linha.plan_code,
+        pedidoEm: linha.created_at,
+        sinalEm: linha.heartbeat_at,
+      }));
+    },
+
     "plataforma.revogarAtivacao": async ({ codigoId } = {}) => {
       if (!codigoId) throw new Error("Código não informado.");
       const { error } = await supabase.rpc("revoke_onboarding_access", { target_grant: codigoId });

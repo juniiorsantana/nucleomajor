@@ -10,6 +10,7 @@ import { contextoParaPrompt } from "./intelligenceContext.mjs";
 import { createMailer, sendEmail, sendInviteEmail } from "./email.mjs";
 import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./activation.mjs";
 import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
+import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
@@ -116,6 +117,9 @@ async function supabaseRequest(path, token, options = {}) {
     if (/subscription is not paid/i.test(message)) throw new HttpError(409, "Esta assinatura não está paga.", "billing-not-paid");
     if (/subscription not found/i.test(message)) throw new HttpError(404, "Venda não encontrada.", "billing-not-found");
     if (/invalid email/i.test(message)) throw new HttpError(422, "Informe um e-mail válido.", "invalid-email");
+    if (/connection limit reached/i.test(message)) throw new HttpError(409, "O seu plano já tem todas as conexões de WhatsApp que ele permite.", "connection-limit");
+    if (/invalid phone/i.test(message)) throw new HttpError(422, "Informe o número do WhatsApp com DDD.", "invalid-phone");
+    if (/subscription is not active|plan without whatsapp/i.test(message)) throw new HttpError(402, "A assinatura desta empresa não permite conectar o WhatsApp agora.", "subscription-inactive");
     if (path.includes("assistant_calendar_event_confirm")) {
       if (/permission denied|membership|required|member calendar/i.test(message)) {
         throw new HttpError(403, "Seu cargo não permite criar esse compromisso.", "calendar-permission-denied");
@@ -727,11 +731,54 @@ async function resendActivation(req, res, token, user, subscriptionId) {
   return json(res, 200, { email: activation.email, expiresAt: activation.expires_at, delivery: "sent" });
 }
 
+// O cliente pede o WhatsApp; a RPC decide se pode (papel, plano, limite) e a
+// equipe recebe o comando pronto. O aviso é melhor esforço: o pedido já está
+// no banco e aparece no painel da plataforma de qualquer jeito.
+async function requestConnection(req, res, token, user) {
+  const body = await readJson(req);
+  let input;
+  try {
+    input = normalizeConnectionRequest(body);
+  } catch (error) {
+    throw new HttpError(422, error.message, "invalid-connection-request");
+  }
+  countAttempt(`${user.id}:connection-request:${input.organizationId}`);
+  const data = await supabaseRequest("/rest/v1/rpc/nucleo_connection_request", token, {
+    method: "POST",
+    body: JSON.stringify({ target_organization: input.organizationId, display_name: input.name, phone: input.phone }),
+  });
+  const pedido = rowOf(data) || {};
+  if (pedido.created && BILLING.opsEmails.length) {
+    try {
+      const acesso = rowOf(await supabaseRequest("/rest/v1/rpc/organization_access_state", token, {
+        method: "POST",
+        body: JSON.stringify({ target_organization: input.organizationId }),
+      }).catch(() => null));
+      const message = buildConnectionRequestNotice({
+        organizationName: await organizationName(input.organizationId, token),
+        organizationId: input.organizationId,
+        connectionId: pedido.connectionId,
+        last4: input.phone.slice(-4),
+        phone: input.phone.length <= 11 ? `55${input.phone}` : input.phone,
+        planCode: acesso?.plan_code || "base",
+        requesterEmail: user.email,
+      });
+      await sendEmail({ mailer: createMailer(), to: BILLING.opsEmails.join(", "), message });
+    } catch {
+      console.error("connection request notice failed");
+    }
+  }
+  return json(res, 200, { connectionId: pedido.connectionId, created: Boolean(pedido.created), status: pedido.status || "created" });
+}
+
 async function api(req, res, url) {
   const token = bearer(req);
   const user = await authenticatedUser(token);
   if (url.pathname.startsWith("/api/assistant/")) {
     return assistantApi(req, res, url, token, user);
+  }
+  if (url.pathname === "/api/connections/request" && req.method === "POST") {
+    return requestConnection(req, res, token, user);
   }
   const resend = url.pathname.match(/^\/api\/billing\/activations\/([0-9a-f-]{36})\/resend$/i);
   if (resend && req.method === "POST") {

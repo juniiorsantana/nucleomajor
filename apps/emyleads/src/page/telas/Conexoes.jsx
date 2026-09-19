@@ -24,6 +24,7 @@ import { fmtRelativo } from "../../lib/formato";
 import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } from "../../ui/atendimento";
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
 import { FASES, resumirConexao } from "./conexoes/estadoDaConexao";
+import { PedirConexao } from "./conversas/ConexaoDoWhatsApp";
 
 const ROTULOS = {
   bridge_starting: "Runtime iniciando",
@@ -1047,6 +1048,24 @@ export default function Conexoes({ organizacao, usuario = null }) {
             <div className="flex items-center gap-3 rounded-[14px] border border-line bg-bg px-5 py-6 text-[13.5px] text-sub">
               <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Consultando o serviço local…
             </div>
+          ) : !estado.vinculado && PLATAFORMA_WEB ? (
+            // No portal, o WhatsApp roda na VPS. O "vincular esta máquina"
+            // abaixo é da extensão: na web ele mandava abrir 127.0.0.1:8090,
+            // que é o computador de quem está olhando.
+            <section className="rounded-[14px] border border-line bg-bg px-5 py-5">
+              <h2 className="text-[15px] font-semibold text-fg">Conectar o WhatsApp da empresa</h2>
+              <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-sub">
+                Informe o número. A equipe do Núcleo Major prepara a conexão e, quando estiver pronta,
+                o QR aparece aqui e em Conversas para você ler com o celular desse número.
+              </p>
+              <div className="mt-4 max-w-[320px]">
+                <PedirConexao
+                  organizationId={organizationId}
+                  podeGerenciar={["owner", "admin"].includes(organizacao?.papel)}
+                  aoPedir={() => carregar()}
+                />
+              </div>
+            </section>
           ) : !estado.vinculado ? (
             <section className="rounded-[14px] border border-line bg-bg">
               <div className="flex items-start gap-3 border-b border-line px-5 py-4">
@@ -1107,7 +1126,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
             </section>
           ) : (
             <>
-              {!gatewayOnline && (
+              {!gatewayOnline && !conexoes.every((c) => resumirConexao(c).fase === FASES.PREPARANDO) && (
                 <div className="flex items-start gap-3 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[13px] text-warning">
                   <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
                   <span>

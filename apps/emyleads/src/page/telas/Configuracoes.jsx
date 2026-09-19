@@ -186,6 +186,66 @@ export function VendasDoAsaas() {
   );
 }
 
+function comandoDaVps(pedido) {
+  const plano = pedido.plano === "full" ? "full" : "base";
+  return `bash scripts/vps/provision-connection.sh ${pedido.empresaId} ${pedido.conexaoId} --plano ${plano}`;
+}
+
+/**
+ * Os WhatsApps pedidos pelos clientes. Os que ainda não deram sinal vêm
+ * primeiro, com o comando que monta a conexão na VPS pronto para copiar.
+ */
+export function PedidosDeConexao() {
+  const [pedidos, setPedidos] = useState(null);
+  const [copiado, setCopiado] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+    api.plataforma.pedidosDeConexao()
+      .then((lista) => ativo && setPedidos(lista || []))
+      // Antes da migration do pedido a RPC não existe: o bloco some.
+      .catch(() => ativo && setPedidos([]));
+    return () => { ativo = false; };
+  }, []);
+
+  const pendentes = (pedidos || []).filter((pedido) => !pedido.sinalEm);
+  if (!pendentes.length) return null;
+
+  const copiar = async (pedido) => {
+    try {
+      await navigator.clipboard.writeText(comandoDaVps(pedido));
+      setCopiado(pedido.conexaoId);
+    } catch {
+      setCopiado("");
+    }
+  };
+
+  return (
+    <div className="border-t border-line px-5 py-4">
+      <h3 className="text-[13px] font-semibold text-fg">WhatsApps aguardando a VPS</h3>
+      <ul className="mt-2 space-y-2">
+        {pendentes.map((pedido) => (
+          <li key={pedido.conexaoId} className="rounded-[10px] border border-line px-3.5 py-2.5 text-[12.5px]">
+            <div className="font-medium text-fg">{pedido.empresa} · final {pedido.final || "????"}</div>
+            <div className="text-sub">
+              {pedido.dono || "sem dono"} · plano {pedido.plano || "?"} · pedido em{" "}
+              {pedido.pedidoEm ? new Date(pedido.pedidoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "?"}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-[8px] bg-surface px-2.5 py-1.5 text-[11.5px] text-fg">{comandoDaVps(pedido)}</code>
+              <button type="button" onClick={() => copiar(pedido)}
+                className="inline-flex flex-none cursor-pointer items-center gap-1.5 rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[12px] font-medium text-sub hover:text-fg">
+                {copiado === pedido.conexaoId ? <Check size={14} /> : <Copy size={14} />}
+                {copiado === pedido.conexaoId ? "Copiado" : "Copiar"}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AdministracaoPlataforma() {
   const [administrador, setAdministrador] = useState(false);
   const [carregando, setCarregando] = useState(true);
@@ -263,6 +323,7 @@ function AdministracaoPlataforma() {
         </div>
       )}
       <VendasDoAsaas />
+      <PedidosDeConexao />
     </Bloco>
   );
 }
