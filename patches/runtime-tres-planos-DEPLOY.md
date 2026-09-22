@@ -199,5 +199,13 @@ foi reiniciado, então não há nada a desfazer nele.
   6. Portal publicado no mesmo momento: `main` 045b898 → 0017107, no ar em
      segundos; `/api/billing/asaas` → 503 `billing-not-configured`,
      `checkoutUrl` vazio.
-  - **Pendente:** ver o primeiro turno de cliente depois do restart (validação
-    1 e 2 da seção 5).
+  7. **Validado ao vivo às 22:39–22:43 UTC** com um cliente real, que o dono
+     confirmou estar sendo respondido normalmente. Dois turnos, ambos
+     `owner_turn`/`operator_turn` falsos, `customer_rollout.allowed`
+     (`mode: active`, a casca da migration `20260920110000` liberando o plano
+     `full`), `intelligence.resolved` com `audience: customer`, habilidade
+     `pre-qualificacao` e **só 5 ferramentas do Núcleo** (`conversation.handoff`,
+     `crm.contact.upsert`, `crm.deal.qualify`, `crm.tag.apply`,
+     `knowledge.search`): nenhuma `mcp__whatsapp__` e nenhuma busca na web.
+     Texto: 8 s, enviado. Áudio: 150 s, enviado — 84 s só na transcrição
+     (`transcribe.py`, que o patch não toca).
