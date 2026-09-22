@@ -1,5 +1,7 @@
 // Prova comportamental da migration 20260920110000 (o plano sem IA nunca chega
-// ao Claude) num Postgres embutido (PGlite). Banco em memória, nada de produção.
+// ao Claude, e cada IA só no plano que a tem) num Postgres embutido (PGlite).
+// Banco em memória, nada de produção. Quatro empresas: a Major (full), uma
+// Base, uma Atendimento com IA e uma Completo, cada uma com robô e operador.
 //
 // Mesmo método de prova-checkout-asaas.mjs: harness + TODAS as migrations
 // reais. A prova central é a de NÃO REGRESSÃO: para uma empresa `full` (a
@@ -55,6 +57,18 @@ const ROBO_FULL = "dddddddd-0000-4000-8000-000000000004";
 const ROBO_BASE = "dddddddd-0000-4000-8000-000000000005";
 const CONEXAO_FULL = "eeeeeeee-0000-4000-8000-000000000006";
 const CONEXAO_BASE = "eeeeeeee-0000-4000-8000-000000000007";
+const DONO_ATEND = "bbbbbbbb-0000-4000-8000-000000000008";
+const DONO_COMPLETO = "bbbbbbbb-0000-4000-8000-000000000009";
+const ROBO_ATEND = "dddddddd-0000-4000-8000-00000000000a";
+const ROBO_COMPLETO = "dddddddd-0000-4000-8000-00000000000b";
+const CONEXAO_ATEND = "eeeeeeee-0000-4000-8000-00000000000c";
+const CONEXAO_COMPLETO = "eeeeeeee-0000-4000-8000-00000000000d";
+// O celular pessoal do operador de cada empresa (um número ativo só pode
+// representar uma organização).
+const OPERADOR_FULL = "5565911110001";
+const OPERADOR_ATEND = "5565911110002";
+const OPERADOR_COMPLETO = "5565911110003";
+const CLIENTE_FINAL = "5565999990000";
 
 await db.exec(`
   insert into auth.users (id, email, email_confirmed_at) values
@@ -62,7 +76,11 @@ await db.exec(`
     ('${DONO_FULL}', 'major@exemplo.invalido', now()),
     ('${DONO_BASE}', 'base@exemplo.invalido', now()),
     ('${ROBO_FULL}', 'robot+full@invalid.emyleads.local', now()),
-    ('${ROBO_BASE}', 'robot+base@invalid.emyleads.local', now());
+    ('${ROBO_BASE}', 'robot+base@invalid.emyleads.local', now()),
+    ('${DONO_ATEND}', 'atendimento@exemplo.invalido', now()),
+    ('${DONO_COMPLETO}', 'completo@exemplo.invalido', now()),
+    ('${ROBO_ATEND}', 'robot+atend@invalid.emyleads.local', now()),
+    ('${ROBO_COMPLETO}', 'robot+completo@invalid.emyleads.local', now());
   insert into public.platform_admins (user_id) values ('${ADMIN}') on conflict do nothing;
 `);
 
@@ -81,10 +99,38 @@ const venda = (await como(null, "select public.nucleo_billing_asaas_receive($1, 
 const orgBase = (await como(usuario(DONO_BASE), "select public.create_organization('Cliente Base', $1) as id", [venda.access_code])).rows[0].id;
 confere("empresa base nasce no plano base", (await um("select plan_code from public.organization_subscriptions where organization_id=$1", [orgBase])).plan_code === "base");
 
+// As empresas dos planos com IA, pela liberação manual (o código carrega o plano).
+const empresaNoPlano = async (dono, email, plano, nome) => {
+  const codigo = (await como(usuario(ADMIN), "select * from public.issue_onboarding_access($1, $2, 7)", [email, plano])).rows[0].access_code;
+  return (await como(usuario(dono), "select public.create_organization($1, $2) as id", [nome, codigo])).rows[0].id;
+};
+const orgAtend = await empresaNoPlano(DONO_ATEND, "atendimento@exemplo.invalido", "atendimento", "Clínica Atendimento");
+const orgCompleto = await empresaNoPlano(DONO_COMPLETO, "completo@exemplo.invalido", "completo", "Clínica Completo");
+confere("empresas nascem nos planos com IA", (await um(
+  "select string_agg(plan_code, ',' order by plan_code) p from public.organization_subscriptions where organization_id in ($1, $2)", [orgAtend, orgCompleto],
+)).p === "atendimento,completo");
+
 // Uma conexão e um robô para cada empresa.
-for (const [org, conexao, robo] of [[orgFull, CONEXAO_FULL, ROBO_FULL], [orgBase, CONEXAO_BASE, ROBO_BASE]]) {
+for (const [org, conexao, robo] of [
+  [orgFull, CONEXAO_FULL, ROBO_FULL], [orgBase, CONEXAO_BASE, ROBO_BASE],
+  [orgAtend, CONEXAO_ATEND, ROBO_ATEND], [orgCompleto, CONEXAO_COMPLETO, ROBO_COMPLETO],
+]) {
   await db.query("insert into public.whatsapp_connections (id, organization_id, name) values ($1, $2, 'WhatsApp')", [conexao, org]);
   await db.query("insert into public.connection_robot_credentials (connection_id, organization_id, auth_user_id) values ($1, $2, $3)", [conexao, org, robo]);
+}
+
+// Um operador verificado (o próprio dono) em cada empresa com IA.
+for (const [org, conexao, dono, telefone] of [
+  [orgFull, CONEXAO_FULL, DONO_FULL, OPERADOR_FULL],
+  [orgAtend, CONEXAO_ATEND, DONO_ATEND, OPERADOR_ATEND],
+  [orgCompleto, CONEXAO_COMPLETO, DONO_COMPLETO, OPERADOR_COMPLETO],
+]) {
+  await db.query(
+    `insert into public.whatsapp_connection_operators
+       (organization_id, connection_id, user_id, phone_e164, phone_hash, status, verified_at, created_by)
+     values ($1, $2, $3, $4, private.whatsapp_operator_phone_hash($4), 'active', now(), $3)`,
+    [org, conexao, dono, telefone],
+  );
 }
 const robo = (sub, org, conexao) => ({
   sub, role: "authenticated",
@@ -92,12 +138,15 @@ const robo = (sub, org, conexao) => ({
 });
 const roboFull = robo(ROBO_FULL, orgFull, CONEXAO_FULL);
 const roboBase = robo(ROBO_BASE, orgBase, CONEXAO_BASE);
+const roboAtend = robo(ROBO_ATEND, orgAtend, CONEXAO_ATEND);
+const roboCompleto = robo(ROBO_COMPLETO, orgCompleto, CONEXAO_COMPLETO);
 
 const perfilClienteDe = async (org) => (await um(
   "select id from public.assistant_profiles where organization_id=$1 and audience='customer' and is_default", [org],
 )).id;
 const perfilFull = await perfilClienteDe(orgFull);
 const perfilBase = await perfilClienteDe(orgBase);
+const perfilAtend = await perfilClienteDe(orgAtend);
 
 // Resultado OU erro, com o que muda a cada execução apagado.
 const normaliza = (valor) => JSON.stringify(valor)
@@ -130,6 +179,8 @@ async function fotografia() {
     acessoAtivo: await resultado(roboFull, "select public.nucleo_customer_assistant_access('5565999990000') r", []),
     rolloutOff: await resultado(usuario(DONO_FULL), "select public.customer_assistant_rollout_update($1, 'off', '{}'::uuid[]) r", [perfilFull]),
     semRobo: await resultado(usuario(DONO_FULL), "select public.nucleo_customer_assistant_access('5565999990000') r", []),
+    // O turno de operador da Major: o assistente interno tem que seguir igual.
+    operador: await resultado(roboFull, `select public.nucleo_intelligence_context_resolve_v2($1, '${OPERADOR_FULL}', 'o que tenho na agenda hoje?', '{}'::jsonb) r`, [sha(`operador-${rodada}`)]),
   };
 }
 
@@ -150,6 +201,30 @@ for (const chave of Object.keys(antes)) {
   confere(`full: ${chave} idêntico antes e depois`, antes[chave] === depois[chave], `${antes[chave]} ≠ ${depois[chave]}`);
 }
 confere("full: o rollout ativo foi realmente ligado na fotografia", /"allowed":true/.test(depois.acessoAtivo), depois.acessoAtivo);
+confere("full: o turno de operador chegou ao contrato interno", /"audiencia":"internal"/.test(depois.operador), depois.operador);
+
+// ------------------------------------------- plano Atendimento com IA
+const naoEPlano = (texto) => !/plan without assistant|plan_without_assistant/.test(texto);
+const acessoAtend = await resultado(roboAtend, `select public.nucleo_customer_assistant_access('${CLIENTE_FINAL}') r`, []);
+confere("atendimento: o portão do cliente não barra pelo plano", naoEPlano(acessoAtend), acessoAtend);
+for (const versao of ["v2", "v3"]) {
+  const cliente = await resultado(roboAtend, `select public.nucleo_intelligence_context_resolve_${versao}($1, '${CLIENTE_FINAL}', 'oi', '{}'::jsonb) r`, [sha(`atend-cliente-${versao}`)]);
+  confere(`atendimento: resolve_${versao} de cliente não barra pelo plano`, naoEPlano(cliente), cliente);
+  const operador = await resultado(roboAtend, `select public.nucleo_intelligence_context_resolve_${versao}($1, '${OPERADOR_ATEND}', 'minha agenda', '{}'::jsonb) r`, [sha(`atend-operador-${versao}`)]);
+  confere(`atendimento: resolve_${versao} de operador é recusado (sem ai_team)`, /plan without assistant/.test(operador), operador);
+}
+const rolloutAtend = await resultado(usuario(DONO_ATEND), "select public.customer_assistant_rollout_update($1, 'active', '{}'::uuid[]) r", [perfilAtend]);
+confere("atendimento: liberação ativa é aceita", naoEPlano(rolloutAtend) && !/erro/.test(rolloutAtend), rolloutAtend);
+
+// ------------------------------------------------------ plano Completo
+for (const versao of ["v2", "v3"]) {
+  const cliente = await resultado(roboCompleto, `select public.nucleo_intelligence_context_resolve_${versao}($1, '${CLIENTE_FINAL}', 'oi', '{}'::jsonb) r`, [sha(`completo-cliente-${versao}`)]);
+  confere(`completo: resolve_${versao} de cliente não barra pelo plano`, naoEPlano(cliente), cliente);
+  const operador = await resultado(roboCompleto, `select public.nucleo_intelligence_context_resolve_${versao}($1, '${OPERADOR_COMPLETO}', 'minha agenda', '{}'::jsonb) r`, [sha(`completo-operador-${versao}`)]);
+  confere(`completo: resolve_${versao} de operador não barra pelo plano`, naoEPlano(operador), operador);
+}
+const operadorCompleto = await resultado(roboCompleto, `select public.nucleo_intelligence_context_resolve_v2($1, '${OPERADOR_COMPLETO}', 'minha agenda', '{}'::jsonb) r`, [sha("completo-operador-audiencia")]);
+confere("completo: o operador chega ao contrato interno", /"audiencia":"internal"/.test(operadorCompleto), operadorCompleto);
 
 // ------------------------------------------------------------- plano base
 const acessoBase = (await como(roboBase, "select public.nucleo_customer_assistant_access('5565999990000') r")).rows[0].r;

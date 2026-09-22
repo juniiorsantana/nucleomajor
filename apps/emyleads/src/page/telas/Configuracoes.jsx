@@ -60,6 +60,8 @@ const entrada =
 
 /* ------------------------------------------------------------------ */
 
+const CICLO = { MONTHLY: "mensal", QUARTERLY: "trimestral", SEMIANNUALLY: "semestral", YEARLY: "anual" };
+
 const SITUACAO_DA_VENDA = {
   active: "Paga",
   past_due: "Em atraso",
@@ -156,7 +158,7 @@ export function VendasDoAsaas() {
                 <div className="min-w-[220px] flex-1">
                   <div className="font-medium text-fg">{venda.email || "(sem e-mail)"}</div>
                   <div className="text-sub">
-                    Plano {venda.plano} · {SITUACAO_DA_VENDA[venda.status] || venda.status} · {situacaoDaAtivacao(venda)}
+                    {venda.nomePlano} {CICLO[venda.ciclo] || ""} · {SITUACAO_DA_VENDA[venda.status] || venda.status} · {situacaoDaAtivacao(venda)}
                   </div>
                 </div>
                 {podeReenviar && !venda.email && (
@@ -186,9 +188,12 @@ export function VendasDoAsaas() {
   );
 }
 
-function comandoDaVps(pedido) {
-  const plano = pedido.plano === "full" ? "full" : "base";
-  return `bash scripts/vps/provision-connection.sh ${pedido.empresaId} ${pedido.conexaoId} --plano ${plano}`;
+// O script da VPS conhece base, atendimento e completo. A Major (full) tem as
+// duas IAs, então equivale ao completo.
+export function comandoDaVps(pedido) {
+  const plano = pedido.plano === "full" ? "completo" : pedido.plano;
+  const conhecido = ["base", "atendimento", "completo"].includes(plano) ? plano : "base";
+  return `bash scripts/vps/provision-connection.sh ${pedido.empresaId} ${pedido.conexaoId} --plano ${conhecido}`;
 }
 
 /**
@@ -246,10 +251,12 @@ export function PedidosDeConexao() {
   );
 }
 
-function AdministracaoPlataforma() {
+export function AdministracaoPlataforma() {
   const [administrador, setAdministrador] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [email, setEmail] = useState("");
+  const [planos, setPlanos] = useState([]);
+  const [plano, setPlano] = useState("base");
   const [emitindo, setEmitindo] = useState(false);
   const [liberacao, setLiberacao] = useState(null);
   const [erro, setErro] = useState("");
@@ -261,6 +268,10 @@ function AdministracaoPlataforma() {
       .then((estado) => ativo && setAdministrador(Boolean(estado?.administrador)))
       .catch(() => ativo && setAdministrador(false))
       .finally(() => ativo && setCarregando(false));
+    // Antes da migration dos planos, a lista vem só com o Full.
+    api.plataforma.planos()
+      .then((lista) => ativo && setPlanos(lista || []))
+      .catch(() => ativo && setPlanos([]));
     return () => { ativo = false; };
   }, []);
 
@@ -273,7 +284,7 @@ function AdministracaoPlataforma() {
     setLiberacao(null);
     setCopiado(false);
     try {
-      setLiberacao(await api.plataforma.emitirAcesso({ email, plano: "full", dias: 7 }));
+      setLiberacao(await api.plataforma.emitirAcesso({ email, plano, dias: 7 }));
     } catch (e) {
       setErro(/pending access/i.test(e?.message || "")
         ? "Esse e-mail já possui uma liberação pendente. Revogue-a antes de emitir outra."
@@ -292,7 +303,7 @@ function AdministracaoPlataforma() {
   return (
     <Bloco
       titulo="Administração do Núcleo Major"
-      descricao="Emita uma liberação comercial vinculada ao e-mail do novo cliente. O código aparece uma única vez e ativa uma organização no plano Full."
+      descricao="Emita uma liberação comercial vinculada ao e-mail do novo cliente. O código aparece uma única vez e ativa uma organização no plano escolhido. Quem paga pelo link do Asaas recebe o código sozinho."
       acao={<span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte"><ShieldCheck size={14} /> Plataforma</span>}
     >
       <form onSubmit={emitir} className="flex flex-wrap items-end gap-3 px-5 py-4">
@@ -303,7 +314,12 @@ function AdministracaoPlataforma() {
         </label>
         <label>
           <span className="mb-1.5 block text-[12px] font-medium text-sub">Plano</span>
-          <input value="Full" disabled className={`${entrada} w-28 !py-2.5 disabled:bg-surface`} />
+          <select value={plano} onChange={(e) => setPlano(e.target.value)} aria-label="Plano da liberação"
+            className={`${entrada} w-52 !py-2.5`}>
+            {(planos.length ? planos : [{ codigo: "full", nome: "Full" }]).map((item) => (
+              <option key={item.codigo} value={item.codigo}>{item.nome}</option>
+            ))}
+          </select>
         </label>
         <BotaoPrimario type="submit" disabled={emitindo} className="!py-2.5">
           {emitindo ? "Emitindo…" : "Gerar liberação"}
@@ -319,7 +335,10 @@ function AdministracaoPlataforma() {
               {copiado ? <Check size={15} /> : <Copy size={15} />}{copiado ? "Copiado" : "Copiar"}
             </button>
           </div>
-          <p className="mt-2 text-[11.5px] text-sub">Uso único · vinculado ao e-mail · validade de 7 dias.</p>
+          <p className="mt-2 text-[11.5px] text-sub">
+            Uso único · vinculado ao e-mail · validade de 7 dias · plano {liberacao.plan_code}.
+            A cobrança dessa liberação é por fora: ela não passa pelo Asaas.
+          </p>
         </div>
       )}
       <VendasDoAsaas />

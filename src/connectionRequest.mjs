@@ -13,9 +13,16 @@ export function normalizeConnectionRequest(input = {}) {
 
 // O comando que a equipe roda na VPS (repositório whatsapp-mcp-hardened).
 // Sem o telefone, o script pergunta — e confere com o hash do pedido.
+//
+// O script conhece base, atendimento e completo. A Major (full) tem as duas
+// IAs, então equivale ao completo; plano desconhecido cai no base, que é o
+// único que não liga IA nenhuma.
+export const PLANOS_DA_VPS = ["base", "atendimento", "completo"];
+
 export function provisionCommand({ organizationId, connectionId, planCode, phone = "" }) {
   if (!UUID_PATTERN.test(organizationId) || !UUID_PATTERN.test(connectionId)) throw new Error("Identificador inválido.");
-  const plano = planCode === "full" ? "full" : "base";
+  const pedido = planCode === "full" ? "completo" : String(planCode || "");
+  const plano = PLANOS_DA_VPS.includes(pedido) ? pedido : "base";
   const digitos = String(phone || "").replace(/[^0-9]/g, "");
   const telefone = digitos.length >= 10 && digitos.length <= 15 ? ` --telefone ${digitos}` : "";
   return `bash scripts/vps/provision-connection.sh ${organizationId} ${connectionId} --plano ${plano}${telefone}`;

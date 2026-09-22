@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { PAPEIS } from "../ui/papeis";
+import { NOMES_DOS_PLANOS_COM_IA, planoLibera } from "./plano";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
 import { paraSlug } from "../lib/texto";
 import Contatos from "./telas/Contatos";
@@ -81,27 +82,26 @@ const TELAS = [
 
 /**
  * Tela que depende de um recurso do plano. Inteligência e Chatbots só existem
- * para quem tem IA: no plano Base eles saem do menu e, se alguém chegar pela
- * rota direta, encontra o aviso em vez de uma tela que não faz nada.
- *
- * Sem o estado da assinatura (`recursos` nulo: banco antigo ou falha de
- * leitura) nada some — esconder por dúvida seria tirar de quem pagou.
+ * nos planos com IA: no Base eles saem do menu e, se alguém chegar pela rota
+ * direta, encontra o aviso em vez de uma tela que não faz nada. A regra de cada
+ * recurso (e o que acontece sem o estado da assinatura) mora em `./plano`.
  */
-const RECURSO_DA_TELA = { conhecimento: "assistant", chatbots: "chatbots" };
+const RECURSO_DA_TELA = { conhecimento: "inteligencia", chatbots: "chatbots" };
 
 export function telaLiberada(id, recursos) {
   const recurso = RECURSO_DA_TELA[id];
-  return !recurso || !recursos || recursos[recurso] !== false;
+  return !recurso || planoLibera(recursos, recurso);
 }
 
 function DisponivelNoPlano() {
   return (
     <div className="flex flex-1 items-center justify-center p-8">
       <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
-        <h2 className="text-[16px] font-semibold text-fg">Disponível no plano com IA</h2>
+        <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
         <p className="mt-2 text-[13px] leading-5 text-sub">
           O seu plano inclui WhatsApp no portal, contatos, funil, tarefas, agenda e equipe.
-          Agentes de IA e chatbots fazem parte do plano com IA — fale com a equipe do Núcleo Major para incluir.
+          Agentes de IA e chatbots fazem parte dos planos {NOMES_DOS_PLANOS_COM_IA} — fale com a equipe do
+          Núcleo Major para mudar de plano.
         </p>
       </div>
     </div>

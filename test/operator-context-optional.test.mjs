@@ -31,6 +31,16 @@ const OPCIONAIS = new Map([
   // idêntico ao da migration logo acima — quem escreve sem ser operador é
   // cliente, e aqui isso é resposta normal, não falha aberta.
   ["20260904230000_resolvers_usam_agente_padrao.sql", ["nucleo_intelligence_context_resolve_v2"]],
+  // A trava de IA por plano. As cascas públicas dos resolvedores perguntam a
+  // mesma coisa que a `_v2` pergunta logo depois: quem escreveu é operador?
+  // Zero linhas quer dizer "é cliente", e aí o interruptor exigido é
+  // `ai_customer` em vez de `ai_team` — a mesma conclusão que a função viva
+  // tiraria. Não há falha aberta: quem não é operador nunca chega ao caminho
+  // interno, porque quem decide isso é esta mesma função, um passo adiante.
+  ["20260920110000_plano_sem_ia_nao_chama_o_claude.sql", [
+    "nucleo_intelligence_context_resolve_v2",
+    "nucleo_intelligence_context_resolve_v3",
+  ]],
 ]);
 
 async function chamadas() {

@@ -20,6 +20,15 @@
 -- assinatura cujo Link de Pagamento está em `billing_payment_links`; o resto é
 -- registrado como ignorado, sem e-mail nem dado pessoal.
 --
+-- OS PLANOS. Três à venda, com nomes padrão que mudam por
+-- `update saas_plans set name = ...` (o código fica):
+--   base         WhatsApp no portal, CRM, funil, agenda, tarefas, equipe;
+--   atendimento  + a IA respondendo os clientes finais (`ai_customer`);
+--   completo     + o assistente da equipe pelo WhatsApp (`ai_team`).
+-- A Major continua no `full`, que ganha as duas chaves ligadas. Cada Link de
+-- Pagamento diz o plano e o ciclo (mensal ou anual); o período pago segue o
+-- ciclo.
+--
 -- O QUE BLOQUEIA. `private.org_access_state` responde `ok`, `past_due` ou
 -- `blocked`, calculado na hora (não há cron): atraso vira aviso por 7 dias e
 -- depois bloqueio; estorno e chargeback suspendem; cancelamento vale até o fim
@@ -70,26 +79,52 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 2/8. O plano Base: tudo que não chama o Claude.
+-- 2/8. Os planos à venda. `assistant` quer dizer "tem alguma IA" e fica por
+--      compatibilidade; quem decide o que a IA faz são `ai_customer` (atender
+--      os clientes finais) e `ai_team` (o assistente da equipe).
 -- ---------------------------------------------------------------------------
 insert into public.saas_plans (code, name, description, features, limits)
-values (
-  'base',
-  'Base',
-  'WhatsApp no portal, CRM, funil, agenda, tarefas e equipe. Sem IA.',
-  '{
-    "crm": true,
-    "agenda": true,
-    "team_management": true,
-    "whatsapp_web": true,
-    "assistant": false,
-    "knowledge": false,
-    "chatbots": false,
-    "whatsapp_official": false
-  }'::jsonb,
-  '{"members": null, "contacts": null, "connections": 1}'::jsonb
-)
+values
+  (
+    'base',
+    'Base',
+    'WhatsApp no portal, CRM, funil, agenda, tarefas e equipe. Sem IA.',
+    '{
+      "crm": true, "agenda": true, "team_management": true, "whatsapp_web": true,
+      "assistant": false, "ai_customer": false, "ai_team": false,
+      "knowledge": false, "chatbots": false, "whatsapp_official": false
+    }'::jsonb,
+    '{"members": null, "contacts": null, "connections": 1}'::jsonb
+  ),
+  (
+    'atendimento',
+    'Atendimento com IA',
+    'Tudo do Base, mais a IA atendendo os clientes da empresa pelo WhatsApp.',
+    '{
+      "crm": true, "agenda": true, "team_management": true, "whatsapp_web": true,
+      "assistant": true, "ai_customer": true, "ai_team": false,
+      "knowledge": true, "chatbots": true, "whatsapp_official": false
+    }'::jsonb,
+    '{"members": null, "contacts": null, "connections": 1}'::jsonb
+  ),
+  (
+    'completo',
+    'Completo',
+    'Tudo do Atendimento com IA, mais o assistente da equipe pelo WhatsApp.',
+    '{
+      "crm": true, "agenda": true, "team_management": true, "whatsapp_web": true,
+      "assistant": true, "ai_customer": true, "ai_team": true,
+      "knowledge": true, "chatbots": true, "whatsapp_official": false
+    }'::jsonb,
+    '{"members": null, "contacts": null, "connections": 1}'::jsonb
+  )
 on conflict (code) do nothing;
+
+-- A Major (plano full) ganha as duas chaves novas, ligadas: nada muda para ela.
+update public.saas_plans
+set features = features || '{"ai_customer": true, "ai_team": true}'::jsonb,
+    updated_at = now()
+where code = 'full';
 
 -- ---------------------------------------------------------------------------
 -- 3/8. Tabelas. Ninguém escreve nelas direto: só as funções abaixo.
@@ -109,6 +144,8 @@ create table if not exists public.billing_payment_links (
   provider text not null check (provider in ('asaas')),
   external_link_id text not null check (length(trim(external_link_id)) between 1 and 120),
   plan_code text not null references public.saas_plans(code),
+  billing_cycle text not null default 'MONTHLY'
+    check (billing_cycle in ('MONTHLY', 'QUARTERLY', 'SEMIANNUALLY', 'YEARLY')),
   label text not null default '' check (length(label) <= 120),
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -116,7 +153,7 @@ create table if not exists public.billing_payment_links (
 );
 
 comment on table public.billing_payment_links is
-  'Quais Links de Pagamento do Asaas vendem o Nucleo, e qual plano cada um libera. Cobranca de link fora desta lista e de outro negocio da conta e e ignorada.';
+  'Quais Links de Pagamento do Asaas vendem o Nucleo, qual plano cada um libera e em que ciclo (o mesmo do link no Asaas). Cobranca de link fora desta lista e de outro negocio da conta e e ignorada.';
 
 create table if not exists public.billing_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -125,6 +162,8 @@ create table if not exists public.billing_subscriptions (
   external_customer_id text check (external_customer_id is null or length(external_customer_id) <= 120),
   email text check (email is null or (email = lower(trim(email)) and position('@' in email) > 1 and length(email) <= 320)),
   plan_code text not null references public.saas_plans(code),
+  billing_cycle text not null default 'MONTHLY'
+    check (billing_cycle in ('MONTHLY', 'QUARTERLY', 'SEMIANNUALLY', 'YEARLY')),
   status text not null check (status in ('active', 'past_due', 'suspended', 'canceled')),
   last_paid_due_date date,
   current_period_ends_at timestamptz,
@@ -268,6 +307,22 @@ begin
 end;
 $$;
 
+-- Quanto tempo um pagamento cobre. Ciclo desconhecido vale um mês: o menor,
+-- para nunca dar acesso a mais do que foi pago.
+create or replace function private.billing_cycle_interval(cycle text)
+returns interval
+language sql
+immutable
+set search_path = ''
+as $$
+  select case cycle
+    when 'YEARLY' then interval '12 months'
+    when 'SEMIANNUALLY' then interval '6 months'
+    when 'QUARTERLY' then interval '3 months'
+    else interval '1 month'
+  end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 5/8. Emitir o código de um pagamento. Mesmo formato de issue_onboarding_access.
 -- ---------------------------------------------------------------------------
@@ -330,6 +385,7 @@ declare
   link_id text;
   vencimento date;
   plano text;
+  ciclo text;
   email_limpo text;
   registro public.billing_subscriptions%rowtype;
   concessao record;
@@ -391,7 +447,7 @@ begin
 
   if tipo in ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED') then
     if registro.id is null then
-      select link.plan_code into plano
+      select link.plan_code, link.billing_cycle into plano, ciclo
       from public.billing_payment_links link
       where link.provider = 'asaas' and link.external_link_id = link_id and link.active;
       if plano is null then
@@ -409,11 +465,13 @@ begin
       -- e depois compensa). O `on conflict` mais o `for update` fazem o
       -- segundo esperar o primeiro e enxergar o código que ele emitiu.
       insert into public.billing_subscriptions (
-        provider, external_subscription_id, external_customer_id, email, plan_code, status,
-        last_paid_due_date, current_period_ends_at
+        provider, external_subscription_id, external_customer_id, email, plan_code, billing_cycle,
+        status, last_paid_due_date, current_period_ends_at
       ) values (
-        'asaas', sub_id, cliente_id, email_limpo, plano, 'active',
-        vencimento, (greatest(coalesce(vencimento, current_date), current_date) + interval '1 month')::timestamptz
+        'asaas', sub_id, cliente_id, email_limpo, plano, ciclo,
+        'active', vencimento,
+        (greatest(coalesce(vencimento, current_date), current_date)
+          + private.billing_cycle_interval(ciclo))::timestamptz
       )
       on conflict (provider, external_subscription_id) do nothing;
 
@@ -431,7 +489,8 @@ begin
           end,
           current_period_ends_at = greatest(
             coalesce(current_period_ends_at, now()),
-            (greatest(coalesce(vencimento, current_date), current_date) + interval '1 month')::timestamptz
+            (greatest(coalesce(vencimento, current_date), current_date)
+              + private.billing_cycle_interval(billing_cycle))::timestamptz
           ),
           external_customer_id = coalesce(external_customer_id, cliente_id),
           updated_at = now()
@@ -682,6 +741,8 @@ returns table (
   id uuid,
   email text,
   plan_code text,
+  plan_name text,
+  billing_cycle text,
   status text,
   external_subscription_id text,
   organization_id uuid,
@@ -705,7 +766,8 @@ begin
     raise exception 'platform administrator permission required';
   end if;
   return query
-  select subscription.id, subscription.email, subscription.plan_code, subscription.status,
+  select subscription.id, subscription.email, subscription.plan_code, plan.name,
+         subscription.billing_cycle, subscription.status,
          subscription.external_subscription_id, subscription.organization_id, organization.name,
          subscription.grant_id,
          case when grant_row.status = 'pending' and grant_row.expires_at <= now()
@@ -714,6 +776,7 @@ begin
          subscription.activation_sent_at, subscription.activation_failed_at,
          subscription.past_due_since, subscription.created_at, subscription.updated_at
   from public.billing_subscriptions subscription
+  join public.saas_plans plan on plan.code = subscription.plan_code
   left join public.organizations organization on organization.id = subscription.organization_id
   left join public.onboarding_access_grants grant_row on grant_row.id = subscription.grant_id
   order by subscription.created_at desc
@@ -787,6 +850,7 @@ $$;
 revoke all on function private.org_access_state(uuid) from public, anon, authenticated;
 revoke all on function private.org_has_feature(uuid, text) from public, anon, authenticated;
 revoke all on function private.issue_payment_grant(text, text, text, uuid) from public, anon, authenticated;
+revoke all on function private.billing_cycle_interval(text) from public, anon, authenticated;
 revoke all on function public.organization_access_state(uuid) from public, anon, authenticated;
 revoke all on function public.nucleo_billing_asaas_receive(text, jsonb, text) from public, anon, authenticated;
 revoke all on function public.nucleo_billing_activation_delivered(text, uuid, boolean) from public, anon, authenticated;
@@ -847,11 +911,19 @@ begin
       raise exception 'conferencia: % precisa ser security definer com search_path vazio', funcao;
     end if;
   end loop;
+  if (select count(*) from public.saas_plans
+      where active and (
+        (code = 'base' and features ->> 'ai_customer' = 'false' and features ->> 'ai_team' = 'false' and features ->> 'assistant' = 'false')
+        or (code = 'atendimento' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'false')
+        or (code = 'completo' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'true')
+      )) <> 3 then
+    raise exception 'conferencia: os planos base, atendimento e completo precisam existir com a IA certa';
+  end if;
   if not exists (
     select 1 from public.saas_plans
-    where code = 'base' and active and features ->> 'assistant' = 'false'
+    where code = 'full' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'true'
   ) then
-    raise exception 'conferencia: o plano base precisa existir sem assistant';
+    raise exception 'conferencia: o plano full (Major) precisa manter a IA inteira';
   end if;
   if exists (
     select 1 from public.organizations organization

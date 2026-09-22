@@ -25,6 +25,10 @@ conexões vem do plano: o Base tem uma. Empresa bloqueada não pede.
    bash scripts/vps/provision-connection.sh <org> <conexão> --plano base --telefone 55659...
    ```
 
+   O `--plano` vem do plano da empresa: `base`, `atendimento` ou `completo`
+   (a Major, no `full`, equivale ao `completo`). Hoje o script só monta o
+   `base`; os planos com IA esperam a leva de IA.
+
 2. O mesmo pedido aparece em Configurações → Administração do Núcleo Major →
    "WhatsApps aguardando a VPS", com botão de copiar. O comando copiado de lá
    não traz o telefone, e o script pergunta.

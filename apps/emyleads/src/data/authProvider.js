@@ -331,6 +331,21 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
       };
     },
 
+    "plataforma.planos": async () => {
+      const { data, error } = await supabase
+        .from("saas_plans")
+        .select("code,name,description,features")
+        .eq("active", true)
+        .order("code");
+      if (error) throw erroDaResposta(error, "plataforma-planos-falhou");
+      return (data || []).map((linha) => ({
+        codigo: linha.code,
+        nome: linha.name,
+        descricao: linha.description,
+        recursos: linha.features || {},
+      }));
+    },
+
     "plataforma.vendas": async () => {
       const { data, error } = await supabase.rpc("billing_subscriptions_admin_list");
       if (error) throw erroDaResposta(error, "plataforma-vendas-falhou");
@@ -338,6 +353,8 @@ export function criarOperacoesAuth({ supabase = obterSupabase(), area = chrome.s
         id: linha.id,
         email: linha.email,
         plano: linha.plan_code,
+        nomePlano: linha.plan_name || linha.plan_code,
+        ciclo: linha.billing_cycle || "MONTHLY",
         status: linha.status,
         assinaturaExterna: linha.external_subscription_id,
         empresaId: linha.organization_id,

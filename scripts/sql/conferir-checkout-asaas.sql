@@ -2,26 +2,33 @@
 -- quiser. Rodar no SQL Editor depois da migration 20260920100000 e do
 -- scripts/sql/ligar-checkout-asaas.sql. Tudo precisa voltar `ok = true`.
 
-select 'plano base existe, sem IA' as conferencia,
+select 'planos base, atendimento e completo existem, cada um com a IA certa' as conferencia,
+       (select count(*) = 3 from public.saas_plans
+        where active and (
+          (code = 'base' and features ->> 'ai_customer' = 'false' and features ->> 'ai_team' = 'false')
+          or (code = 'atendimento' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'false')
+          or (code = 'completo' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'true')
+        )) as ok
+union all
+select 'o plano da Major (full) mantém as duas IAs',
        exists (
          select 1 from public.saas_plans
-         where code = 'base' and active and features ->> 'assistant' = 'false'
-       ) as ok
+         where code = 'full' and features ->> 'ai_customer' = 'true' and features ->> 'ai_team' = 'true'
+       )
 union all
 select 'token do webhook gravado',
        exists (select 1 from public.billing_intakes where provider = 'asaas' and enabled)
 union all
-select 'link do plano base mapeado',
+select 'pelo menos um link mapeado',
        exists (
          select 1 from public.billing_payment_links
-         where provider = 'asaas' and active and plan_code = 'base'
-           and external_link_id <> 'COLE_AQUI_O_ID_DO_LINK'
+         where provider = 'asaas' and active and external_link_id not like 'COLE_AQUI%'
        )
 union all
 select 'nenhum link esquecido com o texto de exemplo',
        not exists (
          select 1 from public.billing_payment_links
-         where external_link_id = 'COLE_AQUI_O_ID_DO_LINK'
+         where external_link_id like 'COLE_AQUI%'
        )
 union all
 select 'anon executa o webhook',
@@ -63,6 +70,13 @@ select 'concessão sem autor só quando vem de pagamento',
          select 1 from pg_constraint
          where conname = 'onboarding_access_grants_created_by_source'
        );
+
+-- Quais planos e ciclos já têm link (informativo):
+--
+-- select plan.name as plano, link.billing_cycle as ciclo, link.external_link_id, link.active
+-- from public.billing_payment_links link
+-- join public.saas_plans plan on plan.code = link.plan_code
+-- order by plan.code, link.billing_cycle;
 
 -- Durante o ensaio no sandbox: os últimos eventos que chegaram, sem dado
 -- pessoal. `unmapped_link` com o ID do SEU link quer dizer que o BLOCO 2 do

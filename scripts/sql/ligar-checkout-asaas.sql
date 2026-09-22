@@ -25,15 +25,35 @@ select novo.token as billing_intake_token
 from novo, gravado;
 
 -- ---------------------------------------------------------------------------
--- BLOCO 2 — qual Link de Pagamento vende o plano Base.
+-- BLOCO 2 — quais Links de Pagamento vendem cada plano, e em que ciclo.
+--
+-- São até seis links no Asaas: Base, Atendimento com IA e Completo, cada um
+-- mensal e anual. Crie no Asaas como Link de Pagamento de COBRANÇA RECORRENTE,
+-- forma de pagamento "o cliente escolhe" (cartão ou boleto/Pix), e o ciclo
+-- igual ao da linha abaixo (Mensal ou Anual).
 --
 -- O ID é o número no fim do endereço do link no Asaas:
 --   https://www.asaas.com/c/725104409743      →  725104409743
 --   https://sandbox.asaas.com/c/725104409743  →  725104409743
--- Troque COLE_AQUI_O_ID_DO_LINK pelo número e rode. O link do sandbox e o de
--- produção são links diferentes: rode uma vez para cada.
+--
+-- Troque cada COLE_AQUI_... pelo número do link correspondente. Apague as
+-- linhas dos links que você ainda não criou. O link do sandbox e o de produção
+-- são links diferentes: rode este bloco uma vez para cada ambiente.
+--
+-- ATENÇÃO: só publique os links de Atendimento e Completo depois que a IA
+-- mínima estiver na VPS (plano-tres-planos-e-ia.md, Parte B). Antes disso o
+-- script da VPS não monta conexão com IA.
 -- ---------------------------------------------------------------------------
-insert into public.billing_payment_links (provider, external_link_id, plan_code, label)
-values ('asaas', 'COLE_AQUI_O_ID_DO_LINK', 'base', 'Plano Base mensal')
+insert into public.billing_payment_links (provider, external_link_id, plan_code, billing_cycle, label)
+values
+  ('asaas', 'COLE_AQUI_BASE_MENSAL',        'base',        'MONTHLY', 'Base mensal'),
+  ('asaas', 'COLE_AQUI_BASE_ANUAL',         'base',        'YEARLY',  'Base anual'),
+  ('asaas', 'COLE_AQUI_ATENDIMENTO_MENSAL', 'atendimento', 'MONTHLY', 'Atendimento com IA mensal'),
+  ('asaas', 'COLE_AQUI_ATENDIMENTO_ANUAL',  'atendimento', 'YEARLY',  'Atendimento com IA anual'),
+  ('asaas', 'COLE_AQUI_COMPLETO_MENSAL',    'completo',    'MONTHLY', 'Completo mensal'),
+  ('asaas', 'COLE_AQUI_COMPLETO_ANUAL',     'completo',    'YEARLY',  'Completo anual')
 on conflict (provider, external_link_id) do update
-  set plan_code = excluded.plan_code, label = excluded.label, active = true;
+  set plan_code = excluded.plan_code,
+      billing_cycle = excluded.billing_cycle,
+      label = excluded.label,
+      active = true;

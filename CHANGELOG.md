@@ -5,6 +5,23 @@ sendo a fonte detalhada.
 
 ## Não lançado
 
+- três planos à venda, com nomes padrão Base, Atendimento com IA e Completo, e
+  um Link de Pagamento por plano e ciclo (mensal ou anual). O período pago
+  segue o ciclo, então cancelar um plano anual vale até o fim dos 12 meses. No
+  Asaas, o cliente escolhe entre cartão (cobrança automática) e Pix/boleto;
+- a IA vira dois interruptores: `ai_customer`, a IA respondendo os clientes
+  finais, e `ai_team`, o assistente da equipe pelo WhatsApp. O turno de
+  operador exige o segundo; todos os outros, o primeiro. O plano Atendimento
+  com IA, que tem só o primeiro, deixa de abrir o que não vendeu: em Equipe,
+  vincular o WhatsApp pessoal aparece como do plano Completo, e o assistente
+  do portal responde que é do Completo;
+- empresa nova nasce com Recepção, Pré-qualificação, Vendas, Suporte e
+  Solicitação de agenda no agente de clientes, e Agenda e Tarefas no interno.
+  Sem a Recepção, o roteador recusava todo turno de cliente e a pessoa do
+  outro lado ouvia "atendimento temporariamente indisponível" — e até aqui
+  isso só se resolvia passando pelo modo Piloto;
+- a liberação manual do painel da plataforma passa a escolher o plano, em vez
+  de ativar sempre o Full;
 - quem compra o Núcleo pelo Link de Pagamento do Asaas recebe por e-mail o
   link de ativação, cria a conta e ativa a empresa sozinho. Antes, o código
   só nascia pela mão de um administrador da plataforma e chegava ao cliente

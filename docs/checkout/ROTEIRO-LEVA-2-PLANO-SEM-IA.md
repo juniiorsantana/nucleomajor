@@ -1,4 +1,4 @@
-# Leva 2: o plano sem IA nunca chega ao Claude
+# Leva 2: cada IA só no plano que a tem
 
 Esta leva só pode ser aplicada **depois** da Leva 1
 ([ROTEIRO-LEVA-1-CHECKOUT-ASAAS.md](ROTEIRO-LEVA-1-CHECKOUT-ASAAS.md)).
@@ -12,16 +12,21 @@ São três camadas.
    login do Claude. Nenhuma mensagem chega ao runtime.
 2. **No banco (esta migration).** Quatro funções vivas vão **intactas** para o
    schema `private`, com o mesmo nome. No lugar de cada uma entra uma função
-   fina, com a mesma assinatura, que confere o plano e depois delega:
-   - `nucleo_customer_assistant_access`: sem IA, responde `allowed: false`
-     com `plan_without_assistant`, e o runtime ignora a mensagem sem avisar o
-     cliente;
-   - `nucleo_intelligence_context_resolve_v2` e `_v3`: sem IA, não entregam
+   fina, com a mesma assinatura, que confere o plano e depois delega. São dois
+   interruptores: `ai_customer` (a IA atendendo os clientes finais, nos planos
+   Atendimento e Completo) e `ai_team` (o assistente da equipe pelo WhatsApp,
+   só no Completo):
+   - `nucleo_customer_assistant_access`: sem `ai_customer`, responde
+     `allowed: false` com `plan_without_assistant`, e o runtime ignora a
+     mensagem sem avisar o cliente;
+   - `nucleo_intelligence_context_resolve_v2` e `_v3`: turno de operador exige
+     `ai_team`; os demais exigem `ai_customer`. Sem o interruptor, não entregam
      contrato, e o runtime não chama o Claude. O roteador da FASE 13 roda
      dentro deles;
-   - `customer_assistant_rollout_update`: sem IA, recusa `pilot` e `active`.
-3. **No servidor.** `POST /api/assistant/messages` responde 402 para plano sem
-   IA.
+   - `customer_assistant_rollout_update`: sem `ai_customer`, recusa `pilot` e
+     `active`.
+3. **No servidor.** `POST /api/assistant/messages` (o assistente do portal, que
+   é ferramenta da equipe) responde 402 sem `ai_team`.
 
 A trava vale também para empresa **bloqueada** por falta de pagamento, mesmo
 que o plano dela tenha IA.
@@ -32,8 +37,10 @@ normalizados) e todas saem idênticas.
 
 ## Provas
 
-- `scripts/sql/prova-plano-sem-ia.mjs`: **28 verificações, PASS** (inclui executar o "Desfazer" abaixo). Reaplica o
-  harness e todas as migrations reais em PGlite 0.5.8.
+- `scripts/sql/prova-plano-sem-ia.mjs`: **42 verificações, PASS** (inclui
+  executar o "Desfazer" abaixo). Reaplica o harness e todas as migrations reais
+  em PGlite 0.5.8, com quatro empresas — Major (full), Base, Atendimento e
+  Completo —, cada uma com robô e operador verificado.
 - `test/assistant-plan.test.mjs`: a trava do servidor.
 
 ## Aplicar

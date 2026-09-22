@@ -15,8 +15,10 @@ test("o pedido aceita o número em qualquer grafia e recusa o resto", () => {
 });
 
 test("o comando da VPS só aceita ids de verdade, e plano desconhecido vira base", () => {
-  assert.equal(provisionCommand({ organizationId: ORG, connectionId: CONEXAO, planCode: "full" }),
-    `bash scripts/vps/provision-connection.sh ${ORG} ${CONEXAO} --plano full`);
+  for (const [plano, esperado] of [["base", "base"], ["atendimento", "atendimento"], ["completo", "completo"], ["full", "completo"]]) {
+    assert.equal(provisionCommand({ organizationId: ORG, connectionId: CONEXAO, planCode: plano }),
+      `bash scripts/vps/provision-connection.sh ${ORG} ${CONEXAO} --plano ${esperado}`);
+  }
   assert.match(provisionCommand({ organizationId: ORG, connectionId: CONEXAO, planCode: "qualquer" }), /--plano base$/);
   assert.throws(() => provisionCommand({ organizationId: `${ORG}; rm -rf /`, connectionId: CONEXAO }), /inválido/);
   assert.match(provisionCommand({ organizationId: ORG, connectionId: CONEXAO, planCode: "base", phone: "+55 (65) 99217-8164" }), /--plano base --telefone 5565992178164$/);

@@ -157,8 +157,9 @@ async function organizationMembership(organizationId, userId, token) {
   return membership;
 }
 
-// Tudo que chama o Claude é do plano com IA. Antes da migration de cobrança
-// (20260920100000) a RPC não existe: aí vale o que valia, sem trava.
+// O assistente do portal é a equipe falando com o Claude: é do `ai_team`, que
+// só o plano Completo tem. Antes da migration de cobrança (20260920100000) a
+// RPC não existe: aí vale o que valia, sem trava.
 export async function requireAssistantPlan(organizationId, token, request = supabaseRequest) {
   let row;
   try {
@@ -171,8 +172,10 @@ export async function requireAssistantPlan(organizationId, token, request = supa
     if (error?.status === 404) return;
     throw error;
   }
-  if (!row || row.state === "blocked" || row.features?.assistant !== true) {
-    throw new HttpError(402, "O assistente faz parte do plano com IA.", "plan-without-assistant");
+  // `ai_team` quando existe; `assistant` só para plano gravado antes dela.
+  const temAssistente = row?.features?.ai_team ?? row?.features?.assistant;
+  if (!row || row.state === "blocked" || temAssistente !== true) {
+    throw new HttpError(402, "O assistente da equipe faz parte do plano Completo.", "plan-without-assistant");
   }
 }
 

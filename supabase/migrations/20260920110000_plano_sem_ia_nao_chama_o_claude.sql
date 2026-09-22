@@ -1,6 +1,8 @@
--- O plano sem IA nunca chega ao Claude.
+-- O plano sem IA nunca chega ao Claude — e cada IA só no plano que a tem.
 --
--- O plano Base (20260920100000) não tem a feature `assistant`. A trava
+-- Dois interruptores (20260920100000): `ai_customer`, a IA atendendo os
+-- clientes finais (planos atendimento e completo), e `ai_team`, o assistente
+-- da equipe pelo WhatsApp (só no completo). O Base não tem nenhum. A trava
 -- principal é na VPS: a conexão de um cliente Base nasce com o assistente
 -- desligado na política do Bridge, e nenhuma mensagem é entregue ao runtime.
 -- Esta migration é a segunda camada, no banco, para o dia em que alguém ligar
@@ -20,18 +22,22 @@
 -- quebraria esse rótulo; trocar só o schema, não.
 --
 --   * `nucleo_customer_assistant_access`: o portão que o gateway da VPS
---     consulta antes de enfileirar mensagem de cliente. Sem IA, responde
---     `allowed: false` (`plan_without_assistant`) e o runtime ignora a
---     mensagem calado — o mesmo caminho do rollout `off`.
+--     consulta antes de enfileirar mensagem de cliente. Sem `ai_customer`,
+--     responde `allowed: false` (`plan_without_assistant`) e o runtime ignora
+--     a mensagem calado — o mesmo caminho do rollout `off`.
 --   * `nucleo_intelligence_context_resolve_v2` e `_v3`: o contrato que o
---     runtime resolve antes de CADA turno de modelo, de cliente ou de
---     operador. Sem IA, levantam `plan without assistant` e o runtime falha
---     de forma segura, sem chamar o Claude. O roteador da FASE 13 roda dentro
---     deles (`private.intelligence_payload`), então fica coberto também.
+--     runtime resolve antes de CADA turno de modelo. Turno de operador
+--     (quem `nucleo_operator_context` reconhece na organização do robô — o
+--     mesmo critério com que a `_v2` escolhe o público interno) exige
+--     `ai_team`; os demais exigem `ai_customer`. Sem o interruptor, levantam
+--     `plan without assistant` e o runtime falha de forma segura, sem chamar
+--     o Claude. O roteador da FASE 13 roda dentro deles
+--     (`private.intelligence_payload`), então fica coberto também.
 --   * `customer_assistant_rollout_update`: o botão "Liberação e marca". Sem
---     IA, `pilot` e `active` são recusados; `off` continua valendo.
+--     `ai_customer`, `pilot` e `active` são recusados; `off` continua valendo.
 --
--- A Major está no plano `full`, ativa: para ela as funções finas só delegam.
+-- A Major está no plano `full`, ativa e com os dois interruptores: para ela
+-- as funções finas só delegam.
 --
 -- Uma migration futura que fizer `create or replace` numa dessas funções
 -- públicas substitui a função fina, não a viva — e perde a trava. Quem for
@@ -97,7 +103,7 @@ declare
   robot_org uuid := private.robot_organization();
 begin
   -- Sem credencial de robô, a viva levanta como sempre levantou.
-  if robot_org is not null and not private.org_has_feature(robot_org, 'assistant') then
+  if robot_org is not null and not private.org_has_feature(robot_org, 'ai_customer') then
     return jsonb_build_object(
       'schemaVersion', 'customer-rollout-1', 'allowed', false,
       'mode', 'off', 'reason', 'plan_without_assistant'
@@ -120,9 +126,18 @@ set search_path = ''
 as $$
 declare
   robot_org uuid := private.robot_organization();
+  operador boolean := false;
 begin
-  if robot_org is not null and not private.org_has_feature(robot_org, 'assistant') then
-    raise exception 'plan without assistant';
+  if robot_org is not null then
+    if trim(coalesce(requester_phone, '')) <> '' then
+      select exists (
+        select 1 from public.nucleo_operator_context(requester_phone) context
+        where context.organization_id = robot_org
+      ) into operador;
+    end if;
+    if not private.org_has_feature(robot_org, case when operador then 'ai_team' else 'ai_customer' end) then
+      raise exception 'plan without assistant';
+    end if;
   end if;
   return private.nucleo_intelligence_context_resolve_v2(
     conversation_key_hash, requester_phone, incoming_text, source_data
@@ -143,9 +158,18 @@ set search_path = ''
 as $$
 declare
   robot_org uuid := private.robot_organization();
+  operador boolean := false;
 begin
-  if robot_org is not null and not private.org_has_feature(robot_org, 'assistant') then
-    raise exception 'plan without assistant';
+  if robot_org is not null then
+    if trim(coalesce(requester_phone, '')) <> '' then
+      select exists (
+        select 1 from public.nucleo_operator_context(requester_phone) context
+        where context.organization_id = robot_org
+      ) into operador;
+    end if;
+    if not private.org_has_feature(robot_org, case when operador then 'ai_team' else 'ai_customer' end) then
+      raise exception 'plan without assistant';
+    end if;
   end if;
   return private.nucleo_intelligence_context_resolve_v3(
     conversation_key_hash, requester_phone, incoming_text, source_data
@@ -170,7 +194,7 @@ begin
     select profile.organization_id into empresa
     from public.assistant_profiles profile
     where profile.id = target_profile;
-    if empresa is not null and not private.org_has_feature(empresa, 'assistant') then
+    if empresa is not null and not private.org_has_feature(empresa, 'ai_customer') then
       raise exception 'plan without assistant';
     end if;
   end if;
@@ -179,13 +203,13 @@ end;
 $$;
 
 comment on function public.nucleo_customer_assistant_access(text) is
-  'Confere se o plano da empresa do robo tem IA (feature assistant) e delega a private.nucleo_customer_assistant_access. Sem IA: allowed false, reason plan_without_assistant. Ver 20260920110000.';
+  'Confere se o plano da empresa do robo tem IA para clientes (ai_customer) e delega a private.nucleo_customer_assistant_access. Sem ela: allowed false, reason plan_without_assistant. Ver 20260920110000.';
 comment on function public.nucleo_intelligence_context_resolve_v2(text, text, text, jsonb) is
-  'Confere se o plano da empresa do robo tem IA e delega a private.nucleo_intelligence_context_resolve_v2. Sem IA levanta plan without assistant. Ver 20260920110000.';
+  'Turno de operador exige ai_team; os demais, ai_customer. Delega a private.nucleo_intelligence_context_resolve_v2; sem o interruptor levanta plan without assistant. Ver 20260920110000.';
 comment on function public.nucleo_intelligence_context_resolve_v3(text, text, text, jsonb) is
-  'Confere se o plano da empresa do robo tem IA e delega a private.nucleo_intelligence_context_resolve_v3. Sem IA levanta plan without assistant. Ver 20260920110000.';
+  'Turno de operador exige ai_team; os demais, ai_customer. Delega a private.nucleo_intelligence_context_resolve_v3; sem o interruptor levanta plan without assistant. Ver 20260920110000.';
 comment on function public.customer_assistant_rollout_update(uuid, text, uuid[]) is
-  'Recusa pilot e active quando o plano da empresa nao tem IA; off sempre vale. Delega a private.customer_assistant_rollout_update. Ver 20260920110000.';
+  'Recusa pilot e active quando o plano da empresa nao tem IA para clientes (ai_customer); off sempre vale. Delega a private.customer_assistant_rollout_update. Ver 20260920110000.';
 
 revoke all on function public.nucleo_customer_assistant_access(text) from public, anon;
 revoke all on function public.nucleo_intelligence_context_resolve_v2(text, text, text, jsonb) from public, anon;

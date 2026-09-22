@@ -22,6 +22,7 @@ import {
   colunasDaEquipe,
 } from "./equipe/pecas";
 import { useOperadores } from "./equipe/useOperadores";
+import { planoLibera } from "../plano";
 
 /**
  * Equipe — uma lista só.
@@ -112,8 +113,11 @@ export default function Equipe({ sessao }) {
   const meuPapel = organizacao?.papel;
   const meuId = sessao?.usuario?.id;
   const gerencia = podeGerenciarEquipe(meuPapel);
+  // Vincular o WhatsApp pessoal só serve ao assistente da equipe, que é do
+  // plano Completo. Sem ele, nem se consulta a lista de operadores.
+  const assistenteDaEquipe = planoLibera(sessao?.acesso?.recursos, "assistente_equipe");
 
-  const operadores = useOperadores({ organizacaoId: organizacao?.id, ativo: gerencia });
+  const operadores = useOperadores({ organizacaoId: organizacao?.id, ativo: gerencia && assistenteDaEquipe });
 
   const carregar = useCallback(async () => {
     try {
@@ -361,7 +365,7 @@ export default function Equipe({ sessao }) {
                       // que ainda não existe.
                       papelEditavel={podeMudarPapel(meuPapel) && membro.role !== "owner"}
                       removivel={podeRemover(meuPapel, membro, meuId)}
-                      acoesWhatsApp={gerencia && operadores.conexaoAtiva && membro.status === "active"}
+                      acoesWhatsApp={gerencia && assistenteDaEquipe && operadores.conexaoAtiva && membro.status === "active"}
                       operador={operadores.operadorDe(membro.user_id)}
                       aguardando={!!operadores.aguardando[membro.user_id]}
                       ocupado={ocupado}
@@ -391,13 +395,23 @@ export default function Equipe({ sessao }) {
             {gerencia ? (
               <div className="mt-3.5 flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-surface px-3.5 py-2.5">
                 <Phone size={15} className="flex-none text-sub" />
-                <p className="min-w-[280px] flex-1 text-[12px] leading-relaxed text-sub">
-                  <strong className="font-semibold text-fg">
-                    O número principal continua sendo o único que responde.
-                  </strong>{" "}
-                  Cada pessoa vincula o próprio número só como identidade autorizada — por isso a
-                  coluna WhatsApp fica na linha dela, e não numa tabela separada.
-                </p>
+                {assistenteDaEquipe ? (
+                  <p className="min-w-[280px] flex-1 text-[12px] leading-relaxed text-sub">
+                    <strong className="font-semibold text-fg">
+                      O número principal continua sendo o único que responde.
+                    </strong>{" "}
+                    Cada pessoa vincula o próprio número só como identidade autorizada — por isso a
+                    coluna WhatsApp fica na linha dela, e não numa tabela separada.
+                  </p>
+                ) : (
+                  <p className="min-w-[280px] flex-1 text-[12px] leading-relaxed text-sub">
+                    <strong className="font-semibold text-fg">
+                      Falar com o assistente pelo WhatsApp faz parte do plano Completo.
+                    </strong>{" "}
+                    No seu plano, a equipe atende pelo portal; vincular o número pessoal de cada
+                    pessoa fica disponível ao mudar de plano.
+                  </p>
+                )}
                 {operadores.conexoes.length > 1 && (
                   <label className="flex flex-none items-center gap-2">
                     <span className="text-[11.5px] font-medium text-sub">Conexão</span>

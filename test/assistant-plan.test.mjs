@@ -5,15 +5,19 @@ import { requireAssistantPlan } from "../src/server.mjs";
 const responde = (valor) => async () => valor;
 const falha = (status) => async () => { const erro = new Error("x"); erro.status = status; throw erro; };
 
-test("plano com IA e assinatura em dia passa", async () => {
+test("plano com o assistente da equipe e assinatura em dia passa", async () => {
+  await requireAssistantPlan("org", "tk", responde([{ state: "ok", features: { ai_team: true, ai_customer: true } }]));
+  await requireAssistantPlan("org", "tk", responde([{ state: "past_due", features: { ai_team: true } }]));
+  // Plano gravado antes das chaves novas: vale o `assistant`.
   await requireAssistantPlan("org", "tk", responde([{ state: "ok", features: { assistant: true } }]));
-  await requireAssistantPlan("org", "tk", responde([{ state: "past_due", features: { assistant: true } }]));
 });
 
-test("plano sem IA, empresa bloqueada ou sem assinatura recebem 402", async () => {
+test("plano sem o assistente da equipe, empresa bloqueada ou sem assinatura recebem 402", async () => {
   for (const linha of [
     [{ state: "ok", features: { assistant: false } }],
-    [{ state: "blocked", features: { assistant: true } }],
+    // Atendimento com IA: tem IA para clientes, mas não o assistente da equipe.
+    [{ state: "ok", features: { assistant: true, ai_customer: true, ai_team: false } }],
+    [{ state: "blocked", features: { ai_team: true } }],
     [{ state: "ok", features: {} }],
     [],
   ]) {

@@ -105,6 +105,13 @@ confere("empresa sem assinatura ganha full/active/migration", semAssinatura?.pla
 const base = await um("select features, limits from public.saas_plans where code='base'");
 confere("plano base sem assistant", base.features.assistant === false && base.features.crm === true);
 confere("plano base com 1 conexão", base.limits.connections === 1);
+const planos = Object.fromEntries((await db.query("select code, name, features from public.saas_plans")).rows.map((l) => [l.code, l]));
+confere("base sem nenhuma IA", planos.base.features.ai_customer === false && planos.base.features.ai_team === false);
+confere("atendimento: IA para clientes, sem assistente da equipe",
+  planos.atendimento.name === "Atendimento com IA" && planos.atendimento.features.ai_customer === true && planos.atendimento.features.ai_team === false);
+confere("completo: as duas IAs", planos.completo.name === "Completo" && planos.completo.features.ai_customer === true && planos.completo.features.ai_team === true);
+confere("full (Major) ganha as duas chaves ligadas e mantém o resto",
+  planos.full.features.ai_customer === true && planos.full.features.ai_team === true && planos.full.features.assistant === true && planos.full.features.crm === true);
 
 // --------------------------------------------------------------- a ligação
 const TOKEN = "f".repeat(64);
@@ -244,6 +251,7 @@ confere("admin não reenvia empresa já ativada", /already activated/.test(await
 
 const lista = (await como(ADMIN, "select * from public.billing_subscriptions_admin_list()")).rows;
 confere("admin lista as vendas", lista.length === 3 && lista.some((l) => l.organization_name === "Clínica do Cliente"));
+confere("a lista traz o nome do plano e o ciclo", lista.every((l) => l.plan_name === "Base" && l.billing_cycle === "MONTHLY"));
 confere("não-admin não lista", /platform administrator/.test(await erroDe(() => como(CLIENTE, "select * from public.billing_subscriptions_admin_list()"))));
 
 // ---------------------------------------------- o caminho manual continua
@@ -258,6 +266,31 @@ for (const tabela of ["billing_intakes", "billing_payment_links", "billing_subsc
   confere(`authenticated não lê ${tabela}`, /permission denied/.test(await erroDe(() => como(CLIENTE, `select * from public.${tabela}`, [], "authenticated"))));
 }
 confere("authenticated não chama o webhook", /permission denied/.test(await erroDe(() => como(CLIENTE, "select public.nucleo_billing_asaas_receive($1, '{}'::jsonb)", [TOKEN], "authenticated"))));
+
+// ------------------------------------------------ plano Completo, anual
+const LINK_ANUAL = "900000000001";
+await db.query("insert into public.billing_payment_links (provider, external_link_id, plan_code, billing_cycle, label) values ('asaas', $1, 'completo', 'YEARLY', 'Completo anual')", [LINK_ANUAL]);
+const hoje = new Date().toISOString().slice(0, 10);
+r = await receber(pagamento("evt_anual_1", "PAYMENT_CONFIRMED", { sub: "sub_anual", link: LINK_ANUAL, due: hoje, pay: "pay_a1" }), "anual@exemplo.invalido");
+confere("link anual do Completo emite a ativação", r.action === "send_activation" && r.plan_code === "completo");
+const anual = await um("select billing_cycle, current_period_ends_at from public.billing_subscriptions where external_subscription_id='sub_anual'");
+const meses = (inicio, fim) => (new Date(fim) - new Date(inicio)) / (1000 * 60 * 60 * 24 * 30.44);
+confere("assinatura anual guarda o ciclo", anual.billing_cycle === "YEARLY");
+confere("o pagamento anual cobre 12 meses", Math.round(meses(hoje, anual.current_period_ends_at)) === 12, String(anual.current_period_ends_at));
+await db.exec("insert into auth.users (id, email, email_confirmed_at) values ('bbbbbbbb-0000-4000-8000-00000000000a', 'anual@exemplo.invalido', now())");
+const orgAnual = (await como("bbbbbbbb-0000-4000-8000-00000000000a", "select public.create_organization('Clínica Anual', $1) as id", [r.access_code])).rows[0].id;
+const assinaturaAnual = await um("select plan_code, current_period_ends_at from public.organization_subscriptions where organization_id=$1", [orgAnual]);
+confere("a empresa nasce no Completo com o período anual", assinaturaAnual.plan_code === "completo" && Math.round(meses(hoje, assinaturaAnual.current_period_ends_at)) === 12);
+const acessoAnual = (await como("bbbbbbbb-0000-4000-8000-00000000000a", "select * from public.organization_access_state($1)", [orgAnual])).rows[0];
+confere("o estado mostra as duas IAs", acessoAnual.features.ai_customer === true && acessoAnual.features.ai_team === true);
+
+const proximoAno = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+r = await receber(pagamento("evt_anual_2", "PAYMENT_RECEIVED", { sub: "sub_anual", link: LINK_ANUAL, due: proximoAno, pay: "pay_a2" }));
+const renovada = await um("select current_period_ends_at from public.organization_subscriptions where organization_id=$1", [orgAnual]);
+confere("a renovação anual empurra mais 12 meses", r.result === "renewed" && Math.round(meses(proximoAno, renovada.current_period_ends_at)) === 12);
+
+r = await receber({ id: "evt_anual_cancel", event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_anual", customer: "cus_1", deleted: true } });
+confere("cancelar o anual vale até o fim do período pago", r.result === "canceled" && (await um("select private.org_access_state($1) s", [orgAnual])).s === "ok");
 
 console.log(`\nPASS ${passou.length}`);
 for (const p of passou) console.log("  ok  ", p);

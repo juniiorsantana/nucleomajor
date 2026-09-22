@@ -4,6 +4,22 @@ Este roteiro leva a Leva 1 até um ensaio completo no **sandbox** do Asaas. O
 link de produção só é ligado depois que as Levas 2 e 3 estiverem aplicadas,
 porque sem a Leva 3 o cliente ainda não consegue conectar o WhatsApp.
 
+**Os planos à venda** (os nomes mudam depois por `update saas_plans set name`,
+sem tocar em código):
+
+| plano | o que tem | IA |
+|---|---|---|
+| **Base** | WhatsApp no portal, CRM, funil, agenda, tarefas, equipe | nenhuma |
+| **Atendimento com IA** | tudo do Base, mais a IA respondendo os clientes | `ai_customer` |
+| **Completo** | tudo do Atendimento, mais o assistente da equipe pelo WhatsApp | `ai_customer` e `ai_team` |
+
+A Major segue no plano `full`, que ganha os dois interruptores ligados. Cada
+plano tem um link mensal e um anual, e o período pago segue o ciclo do link.
+
+**Os links de Atendimento e Completo só podem ir ao ar depois da leva de IA**
+(`plano-tres-planos-e-ia.md`, Parte B): antes disso o script da VPS não monta
+conexão com IA.
+
 ## O que muda
 
 - **Webhook novo** `POST /api/billing/asaas` no servidor do portal. Ele:
@@ -19,19 +35,24 @@ porque sem a Leva 3 o cliente ainda não consegue conectar o WhatsApp.
   - cancelamento: o acesso vale até o fim do período pago.
 - **Painel da plataforma** (Configurações): lista as vendas e oferece
   "Reenviar ativação" e "Revogar".
-- **Empresas que já existem.** A Major continua no plano `full`, ativa. A
-  migration recusa aplicar se alguma empresa existente fosse ficar bloqueada.
+- **Empresas que já existem.** A Major continua no plano `full`, ativa, e
+  ganha as chaves `ai_customer` e `ai_team` ligadas. A migration recusa aplicar
+  se alguma empresa existente fosse ficar bloqueada.
+- **Liberação manual por plano.** No painel da plataforma, ao emitir uma
+  liberação você escolhe o plano. Essa cobrança é por fora: não passa pelo
+  Asaas e não bloqueia sozinha.
 
 **Pode publicar o portal antes da migration.** Sem a migration, o portal trata
 a assinatura como "ok" e o webhook responde 503, porque não está configurado.
 
 ## Provas feitas antes de aplicar
 
-- `scripts/sql/prova-checkout-asaas.mjs`: **74 verificações, PASS**. A prova
+- `scripts/sql/prova-checkout-asaas.mjs`: **86 verificações, PASS**. A prova
   reaplica o harness e **todas** as migrations reais num Postgres 18
-  descartável (PGlite 0.5.8), com os gatilhos de verdade. Para rodar, siga o
-  cabeçalho do arquivo.
-- `npm test`: 263 testes do servidor e 61 arquivos do app, todos verdes.
+  descartável (PGlite 0.5.8), com os gatilhos de verdade. Cobre os três planos
+  e o ciclo anual (12 meses, renovação e cancelamento até o fim do período).
+  Para rodar, siga o cabeçalho do arquivo.
+- `npm test`: 270 testes do servidor e 62 arquivos do app, todos verdes.
   Inclui `test/billing.test.mjs` e
   `apps/emyleads/src/page/AuthGate.interactive.test.jsx`.
 
@@ -41,13 +62,17 @@ a assinatura como "ok" e o webhook responde 503, porque não está configurado.
 
 1. Crie a conta em `sandbox.asaas.com` e gere a chave de API em
    Integrações → Chaves de API.
-2. Crie o **Link de Pagamento**:
-   - cobrança **recorrente**, ciclo **mensal**, com o valor do plano Base;
-   - formas de pagamento: Pix, boleto e cartão;
+2. Crie os **Links de Pagamento**, um por plano e ciclo (comece pelo Base
+   mensal; os de IA esperam a leva de IA):
+   - cobrança **recorrente**, ciclo **mensal** ou **anual**;
+   - forma de pagamento: deixe o **cliente escolher** entre cartão e
+     boleto/Pix. No cartão a cobrança sai sozinha a cada ciclo; no Pix e no
+     boleto o Asaas emite a cobrança e o cliente paga. A liberação do acesso é
+     imediata no cartão e no Pix, e só após a compensação no boleto;
    - opcional: o redirecionamento depois do pagamento pode apontar para
      `https://nucleomajor.com/app`. **Não** use esse retorno para liberar
      nada; quem libera é o webhook.
-3. Anote o endereço do link, que termina em um número:
+3. Anote o endereço de cada link, que termina em um número:
    `https://sandbox.asaas.com/c/<ID>`.
 4. Em Integrações → Webhooks, crie um webhook com:
    - **URL:** `https://nucleomajor.com/api/billing/asaas`;
@@ -69,8 +94,9 @@ Abra cada **arquivo** e copie o conteúdo inteiro. Não cole a partir do chat.
 2. Rode o **BLOCO 1** de `scripts/sql/ligar-checkout-asaas.sql`.
    - O resultado mostra `billing_intake_token`. Copie esse valor: ele vai para
      `BILLING_INTAKE_TOKEN` e **não aparece de novo**.
-3. Rode o **BLOCO 2** trocando `COLE_AQUI_O_ID_DO_LINK` pelo `<ID>` do link do
-   passo 1.3.
+3. Rode o **BLOCO 2** trocando cada `COLE_AQUI_...` pelo `<ID>` do link
+   correspondente do passo 1.3, e apagando as linhas dos links que ainda não
+   existem.
 4. Rode `scripts/sql/conferir-checkout-asaas.sql`. Tudo precisa voltar
    `ok = true`.
 
@@ -114,7 +140,8 @@ sozinha.
    já estará preenchido: dê o nome da empresa e ative.
 5. Confira o painel:
    - funil, tags e agenda estão no lugar;
-   - **não** aparecem Inteligência nem Chatbots (plano Base).
+   - **não** aparecem Inteligência nem Chatbots (plano Base);
+   - em Equipe, vincular o WhatsApp pessoal aparece como do plano Completo.
 6. No painel da plataforma (Configurações, com a conta
    `cmo@majorhub.com.br`), a venda aparece como "Ativada".
 7. Teste um atraso: crie outra cobrança da mesma assinatura no sandbox e deixe
@@ -140,9 +167,9 @@ chegaram podem ser vistos, sem dado pessoal, pela consulta comentada no fim de
 
      ```sql
      insert into public.billing_subscriptions
-       (provider, external_subscription_id, email, plan_code, status, current_period_ends_at)
+       (provider, external_subscription_id, email, plan_code, billing_cycle, status, current_period_ends_at)
      values
-       ('asaas', '<sub_...>', '<e-mail do cliente>', 'base', 'active', now() + interval '1 month');
+       ('asaas', '<sub_...>', '<e-mail do cliente>', 'base', 'MONTHLY', 'active', now() + interval '1 month');
      ```
 
   3. No painel da plataforma, clique em "Reenviar ativação" nessa venda.
