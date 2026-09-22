@@ -180,6 +180,24 @@ foi reiniciado, então não há nada a desfazer nele.
 
 ## 6. O que foi feito
 
-- **22/09/2026:** base conferida por hash (121/121); patch enviado para
-  `/tmp/runtime-tres-planos.patch` (hash confere); `git apply --check` na
-  release ativa: OK. **Nada mais foi executado na VPS.**
+- **22/09/2026, preparação:** base conferida por hash (121/121); patch enviado
+  para `/tmp/runtime-tres-planos.patch` (hash confere); `git apply --check` na
+  release ativa: OK.
+- **22/09/2026, 19:25 (Brasília), deploy autorizado pelo dono:**
+  1. Os 7 hashes da base conferidos na release ativa `midia-no-portal`: iguais.
+  2. Ambiente da Major (`/proc/<pid>/environ`): `ASSISTANT_MESSAGES_DB` =
+     `.../whatsapp/8ee1e6d0-…/messages.db` e `EMYLEADS_RUNTIME_CONNECTION_ID`
+     definidos. O leitor do WhatsApp tem o banco certo.
+  3. Release `tres-planos` criada por `cp -a` + `git apply`; `runner.py` e
+     `whatsapp.py` conferidos por hash contra `15508c5`.
+  4. Na release: `go vet` OK, `go test ./...` OK, binário do Bridge compilado;
+     MCP 54 OK, scripts da VPS 22 OK, assistente 831 OK.
+  5. Symlink → `tres-planos`; **só o assistente** reiniciado às 22:25 UTC.
+     `service.started` na porta 8090, cwd na release nova, aviso de agenda
+     religado, nenhum erro. O Bridge ficou no mesmo processo (pid 203703,
+     binário de `midia-no-portal`): o WhatsApp não caiu.
+  6. Portal publicado no mesmo momento: `main` 045b898 → 0017107, no ar em
+     segundos; `/api/billing/asaas` → 503 `billing-not-configured`,
+     `checkoutUrl` vazio.
+  - **Pendente:** ver o primeiro turno de cliente depois do restart (validação
+    1 e 2 da seção 5).
