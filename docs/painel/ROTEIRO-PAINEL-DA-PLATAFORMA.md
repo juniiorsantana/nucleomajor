@@ -177,6 +177,28 @@ publicado (passos 3 a 6 pendentes).
   - a leitura privada fechada e os grants certos;
   - o histórico vazio.
 
+**Portal publicado no mesmo dia:** push de `247cc73` na `main`. O
+`/api/config` passou a trazer `painelOrigin`, e `/painel` no domínio
+principal redireciona (302) para o subdomínio.
+
+**Subdomínio no mesmo dia:**
+- `painel.nucleomajor.com` foi criado na Hostinger como **domínio
+  estacionado** (alias) do site `nucleomajor.com`, o mesmo app Node, e não
+  como subdomínio com pasta própria. O DNS e o SSL saíram em cerca de 1 minuto;
+- `https://painel.nucleomajor.com/**` foi acrescentado às Redirect URLs do
+  Supabase.
+
+**Conferência ao vivo no mesmo dia** (com autorização do dono, na Adriane):
+1. Chatbots ligado com prazo de 7 dias: o banco passou a responder
+   `chatbots = true` para o portal dela.
+2. Chatbots voltou ao plano: `false` de novo.
+3. Limite de WhatsApp em 0: o banco respondeu `connections = 0`.
+4. O limite voltou ao plano: `1` de novo.
+5. O Histórico mostra as 4 ações, com autor `cmo@majorhub.com.br` e a nota de
+   cada uma.
+
+A Adriane terminou exatamente como começou.
+
 ## Se algo der errado
 
 - **Uma tela sumiu para um cliente.** Abra a empresa no painel e veja a coluna
