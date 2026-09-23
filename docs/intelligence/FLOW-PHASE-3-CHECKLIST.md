@@ -31,7 +31,7 @@ reenvio automático. Etapas sem efeito externo podem ser reservadas novamente.
   edição do fluxo durante espera e envio incerto.
 - [x] PostgreSQL descartável com cadeia inteira, rollback de fixtures e controle.
 - [x] Suítes completas relevantes, revisão de branches/HEADs e commits.
-- [ ] SQL Editor manual com validação read-only e hashes normalizados.
+- [x] SQL Editor manual com validação read-only e hashes normalizados.
 - [ ] Runtime publicado e saúde observada; resultado integrado documentado.
 
 O editor v3 é a FASE 4. A FASE 3 não se considera completa apenas porque o
@@ -82,3 +82,18 @@ Pendências antes do aceite operacional: aplicar SQL manualmente, conferir
 `validar-fluxos-execucao.sql`, comparar os HEADs local/VPS, publicar o runtime e
 observar a jornada na conexão real. Nenhum serviço de produção foi reiniciado
 nesta prova. O campo `tudo_confere` da consulta deve ser `true` antes do deploy.
+
+## Banco de produção em 23/09/2026
+
+A migration está aplicada. `validar-fluxos-execucao.sql`, rodado em produção,
+devolveu `tudo_confere: true`: 15 de 15 funções com hash, definer, search_path e
+grants esperados, e a tabela com RLS, 25 colunas e o gatilho de assunção humana.
+
+A versão aplicada saiu de uma cópia fora da branch que envolve entre parênteses
+a chamada de `nucleo_chatbot_runtime_context` antes de `->'contact'` em
+`nucleo_flow_claim`. A migration e a validação desta branch foram alinhadas a
+ela; o hash de `nucleo_flow_claim` passou a `17e4be5e…`.
+
+`chatbot_flow_executions` estava vazia: nenhum fluxo v3 executou. Não há editor
+que grave v3 (FASE 4), e o executor do runtime depende de `NUCLEO_FLOW_RUNTIME=1`
+numa release que contenha a branch `feature/flow-runtime-phase-3`.

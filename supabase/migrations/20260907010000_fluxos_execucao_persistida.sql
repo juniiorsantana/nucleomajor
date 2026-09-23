@@ -325,7 +325,7 @@ begin
       then coalesce(suspension_id,gen_random_uuid()) else suspension_id end
   where id=run.id returning * into run;
   return private.flow_envelope(run)||jsonb_build_object('step',step,
-    'contact',public.nucleo_chatbot_runtime_context(run.requester_phone)->'contact');
+    'contact',(public.nucleo_chatbot_runtime_context(run.requester_phone))->'contact');
 end;
 $$;
 
@@ -515,7 +515,7 @@ begin
       ('private', 'flow_validate', '749468581666cf0e5c0ab73bc702c3e0'),
       ('private', 'flow_envelope', 'f3eaddb1283d7d6a98e92b2921665463'),
       ('public', 'nucleo_flow_start', '40f258ab7125e35dbcddeefb80e93dee'),
-      ('public', 'nucleo_flow_claim', '2a72474a441ce20223d479779e8d9f73'),
+      ('public', 'nucleo_flow_claim', '17e4be5e4186ae551eafdb245917e2e9'),
       ('public', 'nucleo_flow_ack', 'ddf8207fd29ce828d292df2ad9f1db6f'),
       ('public', 'nucleo_flow_pending', '42f20eee3d4aae69c663b93956ca8f39'),
       ('public', 'nucleo_flow_current', '7deb3d48337a172cde578c6097e0eb5b'),

@@ -10,7 +10,7 @@ with esperado(schema_name, function_name, body_hash, definer, authenticated_exec
     ('private', 'flow_validate', '749468581666cf0e5c0ab73bc702c3e0', false, false),
     ('private', 'flow_envelope', 'f3eaddb1283d7d6a98e92b2921665463', false, false),
     ('public', 'nucleo_flow_start', '40f258ab7125e35dbcddeefb80e93dee', true, true),
-    ('public', 'nucleo_flow_claim', '2a72474a441ce20223d479779e8d9f73', true, true),
+    ('public', 'nucleo_flow_claim', '17e4be5e4186ae551eafdb245917e2e9', true, true),
     ('public', 'nucleo_flow_ack', 'ddf8207fd29ce828d292df2ad9f1db6f', true, true),
     ('public', 'nucleo_flow_pending', '42f20eee3d4aae69c663b93956ca8f39', true, true),
     ('public', 'nucleo_flow_current', '7deb3d48337a172cde578c6097e0eb5b', true, true),
