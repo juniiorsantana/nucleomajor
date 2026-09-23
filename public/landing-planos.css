@@ -316,6 +316,79 @@
   white-space: nowrap;
 }
 
+/* Chamada para a página de comparação, no fim da seção de planos. */
+.compare-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  margin-top: 56px;
+  padding: 32px 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.compare-cta h3 {
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 600;
+}
+
+.compare-cta p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.compare-cta .button {
+  flex: 0 0 auto;
+}
+
+/* A página /planos. */
+.compare-page {
+  padding-top: 170px;
+  background: var(--mist);
+}
+
+.compare-page .section-intro h1 {
+  font-size: clamp(38px, 4.8vw, 62px);
+  font-weight: 600;
+}
+
+.compare-page .compare {
+  margin-top: 56px;
+}
+
+.compare-page .compare-table thead tr:first-child th {
+  border-bottom: 0;
+}
+
+.compare-actions th,
+.compare-actions td {
+  padding-top: 4px;
+  padding-bottom: 20px;
+}
+
+.compare-actions .button {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.compare-back {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.compare-back a {
+  color: var(--purple-dark);
+  font-size: 14px;
+  font-weight: 600;
+}
+
 /* ------------------------------------------- campos dos dois formulários */
 
 .contact-form .form-grid label > span,
@@ -533,6 +606,9 @@
 @media (max-width: 760px) {
   .pricing-grid { margin-top: 44px; }
   .compare { margin-top: 64px; }
+  .compare-cta { align-items: flex-start; flex-direction: column; gap: 20px; padding: 26px 22px; }
+  .compare-cta .button { width: 100%; }
+  .compare-page { padding-top: 130px; }
   .compare-table th,
   .compare-table td { padding: 12px 12px; }
   .compare-table th[scope="row"],

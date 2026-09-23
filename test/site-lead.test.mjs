@@ -134,3 +134,20 @@ test("POST /api/lead chega ao handler sem exigir sessão", async () => {
     server.close();
   }
 });
+
+test("/planos serve a página de comparação dos planos", async () => {
+  const server = createServer({ apiHandler: async (req, res) => res.writeHead(401).end() });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const { port } = server.address();
+    for (const rota of ["/planos", "/planos/"]) {
+      const resposta = await fetch(`http://127.0.0.1:${port}${rota}`);
+      assert.equal(resposta.status, 200);
+      const html = await resposta.text();
+      assert.match(html, /Compare os planos/);
+      assert.match(html, /data-plan-open="atendimento"/);
+    }
+  } finally {
+    server.close();
+  }
+});

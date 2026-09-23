@@ -940,6 +940,7 @@ async function staticFile(req, res, url) {
   let relative;
   if (pathname === "/") relative = "index.html";
   else if (pathname === "/convite" || pathname === "/convite/") relative = "convite/index.html";
+  else if (pathname === "/planos" || pathname === "/planos/") relative = "planos/index.html";
   else if (isAppRoute) relative = "app/index.html";
   else relative = pathname.replace(/^\//, "");
   return sendPublicFile(res, relative);
