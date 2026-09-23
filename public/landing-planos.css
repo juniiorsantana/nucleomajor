@@ -1,0 +1,551 @@
+/* Planos, formulário de contato e popup de captação da landing.
+   Usa os tokens de /_astro/index.BtLzi38h.css; nenhum token novo. */
+
+/* ------------------------------------------------------------ planos */
+
+.pricing {
+  background: var(--mist);
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 64px;
+}
+
+.plan-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  transition: transform 220ms var(--ease), box-shadow 220ms var(--ease), border-color 180ms ease;
+}
+
+.plan-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.plan-featured {
+  border: 2px solid var(--purple);
+  box-shadow: var(--shadow-lg);
+}
+
+.plan-tag {
+  position: absolute;
+  top: -13px;
+  left: 22px;
+  padding: 5px 11px;
+  border-radius: 99px;
+  background: var(--purple);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.plan-head h3 {
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.plan-head p {
+  min-height: 3em;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 26px;
+  color: var(--ink);
+}
+
+.plan-currency {
+  color: var(--ink-soft);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.plan-price strong {
+  font-family: Manrope, Inter, sans-serif;
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.plan-period {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.plan-price-custom strong {
+  font-size: 34px;
+  line-height: 52px;
+}
+
+.plan-billing {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.plan-cta {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.plan-includes {
+  margin-top: 28px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-cta + .plan-features {
+  margin-top: 28px;
+}
+
+.plan-features li {
+  display: flex;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.plan-features svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--purple);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.plan-dark {
+  border-color: var(--night-soft);
+  background: var(--night);
+  color: #fff;
+}
+
+.plan-dark .plan-price { color: #fff; }
+.plan-dark .plan-head p,
+.plan-dark .plan-billing { color: #aab2c8; }
+.plan-dark .plan-includes { color: #7d86a3; }
+.plan-dark .plan-features li { color: #c4cada; }
+.plan-dark .plan-features svg { stroke: #a99dff; }
+
+.pricing-note {
+  margin-top: 32px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Limites do plano, logo abaixo da cobrança. */
+.plan-limits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.plan-limits li {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.plan-dark .plan-limits { border-top-color: #262e4d; }
+.plan-dark .plan-limits li { color: #e4e7f1; }
+
+.pricing-note a {
+  color: var(--purple-dark);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------ comparação dos planos */
+
+.compare {
+  margin-top: 88px;
+}
+
+.compare-title {
+  margin-bottom: 24px;
+  font-size: clamp(26px, 2.6vw, 34px);
+  font-weight: 600;
+}
+
+.compare-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.compare-scroll:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 3px;
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.compare-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.compare-table thead th {
+  padding-top: 22px;
+  padding-bottom: 18px;
+  font-family: Manrope, Inter, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  vertical-align: bottom;
+}
+
+.compare-table thead small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.compare-table thead .compare-featured {
+  color: var(--purple-dark);
+}
+
+.compare-table th[scope="row"],
+.compare-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 34%;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-weight: 500;
+  text-align: left;
+}
+
+.compare-table td {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.compare-group th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: var(--mist);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.compare-yes {
+  display: block;
+  width: 18px;
+  margin-inline: auto;
+  height: 18px;
+  fill: none;
+  stroke: var(--purple);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+  vertical-align: middle;
+}
+
+.compare-no {
+  color: var(--faint);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------- campos dos dois formulários */
+
+.contact-form .form-grid label > span,
+.lead-dialog .form-grid label > span {
+  font-size: 13px;
+}
+
+.form-grid label > span i {
+  color: var(--faint);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* 16px no campo: abaixo disso o Safari do iPhone dá zoom ao tocar. */
+.contact-form .form-grid input,
+.contact-form .form-grid select,
+.lead-dialog .form-grid input {
+  height: 48px;
+  font-size: 16px;
+}
+
+.form-grid input[aria-invalid],
+.lead-consent input[aria-invalid] {
+  border-color: #d92d20;
+}
+
+.field-error {
+  color: #d92d20;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.lead-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.lead-consent input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--purple);
+}
+
+.lead-consent + .field-error {
+  display: block;
+  margin-top: 6px;
+}
+
+.lead-consent + .field-error:empty {
+  display: none;
+}
+
+/* Campo que só robô vê. */
+.lead-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.form-submit:disabled {
+  cursor: progress;
+  opacity: 0.6;
+  transform: none;
+}
+
+.contact-form .form-status,
+.lead-dialog .form-status {
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------- popup */
+
+.lead-dialog {
+  width: min(560px, 100% - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+  overflow: auto;
+}
+
+.lead-dialog[open] {
+  animation: lead-dialog-in 260ms var(--ease);
+}
+
+.lead-dialog::backdrop {
+  background: rgb(13 18 41 / 0.64);
+}
+
+@keyframes lead-dialog-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.lead-dialog-form {
+  position: relative;
+  padding: 38px 32px 30px;
+}
+
+.lead-dialog-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mist);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.lead-dialog-close:hover {
+  background: var(--mist-deep);
+  color: var(--ink);
+}
+
+.lead-dialog-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+  transform: rotate(45deg);
+}
+
+.lead-dialog .eyebrow {
+  margin-bottom: 14px;
+}
+
+.lead-dialog .eyebrow b {
+  font-weight: inherit;
+}
+
+.lead-dialog h2 {
+  padding-right: 36px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.lead-dialog-text {
+  margin: 12px 0 24px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.lead-done {
+  padding: 18px 0 6px;
+  text-align: center;
+}
+
+.lead-done-icon {
+  display: inline-grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: var(--green-soft);
+}
+
+.lead-done-icon svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+
+.lead-done h2 {
+  padding-right: 0;
+}
+
+.lead-done p {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.lead-done .button {
+  margin-top: 26px;
+}
+
+/* ---------------------------------------------------------- telas menores */
+
+@media (max-width: 1180px) {
+  .pricing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
+}
+
+@media (max-width: 760px) {
+  .pricing-grid { margin-top: 44px; }
+  .compare { margin-top: 64px; }
+  .compare-table th,
+  .compare-table td { padding: 12px 12px; }
+  .compare-table th[scope="row"],
+  .compare-table thead th:first-child { width: 190px; min-width: 190px; }
+}
+
+@media (max-width: 640px) {
+  .pricing-grid { grid-template-columns: 1fr; gap: 24px; }
+  .plan-head p { min-height: 0; }
+}
+
+@media (max-width: 560px) {
+  .lead-dialog { width: calc(100% - 24px); max-height: calc(100dvh - 24px); }
+  .lead-dialog-form { padding: 32px 20px 24px; }
+  .lead-dialog h2 { font-size: 23px; }
+}

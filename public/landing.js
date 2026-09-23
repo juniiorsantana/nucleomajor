@@ -113,17 +113,17 @@ if (story) {
 }
 
 const answerCopy = {
-  today: {
-    html: "<p>Há três pontos para acompanhar hoje:</p><ol><li>Confirmar a reunião da Mariana às 14h.</li><li>Revisar a proposta da Astera.</li><li>Retornar para dois contatos que aguardam diagnóstico.</li></ol>",
-    sources: ["Agenda", "Tarefas", "Clientes"],
+  preco: {
+    html: "<p>Oi, Carla! O valor depende do atendimento. Para eu te passar certinho:</p><ol><li>É a sua primeira consulta com a gente?</li><li>Qual atendimento você procura?</li><li>Prefere vir de manhã ou à tarde?</li></ol>",
+    sources: ["Conhecimento", "Qualificação"],
   },
-  calendar: {
-    html: "<p>Às 15h, Ana e Lucas aparecem disponíveis na agenda da equipe.</p><ol><li>Ana cuida do diagnóstico comercial.</li><li>Lucas acompanha propostas em andamento.</li><li>O compromisso pode incluir os dois participantes.</li></ol>",
-    sources: ["Agenda", "Equipe", "Responsabilidades"],
+  horario: {
+    html: "<p>Consigo pedir um horário para você. Me conta só:</p><ol><li>Prefere manhã ou tarde?</li><li>Qual o melhor dia da semana?</li></ol><p>Passo o pedido para a equipe e você recebe a confirmação por aqui.</p>",
+    sources: ["Pedido de agendamento", "Equipe"],
   },
-  summary: {
-    html: "<p>Mariana está na etapa de proposta e falou com Lucas hoje pela manhã.</p><ol><li>A proposta foi enviada há quatro dias.</li><li>A reunião de amanhã precisa de um novo horário.</li><li>O próximo passo registrado é confirmar a agenda.</li></ol>",
-    sources: ["Cliente", "Conversas", "Funil"],
+  pessoa: {
+    html: "<p>Claro! Já avisei a equipe, e alguém continua com você por aqui.</p><ol><li>O seu histórico segue junto.</li><li>A equipe recebe o resumo da conversa.</li><li>Você não precisa repetir nada.</li></ol>",
+    sources: ["Transferência", "Resumo", "Equipe"],
   },
 };
 
@@ -162,12 +162,141 @@ document.querySelectorAll(".faq-list details").forEach((item) => {
   });
 });
 
-const contactForm = document.querySelector("[data-contact-form]");
+// Captação de leads: o popup dos planos e o formulário do fim da página vão
+// para `/api/lead`, e o agente da Major chama a pessoa no WhatsApp.
+const PLAN_NAMES = {
+  base: "Plano Base",
+  atendimento: "Plano Atendimento com IA",
+  completo: "Plano Completo",
+  empresarial: "Plano Empresarial",
+};
 
-contactForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const status = contactForm.querySelector("[data-form-status]");
-  const note = contactForm.querySelector(".form-note");
-  if (status) status.hidden = false;
-  if (note) note.hidden = true;
+const leadDialog = document.querySelector("[data-lead-dialog]");
+
+function formatWhatsapp(value) {
+  const digits = value.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  const split = digits.length === 11 ? 7 : 6;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, split)}-${digits.slice(split)}`;
+}
+
+function showFieldErrors(form, fields = {}) {
+  form.querySelectorAll("[data-error-for]").forEach((slot) => {
+    const message = fields[slot.dataset.errorFor] || "";
+    slot.textContent = message;
+    const input = form.elements[slot.dataset.errorFor];
+    if (input instanceof HTMLElement) input.toggleAttribute("aria-invalid", Boolean(message));
+  });
+  const first = Object.keys(fields).map((name) => form.elements[name]).find((input) => input instanceof HTMLElement);
+  first?.focus();
+}
+
+function showStatus(form, message) {
+  const status = form.querySelector("[data-form-status]");
+  if (!status) return;
+  status.textContent = message;
+  status.hidden = !message;
+}
+
+function localErrors(form) {
+  const fields = {};
+  if (!form.elements.nome.value.trim()) fields.nome = "Informe seu nome.";
+  const digits = form.elements.whatsapp.value.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 13) fields.whatsapp = "Informe um WhatsApp com DDD.";
+  const email = form.elements.email.value.trim();
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fields.email = "Confira o e-mail.";
+  if (!form.elements.consentimento.checked) fields.consentimento = "Autorize o contato pelo WhatsApp.";
+  return fields;
+}
+
+function resetLeadForm(form) {
+  form.reset();
+  showFieldErrors(form);
+  showStatus(form, "");
+  form.querySelector("[data-lead-fields]")?.removeAttribute("hidden");
+  form.querySelector("[data-lead-done]")?.setAttribute("hidden", "");
+}
+
+document.querySelectorAll("[data-lead-form]").forEach((form) => {
+  const whatsapp = form.elements.whatsapp;
+  whatsapp?.addEventListener("input", () => {
+    whatsapp.value = formatWhatsapp(whatsapp.value);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector('[type="submit"]');
+    if (submit?.disabled) return;
+
+    const errors = localErrors(form);
+    showFieldErrors(form, errors);
+    showStatus(form, "");
+    if (Object.keys(errors).length) return;
+
+    const payload = {
+      nome: form.elements.nome.value,
+      whatsapp: form.elements.whatsapp.value,
+      email: form.elements.email.value,
+      empresa: form.elements.empresa?.value || "",
+      plano: form.elements.plano.value,
+      consentimento: form.elements.consentimento.checked,
+      site_da_empresa: form.elements.site_da_empresa?.value || "",
+    };
+
+    if (submit) submit.disabled = true;
+    try {
+      const response = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) {
+        const done = form.querySelector("[data-lead-done]");
+        if (done) {
+          form.querySelector("[data-lead-fields]")?.setAttribute("hidden", "");
+          done.removeAttribute("hidden");
+          done.querySelector("button")?.focus();
+        } else {
+          form.reset();
+          showStatus(form, "Recebemos o seu contato. Em poucos minutos você recebe uma mensagem nossa no WhatsApp.");
+        }
+        return;
+      }
+      if (body.fields) showFieldErrors(form, body.fields);
+      showStatus(form, body.error || "Não foi possível enviar agora. Tente de novo em instantes.");
+    } catch {
+      showStatus(form, "Sem conexão no momento. Confira a internet e tente de novo.");
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
+});
+
+document.querySelectorAll("[data-plan-open]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const plan = button.dataset.planOpen;
+    if (!leadDialog || typeof leadDialog.showModal !== "function") {
+      const select = document.querySelector('#contato select[name="plano"]');
+      if (select) select.value = plan;
+      document.querySelector("#contato")?.scrollIntoView();
+      return;
+    }
+    const form = leadDialog.querySelector("[data-lead-form]");
+    resetLeadForm(form);
+    form.querySelector("[data-lead-plan]").value = plan;
+    leadDialog.querySelector("[data-lead-plan-name]").textContent = PLAN_NAMES[plan] || "Planos";
+    leadDialog.showModal();
+    form.elements.nome.focus();
+  });
+});
+
+leadDialog?.querySelectorAll("[data-lead-close]").forEach((button) => {
+  button.addEventListener("click", () => leadDialog.close());
+});
+
+// Clique fora do cartão fecha; o `dialog` ocupa a tela inteira com o fundo.
+leadDialog?.addEventListener("click", (event) => {
+  if (event.target === leadDialog) leadDialog.close();
 });

@@ -11,6 +11,7 @@ import { createMailer, sendEmail, sendInviteEmail } from "./email.mjs";
 import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./activation.mjs";
 import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
 import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
+import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
@@ -36,6 +37,7 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 const BILLING = billingConfig();
+const SITE_LEAD = siteLeadConfig();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 8;
 const attempts = new Map();
@@ -712,6 +714,25 @@ async function billingWebhook(req, res) {
   return json(res, outcome.status, outcome.body);
 }
 
+// O popup de planos da landing. Sem sessão: quem autoriza é o token da
+// campanha, que só este servidor conhece. O teto por IP vem antes de qualquer
+// leitura do banco.
+function clientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.socket?.remoteAddress || "desconhecido";
+}
+
+async function siteLead(req, res) {
+  countAttempt(`${clientIp(req)}:site-lead`);
+  const outcome = await processSiteLead({
+    body: await readJson(req),
+    config: SITE_LEAD,
+    receive: (payload) => publicRpc("nucleo_site_lead_receive", payload),
+  });
+  if (outcome.status >= 500) console.error("site lead failed", outcome.body.code);
+  return json(res, outcome.status, outcome.body);
+}
+
 // Reenviar é emitir outro código (o texto do anterior não existe em lugar
 // nenhum). A RPC confere se quem pede é da administração da plataforma.
 async function resendActivation(req, res, token, user, subscriptionId) {
@@ -924,7 +945,7 @@ async function staticFile(req, res, url) {
   return sendPublicFile(res, relative);
 }
 
-export function createServer({ apiHandler = api, billingHandler = billingWebhook } = {}) {
+export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
@@ -942,6 +963,7 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       // O webhook do Asaas chega sem sessão de usuário: vem antes de `api`,
       // que exige uma.
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
+      if (url.pathname === "/api/lead" && req.method === "POST") return await leadHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
       if (isPainelHost(req.headers.host)) return await painelFile(req, res, url);
       return await staticFile(req, res, url);
