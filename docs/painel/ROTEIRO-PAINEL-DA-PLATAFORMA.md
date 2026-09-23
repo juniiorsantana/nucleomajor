@@ -155,6 +155,28 @@ funcionar, mas a recuperação de senha precisa.
    dela, o pedido de conexão mostra o motivo. Volte ao plano no fim.
 5. O Histórico mostra essas ações, com `cmo@majorhub.com.br` como autor.
 
+## Registro da aplicação
+
+**24/09/2026, banco aplicado** pelo SQL Editor, projeto EmyLeads
+(`lwoqcvuspsmfowiuipmv`), com autorização do dono. O portal ainda não foi
+publicado (passos 3 a 6 pendentes).
+
+- **Antes de aplicar**, as quatro funções vivas que a etapa 1 reescreve
+  (`nucleo_connection_request`, `organization_access_state`,
+  `organization_entitlement` e `org_has_feature`) tinham o mesmo `md5(prosrc)`
+  que a prova assume. Nenhum hotfix foi sobrescrito.
+- **`20260924100000`**, conferido pelo catálogo:
+  - as 10 funções novas ou redefinidas iguais às da prova, sem CR;
+  - catálogo com 10 itens e nenhum ajuste;
+  - as 2 empresas idênticas ao plano;
+  - o gatilho do histórico presente e os grants certos.
+- **`20260924110000`**, conferido pelo catálogo:
+  - as 11 funções iguais às da prova, sem CR;
+  - a lista com uma linha por empresa;
+  - `cmo@majorhub.com.br` é admin;
+  - a leitura privada fechada e os grants certos;
+  - o histórico vazio.
+
 ## Se algo der errado
 
 - **Uma tela sumiu para um cliente.** Abra a empresa no painel e veja a coluna
