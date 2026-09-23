@@ -68,6 +68,8 @@
 .flow-node__icon--condicao { color: var(--el-warning); background: color-mix(in srgb, var(--el-warning) 12%, transparent); }
 .flow-node__icon--mensagem { color: #2563eb; background: color-mix(in srgb, #3b82f6 13%, transparent); }
 .flow-node__icon--etiqueta { color: var(--el-success); background: var(--el-success-soft); }
+.flow-node__icon--transferencia { color: var(--el-accent-forte); background: var(--el-accent-soft); }
+.flow-node__icon--encerrar { color: var(--el-sub); background: var(--el-surface-hover); }
 
 .flow-node__category {
   color: var(--el-sub);
@@ -172,32 +174,6 @@
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--el-accent) 17%, transparent);
 }
 
-.flow-port-label {
-  position: absolute;
-  top: 50%;
-  color: var(--el-faint);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.flow-port-label--in { right: calc(100% + 14px); }
-.flow-port-label--out { left: calc(100% + 14px); }
-
-.chatbot-flow .react-flow__edge-path {
-  stroke: var(--flow-edge);
-  stroke-width: 2.2;
-  filter: drop-shadow(0 0 3px rgb(79 60 252 / 23%));
-}
-
-.chatbot-flow .react-flow__edge.selected .react-flow__edge-path {
-  stroke-width: 3.2;
-  filter: drop-shadow(0 0 5px rgb(79 60 252 / 42%));
-}
-
 .chatbot-flow .react-flow__connection-path {
   stroke: var(--el-accent);
   stroke-width: 2;
@@ -233,4 +209,221 @@
 @media (prefers-reduced-motion: reduce) {
   .flow-node,
   .chatbot-flow .flow-port { transition: none; }
+}
+
+/* --- Saídas (protótipo de 07/09) ------------------------------------------ */
+
+/* React Flow posiciona a porta pela borda do nó; aqui ela mora dentro de um
+   grupo, e a posição real vem do grupo. O traçado da linha lê a posição da
+   porta na tela, então mover o grupo move a ponta da linha junto. */
+.chatbot-flow .flow-port-grupo .react-flow__handle {
+  position: relative;
+  inset: auto;
+  transform: none;
+}
+
+.flow-port-grupo {
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+}
+
+.flow-port-grupo--linha { right: -22px; }
+
+/* Fora do fluxo do grupo: a borda direita do grupo é a porta, e o `+` só
+   aparece ao lado dela, sem empurrá-la para dentro do cartão. */
+.flow-port-mais {
+  position: absolute;
+  left: calc(100% + 7px);
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--el-line-strong);
+  border-radius: 7px;
+  background: var(--el-bg);
+  color: var(--el-sub);
+  box-shadow: 0 2px 6px rgb(18 23 48 / 12%);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.flow-node:hover .flow-port-mais,
+.flow-node.is-selected .flow-port-mais,
+.flow-port-mais:focus-visible { opacity: 1; }
+
+.flow-port-mais:hover { border-color: var(--el-accent); color: var(--el-accent); }
+
+.chatbot-flow .flow-port--in {
+  background: var(--el-line-strong);
+  box-shadow: 0 0 0 1px var(--el-line-strong);
+}
+
+.flow-node__saidas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.flow-saida {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  border: 1px solid var(--el-line);
+  border-radius: 9px;
+  padding: 0 10px;
+  background: var(--el-surface);
+  color: var(--el-sub);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.flow-saida::before {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--el-faint);
+  content: "";
+}
+
+.flow-saida--sim::before,
+.flow-saida--sucesso::before { background: var(--el-success); }
+.flow-saida--nao::before,
+.flow-saida--falha::before { background: var(--el-danger); }
+
+.flow-saida__rotulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-node__fim {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: var(--el-faint);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* --- Linhas ---------------------------------------------------------------- */
+
+/* Nasce cinza e acende quando um bloco de uma das pontas está escolhido. */
+.chatbot-flow .flow-fio {
+  stroke: var(--el-line-strong);
+  stroke-width: 2;
+  transition: stroke 150ms ease;
+}
+
+.chatbot-flow .flow-fio--acesa,
+.chatbot-flow .react-flow__edge.selected .flow-fio {
+  stroke: var(--el-accent);
+  stroke-width: 2.4;
+}
+
+.flow-fio-barra {
+  position: absolute;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--el-line);
+  border-radius: 9px;
+  background: var(--el-bg);
+  box-shadow: 0 4px 14px rgb(18 23 48 / 14%);
+  pointer-events: all;
+}
+
+.flow-fio-barra button {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--el-sub);
+  cursor: pointer;
+}
+
+.flow-fio-barra button:hover { background: var(--el-surface-hover); color: var(--el-fg); }
+.flow-fio-barra .flow-fio-barra__risco:hover { background: color-mix(in srgb, var(--el-danger) 10%, transparent); color: var(--el-danger); }
+
+/* --- Seletor de bloco ------------------------------------------------------ */
+
+.flow-seletor {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  width: 238px;
+  max-height: 340px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--el-line);
+  border-radius: 13px;
+  background: var(--el-bg);
+  box-shadow: 0 18px 44px rgb(18 23 48 / 20%);
+}
+
+.flow-seletor__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px 9px 12px;
+  border-bottom: 1px solid var(--el-line);
+  color: var(--el-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.flow-seletor__lista {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.flow-seletor__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border-radius: 9px;
+  padding: 7px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-seletor__item:hover,
+.flow-seletor__item:focus-visible { background: var(--el-surface-hover); outline: none; }
+
+.flow-seletor__item strong {
+  display: block;
+  color: var(--el-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.flow-seletor__item small {
+  display: block;
+  color: var(--el-sub);
+  font-size: 10.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-port-mais,
+  .chatbot-flow .flow-fio { transition: none; }
 }

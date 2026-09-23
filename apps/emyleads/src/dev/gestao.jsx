@@ -19,8 +19,24 @@ await semearSePreciso();
 // escopadas por workspace — Conexões, hoje — não conseguem nem começar sem
 // saber de qual empresa são. Renderizar sem ela testaria uma tela que não
 // existe em produção.
-const sessaoInicial = await api.auth.estado();
-const telaInicial = new URLSearchParams(window.location.search).get("tela") || null;
+const parametros = new URLSearchParams(window.location.search);
+const telaInicial = parametros.get("tela") || null;
+// `?funcoes=fluxos_ramificados,outra` liga funções da empresa só na bancada —
+// é como ver uma tela que o painel da plataforma liberou para alguém.
+const funcoesLigadas = (parametros.get("funcoes") || "").split(",").filter(Boolean);
+const estadoReal = await api.auth.estado();
+const sessaoInicial = funcoesLigadas.length
+  ? {
+      ...estadoReal,
+      acesso: {
+        ...(estadoReal?.acesso || {}),
+        recursos: {
+          ...(estadoReal?.acesso?.recursos || {}),
+          ...Object.fromEntries(funcoesLigadas.map((chave) => [chave, true])),
+        },
+      },
+    }
+  : estadoReal;
 
 /**
  * A sessão fica em estado, e não numa constante, porque telas que ESCREVEM no

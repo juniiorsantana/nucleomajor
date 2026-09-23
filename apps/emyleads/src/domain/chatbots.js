@@ -44,6 +44,15 @@ export const SAIDAS_DO_PASSO = {
   [TIPOS_PASSO.transferir]: [],
 };
 
+/** Como cada saída aparece no cartão e nas mensagens de erro. */
+export const ROTULOS_SAIDA = {
+  padrao: "Próximo",
+  sim: "Sim",
+  nao: "Não",
+  sucesso: "Sucesso",
+  falha: "Falha",
+};
+
 /** Lista vazia para tipo desconhecido — um bloco que não se sabe o que é não continua o fluxo. */
 export const saidasDoPasso = (passo) => {
   if (passo?.tipo === TIPOS_PASSO.transferir)
@@ -63,9 +72,11 @@ export function criarPasso(tipo, partial = {}) {
   if (tipo === TIPOS_PASSO.transferir) {
     // `humano` como padrão de propósito: transferir para uma pessoa é sempre
     // seguro. Passar para a IA é que precisa ser uma escolha.
+    // `objetivoIa` é o que a IA precisa conseguir para o fluxo seguir por
+    // "sucesso". O servidor recusa transferência para IA sem ele.
     return {
       id: uid(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "",
-      alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null,
+      alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "",
       retornoPassoId: null, falhaPassoId: null, ...partial,
     };
   }

@@ -770,6 +770,10 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               estagios={dados.estagios}
               recarregar={carregar}
               aoFechar={() => setChatbotEditando(undefined)}
+              // Só com `true` explícito: o fluxo com caminhos roda no executor
+              // da VPS, e liberar por dúvida gravaria um fluxo que a conexão
+              // da empresa não sabe executar.
+              ramificado={recursos?.fluxos_ramificados === true}
             />
           </Suspense>
         ) : tela === "contatos" ? (

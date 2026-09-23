@@ -11,6 +11,9 @@ import { EstadoVazio } from "./gestaoCompartilhados";
 const tipoPasso = {
   enviar_mensagem: "Mensagem",
   editar_etiquetas: "Etiquetas",
+  transferir: "Transferência",
+  condicao: "Condição",
+  encerrar: "Encerrar",
 };
 
 /**
