@@ -117,7 +117,7 @@ async function supabaseRequest(path, token, options = {}) {
     if (/subscription is not paid/i.test(message)) throw new HttpError(409, "Esta assinatura não está paga.", "billing-not-paid");
     if (/subscription not found/i.test(message)) throw new HttpError(404, "Venda não encontrada.", "billing-not-found");
     if (/invalid email/i.test(message)) throw new HttpError(422, "Informe um e-mail válido.", "invalid-email");
-    if (/connection limit reached/i.test(message)) throw new HttpError(409, "O seu plano já tem todas as conexões de WhatsApp que ele permite.", "connection-limit");
+    if (/connection limit reached/i.test(message)) throw new HttpError(409, "Sua empresa já usa todos os números de WhatsApp liberados para ela. Fale com a Major.", "connection-limit");
     if (/invalid phone/i.test(message)) throw new HttpError(422, "Informe o número do WhatsApp com DDD.", "invalid-phone");
     if (/subscription is not active|plan without whatsapp/i.test(message)) throw new HttpError(402, "A assinatura desta empresa não permite conectar o WhatsApp agora.", "subscription-inactive");
     if (path.includes("assistant_calendar_event_confirm")) {

@@ -705,7 +705,7 @@ function CartaoConexao({
   );
 }
 
-export default function Conexoes({ organizacao, usuario = null }) {
+export default function Conexoes({ organizacao, usuario = null, limites = null }) {
   const organizationId = organizacao?.id || "";
   // Quem está mexendo. Vai junto de toda tomada de conversa: sem isto,
   // "humano" é um booleano anônimo e dois atendentes não se distinguem.
@@ -1063,6 +1063,7 @@ export default function Conexoes({ organizacao, usuario = null }) {
                   organizationId={organizationId}
                   podeGerenciar={["owner", "admin"].includes(organizacao?.papel)}
                   aoPedir={() => carregar()}
+                  limite={limites?.connections ?? null}
                 />
               </div>
             </section>

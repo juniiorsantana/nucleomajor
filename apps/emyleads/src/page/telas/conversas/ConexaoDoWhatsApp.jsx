@@ -9,11 +9,24 @@ import { FASES } from "../conexoes/estadoDaConexao";
  * O número entra aqui porque é ele que a VPS vai aceitar no pareamento: o QR
  * lido por outro celular é recusado. O pedido não sobe nada sozinho — a
  * equipe da Major monta a conexão e o QR aparece depois, nesta mesma tela.
+ *
+ * `limite` é quantos números a empresa pode ter (`limits.connections`, já com o
+ * ajuste da Major). Com 0 não adianta oferecer o formulário: o banco recusaria
+ * o pedido depois de a pessoa digitar o número. Sem limite conhecido, o
+ * formulário aparece e o banco decide.
  */
-export function PedirConexao({ organizationId, podeGerenciar, aoPedir }) {
+export function PedirConexao({ organizationId, podeGerenciar, aoPedir, limite = null }) {
   const [telefone, setTelefone] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+
+  if (limite === 0) {
+    return (
+      <span role="status" className="text-[12px] text-sub">
+        O WhatsApp não está liberado para a sua empresa. Fale com a Major.
+      </span>
+    );
+  }
 
   if (!podeGerenciar) {
     return (
@@ -74,7 +87,7 @@ export function PedirConexao({ organizationId, podeGerenciar, aoPedir }) {
  * O botão abre o QR aqui mesmo: o pedido de código é um comando do runtime e
  * funciona de qualquer tela. Conexões continua sendo a origem para o resto.
  */
-export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConectar, aoVerCodigo, organizationId = "", aoPedirConexao = null }) {
+export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConectar, aoVerCodigo, organizationId = "", aoPedirConexao = null, limiteDeConexoes = null }) {
   if (!carregado) {
     return (
       <div className="flex flex-1 items-center justify-center text-[13.5px] text-sub">
@@ -88,7 +101,7 @@ export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConec
     return (
       <Vazio icone={<MessageCircle size={26} strokeWidth={1.8} aria-hidden="true" />} tom="accent" titulo="Conecte o WhatsApp da empresa">
         As conversas do número aparecem aqui, e a equipe responde pelo portal.
-        <PedirConexao organizationId={organizationId} podeGerenciar={podeGerenciar} aoPedir={aoPedirConexao} />
+        <PedirConexao organizationId={organizationId} podeGerenciar={podeGerenciar} aoPedir={aoPedirConexao} limite={limiteDeConexoes} />
       </Vazio>
     );
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { telaLiberada } from "./Gestao";
+import { telaDeEntrada, telaLiberada } from "./Gestao";
 import { planoLibera } from "./plano";
 
 describe("menu pelo plano", () => {
@@ -42,5 +42,52 @@ describe("menu pelo plano", () => {
     expect(planoLibera(completo, "assistente_equipe")).toBe(true);
     // Sem leitura da assinatura, nada é escondido.
     expect(planoLibera(null, "assistente_equipe")).toBe(true);
+  });
+
+  it("cada tela obedece à sua chave", () => {
+    const tudo = { crm: true, agenda: true, team_management: true, whatsapp_web: true, chatbots: true, ai_customer: true, ai_team: true };
+    const pares = [
+      ["contatos", "crm"], ["funil", "crm"], ["tarefas", "crm"],
+      ["agenda", "agenda"], ["equipe", "team_management"],
+      ["conversas", "whatsapp_web"], ["conexoes", "whatsapp_web"],
+      ["chatbots", "chatbots"],
+    ];
+    for (const [tela, chave] of pares) {
+      expect(telaLiberada(tela, tudo)).toBe(true);
+      expect(telaLiberada(tela, { ...tudo, [chave]: false })).toBe(false);
+    }
+    // Configurações e Minha conta nunca somem: são a saída de qualquer trava.
+    expect(telaLiberada("config", {})).toBe(true);
+    expect(telaLiberada("conta", {})).toBe(true);
+  });
+
+  it("as chaves de sempre só somem com false explícito", () => {
+    // Plano gravado antes de a chave existir não perde a tela.
+    for (const chave of ["crm", "agenda", "team_management", "whatsapp_web", "chatbots"]) {
+      expect(planoLibera({}, chave)).toBe(true);
+      expect(planoLibera({ [chave]: null }, chave)).toBe(true);
+      expect(planoLibera({ [chave]: false }, chave)).toBe(false);
+    }
+  });
+
+  it("função desconhecida nasce desligada", () => {
+    expect(planoLibera({}, "relatorios_sob_medida")).toBe(false);
+    expect(planoLibera({ relatorios_sob_medida: "sim" }, "relatorios_sob_medida")).toBe(false);
+    expect(planoLibera({ relatorios_sob_medida: true }, "relatorios_sob_medida")).toBe(true);
+    // Sem a leitura do estado, nada se esconde — nem o desconhecido.
+    expect(planoLibera(null, "relatorios_sob_medida")).toBe(true);
+  });
+
+  it("entrada em tela desligada cai na primeira liberada", () => {
+    // Nos testes a plataforma não é a web: a entrada padrão é Contatos.
+    const semCrm = { crm: false, agenda: true };
+    expect(telaDeEntrada("contatos", semCrm)).not.toBe("contatos");
+    expect(telaLiberada(telaDeEntrada("contatos", semCrm), semCrm)).toBe(true);
+    expect(telaDeEntrada("contatos", { crm: true })).toBe("contatos");
+    // Rota escolhida de propósito mostra o aviso, não pula.
+    expect(telaDeEntrada("agenda", { agenda: false })).toBe("agenda");
+    // Sem nada liberado, sobra Configurações.
+    const nada = { crm: false, agenda: false, team_management: false, whatsapp_web: false, chatbots: false, assistant: false };
+    expect(telaDeEntrada("contatos", nada)).toBe("config");
   });
 });

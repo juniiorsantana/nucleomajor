@@ -405,6 +405,7 @@ export default function Conversas({
             aoVerCodigo={verCodigo}
             organizationId={organizationId}
             aoPedirConexao={recarregarConexao}
+            limiteDeConexoes={sessao?.acesso?.limites?.connections ?? null}
           />
         ) : !conversa ? (
           <div className="flex flex-1 items-center justify-center text-[13.5px] text-sub">

@@ -64,12 +64,24 @@ describe("empresa sem WhatsApp", () => {
   });
 
   it("a recusa do servidor aparece na tela", async () => {
-    gateway.solicitar.mockRejectedValue(new Error("O seu plano já tem todas as conexões de WhatsApp que ele permite."));
+    gateway.solicitar.mockRejectedValue(new Error("Sua empresa já usa todos os números de WhatsApp liberados para ela. Fale com a Major."));
     await montar(<EstadoVazioConversas carregado resumo={null} podeGerenciar organizationId="org-1" />);
     await digitar(container.querySelector("input[type=tel]"), "65992178164");
     await act(async () => container.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await act(async () => {});
-    expect(container.querySelector("[role=alert]").textContent).toContain("todas as conexões");
+    expect(container.querySelector("[role=alert]").textContent).toContain("todos os números de WhatsApp liberados");
+  });
+
+  it("empresa com limite 0 não vê o formulário, vê o motivo", async () => {
+    await montar(<EstadoVazioConversas carregado resumo={null} podeGerenciar organizationId="org-1" limiteDeConexoes={0} />);
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.textContent).toContain("não está liberado para a sua empresa");
+    expect(gateway.solicitar).not.toHaveBeenCalled();
+  });
+
+  it("limite 1 ou desconhecido mantém o formulário", async () => {
+    await montar(<EstadoVazioConversas carregado resumo={null} podeGerenciar organizationId="org-1" limiteDeConexoes={1} />);
+    expect(container.querySelector("form")).not.toBeNull();
   });
 
   it("atendente não vê o formulário", async () => {

@@ -81,28 +81,70 @@ const TELAS = [
 ];
 
 /**
- * Tela que depende de um recurso do plano. Inteligência e Chatbots só existem
- * nos planos com IA: no Base eles saem do menu e, se alguém chegar pela rota
- * direta, encontra o aviso em vez de uma tela que não faz nada. A regra de cada
- * recurso (e o que acontece sem o estado da assinatura) mora em `./plano`.
+ * Toda tela do menu depende de uma chave do plano, combinado com os ajustes
+ * que a Major fez para a empresa. Tela desligada sai do menu e, se alguém
+ * chegar pela rota direta, encontra o aviso em vez de uma tela que não faz
+ * nada. A regra de cada recurso (e o que acontece sem o estado da assinatura)
+ * mora em `./plano`. Configurações e Minha conta não têm chave: são a porta
+ * para sair de qualquer situação, e nunca somem.
  */
-const RECURSO_DA_TELA = { conhecimento: "inteligencia", chatbots: "chatbots" };
+const RECURSO_DA_TELA = {
+  conversas: "whatsapp_web",
+  conexoes: "whatsapp_web",
+  contatos: "crm",
+  funil: "crm",
+  tarefas: "crm",
+  agenda: "agenda",
+  equipe: "team_management",
+  conhecimento: "inteligencia",
+  chatbots: "chatbots",
+};
 
 export function telaLiberada(id, recursos) {
   const recurso = RECURSO_DA_TELA[id];
   return !recurso || planoLibera(recursos, recurso);
 }
 
-function DisponivelNoPlano() {
+const TELA_PADRAO = PLATAFORMA_WEB ? "conversas" : "contatos";
+
+/**
+ * A entrada do portal é Conversas: é para lá que `/app` leva quem não escolheu
+ * nada. Se Conversas estiver desligada para a empresa, abrir no aviso seria
+ * receber o cliente com uma porta fechada — então a entrada vira a primeira
+ * tela liberada do menu. Uma rota escolhida de propósito (outra tela
+ * desligada) continua mostrando o aviso, que explica o que aconteceu.
+ */
+export function telaDeEntrada(tela, recursos) {
+  if (tela !== TELA_PADRAO || telaLiberada(tela, recursos)) return tela;
+  return TELAS.find((item) => telaLiberada(item.id, recursos))?.id || "config";
+}
+
+function DisponivelNoPlano({ tela, recursos }) {
+  // Inteligência e Chatbots, para quem não tem IA nenhuma, continuam com o
+  // convite para mudar de plano. Qualquer outra trava é uma decisão da Major
+  // para aquela empresa, e o texto não pode prometer que trocar de plano
+  // resolve.
+  const semIA = ["conhecimento", "chatbots"].includes(tela) && !planoLibera(recursos, "inteligencia");
   return (
     <div className="flex flex-1 items-center justify-center p-8">
       <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
-        <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
-        <p className="mt-2 text-[13px] leading-5 text-sub">
-          O seu plano inclui WhatsApp no portal, contatos, funil, tarefas, agenda e equipe.
-          Agentes de IA e chatbots fazem parte dos planos {NOMES_DOS_PLANOS_COM_IA} — fale com a equipe do
-          Núcleo Major para mudar de plano.
-        </p>
+        {semIA ? (
+          <>
+            <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
+            <p className="mt-2 text-[13px] leading-5 text-sub">
+              O seu plano inclui WhatsApp no portal, contatos, funil, tarefas, agenda e equipe.
+              Agentes de IA e chatbots fazem parte dos planos {NOMES_DOS_PLANOS_COM_IA} — fale com a equipe do
+              Núcleo Major para mudar de plano.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-[16px] font-semibold text-fg">Função não liberada</h2>
+            <p className="mt-2 text-[13px] leading-5 text-sub">
+              Esta função não está liberada para a sua empresa. Fale com a Major.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -418,7 +460,8 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
 export default function Gestao({ sessao = null, atualizarSessao = null, migracaoPendente = null, telaInicial = null, aoTrocarTela = null }) {
   const recursos = sessao?.acesso?.recursos || null;
   const telasDoPlano = TELAS.filter((item) => telaLiberada(item.id, recursos));
-  const [tela, setTela] = useState(telaInicial || (PLATAFORMA_WEB ? "conversas" : "contatos"));
+  const [telaEscolhida, setTela] = useState(telaInicial || TELA_PADRAO);
+  const tela = telaDeEntrada(telaEscolhida, recursos);
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
   const [editando, setEditando] = useState(undefined); // undefined = fechado
@@ -458,7 +501,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   }, [carregar]);
 
   useEffect(() => {
-    if (telaInicial && telaInicial !== tela) setTela(telaInicial);
+    if (telaInicial && telaInicial !== telaEscolhida) setTela(telaInicial);
   }, [telaInicial]);
 
   const trocarTela = useCallback((proxima) => {
@@ -692,7 +735,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             Carregando…
           </div>
         ) : !telaLiberada(tela, recursos) ? (
-          <DisponivelNoPlano />
+          <DisponivelNoPlano tela={tela} recursos={recursos} />
         ) : tela === "conversas" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conversas…</div>}>
             <Conversas
@@ -767,7 +810,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           </Suspense>
         ) : tela === "conexoes" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando conexões…</div>}>
-            <Conexoes organizacao={sessao?.organizacaoAtual} usuario={sessao?.usuario} />
+            <Conexoes organizacao={sessao?.organizacaoAtual} usuario={sessao?.usuario} limites={sessao?.acesso?.limites} />
           </Suspense>
         ) : tela === "equipe" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando equipe…</div>}>
