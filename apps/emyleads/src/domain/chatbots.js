@@ -4,6 +4,8 @@ import { uid } from "./types.js";
 export const TIPOS_PASSO = {
   enviarMensagem: "enviar_mensagem",
   editarEtiquetas: "editar_etiquetas",
+  condicao: "condicao",
+  encerrar: "encerrar",
   // Transferem o atendimento: o fluxo entrega a conversa a outro dono e sai de
   // cena. São terminais por natureza — depois de passar para a IA ou para uma
   // pessoa, não faz sentido o chatbot continuar mandando mensagem.
@@ -36,12 +38,18 @@ export const ehTransferencia = (passo) => passo?.tipo === TIPOS_PASSO.transferir
 export const SAIDAS_DO_PASSO = {
   [TIPOS_PASSO.enviarMensagem]: ["padrao"],
   [TIPOS_PASSO.editarEtiquetas]: ["padrao"],
+  [TIPOS_PASSO.condicao]: ["sim", "nao"],
+  [TIPOS_PASSO.encerrar]: [],
   // Terminal: depois de entregar a conversa, quem continua é o novo dono.
   [TIPOS_PASSO.transferir]: [],
 };
 
 /** Lista vazia para tipo desconhecido — um bloco que não se sabe o que é não continua o fluxo. */
-export const saidasDoPasso = (passo) => SAIDAS_DO_PASSO[passo?.tipo] || [];
+export const saidasDoPasso = (passo) => {
+  if (passo?.tipo === TIPOS_PASSO.transferir)
+    return passo.destino === DESTINOS_TRANSFERENCIA.ia ? ["sucesso", "falha"] : [];
+  return SAIDAS_DO_PASSO[passo?.tipo] || [];
+};
 
 const instanteValido = (valor) => (Number.isFinite(valor) ? valor : Date.now());
 
@@ -60,6 +68,12 @@ export function criarPasso(tipo, partial = {}) {
       alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null,
       retornoPassoId: null, falhaPassoId: null, ...partial,
     };
+  }
+  if (tipo === TIPOS_PASSO.condicao) {
+    return { id: uid(), tipo, expressao: [], ...partial };
+  }
+  if (tipo === TIPOS_PASSO.encerrar) {
+    return { id: uid(), tipo, ...partial };
   }
   throw new Error(`Tipo de passo desconhecido: ${tipo}.`);
 }

@@ -263,6 +263,7 @@ const LOCAL_SEM_SYNC = new Set([
   "chatbots.listar", "chatbots.buscar", "chatbots.criar",
   "chatbots.atualizar", "chatbots.remover", "chatbots.duplicar",
   "chatbots.avaliar", "chatbots.preparar",
+  "chatbots.prepararEtapa",
   "chatbots.prepararAutomatico", "chatbots.marcarAutomaticoEnviado",
   "chatbots.cancelarAutomatico",
   "automacao.estado", "automacao.pausar",
@@ -1264,6 +1265,7 @@ export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local 
       // WhatsApp de acordar no banco legado vazio e deixar de reconhecer o
       // contato (e suas etiquetas) até a Gestão ser aberta novamente.
       await lerWorkspace();
+      if (op === "chatbots.prepararEtapa") return executarLocal(args);
       const antes = await capturarAntes(op, args);
       let resultado = await executarLocal(args);
       if (op === "chatbots.prepararAutomatico") {

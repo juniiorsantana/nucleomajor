@@ -37,6 +37,7 @@ export const NO_ENTRADA = "entrada";
 export const NO_CONDICOES = "condicoes";
 
 export const VERSAO_CANVAS = 2;
+export const VERSAO_CANVAS_RAMIFICADO = 3;
 
 /** A saída única de um bloco que não ramifica. */
 export const SAIDA_PADRAO = "padrao";
@@ -86,7 +87,7 @@ export function topologiaDe(passos = []) {
 
   for (const passo of passos) {
     conexoes.push({ source: anterior, saida: SAIDA_PADRAO, target: passo.id });
-    if (!saidasDoPasso(passo).length) break;
+    if (!saidasDoPasso(passo).includes(SAIDA_PADRAO)) break;
     anterior = passo.id;
   }
 
@@ -131,7 +132,7 @@ export function caminhoDoGrafo(passos = [], conexoes = []) {
     // A aridade vale aqui, e não só na validação. Um grafo malformado — com
     // aresta saindo de um bloco terminal — não pode fazer o executor seguir
     // adiante; a barreira mora em quem executa, não em quem avisa.
-    if (!saidasDoPasso(passo).length) break;
+    if (!saidasDoPasso(passo).includes(SAIDA_PADRAO)) break;
     atual = saidas.get(`${atual}:${SAIDA_PADRAO}`);
   }
 
@@ -144,7 +145,8 @@ export function caminhoDoGrafo(passos = [], conexoes = []) {
  * Devolve `{ ordem, passos, erro }` — `erro` em português, porque quem lê é o
  * operador montando o fluxo, não o código.
  */
-export function validarGrafo(passos = [], conexoes = []) {
+export function validarGrafo(passos = [], conexoes = [], opcoes = {}) {
+  const exigirPortas = Number(opcoes.versao || 2) >= 3;
   const porId = new Map(passos.map((passo) => [passo.id, passo]));
   const idsPassos = new Set(porId.keys());
   const normalizadas = conexoes.map(comSaida);
@@ -175,28 +177,56 @@ export function validarGrafo(passos = [], conexoes = []) {
     const chaveSaida = `${source}:${saida}`;
     if (saidas.has(chaveSaida))
       return { erro: "Cada saída pode seguir para apenas um bloco." };
-    if (entradas.has(target))
-      return { erro: "Cada bloco pode receber apenas uma conexão." };
-
     saidas.set(chaveSaida, target);
-    entradas.set(target, source);
+    entradas.set(target, (entradas.get(target) || 0) + 1);
   }
 
   const daEntrada = saidas.get(`${NO_ENTRADA}:${SAIDA_PADRAO}`);
-  if (daEntrada !== NO_CONDICOES || entradas.get(NO_CONDICOES) !== NO_ENTRADA)
+  if (daEntrada !== NO_CONDICOES || entradas.get(NO_CONDICOES) !== 1)
     return { erro: "Conecte ‘Nova mensagem’ diretamente a ‘Condições’." };
   if (entradas.has(NO_ENTRADA))
     return { erro: "O bloco ‘Nova mensagem’ não pode ter uma entrada." };
+  if (normalizadas.some((conexao) => conexao.target === NO_CONDICOES && conexao.source !== NO_ENTRADA))
+    return { erro: "Somente ‘Nova mensagem’ pode entrar em ‘Condições’." };
 
   const ordem = [];
-  const vistos = new Set([NO_ENTRADA, NO_CONDICOES]);
-  let atual = saidas.get(`${NO_CONDICOES}:${SAIDA_PADRAO}`);
-  while (atual) {
-    if (!idsPassos.has(atual)) return { erro: "O caminho contém uma conexão inválida." };
-    if (vistos.has(atual)) return { erro: "O fluxo não pode conter ciclos." };
-    vistos.add(atual);
-    ordem.push(atual);
-    atual = saidas.get(`${atual}:${SAIDA_PADRAO}`);
+  const visitados = new Set();
+  const emVisita = new Set();
+  let ciclo = false;
+  const visitar = (id) => {
+    if (emVisita.has(id)) {
+      ciclo = true;
+      return;
+    }
+    if (visitados.has(id) || ciclo) return;
+    emVisita.add(id);
+    if (idsPassos.has(id)) ordem.push(id);
+    const portas = id === NO_ENTRADA || id === NO_CONDICOES
+      ? [SAIDA_PADRAO]
+      : saidasDoPasso(porId.get(id));
+    for (const saida of portas) {
+      const target = saidas.get(`${id}:${saida}`);
+      if (target) visitar(target);
+    }
+    emVisita.delete(id);
+    visitados.add(id);
+  };
+  visitar(NO_ENTRADA);
+  if (ciclo) return { erro: "O fluxo não pode conter ciclos." };
+
+  if (exigirPortas) {
+    for (const id of [NO_ENTRADA, NO_CONDICOES, ...ordem]) {
+      const passo = porId.get(id);
+      const portas = id === NO_ENTRADA || id === NO_CONDICOES
+        ? [SAIDA_PADRAO]
+        : saidasDoPasso(passo);
+      for (const saida of portas) {
+        if (!saidas.has(`${id}:${saida}`)) {
+          const rotulo = saida === SAIDA_PADRAO ? "padrão" : saida === "nao" ? "não" : saida;
+          return { erro: `Conecte a saída “${rotulo}” do bloco “${TITULO_CURTO(passo)}”.` };
+        }
+      }
+    }
   }
 
   if (ordem.length !== passos.length) {
@@ -205,9 +235,6 @@ export function validarGrafo(passos = [], conexoes = []) {
       erro: `${faltantes} bloco${faltantes === 1 ? " está" : "s estão"} desconectado${faltantes === 1 ? "" : "s"}. Conecte todas as entradas e saídas.`,
     };
   }
-  if (normalizadas.length !== ordem.length + 1)
-    return { erro: "Remova conexões que não fazem parte do caminho principal." };
-
   return { ordem, passos: ordem.map((id) => porId.get(id)), erro: null };
 }
 
@@ -216,6 +243,8 @@ const TITULO_CURTO = (passo) =>
   ({
     [TIPOS_PASSO.enviarMensagem]: "Enviar mensagem",
     [TIPOS_PASSO.editarEtiquetas]: "Etiquetas",
+    [TIPOS_PASSO.condicao]: "Condição",
+    [TIPOS_PASSO.encerrar]: "Encerrar",
     [TIPOS_PASSO.transferir]: "Transferir conversa",
   })[passo?.tipo] || "bloco";
 

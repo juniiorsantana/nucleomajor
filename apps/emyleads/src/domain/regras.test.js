@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  OPERADORES_LOGICOS,
   TIPOS_CONDICAO,
   avaliarCondicao,
+  avaliarExpressao,
   regraAtende,
   regrasAtendidas,
 } from "./regras";
@@ -151,6 +153,39 @@ describe("regraAtende / regrasAtendidas", () => {
     const inativa = { ...regraDupla, ativo: false };
     expect(regrasAtendidas([inativa], ctx)).toEqual([]);
     expect(regrasAtendidas([regraDupla], ctx)).toEqual([regraDupla]);
+  });
+});
+
+describe("expressões E/OU", () => {
+  const etiqueta = { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "lead-quente" };
+  const proposta = { tipo: TIPOS_CONDICAO.estagioAtual, stageId: "proposta" };
+
+  it("avalia grupos aninhados sem mudar a regra simples", () => {
+    const expressao = {
+      operador: OPERADORES_LOGICOS.e,
+      itens: [
+        etiqueta,
+        {
+          operador: OPERADORES_LOGICOS.ou,
+          itens: [proposta, { tipo: TIPOS_CONDICAO.tarefaAtrasada }],
+        },
+      ],
+    };
+    const ctx = contexto({
+      contato: criarContato({ tags: ["lead-quente"] }),
+      negocios: [criarNegocio({ stageId: "contato", status: "aberto" })],
+      tarefas: [criarTarefa({ venceEm: AGORA - DIA_MS, concluida: false })],
+    });
+    expect(avaliarExpressao(expressao, ctx)).toBe(true);
+  });
+
+  it("trata a lista antiga como grupo E", () => {
+    const ctx = contexto({ contato: criarContato({ tags: ["lead-quente"] }) });
+    expect(avaliarExpressao([etiqueta, proposta], ctx)).toBe(false);
+  });
+
+  it("grupo vazio nunca atende", () => {
+    expect(avaliarExpressao({ operador: OPERADORES_LOGICOS.ou, itens: [] }, contexto())).toBe(false);
   });
 });
 

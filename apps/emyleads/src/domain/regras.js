@@ -16,6 +16,11 @@ export const TIPOS_CONDICAO = {
   semInteracaoHa: "sem_interacao_ha",
 };
 
+export const OPERADORES_LOGICOS = {
+  e: "e",
+  ou: "ou",
+};
+
 const UM_DIA_MS = 24 * 60 * 60 * 1000;
 
 const EVENTOS_DE_IDENTIDADE = new Set([
@@ -59,9 +64,24 @@ export function avaliarCondicao(condicao, contexto) {
   }
 }
 
+export function avaliarExpressao(expressao, contexto, profundidade = 0) {
+  if (profundidade > 8) return false;
+  if (Array.isArray(expressao)) {
+    return expressao.length > 0
+      && expressao.every((item) => avaliarExpressao(item, contexto, profundidade + 1));
+  }
+  if (!expressao || typeof expressao !== "object") return false;
+  if (!Object.hasOwn(expressao, "operador")) return avaliarCondicao(expressao, contexto);
+  if (!Array.isArray(expressao.itens) || expressao.itens.length === 0) return false;
+  if (expressao.operador === OPERADORES_LOGICOS.e)
+    return expressao.itens.every((item) => avaliarExpressao(item, contexto, profundidade + 1));
+  if (expressao.operador === OPERADORES_LOGICOS.ou)
+    return expressao.itens.some((item) => avaliarExpressao(item, contexto, profundidade + 1));
+  return false;
+}
+
 export function regraAtende(regra, contexto) {
-  if (!regra.condicoes || regra.condicoes.length === 0) return false;
-  return regra.condicoes.every((condicao) => avaliarCondicao(condicao, contexto));
+  return avaliarExpressao(regra.condicoes, contexto);
 }
 
 export function regrasAtendidas(regras, contexto) {
