@@ -7,9 +7,10 @@
  * pelo banco só falharia na frente de um cliente — e a conversa cairia para
  * atendimento humano sem ninguém saber por quê.
  *
- * Por isso cada regra aqui tem par exato na migration
- * `20260907010000_fluxos_execucao_persistida.sql`, e o teste deste arquivo
- * percorre as mesmas recusas. Mudou lá, muda aqui.
+ * Por isso cada regra aqui tem par exato nas migrations
+ * `20260907010000_fluxos_execucao_persistida.sql` e
+ * `20260925110000_fluxos_com_dia_e_horario.sql` (dia da semana e horário).
+ * Mudou lá, muda aqui — e roda de novo scripts/sql/prova-conferencia-do-editor.py.
  *
  * Devolve `null` quando o servidor aceitaria, ou a primeira recusa em
  * português — quem lê é quem está montando o fluxo.
@@ -17,7 +18,7 @@
 
 import { NO_CONDICOES, NO_ENTRADA, SAIDA_PADRAO } from "./chatbotGrafo.js";
 import { DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "./chatbots.js";
-import { OPERADORES_LOGICOS, TIPOS_CONDICAO } from "./regras.js";
+import { FUSOS_DO_BRASIL, horaValida, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "./regras.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ID_DE_BLOCO = /^[A-Za-z0-9_-]{1,80}$/;
@@ -68,6 +69,24 @@ function problemaDaExpressao(expressao, onde, profundidade = 0) {
       !(Number.isInteger(expressao.dias) && expressao.dias >= 0 && expressao.dias <= 999999999)
     )
       return `${onde}: informe a quantidade de dias.`;
+    if (
+      (expressao.tipo === TIPOS_CONDICAO.diaDaSemana || expressao.tipo === TIPOS_CONDICAO.janelaDeHorario)
+      && !FUSOS_DO_BRASIL.includes(expressao.fuso)
+    )
+      return `${onde}: escolha o fuso do horário.`;
+    if (
+      expressao.tipo === TIPOS_CONDICAO.diaDaSemana && (
+        !Array.isArray(expressao.dias) || expressao.dias.length < 1 || expressao.dias.length > 7
+        || new Set(expressao.dias).size !== expressao.dias.length
+        || expressao.dias.some((dia) => !Number.isInteger(dia) || dia < 0 || dia > 6)
+      )
+    )
+      return `${onde}: marque ao menos um dia da semana.`;
+    if (
+      expressao.tipo === TIPOS_CONDICAO.janelaDeHorario
+      && (!horaValida(expressao.inicio) || !horaValida(expressao.fim) || expressao.inicio === expressao.fim)
+    )
+      return `${onde}: o horário precisa de início e fim diferentes.`;
     return null;
   } else {
     return `${onde} tem uma regra inválida.`;

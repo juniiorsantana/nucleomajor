@@ -197,3 +197,16 @@ describe("REGRAS_PADRAO", () => {
     expect(regrasAtendidas(REGRA_SEMENTE_TESTE, jaAtendida).map((r) => r.id)).not.toContain("boas-vindas-primeira");
   });
 });
+
+// Os mesmos casos rodam no executor da VPS (test_clock_conditions.py). Se o
+// portal e a VPS discordarem sobre "são 8h?", o mesmo fluxo segue por um
+// caminho na prévia e por outro na conversa de verdade.
+import casosDeRelogio from "./casosDeRelogio.json";
+
+describe("dia da semana e horário, no fuso da regra", () => {
+  for (const { nome, agora, regra, esperado } of casosDeRelogio.casos) {
+    it(nome, () => {
+      expect(avaliarCondicao(regra, { contato: { tags: [] }, agora: Date.parse(agora) })).toBe(esperado);
+    });
+  }
+});

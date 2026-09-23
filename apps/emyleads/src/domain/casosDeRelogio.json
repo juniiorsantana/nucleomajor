@@ -1,0 +1,22 @@
+{
+  "_comentario": "Mesmos casos no portal (regras.test.js) e na VPS (test_clock_conditions.py, copia identica). Mudou aqui, muda la. Instantes em UTC; o Brasil nao tem horario de verao desde 2019.",
+  "casos": [
+    { "nome": "abre as 08:00 em Sao Paulo", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "07:59 ainda esta fechado", "agora": "2026-09-23T10:59:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "17:59 ainda esta aberto", "agora": "2026-09-23T20:59:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "18:00 ja fechou", "agora": "2026-09-23T21:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "Manaus esta uma hora atras", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Manaus" }, "esperado": false },
+    { "nome": "Noronha esta uma hora a frente", "agora": "2026-09-23T10:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "America/Noronha" }, "esperado": true },
+    { "nome": "janela da noite pega 23:30", "agora": "2026-09-27T02:30:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "22:00", "fim": "06:00", "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "janela da noite pega 05:59", "agora": "2026-09-23T08:59:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "22:00", "fim": "06:00", "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "janela da noite fecha as 06:00", "agora": "2026-09-23T09:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "22:00", "fim": "06:00", "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "sabado 23:30 em SP nao e dia util, mesmo sendo domingo em UTC", "agora": "2026-09-27T02:30:00Z", "regra": { "tipo": "dia_da_semana", "dias": [1, 2, 3, 4, 5], "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "sabado 23:30 em SP e sabado", "agora": "2026-09-27T02:30:00Z", "regra": { "tipo": "dia_da_semana", "dias": [6], "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "sabado 23:30 em SP nao e domingo", "agora": "2026-09-27T02:30:00Z", "regra": { "tipo": "dia_da_semana", "dias": [0], "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "quarta-feira", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "dia_da_semana", "dias": [3], "fuso": "America/Sao_Paulo" }, "esperado": true },
+    { "nome": "dia escrito como texto nao conta", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "dia_da_semana", "dias": ["3"], "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "fuso fora da lista responde nao", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "18:00", "fuso": "Europe/Lisbon" }, "esperado": false },
+    { "nome": "inicio igual ao fim responde nao", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "08:00", "fim": "08:00", "fuso": "America/Sao_Paulo" }, "esperado": false },
+    { "nome": "hora mal escrita responde nao", "agora": "2026-09-23T11:00:00Z", "regra": { "tipo": "janela_de_horario", "inicio": "8:00", "fim": "18:00", "fuso": "America/Sao_Paulo" }, "esperado": false }
+  ]
+}

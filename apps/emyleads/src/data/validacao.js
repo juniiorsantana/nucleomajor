@@ -7,7 +7,7 @@
  */
 
 import { STATUS_NEGOCIO } from "../domain/types.js";
-import { OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../domain/regras.js";
+import { FUSOS_DO_BRASIL, horaValida, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../domain/regras.js";
 import { ALVOS_IA, DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "../domain/chatbots.js";
 import {
   SAIDA_PADRAO,
@@ -171,6 +171,20 @@ export function validarCondicao(condicao, nome = "Condição") {
     case TIPOS_CONDICAO.semInteracaoHa:
       if (!Number.isInteger(condicao.dias) || condicao.dias < 0)
         throw erro(`${nome}.dias inválido.`, `${nome}.dias`);
+      break;
+    case TIPOS_CONDICAO.diaDaSemana:
+      if (!FUSOS_DO_BRASIL.includes(condicao.fuso)) throw erro(`${nome}.fuso inválido.`, `${nome}.fuso`);
+      if (
+        !Array.isArray(condicao.dias) || !condicao.dias.length || condicao.dias.length > 7
+        || new Set(condicao.dias).size !== condicao.dias.length
+        || condicao.dias.some((dia) => !Number.isInteger(dia) || dia < 0 || dia > 6)
+      )
+        throw erro(`${nome}.dias inválido.`, `${nome}.dias`);
+      break;
+    case TIPOS_CONDICAO.janelaDeHorario:
+      if (!FUSOS_DO_BRASIL.includes(condicao.fuso)) throw erro(`${nome}.fuso inválido.`, `${nome}.fuso`);
+      if (!horaValida(condicao.inicio) || !horaValida(condicao.fim) || condicao.inicio === condicao.fim)
+        throw erro(`${nome} precisa de início e fim diferentes, no formato HH:MM.`, nome);
       break;
     default:
       throw erro(`${nome}.tipo desconhecido.`, `${nome}.tipo`);

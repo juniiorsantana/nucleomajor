@@ -99,6 +99,33 @@ const mutacoes = {
     d.canvas.conexoes = d.canvas.conexoes.map((c) => (c.source === "entrada" ? { ...c, target: "cond" } : c));
   },
   "recusa: conexao para bloco inexistente": (d) => { d.canvas.conexoes.push({ source: "fim", saida: "padrao", target: "fantasma" }); },
+  // Dia da semana e horário (20260925110000).
+  "valido: dias uteis e horario comercial": (d) => {
+    passo(d, "cond").expressao = { operador: "e", itens: [
+      { tipo: "dia_da_semana", dias: [1, 2, 3, 4, 5], fuso: "America/Sao_Paulo" },
+      { tipo: "janela_de_horario", inicio: "08:00", fim: "18:00", fuso: "America/Sao_Paulo" },
+    ] };
+  },
+  "valido: janela que atravessa a noite em Manaus": (d) => {
+    passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "22:00", fim: "06:00", fuso: "America/Manaus" }];
+  },
+  "valido: horario nas condicoes de entrada": (d) => {
+    d.condicoes = [{ tipo: "janela_de_horario", inicio: "00:00", fim: "23:59", fuso: "America/Noronha" }];
+  },
+  "valido: todos os dias": (d) => {
+    passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [0, 1, 2, 3, 4, 5, 6], fuso: "America/Rio_Branco" }];
+  },
+  "recusa: dias vazio": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [], fuso: "America/Sao_Paulo" }]; },
+  "recusa: dia 7": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [7], fuso: "America/Sao_Paulo" }]; },
+  "recusa: dia repetido": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [1, 1], fuso: "America/Sao_Paulo" }]; },
+  "recusa: dia como texto": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: ["1"], fuso: "America/Sao_Paulo" }]; },
+  "recusa: dia fracionado": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [1.5], fuso: "America/Sao_Paulo" }]; },
+  "recusa: dias sem fuso": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "dia_da_semana", dias: [1] }]; },
+  "recusa: fuso fora do brasil": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fim: "18:00", fuso: "Europe/Lisbon" }]; },
+  "recusa: inicio igual ao fim": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fim: "08:00", fuso: "America/Sao_Paulo" }]; },
+  "recusa: hora sem zero": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "8:00", fim: "18:00", fuso: "America/Sao_Paulo" }]; },
+  "recusa: hora 24": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fim: "24:00", fuso: "America/Sao_Paulo" }]; },
+  "recusa: janela sem fim": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fuso: "America/Sao_Paulo" }]; },
 };
 
 for (const [caso, mudar] of Object.entries(mutacoes)) {

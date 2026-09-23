@@ -13,7 +13,8 @@ Dois passos, porque o banco mora na VPS e o Node mora aqui:
 falha (código 1) se algum caso tiver veredito diferente entre editor, banco e o
 esperado pelo nome do caso.
 
-Resultado em 23/09/2026: 37 casos, 0 divergências.
+Resultado em 23/09/2026: 37 casos, 0 divergências; com dia e horário
+(20260925110000 por cima), 52 casos, 0 divergências.
 """
 
 import json
@@ -21,12 +22,20 @@ import sys
 from pathlib import Path
 
 MIGRATION = Path(__file__).resolve().parents[2] / "supabase/migrations/20260907010000_fluxos_execucao_persistida.sql"
+POSTERIORES = [
+    Path(__file__).resolve().parents[2] / "supabase/migrations/20260925110000_fluxos_com_dia_e_horario.sql",
+]
 
 
 def montar(casos_path: str, saida_path: str) -> None:
     mig = MIGRATION.read_text(encoding="utf-8").replace("\r", "")
     funcoes = mig[mig.index("create function private.flow_step("):mig.index("create function private.flow_envelope(")]
     assert funcoes.count("create function private.") == 4
+    # As migrations posteriores que trocam alguma dessas funções entram por
+    # cima, na ordem — como em produção.
+    for posterior in POSTERIORES:
+        texto = posterior.read_text(encoding="utf-8").replace("\r", "")
+        funcoes += "\n" + texto[texto.index("create or replace function"):texto.rindex("commit;")]
     linhas = [
         "\\set ON_ERROR_STOP on",
         "create schema private;",

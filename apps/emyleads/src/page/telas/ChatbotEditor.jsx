@@ -14,21 +14,24 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft,
+  CalendarDays,
   CircleHelp,
   CircleStop,
+  Clock,
   LayoutDashboard,
   MessageSquareText,
   Plus,
   Share2,
   Save,
   Split,
+  Tag,
   Tags,
   Trash2,
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
 import { ALVOS_IA, DESTINOS_TRANSFERENCIA, ROTULOS_SAIDA, TIPOS_PASSO, saidasDoPasso } from "../../domain/chatbots";
-import { OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
+import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
 import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
@@ -68,20 +71,30 @@ const DESTINOS = {
   [DESTINOS_TRANSFERENCIA.ia]: "O agente de IA",
 };
 
+const regraDeDias = () => ({ tipo: TIPOS_CONDICAO.diaDaSemana, dias: [1, 2, 3, 4, 5], fuso: FUSO_PADRAO });
+const regraDeHorario = () => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "08:00", fim: "18:00", fuso: FUSO_PADRAO });
+
 /**
  * Os blocos que se pode criar. `ramificado` marca os que só existem no
  * formato com caminhos: sem o executor da VPS, uma condição no meio do fluxo
  * não teria quem a avaliasse.
+ *
+ * "Tem etiqueta", "Dias da semana" e "Horário" são atalhos, não tipos: cada um
+ * cria um bloco de Condição já com a regra certa. O mesmo predicado não
+ * precisa de um segundo bloco — só de um jeito mais curto de chegar nele.
  */
 const BLOCOS = [
-  { tipo: TIPOS_PASSO.enviarMensagem, titulo: "Enviar mensagem", descricao: "Responde no WhatsApp", icone: MessageSquareText, classe: "text-blue-600 bg-blue-500/10" },
-  { tipo: TIPOS_PASSO.editarEtiquetas, titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
-  { tipo: TIPOS_PASSO.condicao, titulo: "Condição", descricao: "Segue por Sim ou por Não", icone: Split, classe: "text-warning bg-warning/10", ramificado: true },
-  { tipo: TIPOS_PASSO.transferir, titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
-  { tipo: TIPOS_PASSO.encerrar, titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: "text-sub bg-surface-hover", ramificado: true },
+  { id: TIPOS_PASSO.enviarMensagem, tipo: TIPOS_PASSO.enviarMensagem, titulo: "Enviar mensagem", descricao: "Responde no WhatsApp", icone: MessageSquareText, classe: "text-blue-600 bg-blue-500/10" },
+  { id: TIPOS_PASSO.editarEtiquetas, tipo: TIPOS_PASSO.editarEtiquetas, titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
+  { id: TIPOS_PASSO.condicao, tipo: TIPOS_PASSO.condicao, titulo: "Condição", descricao: "Segue por Sim ou por Não", icone: Split, classe: "text-warning bg-warning/10", ramificado: true },
+  { id: "atalho_etiqueta", tipo: TIPOS_PASSO.condicao, titulo: "Tem etiqueta", descricao: "Sim para quem tiver a etiqueta", icone: Tag, classe: "text-warning bg-warning/10", ramificado: true, regra: () => ({ tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }) },
+  { id: "atalho_dias", tipo: TIPOS_PASSO.condicao, titulo: "Dias da semana", descricao: "Sim nos dias marcados", icone: CalendarDays, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeDias },
+  { id: "atalho_horario", tipo: TIPOS_PASSO.condicao, titulo: "Horário", descricao: "Sim dentro do horário", icone: Clock, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeHorario },
+  { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
+  { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: "text-sub bg-surface-hover", ramificado: true },
 ];
 
-function passoVazio(tipo) {
+function passoVazio(tipo, regra = null) {
   if (tipo === TIPOS_PASSO.enviarMensagem) return { id: novoId(), tipo, texto: "" };
   // Padrão humano de propósito: transferir para uma pessoa é sempre seguro.
   // Passar para a IA é que precisa ser uma escolha.
@@ -89,7 +102,7 @@ function passoVazio(tipo) {
     return { id: novoId(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
   // A pergunta mais comum de uma condição é "tem esta etiqueta?".
   if (tipo === TIPOS_PASSO.condicao)
-    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [{ tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
+    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra() : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
   if (tipo === TIPOS_PASSO.encerrar) return { id: novoId(), tipo };
   return { id: novoId(), tipo, adicionar: [], remover: [] };
 }
@@ -123,9 +136,24 @@ function resumoCondicao(condicao, tags, estagios) {
       return "Tarefa atrasada";
     case TIPOS_CONDICAO.semInteracaoHa:
       return `Sem interação há ${condicao.dias || 0} dias`;
+    case TIPOS_CONDICAO.diaDaSemana:
+      return resumoDosDias(condicao.dias);
+    case TIPOS_CONDICAO.janelaDeHorario:
+      return `Das ${condicao.inicio || "--:--"} às ${condicao.fim || "--:--"}`;
     default:
       return "Condição";
   }
+}
+
+/** "Seg a Sex", "Sáb e Dom", "Seg, Qua, Sex" — em ordem de domingo a sábado. */
+function resumoDosDias(dias = []) {
+  const marcados = [...new Set(dias)].filter((dia) => Number.isInteger(dia) && dia >= 0 && dia <= 6).sort();
+  if (!marcados.length) return "Nenhum dia marcado";
+  if (marcados.length === 7) return "Todos os dias";
+  const seguidos = marcados.every((dia, i) => i === 0 || dia === marcados[i - 1] + 1);
+  if (seguidos && marcados.length > 2) return `${DIAS_DA_SEMANA[marcados[0]]} a ${DIAS_DA_SEMANA[marcados.at(-1)]}`;
+  const nomes = marcados.map((dia) => DIAS_DA_SEMANA[dia]);
+  return nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}`;
 }
 
 function resumoPasso(passo, tags, estagios) {
@@ -150,20 +178,22 @@ function resumoPasso(passo, tags, estagios) {
   return partes.join(" · ") || "Escolha as etiquetas do contato";
 }
 
-function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover }) {
+/** Ao trocar o tipo, a regra nasce completa — o servidor recusa regra pela metade. */
+function regraNova(tipo) {
+  if (tipo === TIPOS_CONDICAO.semInteracaoHa) return { tipo, dias: 0 };
+  if (tipo === TIPOS_CONDICAO.diaDaSemana) return regraDeDias();
+  if (tipo === TIPOS_CONDICAO.janelaDeHorario) return regraDeHorario();
+  return { tipo };
+}
+
+function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover, ramificado = false }) {
   const tipo = condicao.tipo;
   return (
     <div className="rounded-[10px] border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <select
           value={tipo}
-          onChange={(event) => aoMudar(
-            // O campo mostra 0; o valor precisa ser 0 de verdade, ou o
-            // servidor recusa a regra sem número de dias.
-            event.target.value === TIPOS_CONDICAO.semInteracaoHa
-              ? { tipo: event.target.value, dias: 0 }
-              : { tipo: event.target.value }
-          )}
+          onChange={(event) => aoMudar(regraNova(event.target.value))}
           className={`${entrada} min-w-0 flex-1 bg-bg`}
         >
           <option value={TIPOS_CONDICAO.primeiraConversa}>Sem atividade no CRM</option>
@@ -171,6 +201,10 @@ function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover }) {
           <option value={TIPOS_CONDICAO.estagioAtual}>Estiver no estágio</option>
           <option value={TIPOS_CONDICAO.tarefaAtrasada}>Tiver tarefa atrasada</option>
           <option value={TIPOS_CONDICAO.semInteracaoHa}>Sem interação há dias</option>
+          {/* Relógio só no formato com caminhos: quem avalia é o executor da
+              VPS, com o fuso da regra. */}
+          {ramificado && <option value={TIPOS_CONDICAO.diaDaSemana}>For um destes dias</option>}
+          {ramificado && <option value={TIPOS_CONDICAO.janelaDeHorario}>Estiver neste horário</option>}
         </select>
         <button type="button" onClick={aoRemover} title="Remover condição" className="cursor-pointer rounded-[7px] p-2 text-sub hover:bg-danger/10 hover:text-danger">
           <Trash2 size={14} />
@@ -192,6 +226,51 @@ function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover }) {
         <label className="mt-2 block">
           <span className="mb-1 block text-[11px] font-medium text-sub">Quantidade de dias</span>
           <input type="number" min="0" value={condicao.dias ?? 0} onChange={(event) => aoMudar({ ...condicao, dias: Math.max(0, Math.trunc(Number(event.target.value) || 0)) })} className={`${entrada} bg-bg`} />
+        </label>
+      )}
+      {tipo === TIPOS_CONDICAO.diaDaSemana && (
+        <div className="mt-2 grid grid-cols-7 gap-1" role="group" aria-label="Dias da semana">
+          {DIAS_DA_SEMANA.map((nome, dia) => {
+            const marcado = (condicao.dias || []).includes(dia);
+            return (
+              <button
+                key={nome}
+                type="button"
+                aria-pressed={marcado}
+                onClick={() => aoMudar({
+                  ...condicao,
+                  dias: marcado ? condicao.dias.filter((item) => item !== dia) : [...(condicao.dias || []), dia].sort(),
+                })}
+                className={`cursor-pointer rounded-[7px] border py-1.5 text-[11px] font-semibold ${marcado ? "border-accent bg-accent-soft text-accent-forte" : "border-line bg-bg text-sub hover:text-fg"}`}
+              >
+                {nome}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {tipo === TIPOS_CONDICAO.janelaDeHorario && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-medium text-sub">A partir das</span>
+            <input type="time" value={condicao.inicio || ""} onChange={(event) => aoMudar({ ...condicao, inicio: event.target.value })} className={`${entrada} bg-bg`} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-medium text-sub">Até as</span>
+            <input type="time" value={condicao.fim || ""} onChange={(event) => aoMudar({ ...condicao, fim: event.target.value })} className={`${entrada} bg-bg`} />
+          </label>
+        </div>
+      )}
+      {(tipo === TIPOS_CONDICAO.diaDaSemana || tipo === TIPOS_CONDICAO.janelaDeHorario) && (
+        <label className="mt-2 block">
+          <span className="mb-1 block text-[11px] font-medium text-sub">Fuso do horário</span>
+          <select value={condicao.fuso || FUSO_PADRAO} onChange={(event) => aoMudar({ ...condicao, fuso: event.target.value })} className={`${entrada} bg-bg`}>
+            {FUSOS_DO_BRASIL.map((fuso) => <option key={fuso} value={fuso}>{fuso.replace("America/", "").replace("_", " ")}</option>)}
+          </select>
+          <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
+            Quem escreve de outro estado é medido por este relógio, não pelo dele.
+            {tipo === TIPOS_CONDICAO.janelaDeHorario && " Se o fim for antes do início, a janela atravessa a meia-noite."}
+          </span>
         </label>
       )}
     </div>
@@ -237,6 +316,7 @@ function ExpressaoEditor({ expressao, tags, estagios, aoMudar }) {
           ) : (
             <CondicaoEditor
               key={indice}
+              ramificado
               condicao={item}
               tags={tags}
               estagios={estagios}
@@ -264,16 +344,16 @@ function Paleta({ blocos, ramificado, aoAdicionar }) {
         <p className="mt-1 text-[11.5px] leading-relaxed text-sub">Arraste para o mapa ou clique para adicionar.</p>
       </div>
       <div className="flex flex-col gap-2 p-3">
-        {blocos.map(({ tipo, titulo, descricao, icone: Icone, classe }) => (
+        {blocos.map(({ id, titulo, descricao, icone: Icone, classe }) => (
           <button
-            key={tipo}
+            key={id}
             type="button"
             draggable
             onDragStart={(event) => {
-              event.dataTransfer.setData("application/emyleads-flow", tipo);
+              event.dataTransfer.setData("application/emyleads-flow", id);
               event.dataTransfer.effectAllowed = "copy";
             }}
-            onClick={() => aoAdicionar(tipo)}
+            onClick={() => aoAdicionar(id)}
             className="group flex cursor-grab items-center gap-3 rounded-[11px] border border-line bg-bg p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md active:cursor-grabbing"
           >
             <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-[9px] ${classe}`}><Icone size={17} /></span>
@@ -308,8 +388,8 @@ function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
         <button type="button" onClick={aoFechar} aria-label="Fechar" className="cursor-pointer rounded-[6px] p-1 text-sub hover:bg-surface-hover hover:text-fg"><X size={13} /></button>
       </div>
       <div className="flow-seletor__lista">
-        {lista.map(({ tipo, titulo, descricao, icone: Icone, classe }) => (
-          <button key={tipo} type="button" role="menuitem" onClick={() => aoEscolher(tipo)} className="flow-seletor__item">
+        {lista.map(({ id, titulo, descricao, icone: Icone, classe }) => (
+          <button key={id} type="button" role="menuitem" onClick={() => aoEscolher(id)} className="flow-seletor__item">
             <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-[8px] ${classe}`}><Icone size={15} /></span>
             <span className="min-w-0">
               <strong>{titulo}</strong>
@@ -324,7 +404,7 @@ function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
 
 function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPasso, tags, estagios, inteligencia, aoRemover }) {
   const passo = passos.find((item) => item.id === selecionado);
-  const tiposDisponiveis = BLOCOS.filter((bloco) => ramificado || !bloco.ramificado);
+  const tiposDisponiveis = BLOCOS.filter((bloco) => bloco.id === bloco.tipo && (ramificado || !bloco.ramificado));
 
   return (
     <aside className="z-10 flex w-[326px] flex-none flex-col border-l border-line bg-bg">
@@ -362,6 +442,7 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
               {form.condicoes.map((condicao, indice) => (
                 <CondicaoEditor
                   key={indice}
+                  ramificado={ramificado}
                   condicao={condicao}
                   tags={tags}
                   estagios={estagios}
@@ -700,8 +781,11 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
     return null;
   };
 
-  const criarBloco = (tipo, { posicao = null, origem = null, fio = null } = {}) => {
-    const passo = passoVazio(tipo);
+  const criarBloco = (idDoBloco, { posicao = null, origem = null, fio = null } = {}) => {
+    const bloco = BLOCOS.find((item) => item.id === idDoBloco);
+    if (!bloco) return;
+    const { tipo } = bloco;
+    const passo = passoVazio(tipo, bloco.regra);
     const saidasDoNovo = !ramificado && tipo === TIPOS_PASSO.transferir ? [] : saidasDoPasso(passo);
     const ligacoes = [];
     let removerId = null;
@@ -749,10 +833,10 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
     }
   };
 
-  const escolherNoSeletor = (tipo) => {
+  const escolherNoSeletor = (idDoBloco) => {
     if (!seletor) return;
-    if (seletor.fio) criarBloco(tipo, { fio: seletor.fio });
-    else criarBloco(tipo, { posicao: seletor.fluxo, origem: seletor.origem || null });
+    if (seletor.fio) criarBloco(idDoBloco, { fio: seletor.fio });
+    else criarBloco(idDoBloco, { posicao: seletor.fluxo, origem: seletor.origem || null });
   };
 
   /**
@@ -870,7 +954,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <Paleta blocos={blocos} ramificado={ramificado} aoAdicionar={(tipo) => criarBloco(tipo)} />
+        <Paleta blocos={blocos} ramificado={ramificado} aoAdicionar={(idDoBloco) => criarBloco(idDoBloco)} />
         <main ref={area} className="chatbot-flow relative min-w-0 flex-1 bg-surface">
           {erro && (
             <div role="alert" className="absolute left-1/2 top-4 z-20 flex max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-[10px] border border-danger/25 bg-bg px-4 py-2.5 text-[11.5px] font-medium text-danger shadow-lg">
@@ -931,9 +1015,9 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
             onDrop={(event) => {
               event.preventDefault();
-              const tipo = event.dataTransfer.getData("application/emyleads-flow");
-              if (!blocos.some((bloco) => bloco.tipo === tipo) || !instancia.current) return;
-              criarBloco(tipo, { posicao: instancia.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }) });
+              const idDoBloco = event.dataTransfer.getData("application/emyleads-flow");
+              if (!blocos.some((bloco) => bloco.id === idDoBloco) || !instancia.current) return;
+              criarBloco(idDoBloco, { posicao: instancia.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }) });
             }}
             proOptions={{ hideAttribution: true }}
           >
