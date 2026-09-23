@@ -15,6 +15,16 @@ import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./conn
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
 const PUBLIC_ORIGIN = String(process.env.PUBLIC_ORIGIN || "https://nucleomajor.com").replace(/\/$/, "");
+// O painel da plataforma mora no mesmo servidor, em outro subdomínio: quem
+// decide o que servir é o `Host` da requisição. `painel.localhost` é para
+// testar na máquina (o navegador resolve `*.localhost` para 127.0.0.1).
+const PAINEL_ORIGIN = String(process.env.PAINEL_ORIGIN || "https://painel.nucleomajor.com").replace(/\/$/, "");
+const PAINEL_HOSTS = new Set(
+  String(process.env.PAINEL_HOSTS || `${new URL(PAINEL_ORIGIN).hostname},painel.localhost`)
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_PUBLISHABLE_KEY = String(process.env.SUPABASE_PUBLISHABLE_KEY || "");
 const ANTHROPIC_API_KEY = String(process.env.ANTHROPIC_API_KEY || "");
@@ -854,16 +864,19 @@ const contentTypes = {
   ".woff2": "font/woff2",
 };
 
-async function staticFile(req, res, url) {
-  const pathname = decodeURIComponent(url.pathname);
-  const isAppRoute = pathname === "/app"
-    || pathname === "/app/"
-    || (pathname.startsWith("/app/") && extname(pathname) === "");
-  let relative;
-  if (pathname === "/") relative = "index.html";
-  else if (pathname === "/convite" || pathname === "/convite/") relative = "convite/index.html";
-  else if (isAppRoute) relative = "app/index.html";
-  else relative = pathname.replace(/^\//, "");
+/** O `Host` (sem porta) é o do painel da plataforma? */
+export function isPainelHost(hostHeader) {
+  const host = String(hostHeader || "").trim().toLowerCase().replace(/:\d+$/, "");
+  return PAINEL_HOSTS.has(host);
+}
+
+function redirect(res, location) {
+  securityHeaders(res);
+  res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+  res.end();
+}
+
+async function sendPublicFile(res, relative) {
   const filePath = resolve(PUBLIC_DIR, relative);
   const publicPrefix = `${PUBLIC_DIR}${process.platform === "win32" ? "\\" : "/"}`;
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(publicPrefix)) throw new HttpError(404, "Página não encontrada.", "not-found");
@@ -877,6 +890,40 @@ async function staticFile(req, res, url) {
   }
 }
 
+// No subdomínio do painel, a raiz é `public/painel/` e todo caminho sem
+// extensão é rota do painel (`/empresas/<id>`, `/historico`). O app dos
+// clientes não existe aqui: `/app` leva de volta ao domínio principal, para
+// ninguém usar o portal com a sessão da administração por engano.
+async function painelFile(req, res, url) {
+  const pathname = decodeURIComponent(url.pathname);
+  if (pathname === "/app" || pathname.startsWith("/app/")) {
+    return redirect(res, `${PUBLIC_ORIGIN}${pathname}${url.search}`);
+  }
+  const relative = extname(pathname) === "" ? "painel/index.html" : `painel/${pathname.replace(/^\/+/, "")}`;
+  const painelPrefix = `${resolve(PUBLIC_DIR, "painel")}${process.platform === "win32" ? "\\" : "/"}`;
+  if (!resolve(PUBLIC_DIR, relative).startsWith(painelPrefix)) {
+    throw new HttpError(404, "Página não encontrada.", "not-found");
+  }
+  return sendPublicFile(res, relative);
+}
+
+async function staticFile(req, res, url) {
+  const pathname = decodeURIComponent(url.pathname);
+  const isAppRoute = pathname === "/app"
+    || pathname === "/app/"
+    || (pathname.startsWith("/app/") && extname(pathname) === "");
+  // O painel só é servido no próprio subdomínio (ver `painelFile`).
+  if (pathname === "/painel" || pathname.startsWith("/painel/")) {
+    return redirect(res, `${PAINEL_ORIGIN}${pathname.slice("/painel".length) || "/"}`);
+  }
+  let relative;
+  if (pathname === "/") relative = "index.html";
+  else if (pathname === "/convite" || pathname === "/convite/") relative = "convite/index.html";
+  else if (isAppRoute) relative = "app/index.html";
+  else relative = pathname.replace(/^\//, "");
+  return sendPublicFile(res, relative);
+}
+
 export function createServer({ apiHandler = api, billingHandler = billingWebhook } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
@@ -884,11 +931,11 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
       if (req.method === "OPTIONS") return res.writeHead(204).end();
       if (url.pathname === "/api/config" && req.method === "GET") {
-        return json(res, 200, { supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, checkoutUrl: BILLING.checkoutUrl });
+        return json(res, 200, { supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, painelOrigin: PAINEL_ORIGIN, checkoutUrl: BILLING.checkoutUrl });
       }
       if (url.pathname === "/api/config.js" && req.method === "GET") {
         securityHeaders(res);
-        const body = `globalThis.__NUCLEO_CONFIG__=${JSON.stringify({ supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, checkoutUrl: BILLING.checkoutUrl })};`;
+        const body = `globalThis.__NUCLEO_CONFIG__=${JSON.stringify({ supabaseUrl: SUPABASE_URL, supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY, publicOrigin: PUBLIC_ORIGIN, painelOrigin: PAINEL_ORIGIN, checkoutUrl: BILLING.checkoutUrl })};`;
         res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-store" });
         return res.end(body);
       }
@@ -896,6 +943,7 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       // que exige uma.
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
+      if (isPainelHost(req.headers.host)) return await painelFile(req, res, url);
       return await staticFile(req, res, url);
     } catch (error) {
       const status = Number(error?.status) || 500;

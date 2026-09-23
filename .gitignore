@@ -17,3 +17,4 @@ playwright-report/
 !.env.example
 !apps/emyleads/.env.test
 npm-debug.log*
+public/painel/

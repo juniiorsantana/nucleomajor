@@ -43,6 +43,56 @@ function usuarioPublico(user, perfil = null) {
   };
 }
 
+/**
+ * As recusas das funções `platform_*` (20260924100000 e 20260924110000) em
+ * português. O banco fala inglês de propósito — é o contrato que as provas
+ * conferem —, e o painel fala com gente.
+ */
+const RECUSAS_DA_PLATAFORMA = [
+  [/platform administrator/i, "Só a administração do Núcleo Major pode fazer isso."],
+  [/requires confirm_ai/i, "Ligar IA exige confirmar que a empresa tem WhatsApp próprio e a conexão montada na VPS."],
+  [/more than one WhatsApp/i, "Por enquanto é um WhatsApp por empresa: o limite só pode ser 0 ou 1."],
+  [/(expires_at|ends_at) must be in the future/i, "A data precisa ser no futuro."],
+  [/ends_at too far/i, "A data está longe demais. Use no máximo 5 anos."],
+  [/note required/i, "Escreva o motivo: encerrar o acesso sem nota não é permitido."],
+  [/plan unavailable/i, "Esse plano não existe ou não está ativo."],
+  [/organization not found/i, "Empresa não encontrada."],
+  [/organization has no subscription/i, "Esta empresa não tem assinatura cadastrada."],
+  [/unknown feature/i, "Essa função não está no catálogo."],
+  [/needs enabled|takes limit_value/i, "Ajuste inválido para esse item do catálogo."],
+];
+
+function erroDaPlataforma(error, codigo) {
+  const texto = String(error?.message || "");
+  const traducao = RECUSAS_DA_PLATAFORMA.find(([padrao]) => padrao.test(texto));
+  if (!traducao) return erroDaResposta(error, codigo);
+  const erro = new Error(traducao[1]);
+  erro.codigo = codigo;
+  return erro;
+}
+
+const empresaDaLinha = (linha) => ({
+  id: linha.organization_id,
+  nome: linha.organization_name,
+  criadaEm: linha.created_at,
+  dono: linha.owner_email || "",
+  ultimoAcessoDono: linha.owner_last_sign_in_at || null,
+  plano: linha.plan_code || "",
+  nomePlano: linha.plan_name || linha.plan_code || "",
+  status: linha.subscription_status || "",
+  origem: linha.source || "",
+  estado: linha.state || "blocked",
+  fimDoPeriodo: linha.current_period_ends_at || null,
+  atrasoDesde: linha.past_due_since || null,
+  membros: linha.members ?? 0,
+  contatos: linha.contacts ?? 0,
+  whatsappEmUso: linha.connections_in_use ?? 0,
+  // `null` = sem limite; `undefined` não chega aqui porque a RPC sempre manda.
+  whatsappLimite: linha.connections_limit ?? null,
+  ultimoSinal: linha.last_heartbeat_at || null,
+  ajustes: linha.active_adjustments ?? 0,
+});
+
 const nomeCurtoValido = (valor) => String(valor || "").trim().length <= 40;
 const corValida = (valor) => !valor || /^#[0-9a-f]{6}$/i.test(String(valor).trim());
 
@@ -393,6 +443,138 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       const { error } = await supabase.rpc("revoke_onboarding_access", { target_grant: codigoId });
       if (error) throw erroDaResposta(error, "plataforma-revogar-falhou");
       return { ok: true };
+    },
+
+    // ----------------------------------------------------------------------
+    // O painel da plataforma (painel.nucleomajor.com). Tudo por RPC: as
+    // tabelas de ajuste e o histórico não são legíveis direto, e cada função
+    // confere se quem chama é da administração.
+    // ----------------------------------------------------------------------
+
+    "plataforma.empresas": async () => {
+      const { data, error } = await supabase.rpc("platform_organizations_list");
+      if (error) throw erroDaPlataforma(error, "plataforma-empresas-falhou");
+      return (data || []).map(empresaDaLinha);
+    },
+
+    "plataforma.empresa": async ({ id } = {}) => {
+      if (!id) throw new Error("Empresa não informada.");
+      const { data, error } = await supabase.rpc("platform_organization_detail", { target_organization: id });
+      if (error) throw erroDaPlataforma(error, "plataforma-empresa-falhou");
+      const empresa = empresaDaLinha(data?.organization || {});
+      return {
+        empresa,
+        funcoes: data?.features || [],
+        uso: data?.usage || {},
+        pessoas: data?.members || [],
+        conexoes: data?.connections || [],
+        vendas: data?.billing || [],
+        historico: (data?.audit || []).map((linha) => ({
+          id: linha.id,
+          em: linha.at,
+          autor: linha.actor_email || "",
+          empresaId: empresa.id,
+          empresa: empresa.nome,
+          acao: linha.action,
+          alvo: linha.target || "",
+          antes: linha.before,
+          depois: linha.after,
+          nota: linha.note || "",
+        })),
+      };
+    },
+
+    "plataforma.planosDoPainel": async () => {
+      const { data, error } = await supabase.rpc("platform_plans_list");
+      if (error) throw erroDaPlataforma(error, "plataforma-planos-falhou");
+      return (data || []).map((linha) => ({
+        codigo: linha.code,
+        nome: linha.name,
+        descricao: linha.description,
+        ativo: linha.active,
+        recursos: linha.features || {},
+        limites: linha.limits || {},
+      }));
+    },
+
+    "plataforma.estenderPeriodo": async ({ id, ate, renovar = false, nota = "" } = {}) => {
+      const { data, error } = await supabase.rpc("platform_organization_set_period", {
+        target_organization: id,
+        target_ends_at: ate,
+        renew: Boolean(renovar),
+        note: String(nota || "").trim(),
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-periodo-falhou");
+      return data;
+    },
+
+    "plataforma.encerrar": async ({ id, nota = "" } = {}) => {
+      const { data, error } = await supabase.rpc("platform_organization_end_now", {
+        target_organization: id,
+        note: String(nota || "").trim(),
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-encerrar-falhou");
+      return data;
+    },
+
+    "plataforma.trocarPlano": async ({ id, plano, nota = "" } = {}) => {
+      const { data, error } = await supabase.rpc("platform_organization_set_plan", {
+        target_organization: id,
+        target_plan: plano,
+        note: String(nota || "").trim(),
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-plano-falhou");
+      return data;
+    },
+
+    /**
+     * Liga, desliga ou limita uma função só para esta empresa. `ligada` para
+     * interruptor, `limite` para limite (0 ou 1 de WhatsApp, por enquanto).
+     * `confirmarIA` é o "sim, a VPS está pronta" que o banco exige para
+     * ligar IA.
+     */
+    "plataforma.ajustarFuncao": async ({ id, chave, ligada = null, limite = null, ate = null, nota = "", confirmarIA = false } = {}) => {
+      const { data, error } = await supabase.rpc("platform_entitlement_set", {
+        target_organization: id,
+        feature_key: chave,
+        enabled: ligada,
+        limit_value: limite,
+        expires_at: ate,
+        note: String(nota || "").trim(),
+        confirm_ai: Boolean(confirmarIA),
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-ajuste-falhou");
+      return data;
+    },
+
+    "plataforma.voltarAoPlano": async ({ id, chave, nota = "" } = {}) => {
+      const { data, error } = await supabase.rpc("platform_entitlement_clear", {
+        target_organization: id,
+        feature_key: chave,
+        note: String(nota || "").trim(),
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-ajuste-falhou");
+      return data;
+    },
+
+    "plataforma.historico": async ({ id = null, limite = 100 } = {}) => {
+      const { data, error } = await supabase.rpc("platform_audit_list", {
+        target_organization: id,
+        max_rows: limite,
+      });
+      if (error) throw erroDaPlataforma(error, "plataforma-historico-falhou");
+      return (data || []).map((linha) => ({
+        id: linha.id,
+        em: linha.at,
+        autor: linha.actor_email || "",
+        empresaId: linha.organization_id,
+        empresa: linha.organization_name || "",
+        acao: linha.action,
+        alvo: linha.target || "",
+        antes: linha.before,
+        depois: linha.after,
+        nota: linha.note || "",
+      }));
     },
 
     "organizacoes.criar": async ({ nome, codigo }) => {

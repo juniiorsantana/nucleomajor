@@ -6,14 +6,16 @@
   "description": "Aplicação web e conector opcional do EmyLeads",
   "scripts": {
     "build": "npm run build:web",
-    "build:web": "vite build --config vite.web.config.js",
+    "build:web": "vite build --config vite.web.config.js && vite build --config vite.painel.config.js",
     "build:extension": "vite build && vite build --config vite.sw.config.js && vite build --config vite.content.config.js",
     "watch": "vite build --config vite.content.config.js --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "update-wa-js": "curl -sL --create-dirs -o vendor/wa-js.js https://github.com/wppconnect-team/wa-js/releases/download/nightly/wppconnect-wa.js",
     "dev": "vite",
-    "dev:web": "vite --config vite.web.config.js"
+    "dev:web": "vite --config vite.web.config.js",
+    "build:painel": "vite build --config vite.painel.config.js",
+    "dev:painel": "vite --config vite.painel.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
