@@ -133,6 +133,38 @@ const gatilhos = Number((await um(`select count(*) n from pg_trigger t join pg_p
   where p.oid = 'private.portal_realtime_notify()'::regprocedure and not t.tgisinternal`)).n);
 confere("os gatilhos de realtime continuam ligados", gatilhos >= 9, `gatilhos=${gatilhos}`);
 
+// ------------------------------------- 20260926150000: o último uso do robô
+// A busca de comandos (a cada 2 s) grava `last_used_at` na credencial do robô.
+const MIGRATION_2 = "20260926150000_o_aviso_ignora_o_ultimo_uso_do_robo.sql";
+const ROBO = "dddddddd-0000-4000-8000-000000000005";
+await db.exec(`insert into auth.users (id, email, email_confirmed_at) values ('${ROBO}', 'robot@invalid.emyleads.local', now())`);
+await db.query("insert into public.connection_robot_credentials (connection_id, organization_id, auth_user_id) values ($1, $2, $3)", [CONEXAO, org, ROBO]);
+const usarRobo = () => db.query("update public.connection_robot_credentials set last_used_at = now() + (random() * interval '1 second') where connection_id = $1", [CONEXAO]);
+
+let base = await avisos();
+await usarRobo();
+confere("antes da 150000: o último uso do robô gerava aviso (o defeito)", (await avisos()) === base + 1);
+
+await db.exec(ler(`supabase/migrations/${MIGRATION_2}`));
+base = await avisos();
+await usarRobo();
+await usarRobo();
+await usarRobo();
+confere("o último uso do robô não gera aviso", (await avisos()) === base);
+
+await db.query("update public.connection_robot_credentials set status = 'revoked', revoked_at = now() where connection_id = $1", [CONEXAO]);
+confere("revogar a credencial avisa", (await avisos()) === base + 1);
+
+await db.query(`update public.whatsapp_conversations
+  set last_message_preview = last_message_preview, owner = owner, updated_at = now() where ${DESTA}`);
+confere("regravar a conversa igual segue sem aviso", (await avisos()) === base + 1);
+await db.query(`update public.whatsapp_conversations set last_message_preview = 'outra', updated_at = now() where ${DESTA}`);
+confere("mensagem nova segue avisando", (await avisos()) === base + 2);
+
+let erro2 = "";
+try { await db.exec(ler(`supabase/migrations/${MIGRATION_2}`)); } catch (e) { erro2 = String(e.message || e); }
+confere("rodar a 150000 de novo aborta pela trava", /nao e a de 20260926140000/.test(erro2), erro2);
+
 for (const item of passou) console.log(`  ok   ${item}`);
 for (const item of falhas) console.log(`  FALHA ${item}`);
 console.log(`\nPASS ${passou.length}${falhas.length ? `, FALHA ${falhas.length}` : ""}`);
