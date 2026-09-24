@@ -118,6 +118,13 @@ describe("períodos", () => {
     expect(p.anterior).toEqual({ inicio: t(2026, 7, 1, 0), fim: t(2026, 8, 1, 0) });
   });
 
+  it("N dias contam hoje e comparam com os N dias antes", () => {
+    const p = periodoDoPreset("15d", t(2026, 9, 24));
+    expect(p.inicio).toBe(t(2026, 9, 10, 0));
+    expect(p.fim).toBe(t(2026, 9, 25, 0));
+    expect(p.anterior).toEqual({ inicio: t(2026, 8, 26, 0), fim: t(2026, 9, 10, 0) });
+  });
+
   it("personalizado inclui o último dia e aceita datas invertidas", () => {
     const p = periodoPersonalizado("2026-09-30", "2026-09-01");
     expect(p.inicio).toBe(t(2026, 9, 1, 0));

@@ -14,9 +14,12 @@ import {
   ThumbsDown,
   Trophy,
   TrendingUp,
+  UserPlus,
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
+import { ehLead } from "../../domain/lead";
+import { metricasDoPeriodo, periodoDoPreset, periodoPersonalizado, variacao } from "./relatorios/metricas";
 import { fmtData, fmtMoeda } from "../../lib/formato";
 import {
   BotaoPrimario,
@@ -75,26 +78,100 @@ function patchParaColuna(coluna, idFechado) {
   return { stageId, status: "aberto", motivoPerda: "" };
 }
 
-function ResumoFunilCompacto({ abertos, ganhos, total }) {
+/*
+ * Os cartões contam um PERÍODO; o quadro abaixo continua mostrando tudo o que
+ * está em aberto, porque é a mesa de trabalho. "Em andamento" é a única
+ * exceção: é uma foto de agora, e diz isso no rótulo.
+ */
+const PERIODOS_DO_FUNIL = [
+  { id: "mes", rotulo: "Este mês" },
+  { id: "15d", rotulo: "15 dias" },
+  { id: "30d", rotulo: "30 dias" },
+  { id: "60d", rotulo: "60 dias" },
+  { id: "90d", rotulo: "90 dias" },
+  { id: "personalizado", rotulo: "Personalizado" },
+];
+
+const paraInputData = (ts) => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+function VariacaoCurta({ atual, anterior }) {
+  const v = variacao(atual, anterior);
+  if (v == null || v === 0) return null;
+  return (
+    <span className={`text-[10px] font-semibold ${v > 0 ? "text-success" : "text-danger"}`} title={`Período anterior: ${anterior}`}>
+      {v > 0 ? "▲" : "▼"} {Math.abs(Math.round(v * 100))}%
+    </span>
+  );
+}
+
+function ResumoFunilCompacto({ dados, negocios, abertos, aoVerRelatorios }) {
+  const [presetId, setPresetId] = useState("mes");
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const periodo = useMemo(
+    () => (presetId === "personalizado" ? periodoPersonalizado(de, ate) : null) || periodoDoPreset(presetId === "personalizado" ? "mes" : presetId),
+    [presetId, de, ate]
+  );
+  const base = useMemo(() => ({ contatos: dados.contatos, negocios, estagios: dados.estagios }), [dados, negocios]);
+  const atual = useMemo(() => metricasDoPeriodo(base, periodo), [base, periodo]);
+  const anterior = useMemo(() => metricasDoPeriodo(base, periodo.anterior), [base, periodo]);
   const valorAberto = abertos.reduce((s, n) => s + (n.valor || 0), 0);
-  const valorGanho = ganhos.reduce((s, n) => s + (n.valor || 0), 0);
-  const conversao = total ? Math.round((ganhos.length / total) * 100) : 0;
+
+  const escolher = (id) => {
+    if (id === "personalizado" && !de) {
+      setDe(paraInputData(periodo.inicio));
+      setAte(paraInputData(periodo.fim - 1));
+    }
+    setPresetId(id);
+  };
+
   const itens = [
-    { rotulo: "Em andamento", valor: abertos.length.toLocaleString("pt-BR"), detalhe: `${abertos.length === 1 ? "negócio" : "negócios"}`, Icone: Briefcase, tom: "accent" },
-    { rotulo: "Valor do pipeline", valor: fmtMoeda(valorAberto) || "R$ 0", detalhe: "negócios abertos", Icone: CircleDollarSign, tom: "neutral" },
-    { rotulo: "Fechados", valor: ganhos.length.toLocaleString("pt-BR"), detalhe: `${fmtMoeda(valorGanho) || "R$ 0"} convertido`, Icone: TrendingUp, tom: "success" },
-    { rotulo: "Conversão", valor: `${conversao}%`, detalhe: `de ${total} negócios`, Icone: Filter, tom: "accent" },
+    { rotulo: "Novos negócios", valor: atual.negociosNovos.toLocaleString("pt-BR"), detalhe: atual.valorCriado ? `${fmtMoeda(atual.valorCriado)} criados` : "no período", Icone: Briefcase, tom: "accent", atual: atual.negociosNovos, anterior: anterior.negociosNovos },
+    { rotulo: "Em andamento agora", valor: abertos.length.toLocaleString("pt-BR"), detalhe: `${fmtMoeda(valorAberto) || "R$ 0"} no pipeline`, Icone: CircleDollarSign, tom: "neutral" },
+    { rotulo: "Fechados", valor: atual.ganhos.toLocaleString("pt-BR"), detalhe: `${fmtMoeda(atual.valorGanho) || "R$ 0"} convertido`, Icone: TrendingUp, tom: "success", atual: atual.ganhos, anterior: anterior.ganhos },
+    { rotulo: "Taxa de ganho", valor: atual.taxaDeGanho == null ? "—" : `${Math.round(atual.taxaDeGanho * 100)}%`, detalhe: `${atual.ganhos} ${atual.ganhos === 1 ? "ganho" : "ganhos"} · ${atual.perdidos} ${atual.perdidos === 1 ? "perdido" : "perdidos"}`, Icone: Filter, tom: "accent" },
   ];
 
+  const chip = (ativo) => `cursor-pointer whitespace-nowrap rounded-[6px] px-2 py-1 text-[11.5px] font-medium transition-colors ${ativo ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface hover:text-fg"}`;
+
   return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">
+          <CalendarDays size={12} strokeWidth={1.8} />
+          Período
+        </span>
+        {PERIODOS_DO_FUNIL.map((p) => (
+          <button key={p.id} type="button" className={chip(presetId === p.id)} aria-pressed={presetId === p.id} onClick={() => escolher(p.id)}>
+            {p.rotulo}
+          </button>
+        ))}
+        {presetId === "personalizado" && (
+          <span className="flex items-center gap-1 text-[11.5px] text-sub">
+            <input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De" className="rounded-[6px] border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
+            até
+            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até" className="rounded-[6px] border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
+          </span>
+        )}
+        {aoVerRelatorios && (
+          <button type="button" onClick={aoVerRelatorios} className="ml-auto flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-accent-forte hover:underline">
+            Ver relatórios
+            <ArrowRight size={12} />
+          </button>
+        )}
+      </div>
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {itens.map(({ rotulo, valor, detalhe, Icone, tom }) => (
+      {itens.map(({ rotulo, valor, detalhe, Icone, tom, atual: a, anterior: b }) => (
         <div key={rotulo} className="flex min-w-0 items-center justify-between rounded-[10px] border border-line bg-bg px-3.5 py-2.5 shadow-[0_1px_2px_rgba(18,23,48,0.03)]">
           <div className="min-w-0">
             <span className="block text-[9px] font-bold uppercase tracking-[0.1em] text-faint">{rotulo}</span>
             <div className="mt-1 flex min-w-0 items-baseline gap-2">
               <strong className="truncate text-[18px] font-semibold leading-none tracking-tight text-fg">{valor}</strong>
               <span className="truncate text-[10px] text-faint">{detalhe}</span>
+              <VariacaoCurta atual={a} anterior={b} />
             </div>
           </div>
           <span className={`ml-2 flex h-7 w-7 flex-none items-center justify-center rounded-[7px] ${tom === "success" ? "bg-success-soft text-success" : tom === "neutral" ? "bg-surface text-sub" : "bg-accent-soft text-accent-forte"}`}>
@@ -102,6 +179,7 @@ function ResumoFunilCompacto({ abertos, ganhos, total }) {
           </span>
         </div>
       ))}
+    </div>
     </div>
   );
 }
@@ -120,12 +198,15 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
     const t = termo.trim().toLowerCase();
     return contatos
       .filter((c) => !t || `${c.nome || ""} ${c.empresa || ""} ${c.telefone || ""}`.toLowerCase().includes(t))
-      .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"))
+      // Leads primeiro: negócio é para lead. O contato comum continua na
+      // lista porque escolhê-lo é o jeito de transformá-lo em lead.
+      .sort((a, b) => Number(ehLead(b)) - Number(ehLead(a)) || (a.nome || "").localeCompare(b.nome || "", "pt-BR"))
       .slice(0, 8);
   }, [contatos, termo]);
 
   if (escolhido && !aberto) {
     return (
+      <div>
       <div className="flex items-center gap-2 rounded-[8px] border border-line bg-bg px-2.5 py-1.5">
         <Iniciais nome={escolhido.nome} tamanho={24} />
         <div className="min-w-0 flex-1">
@@ -141,6 +222,16 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
         >
           Trocar
         </button>
+      </div>
+      {!ehLead(escolhido) && (
+        <p className="mt-1.5 flex items-start gap-1.5 rounded-[8px] bg-warning/10 px-2.5 py-2 text-[12px] leading-[17px] text-fg">
+          <UserPlus size={14} className="mt-[1px] flex-none text-warning" />
+          <span>
+            <strong className="font-semibold">{escolhido.nome || "Este contato"}</strong> ainda não é lead.
+            Ao salvar o negócio, ele passa a ser lead.
+          </span>
+        </p>
+      )}
       </div>
     );
   }
@@ -180,6 +271,7 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
               <Iniciais nome={c.nome} tamanho={22} />
               <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{c.nome || "Sem nome"}</span>
               {c.empresa && <span className="truncate text-[11px] text-faint">{c.empresa}</span>}
+              {!ehLead(c) && <span className="flex-none rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-medium text-sub">Contato</span>}
             </button>
           </li>
         ))}
@@ -558,7 +650,7 @@ function Coluna({ coluna, negocios, total, destacada, aoEntrar, aoSair, aoSoltar
   );
 }
 
-export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoConsumirComando }) {
+export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoConsumirComando, aoVerRelatorios }) {
   const { contatos, negocios, estagios } = dados;
   const [busca, setBusca] = useState("");
   const [filtroOrigem, setFiltroOrigem] = useState("");
@@ -632,7 +724,6 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
   }, [busca, contatos, contatosPorId, filtroOrigem, filtroResponsavel, visiveis]);
 
   const abertos = visiveis.filter((n) => colunaDoNegocio(n, idFechado).startsWith("estagio:"));
-  const ganhos = visiveis.filter((n) => colunaDoNegocio(n, idFechado) === COLUNA_GANHO);
 
   const aplicar = async (negocio, patch) => {
     setErro(null);
@@ -680,7 +771,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-5 py-3">
         <div className="flex flex-col gap-3">
-          <ResumoFunilCompacto abertos={abertos} ganhos={ganhos} total={visiveis.length} />
+          <ResumoFunilCompacto dados={dados} negocios={visiveis} abertos={abertos} aoVerRelatorios={aoVerRelatorios} />
 
           <div className="flex flex-wrap items-center gap-1.5 rounded-[9px] border border-line bg-bg px-2 py-1.5">
             <span className="mr-1 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">

@@ -32,8 +32,10 @@ const inicioDoMes = (ano, mes) => new Date(ano, mes, 1).getTime();
 export const PRESETS = [
   { id: "mes", rotulo: "Este mês" },
   { id: "mes-anterior", rotulo: "Mês passado" },
-  { id: "30d", rotulo: "Últimos 30 dias" },
-  { id: "90d", rotulo: "Últimos 90 dias" },
+  { id: "15d", rotulo: "15 dias" },
+  { id: "30d", rotulo: "30 dias" },
+  { id: "60d", rotulo: "60 dias" },
+  { id: "90d", rotulo: "90 dias" },
   { id: "ano", rotulo: "Este ano" },
 ];
 
@@ -68,7 +70,8 @@ export function periodoDoPreset(id, agora = Date.now()) {
   if (id === "ano") {
     return { inicio: inicioDoMes(ano, 0), fim: inicioDoMes(ano + 1, 0), anterior: { inicio: inicioDoMes(ano - 1, 0), fim: inicioDoMes(ano, 0) } };
   }
-  const dias = id === "90d" ? 90 : 30;
+  // "15d", "60d"...: os últimos N dias, contando hoje.
+  const dias = Number.parseInt(id, 10) || 30;
   const inicio = new Date(ano, mes, d.getDate() + 1 - dias).getTime();
   return { inicio, fim: amanha, anterior: periodoAnteriorDe(inicio, amanha) };
 }

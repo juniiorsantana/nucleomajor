@@ -992,6 +992,13 @@ três rodadas de tentativa e erro.
   Motivo: o número da empresa também é pessoal, e com o agente de clientes em
   `active` um amigo do dono recebeu três cumprimentos e uma transferência
   falsa (11/09/2026). Mudar o rollout para `pilot` bloquearia os leads.
+- `20260926150000_lead_e_uma_marca_do_contato.sql` aplicada em 24/09/2026
+  por `supabase db query --linked -f`, depois de dois ensaios com rollback
+  forçado (`raise exception` no fim). Conferida por consulta: 4 contatos com
+  `lead_at` e 8 sem (os que o chatbot, a IA e o "não atender IA"
+  cadastraram), `deal_stage_history` criada, 7 triggers, nenhum negócio
+  fechado sem `closed_at`, etapas "Lead" e "Em contato". Contato ≠ lead ≠
+  negócio: ver o cabeçalho da migration.
 
 ## Dívidas de menor privilégio (FASES E e F)
 

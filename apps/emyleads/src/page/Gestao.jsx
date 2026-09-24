@@ -606,6 +606,12 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const consumirComando = () => setComando(null);
   const editorDeChatbotAberto = tela === "chatbots" && chatbotEditando !== undefined;
 
+  // Contato que o sistema cadastrou sozinho vira lead por decisão de alguém.
+  const marcarComoLead = async (contato) => {
+    await api.contatos.atualizar({ id: contato.id, patch: { lead: true } });
+    await carregar();
+  };
+
   const atualizarEtiquetasDoContato = async (contatoId, tags) => {
     await api.contatos.atualizar({ id: contatoId, patch: { tags } });
     await carregar();
@@ -765,6 +771,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               // aparecesse só num dos dois já estaria marcado.
               aoNovoContato={(preenchido) => setEditando(preenchido || null)}
               aoAtualizarEtiquetas={atualizarEtiquetasDoContato}
+              aoMarcarLead={marcarComoLead}
               aoCriarEtiqueta={criarEtiqueta}
               aoConsultarAtendimentoIA={consultarAtendimentoIA}
               aoDefinirAtendimentoIA={definirAtendimentoIA}
@@ -807,6 +814,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             aoAbrirContato={abrirFicha}
             comando={comando}
             aoConsumirComando={consumirComando}
+            aoVerRelatorios={PLATAFORMA_WEB ? () => trocarTela("relatorios") : undefined}
           />
         ) : tela === "relatorios" ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando relatórios…</div>}>
@@ -874,6 +882,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           estagios={dados.estagios}
           aoFechar={() => setFicha(null)}
           aoEditar={editarFicha}
+          aoMarcarLead={() => marcarComoLead(fichaAtualizada)}
           aoCriarNegocio={criarNegocio}
           aoCriarTarefa={criarTarefa}
           aoCriarNota={() => setNotaContato(fichaAtualizada)}
