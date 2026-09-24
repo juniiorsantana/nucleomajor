@@ -152,10 +152,19 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
         <input
           value={termo}
           onChange={(e) => setTermo(e.target.value)}
-          placeholder="Buscar lead por nome, empresa ou telefone"
+          autoFocus={!!valor}
+          placeholder="Digite o nome, empresa ou telefone do lead"
           className="w-full bg-transparent py-2 text-[13px] text-fg outline-none"
         />
       </div>
+      {/* A lista só abre depois da primeira letra: aberta de cara, ela
+          despejava todos os leads no formulário antes de qualquer busca. */}
+      {contatos.length === 0 && (
+        <p className="border-t border-line px-3 py-3 text-center text-[12px] text-faint">
+          Nenhum lead salvo ainda. Crie um lead pela conversa.
+        </p>
+      )}
+      {contatos.length > 0 && termo.trim() && (
       <ul className="max-h-[208px] overflow-y-auto border-t border-line py-1">
         {opcoes.map((c) => (
           <li key={c.id}>
@@ -175,11 +184,10 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
           </li>
         ))}
         {opcoes.length === 0 && (
-          <li className="px-3 py-3 text-center text-[12px] text-faint">
-            {contatos.length === 0 ? "Nenhum lead salvo ainda. Crie um lead pela conversa." : "Nenhum lead com esse nome."}
-          </li>
+          <li className="px-3 py-3 text-center text-[12px] text-faint">Nenhum lead com esse nome.</li>
         )}
       </ul>
+      )}
     </div>
   );
 }
