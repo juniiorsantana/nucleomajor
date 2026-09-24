@@ -992,7 +992,8 @@ três rodadas de tentativa e erro.
   Motivo: o número da empresa também é pessoal, e com o agente de clientes em
   `active` um amigo do dono recebeu três cumprimentos e uma transferência
   falsa (11/09/2026). Mudar o rollout para `pilot` bloquearia os leads.
-- `20260926150000_lead_e_uma_marca_do_contato.sql` aplicada em 24/09/2026
+- `20260926170000_lead_e_uma_marca_do_contato.sql` (criada como 20260926150000,
+  renumerada porque a `main` já tinha outra migration com esse número) aplicada em 24/09/2026
   por `supabase db query --linked -f`, depois de dois ensaios com rollback
   forçado (`raise exception` no fim). Conferida por consulta: 4 contatos com
   `lead_at` e 8 sem (os que o chatbot, a IA e o "não atender IA"

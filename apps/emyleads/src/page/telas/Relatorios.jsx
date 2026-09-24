@@ -19,7 +19,7 @@ import {
  * quem lê precisa saber qual das duas perguntas o número responde.
  *
  * Tudo sai do que o portal já carrega (`dados`), mais o histórico de etapas,
- * que só existe depois da migration 20260926150000. Sem ele o funil ainda
+ * que só existe depois da migration 20260926170000. Sem ele o funil ainda
  * funciona pela etapa atual; só o negócio perdido que passou por Proposta
  * deixa de aparecer nesse degrau.
  */

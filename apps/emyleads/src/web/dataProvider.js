@@ -25,7 +25,7 @@ function contato(row) {
     tags: (row.contact_tags || []).map((item) => item.tag_id),
     criadoEm: epoch(row.created_at) || Date.now(), atualizadoEm: epoch(row.updated_at) || Date.now(),
     // Quando virou lead; nulo é contato. `undefined` quer dizer que o banco
-    // ainda não tem a coluna (migration 20260926150000 não aplicada), e os
+    // ainda não tem a coluna (migration 20260926170000 não aplicada), e os
     // Relatórios avisam em vez de contar zero.
     leadEm: row.lead_at === undefined ? undefined : epoch(row.lead_at),
   };

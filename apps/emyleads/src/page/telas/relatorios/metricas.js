@@ -124,7 +124,7 @@ export function foiGanho(negocio, idFechado) {
 }
 
 /**
- * Quando fechou. `fechadoEm` vem do banco (migration 20260926150000); antes
+ * Quando fechou. `fechadoEm` vem do banco (migration 20260926170000); antes
  * dela só há `atualizadoEm`, que muda a cada edição — por isso `aproximado`.
  */
 export function dataDoFechamento(negocio, idFechado) {

@@ -1,3 +1,7 @@
+> **Documento histórico (última atualização em 05/09/2026).** O estado atual, as
+> regras e as pendências estão em [`CLAUDE.md`](../CLAUDE.md), na raiz. Este arquivo
+> continua útil para a arquitetura multi-agent (FASES A–F) e as fases 12D–18.
+
 # Handoff — EmyLeads / Central de Inteligência multi-agent
 
 Atualizado em 05/09/2026 após a consolidação da 12C.1.8. Branch:
