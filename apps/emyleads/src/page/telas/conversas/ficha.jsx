@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   Check,
   DollarSign,
+  Play,
   Plus,
   SquareCheckBig,
   StickyNote,
@@ -139,6 +140,71 @@ const ATALHOS_DA_FICHA = [
   { id: "nota", rotulo: "Nota", icone: StickyNote },
   { id: "negocio", rotulo: "Negócio", icone: DollarSign },
 ];
+
+/**
+ * "Iniciar fluxo": o disparo manual de um fluxo de follow-up.
+ *
+ * Só aparece quando o contato está salvo e existe fluxo ativo com gatilho
+ * manual. O pedido vai para a fila da VPS, que roda o fluxo como robô — mesmo
+ * que o contato tenha a etiqueta "Não atender IA", porque foi alguém da equipe
+ * que escolheu. Um contato por vez, de propósito: isto não é disparo em massa.
+ */
+function IniciarFluxo({ contato, fluxos, aoIniciar }) {
+  const [escolhido, setEscolhido] = useState("");
+  const [estado, setEstado] = useState({ tipo: "parado", texto: "" });
+
+  // A lista é recriada a cada render; o que importa é quais fluxos existem.
+  const ids = fluxos.map((fluxo) => fluxo.id).join(",");
+  useEffect(() => {
+    setEscolhido(ids.split(",")[0] || "");
+    setEstado({ tipo: "parado", texto: "" });
+  }, [contato?.id, ids]);
+
+  if (!contato || !fluxos.length || !aoIniciar) return null;
+
+  const iniciar = async () => {
+    const fluxo = fluxos.find((item) => item.id === escolhido);
+    if (!fluxo) return;
+    setEstado({ tipo: "enviando", texto: "" });
+    try {
+      await aoIniciar({ contato, chatbotId: fluxo.remoteId || fluxo.id });
+      setEstado({ tipo: "ok", texto: `“${fluxo.nome}” vai começar em instantes.` });
+    } catch (erro) {
+      setEstado({ tipo: "erro", texto: erro?.message || "Não foi possível iniciar o fluxo." });
+    }
+  };
+
+  return (
+    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+      <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Iniciar fluxo</span>
+      <div className="mt-2 flex items-center gap-1.5">
+        <select
+          value={escolhido}
+          onChange={(event) => { setEscolhido(event.target.value); setEstado({ tipo: "parado", texto: "" }); }}
+          aria-label="Fluxo para iniciar"
+          className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+        >
+          {fluxos.map((fluxo) => <option key={fluxo.id} value={fluxo.id}>{fluxo.nome}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={iniciar}
+          disabled={estado.tipo === "enviando" || !escolhido}
+          title="Iniciar este fluxo para o contato"
+          className="flex h-[30px] flex-none cursor-pointer items-center gap-1 rounded-[8px] bg-accent px-2.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+        >
+          <Play size={12} strokeWidth={2.4} />
+          {estado.tipo === "enviando" ? "Iniciando…" : "Iniciar"}
+        </button>
+      </div>
+      {estado.texto && (
+        <p role="status" className={`mt-1.5 text-[11px] leading-[16px] ${estado.tipo === "erro" ? "text-danger" : "text-sub"}`}>
+          {estado.texto}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function Linha({ rotulo, children }) {
   return (
@@ -281,6 +347,8 @@ export function FichaLateral({
   aoCriarEtiqueta,
   aoConsultarAtendimentoIA,
   aoDefinirAtendimentoIA,
+  fluxosManuais = [],
+  aoIniciarFluxo,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -330,6 +398,8 @@ export function FichaLateral({
             aoDefinir={aoDefinirAtendimentoIA}
           />
         )}
+
+        <IniciarFluxo contato={contato} fluxos={fluxosManuais} aoIniciar={aoIniciarFluxo} />
 
         <div className="mt-3.5 grid grid-cols-4 gap-1.5">
           {ATALHOS_DA_FICHA.map((a) => (

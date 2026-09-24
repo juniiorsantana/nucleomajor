@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import { CircleStop, GitBranch, MessageSquareText, Plus, Radio, Share2, Split, Tags } from "lucide-react";
+import { CircleStop, ListChecks, MessageSquareText, Plus, Radio, Share2, Split, Tags, TextCursorInput } from "lucide-react";
 import { ROTULOS_SAIDA } from "../../domain/chatbots";
 
 /**
@@ -46,12 +46,13 @@ function SaidaUnica({ saida = "padrao", livre, aoPedirBloco }) {
 }
 
 /** Várias saídas: uma linha por caminho, e a porta alinhada à linha. */
-function SaidasNomeadas({ saidas, aoPedirBloco }) {
+function SaidasNomeadas({ saidas, rotulos = {}, aoPedirBloco }) {
   return (
     <div className="flow-node__saidas">
       {saidas.map(({ nome, livre }) => (
         <div key={nome} className={`flow-saida flow-saida--${nome}`}>
-          <span className="flow-saida__rotulo">{ROTULOS_SAIDA[nome] || nome}</span>
+          {/* A opção de uma pergunta tem id próprio; o nome dela vem do bloco. */}
+          <span className="flow-saida__rotulo">{rotulos[nome] || ROTULOS_SAIDA[nome] || nome}</span>
           <div className="flow-port-grupo flow-port-grupo--linha">
             <Handle type="source" position={Position.Right} id={nome} className="flow-port flow-port--out" />
             {livre && <BotaoMais saida={nome} aoPedirBloco={aoPedirBloco} />}
@@ -90,18 +91,36 @@ export function NoEntrada({ data, selected }) {
   );
 }
 
+/**
+ * O início do fluxo: um cartão só (Etapa 7).
+ *
+ * "Disparo" e "Filtro" eram dois cartões fixos que todo fluxo novo trazia. No
+ * dado os dois nós continuam (`entrada` → `condicoes`, é o que o banco
+ * valida), mas o mapa mostra um cartão: o gatilho de verdade no título e as
+ * condições embaixo — só quando o gatilho é uma mensagem, porque os outros
+ * começam o fluxo sem conferir condição.
+ */
 export function NoCondicoes({ data, selected }) {
+  const comMensagem = data.comMensagem !== false;
   return (
-    <article className={`flow-node flow-node--condicoes ${selected ? "is-selected" : ""}`}>
-      <PortaEntrada />
-      <CabecalhoNo icone={GitBranch} categoria="Filtro" tom="condicao" />
+    <article className={`flow-node flow-node--condicoes flow-node--inicio ${selected ? "is-selected" : ""}`}>
+      <CabecalhoNo icone={Radio} categoria="Início" tom="entrada" />
       <div className="flow-node__body">
-        <strong>Condições</strong>
-        <p>{data.quantidade ? `${data.quantidade} regra${data.quantidade === 1 ? "" : "s"} · todas devem atender` : "Nenhuma regra configurada"}</p>
-        <div className="flow-node__chips">
-          {(data.resumos || []).slice(0, 2).map((resumo) => <span key={resumo}>{resumo}</span>)}
-          {(data.resumos || []).length > 2 && <span>+{data.resumos.length - 2}</span>}
-        </div>
+        <strong>{data.gatilho || "Nova mensagem"}</strong>
+        {comMensagem ? (
+          <>
+            <p>{data.quantidade ? `${data.quantidade} condiç${data.quantidade === 1 ? "ão" : "ões"} · todas devem atender` : "Sem condições"}</p>
+            <div className="flow-node__chips">
+              {(data.resumos || []).slice(0, 2).map((resumo) => <span key={resumo}>{resumo}</span>)}
+              {(data.resumos || []).length > 2 && <span>+{data.resumos.length - 2}</span>}
+            </div>
+          </>
+        ) : (
+          <p>Começa direto, sem conferir condições</p>
+        )}
+        <span className={`flow-node__status ${data.ativo ? "is-active" : ""}`}>
+          <i /> {data.ativo ? "Fluxo ativo" : "Fluxo pausado"}
+        </span>
       </div>
       <SaidaUnica livre={data.livres?.includes("padrao")} aoPedirBloco={data.aoPedirBloco} />
     </article>
@@ -114,6 +133,8 @@ const APARENCIA = {
   transferir: { icone: Share2, categoria: "Transferência", tom: "transferencia", titulo: "Transferir conversa" },
   condicao: { icone: Split, categoria: "Decisão", tom: "condicao", titulo: "Condição" },
   encerrar: { icone: CircleStop, categoria: "Fim", tom: "encerrar", titulo: "Encerrar" },
+  perguntar: { icone: ListChecks, categoria: "Pergunta", tom: "pergunta", titulo: "Pedir para escolher" },
+  coletar: { icone: TextCursorInput, categoria: "Pergunta", tom: "pergunta", titulo: "Pedir para digitar" },
 };
 
 export function NoAcao({ data, selected }) {
@@ -134,6 +155,7 @@ export function NoAcao({ data, selected }) {
         {saidas.length > 1 && (
           <SaidasNomeadas
             saidas={saidas.map((nome) => ({ nome, livre: livres.has(nome) }))}
+            rotulos={data.rotulos}
             aoPedirBloco={data.aoPedirBloco}
           />
         )}

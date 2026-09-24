@@ -427,3 +427,10 @@
   .flow-port-mais,
   .chatbot-flow .flow-fio { transition: none; }
 }
+
+/* Etapa 6: os blocos que perguntam. */
+.flow-node__icon--pergunta { color: var(--el-info, #0ea5e9); background: color-mix(in srgb, var(--el-info, #0ea5e9) 12%, transparent); }
+.flow-saida--nao_resolvido::before { background: var(--el-warning); }
+
+/* Etapa 7: o início é um cartão só; o nó de disparo continua no dado, escondido. */
+.flow-node--inicio .flow-node__status { margin-top: 8px; }

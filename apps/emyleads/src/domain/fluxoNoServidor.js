@@ -9,7 +9,9 @@
  *
  * Por isso cada regra aqui tem par exato nas migrations
  * `20260907010000_fluxos_execucao_persistida.sql` e
- * `20260925110000_fluxos_com_dia_e_horario.sql` (dia da semana e horário).
+ * `20260925110000_fluxos_com_dia_e_horario.sql` (dia da semana e horário) e
+ * `20260926120000_o_fluxo_pergunta_e_tem_gatilhos.sql` (perguntar, coletar e
+ * gatilho).
  * Mudou lá, muda aqui — e roda de novo scripts/sql/prova-conferencia-do-editor.py.
  *
  * Devolve `null` quando o servidor aceitaria, ou a primeira recusa em
@@ -17,7 +19,7 @@
  */
 
 import { NO_CONDICOES, NO_ENTRADA, SAIDA_PADRAO } from "./chatbotGrafo.js";
-import { DESTINOS_TRANSFERENCIA, TIPOS_PASSO, saidasDoPasso } from "./chatbots.js";
+import { DESTINOS_TRANSFERENCIA, TIPOS_GATILHO, TIPOS_PASSO, rotuloDaSaida, saidasDoPasso } from "./chatbots.js";
 import { FUSOS_DO_BRASIL, horaValida, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "./regras.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,6 +45,8 @@ const NOMES = {
   [TIPOS_PASSO.condicao]: "Condição",
   [TIPOS_PASSO.encerrar]: "Encerrar",
   [TIPOS_PASSO.transferir]: "Transferir conversa",
+  [TIPOS_PASSO.perguntar]: "Pedir para escolher",
+  [TIPOS_PASSO.coletar]: "Pedir para digitar",
 };
 const nomeDoBloco = (passo) => `“${NOMES[passo?.tipo] || "bloco"}”`;
 
@@ -100,8 +104,71 @@ function problemaDaExpressao(expressao, onde, profundidade = 0) {
   return null;
 }
 
+const ID_DE_OPCAO = /^[a-z0-9_-]{1,40}$/;
+const VARIAVEL = /^[a-z][a-z0-9_]{0,39}$/;
+const inteiroEntre = (valor, minimo, maximo) => Number.isInteger(valor) && valor >= minimo && valor <= maximo;
+
+/** `flow_validate_question`: o bloco que pergunta. */
+function problemaDaPergunta(passo, nome) {
+  const tamanho = String(passo.texto || "").trim().length;
+  if (!tamanho) return `Escreva a pergunta do bloco ${nome}.`;
+  if (tamanho > LIMITES_DO_SERVIDOR.texto) return `A pergunta do bloco ${nome} passa de ${LIMITES_DO_SERVIDOR.texto} caracteres.`;
+  if (Object.hasOwn(passo, "prazoHoras") && !inteiroEntre(passo.prazoHoras, 1, 168))
+    return `O prazo do bloco ${nome} precisa ficar entre 1 e 168 horas.`;
+  if (passo.tipo === TIPOS_PASSO.coletar) {
+    if (!VARIAVEL.test(String(passo.variavel || "")))
+      return `O nome da variável do bloco ${nome} usa só letras minúsculas, números e _, e começa com letra.`;
+    return null;
+  }
+  if (Object.hasOwn(passo, "tentativas") && !inteiroEntre(passo.tentativas, 1, 5))
+    return `As tentativas do bloco ${nome} precisam ficar entre 1 e 5.`;
+  const opcoes = passo.opcoes;
+  if (!Array.isArray(opcoes) || opcoes.length < 1) return `Adicione ao menos uma opção no bloco ${nome}.`;
+  if (opcoes.length > 10) return `O bloco ${nome} passa de 10 opções.`;
+  const ids = new Set();
+  for (const opcao of opcoes) {
+    if (!opcao || typeof opcao !== "object" || !ID_DE_OPCAO.test(String(opcao.id || ""))
+      || ["nao_resolvido", "padrao"].includes(opcao.id) || ids.has(opcao.id))
+      return `Existe uma opção com identificação inválida no bloco ${nome}. Remova e crie a opção de novo.`;
+    ids.add(opcao.id);
+    const rotulo = String(opcao.rotulo || "").trim().length;
+    if (!rotulo) return `Dê um nome a todas as opções do bloco ${nome}.`;
+    if (rotulo > 100) return `Uma opção do bloco ${nome} passa de 100 caracteres.`;
+    if (Object.hasOwn(opcao, "sinonimos")) {
+      if (!Array.isArray(opcao.sinonimos) || opcao.sinonimos.length > 20)
+        return `Uma opção do bloco ${nome} tem sinônimos demais (até 20).`;
+      if (opcao.sinonimos.some((item) => typeof item !== "string" || !item.trim() || item.trim().length > 60))
+        return `Os sinônimos do bloco ${nome} têm de 1 a 60 caracteres.`;
+    }
+  }
+  return null;
+}
+
+/** `flow_validate_trigger`: como o fluxo começa. */
+export function problemaDoGatilho(gatilho) {
+  if (gatilho == null) return null;
+  if (typeof gatilho !== "object" || Array.isArray(gatilho)) return "O gatilho do fluxo é inválido.";
+  if (!Object.values(TIPOS_GATILHO).includes(gatilho.tipo)) return "Escolha como o fluxo começa.";
+  if (gatilho.tipo === TIPOS_GATILHO.palavra) {
+    const palavras = gatilho.palavras;
+    if (!Array.isArray(palavras) || palavras.length < 1) return "Informe ao menos uma palavra que começa o fluxo.";
+    if (palavras.length > 20) return "O gatilho aceita até 20 palavras.";
+    if (palavras.some((item) => typeof item !== "string" || !item.trim() || item.trim().length > 60))
+      return "Cada palavra do gatilho tem de 1 a 60 caracteres.";
+  }
+  if (gatilho.tipo === TIPOS_GATILHO.etiqueta && !UUID.test(String(gatilho.etiquetaId || "")))
+    return "Escolha a etiqueta que começa o fluxo.";
+  if (gatilho.tipo === TIPOS_GATILHO.etapa && !UUID.test(String(gatilho.stageId || "")))
+    return "Escolha a etapa do funil que começa o fluxo.";
+  if (gatilho.tipo === TIPOS_GATILHO.campanha && !UUID.test(String(gatilho.campanhaId || "")))
+    return "Escolha a campanha que começa o fluxo.";
+  return null;
+}
+
 function problemaDoBloco(passo) {
   const nome = nomeDoBloco(passo);
+  if (passo.tipo === TIPOS_PASSO.perguntar || passo.tipo === TIPOS_PASSO.coletar)
+    return problemaDaPergunta(passo, nome);
   if (passo.tipo === TIPOS_PASSO.enviarMensagem) {
     const tamanho = String(passo.texto || "").trim().length;
     if (!tamanho) return `Escreva a mensagem do bloco ${nome}.`;
@@ -156,6 +223,8 @@ export function problemaParaOServidor(definicao) {
 
   const problemaDaEntrada = problemaDaExpressao(definicao.condicoes, "O bloco “Condições”");
   if (problemaDaEntrada) return problemaDaEntrada;
+  const problemaDoInicio = problemaDoGatilho(definicao.gatilho);
+  if (problemaDoInicio) return problemaDoInicio;
 
   const porId = new Map([[NO_ENTRADA, null], [NO_CONDICOES, null]]);
   for (const passo of passos) {
@@ -179,8 +248,8 @@ export function problemaParaOServidor(definicao) {
     for (const porta of portas) {
       const daPorta = saindo.filter((conexao) => (conexao.saida || SAIDA_PADRAO) === porta);
       if (daPorta.length !== 1) {
-        const rotulo = { padrao: "Próximo", sim: "Sim", nao: "Não", sucesso: "Sucesso", falha: "Falha" }[porta] || porta;
-        return `Conecte a saída “${rotulo}” do bloco ${passo ? nomeDoBloco(passo) : "“Condições”"}.`;
+        const rotulo = passo ? rotuloDaSaida(passo, porta) : "Próximo";
+        return `Conecte a saída “${rotulo}” do bloco ${passo ? nomeDoBloco(passo) : "“Início”"}.`;
       }
     }
     if (saindo.length !== portas.length)

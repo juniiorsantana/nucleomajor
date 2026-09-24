@@ -166,6 +166,13 @@ const RECUSAS = [
   // quem está mandando; "não achei" quase sempre é um upload que falhou no
   // meio, e a saída é anexar de novo.
   ["media path is invalid", "O arquivo não chegou ao servidor. Anexe de novo."],
+  // O disparo manual de um fluxo (20260926120000).
+  ["contact unavailable", "Salve este contato antes de iniciar um fluxo para ele."],
+  ["flow unavailable", "Esse fluxo não está mais ativo ou deixou de ser iniciado pela equipe."],
+  [
+    "flow trigger unavailable",
+    "O fluxo não pôde começar: confira se o plano tem chatbots e se o WhatsApp está conectado.",
+  ],
   [
     "media type is not allowed",
     "Esse tipo de arquivo não pode ser enviado. Use JPG, PNG, WebP ou o áudio gravado aqui.",
@@ -675,6 +682,20 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       });
       if (error) throw erroConversas(traduzir(error.message), "conversas-atendimento-ia-falhou");
       return { atende: data?.optedOut !== true };
+    },
+
+    /**
+     * Alguém da equipe inicia um fluxo de gatilho manual (follow-up) para o
+     * contato. O banco enfileira o disparo e a VPS roda o fluxo; a tela só
+     * sabe que ficou na fila.
+     */
+    "conversas.iniciarFluxo": async ({ contatoId, chatbotId }) => {
+      const { data, error } = await supabase.rpc("nucleo_flow_trigger_manual", {
+        target_contact: contatoId,
+        target_chatbot: chatbotId,
+      });
+      if (error) throw erroConversas(traduzir(error.message), "conversas-fluxo-falhou");
+      return { enfileirado: Number(data?.queued || 0) > 0 };
     },
 
     /** O desfecho de um comando, para a tela parar de dizer "enviando". */

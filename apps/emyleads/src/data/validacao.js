@@ -234,6 +234,22 @@ export function validarPasso(passo, nome = "Passo") {
       throw erro(`${nome} não pode adicionar e remover a mesma etiqueta.`, nome);
   } else if (passo.tipo === TIPOS_PASSO.condicao) {
     validarExpressaoCondicional(passo.expressao, `${nome}.expressão`);
+  } else if (passo.tipo === TIPOS_PASSO.perguntar) {
+    texto(passo.texto, `${nome}.texto`, { vazio: true });
+    if (!Array.isArray(passo.opcoes)) throw erro(`${nome}.opcoes inválido.`, `${nome}.opcoes`);
+    const ids = new Set();
+    passo.opcoes.forEach((opcao, indice) => {
+      objeto(opcao, `${nome}.opcoes[${indice}]`);
+      if (typeof opcao.id !== "string" || !opcao.id || ids.has(opcao.id))
+        throw erro(`${nome}.opcoes[${indice}].id inválido.`, `${nome}.opcoes[${indice}].id`);
+      ids.add(opcao.id);
+      texto(opcao.rotulo, `${nome}.opcoes[${indice}].rotulo`, { vazio: true });
+      if (opcao.sinonimos !== undefined && !Array.isArray(opcao.sinonimos))
+        throw erro(`${nome}.opcoes[${indice}].sinonimos inválido.`, `${nome}.opcoes[${indice}].sinonimos`);
+    });
+  } else if (passo.tipo === TIPOS_PASSO.coletar) {
+    texto(passo.texto, `${nome}.texto`, { vazio: true });
+    texto(passo.variavel, `${nome}.variavel`, { vazio: true });
   } else if (passo.tipo === TIPOS_PASSO.encerrar) {
     // Bloco terminal sem configuração própria.
   } else if (passo.tipo === TIPOS_PASSO.transferir) {
@@ -264,6 +280,10 @@ export function validarChatbot(chatbot, nome = "Chatbot") {
   if (typeof chatbot.ativo !== "boolean") throw erro(`${nome}.ativo inválido.`, `${nome}.ativo`);
   if (!Array.isArray(chatbot.condicoes)) throw erro(`${nome}.condicoes inválido.`, `${nome}.condicoes`);
   if (!Array.isArray(chatbot.passos)) throw erro(`${nome}.passos inválido.`, `${nome}.passos`);
+  if (chatbot.gatilho !== undefined && chatbot.gatilho !== null) {
+    objeto(chatbot.gatilho, `${nome}.gatilho`);
+    texto(chatbot.gatilho.tipo, `${nome}.gatilho.tipo`);
+  }
   chatbot.condicoes.forEach((condicao, i) => validarCondicao(condicao, `${nome}.condicoes[${i}]`));
   chatbot.passos.forEach((passo, i) => validarPasso(passo, `${nome}.passos[${i}]`));
   listaUnica(chatbot.passos, `${nome}.passos`);

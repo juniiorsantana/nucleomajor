@@ -113,6 +113,8 @@ export default function Conversas({
   aoCriarEtiqueta,
   aoConsultarAtendimentoIA,
   aoDefinirAtendimentoIA,
+  fluxosManuais = [],
+  aoIniciarFluxo,
   aoAbrirConversa,
   sessao,
 }) {
@@ -577,6 +579,8 @@ export default function Conversas({
           aoCriarEtiqueta={aoCriarEtiqueta}
           aoConsultarAtendimentoIA={aoConsultarAtendimentoIA}
           aoDefinirAtendimentoIA={aoDefinirAtendimentoIA}
+          fluxosManuais={fluxosManuais}
+          aoIniciarFluxo={aoIniciarFluxo}
         />
       )}
 

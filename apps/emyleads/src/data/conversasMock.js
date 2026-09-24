@@ -387,6 +387,9 @@ export function criarOperacoesConversas({ listarContatos }) {
     /** Na bancada nada fica pendente: o comando já terminou quando foi pedido. */
     "conversas.desfecho": async () => ({ situacao: "completed", motivo: "" }),
 
+    /** Bancada: o disparo manual sempre entra na fila. */
+    "conversas.iniciarFluxo": async () => ({ enfileirado: true }),
+
     /** Bancada: quem está sem IA fica num conjunto em memória, como o banco guardaria. */
     "conversas.atendimentoIA": async ({ telefone }) => ({
       atende: !semIA.has(String(telefone || "").replace(/\D/g, "")),

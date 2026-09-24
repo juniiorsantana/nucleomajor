@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
+import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
 import { NOMES_DOS_PLANOS_COM_IA, planoLibera } from "./plano";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
@@ -120,11 +121,12 @@ export function telaDeEntrada(tela, recursos) {
 }
 
 function DisponivelNoPlano({ tela, recursos }) {
-  // Inteligência e Chatbots, para quem não tem IA nenhuma, continuam com o
-  // convite para mudar de plano. Qualquer outra trava é uma decisão da Major
-  // para aquela empresa, e o texto não pode prometer que trocar de plano
-  // resolve.
-  const semIA = ["conhecimento", "chatbots"].includes(tela) && !planoLibera(recursos, "inteligencia");
+  // Inteligência, para quem não tem IA nenhuma, continua com o convite para
+  // mudar de plano. Chatbots não: desde 23/09/2026 o construtor de fluxos faz
+  // parte de todos os planos, inclusive o Base, e chatbot desligado é decisão
+  // da Major para aquela empresa. Qualquer outra trava idem, e o texto não
+  // pode prometer que trocar de plano resolve.
+  const semIA = tela === "conhecimento" && !planoLibera(recursos, "inteligencia");
   return (
     <div className="flex flex-1 items-center justify-center p-8">
       <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
@@ -133,7 +135,7 @@ function DisponivelNoPlano({ tela, recursos }) {
             <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
             <p className="mt-2 text-[13px] leading-5 text-sub">
               O seu plano inclui WhatsApp no portal, contatos, funil, tarefas, agenda e equipe.
-              Agentes de IA e chatbots fazem parte dos planos {NOMES_DOS_PLANOS_COM_IA} — fale com a equipe do
+              Agentes de IA fazem parte dos planos {NOMES_DOS_PLANOS_COM_IA} — fale com a equipe do
               Núcleo Major para mudar de plano.
             </p>
           </>
@@ -638,6 +640,14 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
     return resultado;
   };
 
+  // Os fluxos que alguém da equipe inicia na conversa (follow-up). Só os do
+  // formato com caminhos têm gatilho; o banco confere de novo ao disparar.
+  const fluxosManuais = (dados.chatbots || []).filter(
+    (chatbot) => chatbot.ativo && chatbot.canvas?.versao === 3 && gatilhoDo(chatbot).tipo === TIPOS_GATILHO.manual,
+  );
+  const iniciarFluxo = ({ contato, chatbotId }) =>
+    api.conversas.iniciarFluxo({ contatoId: contato.remoteId || contato.id, chatbotId });
+
   return (
     <div className="portal-shell flex h-dvh bg-surface text-fg">
       {/*
@@ -752,6 +762,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               aoCriarEtiqueta={criarEtiqueta}
               aoConsultarAtendimentoIA={consultarAtendimentoIA}
               aoDefinirAtendimentoIA={definirAtendimentoIA}
+              fluxosManuais={fluxosManuais}
+              aoIniciarFluxo={iniciarFluxo}
               aoAbrirConversa={() => {
                 if (!menuRecolhido) alternarMenu();
               }}

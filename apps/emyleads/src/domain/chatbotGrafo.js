@@ -246,6 +246,8 @@ const TITULO_CURTO = (passo) =>
     [TIPOS_PASSO.condicao]: "Condição",
     [TIPOS_PASSO.encerrar]: "Encerrar",
     [TIPOS_PASSO.transferir]: "Transferir conversa",
+    [TIPOS_PASSO.perguntar]: "Pedir para escolher",
+    [TIPOS_PASSO.coletar]: "Pedir para digitar",
   })[passo?.tipo] || "bloco";
 
 /**

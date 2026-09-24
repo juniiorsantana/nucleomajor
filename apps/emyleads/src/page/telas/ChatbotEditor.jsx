@@ -19,6 +19,7 @@ import {
   CircleStop,
   Clock,
   LayoutDashboard,
+  ListChecks,
   MessageSquareText,
   Plus,
   Share2,
@@ -26,11 +27,24 @@ import {
   Split,
   Tag,
   Tags,
+  TextCursorInput,
   Trash2,
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
-import { ALVOS_IA, DESTINOS_TRANSFERENCIA, ROTULOS_SAIDA, TIPOS_PASSO, saidasDoPasso } from "../../domain/chatbots";
+import {
+  ALVOS_IA,
+  DESTINOS_TRANSFERENCIA,
+  GATILHOS_SEM_MENSAGEM,
+  ROTULOS_SAIDA,
+  TIPOS_GATILHO,
+  TIPOS_PASSO,
+  VARIAVEIS_RESERVADAS,
+  gatilhoDo,
+  novoIdDeOpcao,
+  rotuloDaSaida,
+  saidasDoPasso,
+} from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
 import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
 import { BotaoPrimario } from "../ui";
@@ -64,6 +78,8 @@ const TITULOS_PASSO = {
   [TIPOS_PASSO.transferir]: "Transferir conversa",
   [TIPOS_PASSO.condicao]: "Condição",
   [TIPOS_PASSO.encerrar]: "Encerrar",
+  [TIPOS_PASSO.perguntar]: "Pedir para escolher",
+  [TIPOS_PASSO.coletar]: "Pedir para digitar",
 };
 
 const DESTINOS = {
@@ -90,6 +106,8 @@ const BLOCOS = [
   { id: "atalho_etiqueta", tipo: TIPOS_PASSO.condicao, titulo: "Tem etiqueta", descricao: "Sim para quem tiver a etiqueta", icone: Tag, classe: "text-warning bg-warning/10", ramificado: true, regra: () => ({ tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }) },
   { id: "atalho_dias", tipo: TIPOS_PASSO.condicao, titulo: "Dias da semana", descricao: "Sim nos dias marcados", icone: CalendarDays, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeDias },
   { id: "atalho_horario", tipo: TIPOS_PASSO.condicao, titulo: "Horário", descricao: "Sim dentro do horário", icone: Clock, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeHorario },
+  { id: TIPOS_PASSO.perguntar, tipo: TIPOS_PASSO.perguntar, titulo: "Pedir para escolher", descricao: "Menu com opções numeradas", icone: ListChecks, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
+  { id: TIPOS_PASSO.coletar, tipo: TIPOS_PASSO.coletar, titulo: "Pedir para digitar", descricao: "Guarda a resposta do contato", icone: TextCursorInput, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
   { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
   { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: "text-sub bg-surface-hover", ramificado: true },
 ];
@@ -104,6 +122,15 @@ function passoVazio(tipo, regra = null) {
   if (tipo === TIPOS_PASSO.condicao)
     return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra() : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
   if (tipo === TIPOS_PASSO.encerrar) return { id: novoId(), tipo };
+  if (tipo === TIPOS_PASSO.perguntar)
+    return {
+      id: novoId(), tipo, texto: "", tentativas: 2, prazoHoras: 24,
+      opcoes: [
+        { id: novoIdDeOpcao(), rotulo: "", sinonimos: [] },
+        { id: novoIdDeOpcao(), rotulo: "", sinonimos: [] },
+      ],
+    };
+  if (tipo === TIPOS_PASSO.coletar) return { id: novoId(), tipo, texto: "", variavel: "resposta", prazoHoras: 24 };
   return { id: novoId(), tipo, adicionar: [], remover: [] };
 }
 
@@ -145,6 +172,222 @@ function resumoCondicao(condicao, tags, estagios) {
   }
 }
 
+/** O título do cartão de início: o gatilho de verdade, não um texto fixo. */
+function resumoDoGatilho(gatilho, { tags = [], estagios = [], campanhas = [] } = {}) {
+  switch (gatilho?.tipo) {
+    case TIPOS_GATILHO.palavra: {
+      const palavras = (gatilho.palavras || []).filter((item) => item.trim());
+      return palavras.length ? `Mensagem com “${palavras.slice(0, 2).join("”, “")}”${palavras.length > 2 ? "…" : ""}` : "Mensagem com palavra";
+    }
+    case TIPOS_GATILHO.manual:
+      return "Iniciado pela equipe";
+    case TIPOS_GATILHO.etiqueta:
+      return `Etiqueta ${tags.find((tag) => tag.id === gatilho.etiquetaId)?.nome || "não escolhida"} aplicada`;
+    case TIPOS_GATILHO.etapa:
+      return `Negócio entra em ${estagios.find((estagio) => estagio.id === gatilho.stageId)?.nome || "etapa não escolhida"}`;
+    case TIPOS_GATILHO.campanha:
+      return `Lead da campanha ${campanhas.find((campanha) => campanha.id === gatilho.campanhaId)?.name || "não escolhida"}`;
+    default:
+      return "Nova mensagem do contato";
+  }
+}
+
+/**
+ * Gatilho que não é mensagem começa sem conferir condição; o banco ainda exige
+ * uma na definição, e a de sempre fica guardada sem efeito.
+ */
+function condicoesParaGravar(form) {
+  if (form.condicoes.length || !GATILHOS_SEM_MENSAGEM.has(form.gatilho?.tipo)) return form.condicoes;
+  return [{ tipo: TIPOS_CONDICAO.primeiraConversa }];
+}
+
+/** Linhas em branco do gatilho por palavra não vão para o banco. */
+function gatilhoParaGravar(gatilho) {
+  if (gatilho?.tipo !== TIPOS_GATILHO.palavra) return gatilho;
+  return { ...gatilho, palavras: (gatilho.palavras || []).map((item) => item.trim()).filter(Boolean) };
+}
+
+/** O gatilho nasce completo ao trocar de tipo. */
+function gatilhoNovo(tipo) {
+  if (tipo === TIPOS_GATILHO.palavra) return { tipo, palavras: [""] };
+  if (tipo === TIPOS_GATILHO.etiqueta) return { tipo, etiquetaId: "" };
+  if (tipo === TIPOS_GATILHO.etapa) return { tipo, stageId: "" };
+  if (tipo === TIPOS_GATILHO.campanha) return { tipo, campanhaId: "" };
+  return { tipo };
+}
+
+const OPCOES_DE_GATILHO = [
+  [TIPOS_GATILHO.mensagem, "O contato manda uma mensagem"],
+  [TIPOS_GATILHO.palavra, "A mensagem tem uma palavra"],
+  [TIPOS_GATILHO.manual, "Alguém da equipe inicia (follow-up)", true],
+  [TIPOS_GATILHO.etiqueta, "Uma etiqueta é aplicada", true],
+  [TIPOS_GATILHO.etapa, "Um negócio muda de etapa do funil", true],
+  [TIPOS_GATILHO.campanha, "Um lead entra numa campanha", true],
+];
+
+/** Como o fluxo começa. Os que não dependem de mensagem só existem com caminhos. */
+function GatilhoEditor({ gatilho, ramificado, tags, estagios, campanhas, aoMudar }) {
+  const tipo = gatilho?.tipo || TIPOS_GATILHO.mensagem;
+  const palavras = gatilho?.palavras || [];
+  return (
+    <div className="grid gap-3">
+      <CampoFormulario rotulo="O fluxo começa quando">
+        <select value={tipo} onChange={(event) => aoMudar(gatilhoNovo(event.target.value))} className={entrada}>
+          {OPCOES_DE_GATILHO.filter(([, , soComCaminhos]) => ramificado || !soComCaminhos).map(([valor, rotulo]) => (
+            <option key={valor} value={valor}>{rotulo}</option>
+          ))}
+        </select>
+      </CampoFormulario>
+      {tipo === TIPOS_GATILHO.palavra && (
+        <CampoFormulario rotulo="Palavras ou frases">
+          <textarea
+            value={palavras.join("\n")}
+            onChange={(event) => aoMudar({ ...gatilho, palavras: event.target.value.split("\n").slice(0, 20) })}
+            rows={3}
+            placeholder={"quero saber\npromoção"}
+            className={`${entrada} resize-y leading-relaxed`}
+          />
+          <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">Uma por linha. Sem diferença entre maiúscula, minúscula ou acento. É assim que se separa o lead de cada anúncio: o “Clique para o WhatsApp” já manda o texto pronto.</p>
+        </CampoFormulario>
+      )}
+      {tipo === TIPOS_GATILHO.etiqueta && (
+        <CampoFormulario rotulo="Etiqueta">
+          <select value={gatilho.etiquetaId || ""} onChange={(event) => aoMudar({ ...gatilho, etiquetaId: event.target.value })} className={entrada}>
+            <option value="">Escolha a etiqueta</option>
+            {tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.nome}</option>)}
+          </select>
+        </CampoFormulario>
+      )}
+      {tipo === TIPOS_GATILHO.etapa && (
+        <CampoFormulario rotulo="Etapa do funil">
+          <select value={gatilho.stageId || ""} onChange={(event) => aoMudar({ ...gatilho, stageId: event.target.value })} className={entrada}>
+            <option value="">Escolha a etapa</option>
+            {estagios.map((estagio) => <option key={estagio.id} value={estagio.id}>{estagio.nome}</option>)}
+          </select>
+        </CampoFormulario>
+      )}
+      {tipo === TIPOS_GATILHO.campanha && (
+        <CampoFormulario rotulo="Campanha">
+          <select value={gatilho.campanhaId || ""} onChange={(event) => aoMudar({ ...gatilho, campanhaId: event.target.value })} className={entrada}>
+            <option value="">Escolha a campanha</option>
+            {campanhas.map((campanha) => <option key={campanha.id} value={campanha.id}>{campanha.name}</option>)}
+          </select>
+        </CampoFormulario>
+      )}
+      {GATILHOS_SEM_MENSAGEM.has(tipo) && (
+        <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
+          {tipo === TIPOS_GATILHO.manual
+            ? "O fluxo começa quando alguém da equipe o inicia na conversa, em “Iniciar fluxo”. Serve para follow-up: quem já conversou e parou de responder."
+            : "O fluxo começa sozinho quando isso acontece, mesmo que o contato não tenha escrito agora. Quem tem a etiqueta “Não atender IA” não recebe."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Pedir para escolher": a pergunta, as opções e o que fazer quando não entender. */
+function PerguntaEditor({ passo, aoMudar }) {
+  const opcoes = passo.opcoes || [];
+  const mudarOpcao = (id, patch) => aoMudar({ ...passo, opcoes: opcoes.map((opcao) => (opcao.id === id ? { ...opcao, ...patch } : opcao)) });
+  return (
+    <div className="grid gap-4">
+      <CampoFormulario rotulo="Pergunta">
+        <textarea
+          value={passo.texto}
+          onChange={(event) => aoMudar({ ...passo, texto: event.target.value })}
+          rows={4}
+          placeholder="Oi {nome}! Como posso ajudar?"
+          className={`${entrada} resize-y leading-relaxed`}
+        />
+        <p className="mt-1.5 text-[10.5px] text-faint">As opções vão numeradas logo abaixo da pergunta.</p>
+      </CampoFormulario>
+      <div>
+        <p className="text-[11px] font-semibold text-fg">Opções</p>
+        <div className="mt-2 grid gap-2">
+          {opcoes.map((opcao, indice) => (
+            <div key={opcao.id} className="rounded-[10px] border border-line bg-surface p-3">
+              <div className="flex items-center gap-2">
+                <span className="w-5 text-center text-[11px] font-bold text-faint">{indice + 1}</span>
+                <input
+                  value={opcao.rotulo}
+                  onChange={(event) => mudarOpcao(opcao.id, { rotulo: event.target.value })}
+                  maxLength={100}
+                  placeholder="Agendar consulta"
+                  className={`${entrada} min-w-0 flex-1 bg-bg`}
+                />
+                <button type="button" disabled={opcoes.length <= 1} onClick={() => aoMudar({ ...passo, opcoes: opcoes.filter((item) => item.id !== opcao.id) })} title="Remover opção" className="cursor-pointer rounded-[7px] p-2 text-sub hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-30"><Trash2 size={14} /></button>
+              </div>
+              <input
+                value={(opcao.sinonimos || []).join(", ")}
+                onChange={(event) => mudarOpcao(opcao.id, { sinonimos: event.target.value.split(",").map((item) => item.trimStart()).slice(0, 20) })}
+                placeholder="Outras formas de dizer: marcar, horário"
+                className={`${entrada} mt-2 bg-bg text-[12px]`}
+              />
+            </div>
+          ))}
+        </div>
+        {opcoes.length < 10 && (
+          <button type="button" onClick={() => aoMudar({ ...passo, opcoes: [...opcoes, { id: novoIdDeOpcao(), rotulo: "", sinonimos: [] }] })} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-line-strong py-2.5 text-[11.5px] font-semibold text-sub hover:border-accent hover:text-accent-forte">
+            <Plus size={14} /> Adicionar opção
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <CampoFormulario rotulo="Tentativas">
+          <select value={passo.tentativas ?? 2} onChange={(event) => aoMudar({ ...passo, tentativas: Number(event.target.value) })} className={entrada}>
+            {[1, 2, 3, 4, 5].map((valor) => <option key={valor} value={valor}>{valor}</option>)}
+          </select>
+        </CampoFormulario>
+        <CampoFormulario rotulo="Espera (horas)">
+          <input type="number" min={1} max={168} value={passo.prazoHoras ?? 24} onChange={(event) => aoMudar({ ...passo, prazoHoras: Math.max(1, Math.min(168, Math.trunc(Number(event.target.value) || 1))) })} className={entrada} />
+        </CampoFormulario>
+      </div>
+      <CampoFormulario rotulo="Quando não entender (opcional)">
+        <input value={passo.textoErro || ""} onChange={(event) => aoMudar({ ...passo, textoErro: event.target.value })} maxLength={1000} placeholder="Não entendi. Responda com o número de uma das opções:" className={entrada} />
+      </CampoFormulario>
+      <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
+        A resposta vale pelo número, pelo nome da opção, por uma palavra dela ou por um dos sinônimos. Sem entender depois das tentativas, ou sem resposta dentro da espera, a conversa segue por <strong>Não entendeu</strong>.
+      </div>
+    </div>
+  );
+}
+
+/** "Pedir para digitar": guarda a resposta numa variável. */
+function ColetaEditor({ passo, aoMudar }) {
+  const variavel = passo.variavel || "";
+  const reservada = VARIAVEIS_RESERVADAS.has(variavel);
+  return (
+    <div className="grid gap-4">
+      <CampoFormulario rotulo="Pergunta">
+        <textarea
+          value={passo.texto}
+          onChange={(event) => aoMudar({ ...passo, texto: event.target.value })}
+          rows={4}
+          placeholder="Qual é o seu melhor e-mail?"
+          className={`${entrada} resize-y leading-relaxed`}
+        />
+      </CampoFormulario>
+      <CampoFormulario rotulo="Guardar a resposta como">
+        <input
+          value={variavel}
+          onChange={(event) => aoMudar({ ...passo, variavel: event.target.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]+/g, "_").slice(0, 40) })}
+          placeholder="email_cliente"
+          className={entrada}
+        />
+        <p className={`mt-1.5 text-[10.5px] ${reservada ? "text-danger" : "text-faint"}`}>
+          {reservada ? `“${variavel}” já é do contato; escolha outro nome.` : <>Use nas mensagens seguintes como <code>{`{${variavel || "resposta"}}`}</code>.</>}
+        </p>
+      </CampoFormulario>
+      <CampoFormulario rotulo="Espera (horas)">
+        <input type="number" min={1} max={168} value={passo.prazoHoras ?? 24} onChange={(event) => aoMudar({ ...passo, prazoHoras: Math.max(1, Math.min(168, Math.trunc(Number(event.target.value) || 1))) })} className={entrada} />
+      </CampoFormulario>
+      <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
+        Quando o contato responder, a conversa segue por <strong>Respondeu</strong>. Sem resposta dentro da espera, segue por <strong>Não respondeu</strong>.
+      </div>
+    </div>
+  );
+}
+
 /** "Seg a Sex", "Sáb e Dom", "Seg, Qua, Sex" — em ordem de domingo a sábado. */
 function resumoDosDias(dias = []) {
   const marcados = [...new Set(dias)].filter((dia) => Number.isInteger(dia) && dia >= 0 && dia <= 6).sort();
@@ -170,6 +413,9 @@ function resumoPasso(passo, tags, estagios) {
     return grupo.itens.map((item) => resumoCondicao(item, tags, estagios)).join(juncao) || "Escolha a regra";
   }
   if (passo.tipo === TIPOS_PASSO.encerrar) return "A conversa segue sem o fluxo";
+  if (passo.tipo === TIPOS_PASSO.perguntar) return passo.texto?.trim() || "Escreva a pergunta e as opções";
+  if (passo.tipo === TIPOS_PASSO.coletar)
+    return passo.texto?.trim() ? `${passo.texto.trim()} → {${passo.variavel || "resposta"}}` : "Escreva o que perguntar";
   const adicionar = (passo.adicionar || []).map((id) => tags.find((tag) => tag.id === id)?.nome || id);
   const remover = (passo.remover || []).map((id) => tags.find((tag) => tag.id === id)?.nome || id);
   const partes = [];
@@ -411,49 +657,58 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
       <div className="border-b border-line px-4 py-4">
         <p className="text-[10px] font-bold uppercase tracking-[.14em] text-faint">Propriedades</p>
         <h2 className="mt-1 text-[14px] font-semibold text-fg">
-          {selecionado === NO_ENTRADA ? "Nova mensagem" : selecionado === NO_CONDICOES ? "Condições" : passo ? TITULOS_PASSO[passo.tipo] : "Selecione um bloco"}
+          {selecionado === NO_ENTRADA || selecionado === NO_CONDICOES ? "Início do fluxo" : passo ? TITULOS_PASSO[passo.tipo] : "Selecione um bloco"}
         </h2>
       </div>
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto p-4">
-        {selecionado === NO_ENTRADA ? (
+        {selecionado === NO_ENTRADA || selecionado === NO_CONDICOES ? (
           <div className="grid gap-4">
             <CampoFormulario rotulo="Nome do fluxo">
               <input value={form.nome} onChange={(event) => setForm((atual) => ({ ...atual, nome: event.target.value }))} className={entrada} />
             </CampoFormulario>
             <label className="flex cursor-pointer items-center justify-between rounded-[10px] border border-line bg-surface px-3 py-3">
               <span>
-                <strong className="block text-[12px] font-semibold text-fg">Resposta automática</strong>
-                <small className="mt-0.5 block text-[10.5px] text-sub">Executa quando as regras atenderem</small>
+                <strong className="block text-[12px] font-semibold text-fg">Fluxo ativo</strong>
+                <small className="mt-0.5 block text-[10.5px] text-sub">Desligado, ele não começa para ninguém</small>
               </span>
               <button type="button" role="switch" aria-checked={form.ativo} onClick={() => setForm((atual) => ({ ...atual, ativo: !atual.ativo }))} className={`relative h-6 w-11 cursor-pointer rounded-full transition-colors ${form.ativo ? "bg-accent" : "bg-line-strong"}`}>
                 <span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${form.ativo ? "translate-x-5" : "translate-x-0"}`} />
               </button>
             </label>
-            <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
-              O fluxo começa quando um contato conhecido envia uma nova mensagem individual.
-              {ramificado && " Ele roda no servidor da conexão de WhatsApp, mesmo com o portal fechado."}
-            </div>
-          </div>
-        ) : selecionado === NO_CONDICOES ? (
-          <div>
-            <p className="text-[11px] leading-relaxed text-sub">Todas as condições abaixo precisam ser verdadeiras para o fluxo começar.</p>
-            <div className="mt-3 grid gap-2">
-              {form.condicoes.map((condicao, indice) => (
-                <CondicaoEditor
-                  key={indice}
-                  ramificado={ramificado}
-                  condicao={condicao}
-                  tags={tags}
-                  estagios={estagios}
-                  aoMudar={(proxima) => setForm((atual) => ({ ...atual, condicoes: atual.condicoes.map((item, i) => i === indice ? proxima : item) }))}
-                  aoRemover={() => setForm((atual) => ({ ...atual, condicoes: atual.condicoes.filter((_, i) => i !== indice) }))}
-                />
-              ))}
-            </div>
-            <button type="button" onClick={() => setForm((atual) => ({ ...atual, condicoes: [...atual.condicoes, { tipo: TIPOS_CONDICAO.primeiraConversa }] }))} className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-line-strong py-2.5 text-[11.5px] font-semibold text-sub hover:border-accent hover:text-accent-forte">
-              <Plus size={14} /> Adicionar condição
-            </button>
+            <GatilhoEditor
+              gatilho={form.gatilho}
+              ramificado={ramificado}
+              tags={tags}
+              estagios={estagios}
+              campanhas={(inteligencia.campaigns || []).filter((campaign) => campaign.status !== "archived")}
+              aoMudar={(gatilho) => setForm((atual) => ({ ...atual, gatilho }))}
+            />
+            {!GATILHOS_SEM_MENSAGEM.has(form.gatilho?.tipo) && (
+              <div>
+                <p className="text-[11px] font-semibold text-fg">Condições</p>
+                <p className="mt-0.5 text-[10.5px] leading-relaxed text-sub">Todas precisam ser verdadeiras para o fluxo começar.</p>
+                <div className="mt-2 grid gap-2">
+                  {form.condicoes.map((condicao, indice) => (
+                    <CondicaoEditor
+                      key={indice}
+                      ramificado={ramificado}
+                      condicao={condicao}
+                      tags={tags}
+                      estagios={estagios}
+                      aoMudar={(proxima) => setForm((atual) => ({ ...atual, condicoes: atual.condicoes.map((item, i) => i === indice ? proxima : item) }))}
+                      aoRemover={() => setForm((atual) => ({ ...atual, condicoes: atual.condicoes.filter((_, i) => i !== indice) }))}
+                    />
+                  ))}
+                </div>
+                <button type="button" onClick={() => setForm((atual) => ({ ...atual, condicoes: [...atual.condicoes, { tipo: TIPOS_CONDICAO.primeiraConversa }] }))} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border border-dashed border-line-strong py-2.5 text-[11.5px] font-semibold text-sub hover:border-accent hover:text-accent-forte">
+                  <Plus size={14} /> Adicionar condição
+                </button>
+              </div>
+            )}
+            {ramificado && (
+              <p className="text-[10.5px] leading-relaxed text-faint">O fluxo roda no servidor da conexão de WhatsApp, mesmo com o portal fechado.</p>
+            )}
           </div>
         ) : passo ? (
           <div className="grid gap-4">
@@ -475,8 +730,17 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
                   placeholder="Olá {nome}! Como posso ajudar?"
                   className={`${entrada} resize-y leading-relaxed`}
                 />
-                <p className="mt-1.5 text-[10.5px] text-faint">Variáveis: <code>{"{nome}"}</code> e <code>{"{empresa}"}</code></p>
+                <p className="mt-1.5 text-[10.5px] text-faint">
+                  Variáveis: <code>{"{nome}"}</code>, <code>{"{empresa}"}</code>
+                  {passos.filter((item) => item.tipo === TIPOS_PASSO.coletar && item.variavel).map((item) => (
+                    <span key={item.id}>, <code>{`{${item.variavel}}`}</code></span>
+                  ))}
+                </p>
               </CampoFormulario>
+            ) : passo.tipo === TIPOS_PASSO.perguntar ? (
+              <PerguntaEditor passo={passo} aoMudar={atualizarPasso} />
+            ) : passo.tipo === TIPOS_PASSO.coletar ? (
+              <ColetaEditor passo={passo} aoMudar={atualizarPasso} />
             ) : passo.tipo === TIPOS_PASSO.condicao ? (
               <ExpressaoEditor expressao={passo.expressao} tags={tags} estagios={estagios} aoMudar={(expressao) => atualizarPasso({ ...passo, expressao })} />
             ) : passo.tipo === TIPOS_PASSO.encerrar ? (
@@ -614,6 +878,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         nome: chatbot?.nome || "Novo chatbot",
         ativo: chatbot?.ativo ?? true,
         condicoes: chatbot?.condicoes?.map((condicao) => ({ ...condicao })) || [{ tipo: TIPOS_CONDICAO.primeiraConversa }],
+        gatilho: { ...gatilhoDo(chatbot) },
       },
       passos,
       grafo: criarGrafoInicial(passos, chatbot?.canvas, { ramificado }),
@@ -625,7 +890,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const [conexoes, setConexoes, aoMudarConexoes] = useEdgesState(
     iniciais.grafo.conexoes.map((conexao) => novaConexao(conexao.source, conexao.target, conexao.saida))
   );
-  const [selecionado, setSelecionado] = useState(NO_ENTRADA);
+  const [selecionado, setSelecionado] = useState(NO_CONDICOES);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [seletor, setSeletor] = useState(null);
@@ -640,11 +905,12 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const pendencia = useMemo(() => {
     if (!ramificado) return caminho.erro;
     return problemaParaOServidor({
-      condicoes: form.condicoes,
+      condicoes: condicoesParaGravar(form),
+      gatilho: gatilhoParaGravar(form.gatilho),
       passos: passos.map(semDestinosEscondidos),
       canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
     });
-  }, [ramificado, caminho.erro, form.condicoes, passos, conexoes]);
+  }, [ramificado, caminho.erro, form, passos, conexoes]);
   const assinaturaInicial = useMemo(
     () => JSON.stringify({ form: iniciais.form, passos: iniciais.passos, canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao) }),
     [iniciais, versao]
@@ -673,12 +939,18 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
 
   const nosExibidos = useMemo(
     () => nos.map((no) => {
+      // O disparo continua no dado (o banco valida entrada → condições), mas o
+      // mapa mostra um cartão só de início.
       if (no.id === NO_ENTRADA)
-        return { ...no, data: { nome: form.nome, ativo: form.ativo } };
+        return { ...no, hidden: true, data: { nome: form.nome, ativo: form.ativo } };
       if (no.id === NO_CONDICOES)
         return {
           ...no,
+          deletable: false,
           data: {
+            gatilho: resumoDoGatilho(form.gatilho, { tags, estagios, campanhas: inteligencia.campaigns || [] }),
+            comMensagem: !GATILHOS_SEM_MENSAGEM.has(form.gatilho?.tipo),
+            ativo: form.ativo,
             quantidade: form.condicoes.length,
             resumos: form.condicoes.map((condicao) => resumoCondicao(condicao, tags, estagios)),
             livres: saidasLivres(NO_CONDICOES, [SAIDA_PADRAO]),
@@ -700,12 +972,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
           // No v2 a transferência para IA é terminal: as portas Sucesso/Falha
           // só existem quando há quem as execute.
           saidas: !ramificado && passo?.tipo === TIPOS_PASSO.transferir ? [] : saidas,
+          rotulos: passo ? Object.fromEntries(saidas.map((saida) => [saida, rotuloDaSaida(passo, saida)])) : {},
           livres: saidasLivres(no.id, saidas),
           aoPedirBloco: (saida, evento) => abrirSeletor(evento, { origem: { source: no.id, saida } }),
         },
       };
     }),
-    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado]
+    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado, inteligencia]
   );
 
   const focarFio = (id) => {
@@ -727,6 +1000,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       const acesa = selecionado && (conexao.source === selecionado || conexao.target === selecionado);
       return {
         ...conexao,
+        hidden: conexao.source === NO_ENTRADA,
         type: "fio",
         markerEnd: { type: MarkerType.ArrowClosed, color: acesa ? "var(--el-accent)" : "var(--el-line-strong)" },
         data: {
@@ -897,14 +1171,18 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
     setErro("");
     try {
       if (!form.nome.trim()) throw new Error("Informe um nome para o chatbot.");
-      if (!form.condicoes.length) throw new Error("Adicione ao menos uma condição.");
+      const condicoes = condicoesParaGravar(form);
+      if (!condicoes.length) throw new Error("Adicione ao menos uma condição.");
+      const gatilho = gatilhoParaGravar(form.gatilho);
+      if (passos.some((item) => item.tipo === TIPOS_PASSO.coletar && VARIAVEIS_RESERVADAS.has(item.variavel)))
+        throw new Error("“nome” e “empresa” já são do contato. Dê outro nome à variável do bloco “Pedir para digitar”.");
       if (!passos.length) throw new Error("Adicione ao menos um bloco de ação.");
       const passosGravados = ramificado ? passos.map(semDestinosEscondidos) : passos;
       const canvas = serializarCanvas(nos, conexoes, versao);
       if (ramificado) {
         // A mesma conferência que o servidor faz quando a conversa começa:
         // recusar agora, com o motivo, em vez de falhar na frente do cliente.
-        const problema = problemaParaOServidor({ condicoes: form.condicoes, passos: passosGravados, canvas });
+        const problema = problemaParaOServidor({ condicoes, gatilho, passos: passosGravados, canvas });
         if (problema) throw new Error(problema);
       }
       const validacao = validarGrafo(passosGravados, conexoes, { versao });
@@ -912,7 +1190,8 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       const dados = {
         nome: form.nome.trim(),
         ativo: form.ativo,
-        condicoes: form.condicoes,
+        condicoes,
+        gatilho,
         passos: validacao.passos,
         canvas,
       };
@@ -944,7 +1223,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             title={pendencia || undefined}
             className={`hidden rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${pendencia || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
           >
-            {pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 2} blocos conectados`}
+            {pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
           </span>
           <button type="button" onClick={organizar} className="flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg">
             <LayoutDashboard size={14} /> Organizar

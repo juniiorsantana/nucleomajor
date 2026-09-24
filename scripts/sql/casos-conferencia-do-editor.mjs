@@ -49,6 +49,47 @@ const semSaida = (d, source, saida) => {
   d.canvas.conexoes = d.canvas.conexoes.filter((c) => !(c.source === source && c.saida === saida));
 };
 
+/** Um menu: agendar vai para a mensagem, falar vai para a equipe, sem entender encerra. */
+function comPergunta(d) {
+  d.passos = [
+    {
+      id: "menu", tipo: "perguntar", texto: "Oi {nome}! Como posso ajudar?", tentativas: 2, prazoHoras: 24,
+      textoErro: "Responda com o número.",
+      opcoes: [
+        { id: "agendar", rotulo: "Agendar consulta", sinonimos: ["marcar", "horário"] },
+        { id: "falar", rotulo: "Falar com a equipe", sinonimos: [] },
+      ],
+    },
+    { id: "msg", tipo: "enviar_mensagem", texto: "Vou te passar os horários." },
+    { id: "gente", tipo: "transferir", destino: "humano", motivo: "" },
+    { id: "fim", tipo: "encerrar" },
+  ];
+  d.canvas.conexoes = [
+    { source: "entrada", saida: "padrao", target: "condicoes" },
+    { source: "condicoes", saida: "padrao", target: "menu" },
+    { source: "menu", saida: "agendar", target: "msg" },
+    { source: "menu", saida: "falar", target: "gente" },
+    { source: "menu", saida: "nao_resolvido", target: "fim" },
+    { source: "msg", saida: "padrao", target: "fim" },
+  ];
+}
+
+/** Pede o e-mail e usa a resposta na mensagem seguinte. */
+function comColeta(d) {
+  d.passos = [
+    { id: "email", tipo: "coletar", texto: "Qual é o seu e-mail?", variavel: "email_cliente", prazoHoras: 48 },
+    { id: "msg", tipo: "enviar_mensagem", texto: "Anotei {email_cliente}." },
+    { id: "fim", tipo: "encerrar" },
+  ];
+  d.canvas.conexoes = [
+    { source: "entrada", saida: "padrao", target: "condicoes" },
+    { source: "condicoes", saida: "padrao", target: "email" },
+    { source: "email", saida: "padrao", target: "msg" },
+    { source: "email", saida: "nao_resolvido", target: "fim" },
+    { source: "msg", saida: "padrao", target: "fim" },
+  ];
+}
+
 const mutacoes = {
   "valido: bifurcação, convergência, IA e encerrar": () => {},
   "valido: linear só com mensagem": (d) => {
@@ -126,6 +167,67 @@ const mutacoes = {
   "recusa: hora sem zero": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "8:00", fim: "18:00", fuso: "America/Sao_Paulo" }]; },
   "recusa: hora 24": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fim: "24:00", fuso: "America/Sao_Paulo" }]; },
   "recusa: janela sem fim": (d) => { passo(d, "cond").expressao.itens = [{ tipo: "janela_de_horario", inicio: "08:00", fuso: "America/Sao_Paulo" }]; },
+  // Perguntar, coletar e gatilho (20260926120000).
+  "valido: pergunta com duas opcoes": comPergunta,
+  "valido: pergunta sem campos opcionais": (d) => {
+    comPergunta(d);
+    const menu = passo(d, "menu");
+    delete menu.tentativas; delete menu.prazoHoras; delete menu.textoErro;
+    menu.opcoes.forEach((opcao) => delete opcao.sinonimos);
+  },
+  "valido: coletar e usar a variavel": comColeta,
+  "valido: gatilho palavra": (d) => { d.gatilho = { tipo: "palavra", palavras: ["quero saber", "promoção"] }; },
+  "valido: gatilho mensagem": (d) => { d.gatilho = { tipo: "mensagem" }; },
+  "valido: gatilho manual": (d) => { d.gatilho = { tipo: "manual" }; },
+  "valido: gatilho etiqueta": (d) => { d.gatilho = { tipo: "etiqueta", etiquetaId: VIP }; },
+  "valido: gatilho etapa": (d) => { d.gatilho = { tipo: "etapa", stageId: LEAD }; },
+  "valido: gatilho campanha": (d) => { d.gatilho = { tipo: "campanha", campanhaId: SKILL }; },
+  "recusa: pergunta sem texto": (d) => { comPergunta(d); passo(d, "menu").texto = "  "; },
+  "recusa: pergunta sem opcoes": (d) => {
+    comPergunta(d); passo(d, "menu").opcoes = [];
+    d.canvas.conexoes = d.canvas.conexoes.filter((c) => !(c.source === "menu" && c.saida !== "nao_resolvido"));
+  },
+  "recusa: opcao sem rotulo": (d) => { comPergunta(d); passo(d, "menu").opcoes[0].rotulo = " "; },
+  "recusa: opcao com rotulo longo": (d) => { comPergunta(d); passo(d, "menu").opcoes[0].rotulo = "x".repeat(101); },
+  "recusa: opcao com id reservado": (d) => {
+    comPergunta(d); passo(d, "menu").opcoes[0].id = "padrao";
+    d.canvas.conexoes = d.canvas.conexoes.map((c) => (c.source === "menu" && c.saida === "agendar" ? { ...c, saida: "padrao" } : c));
+  },
+  "recusa: opcao com id maiusculo": (d) => {
+    comPergunta(d); passo(d, "menu").opcoes[0].id = "Agendar";
+    d.canvas.conexoes = d.canvas.conexoes.map((c) => (c.source === "menu" && c.saida === "agendar" ? { ...c, saida: "Agendar" } : c));
+  },
+  "recusa: opcoes com id repetido": (d) => { comPergunta(d); passo(d, "menu").opcoes[1].id = "agendar"; semSaida(d, "menu", "falar"); },
+  "recusa: onze opcoes": (d) => {
+    comPergunta(d);
+    const menu = passo(d, "menu");
+    for (let i = 0; i < 9; i += 1) {
+      menu.opcoes.push({ id: `extra${i}`, rotulo: `Extra ${i}` });
+      d.canvas.conexoes.push({ source: "menu", saida: `extra${i}`, target: "fim" });
+    }
+  },
+  "recusa: sinonimo vazio": (d) => { comPergunta(d); passo(d, "menu").opcoes[0].sinonimos = [" "]; },
+  "recusa: sinonimos demais": (d) => { comPergunta(d); passo(d, "menu").opcoes[0].sinonimos = Array.from({ length: 21 }, (_, i) => `s${i}`); },
+  "recusa: tentativas seis": (d) => { comPergunta(d); passo(d, "menu").tentativas = 6; },
+  "recusa: tentativas zero": (d) => { comPergunta(d); passo(d, "menu").tentativas = 0; },
+  "recusa: prazo zero": (d) => { comPergunta(d); passo(d, "menu").prazoHoras = 0; },
+  "recusa: prazo de 169 horas": (d) => { comPergunta(d); passo(d, "menu").prazoHoras = 169; },
+  "recusa: prazo fracionado": (d) => { comPergunta(d); passo(d, "menu").prazoHoras = 1.5; },
+  "recusa: opcao sem destino": (d) => { comPergunta(d); semSaida(d, "menu", "falar"); },
+  "recusa: nao entendeu sem destino": (d) => { comPergunta(d); semSaida(d, "menu", "nao_resolvido"); },
+  "recusa: pergunta com saida padrao": (d) => { comPergunta(d); d.canvas.conexoes.push({ source: "menu", saida: "padrao", target: "fim" }); },
+  "recusa: coletar sem variavel": (d) => { comColeta(d); passo(d, "email").variavel = ""; },
+  "recusa: variavel com maiuscula": (d) => { comColeta(d); passo(d, "email").variavel = "Email"; },
+  "recusa: variavel comecando com numero": (d) => { comColeta(d); passo(d, "email").variavel = "1email"; },
+  "recusa: coletar sem destino quando nao responde": (d) => { comColeta(d); semSaida(d, "email", "nao_resolvido"); },
+  "recusa: gatilho desconhecido": (d) => { d.gatilho = { tipo: "agenda" }; },
+  "recusa: gatilho palavra vazio": (d) => { d.gatilho = { tipo: "palavra", palavras: [] }; },
+  "recusa: gatilho palavra em branco": (d) => { d.gatilho = { tipo: "palavra", palavras: ["  "] }; },
+  "recusa: gatilho com palavras demais": (d) => { d.gatilho = { tipo: "palavra", palavras: Array.from({ length: 21 }, (_, i) => `p${i}`) }; },
+  "recusa: gatilho etiqueta sem id": (d) => { d.gatilho = { tipo: "etiqueta", etiquetaId: "" }; },
+  "recusa: gatilho etapa com id ruim": (d) => { d.gatilho = { tipo: "etapa", stageId: "abc" }; },
+  "recusa: gatilho campanha sem id": (d) => { d.gatilho = { tipo: "campanha" }; },
+  "recusa: gatilho como texto": (d) => { d.gatilho = "manual"; },
 };
 
 for (const [caso, mudar] of Object.entries(mutacoes)) {

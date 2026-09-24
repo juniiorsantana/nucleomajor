@@ -176,3 +176,41 @@ describe("interruptor 'Atendimento pela IA' na ficha", () => {
     expect(interruptor()).toBeNull();
   });
 });
+
+describe("iniciar fluxo pela ficha", () => {
+  const fluxos = [{ id: "f1", nome: "Follow-up 24h" }, { id: "f2", nome: "Reativar" }];
+  const contato = { id: "k1", tags: [] };
+
+  it("não aparece sem contato salvo nem sem fluxo manual", () => {
+    renderizar(<FichaLateral {...base} fluxosManuais={fluxos} aoIniciarFluxo={async () => {}} />);
+    expect(container.textContent).not.toContain("Iniciar fluxo");
+    renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={[]} aoIniciarFluxo={async () => {}} />);
+    expect(container.textContent).not.toContain("Iniciar fluxo");
+  });
+
+  it("inicia o fluxo escolhido para o contato e confirma", async () => {
+    const iniciar = vi.fn(async () => ({ enfileirado: true }));
+    renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={fluxos} aoIniciarFluxo={iniciar} />);
+    const select = container.querySelector('select[aria-label="Fluxo para iniciar"]');
+    await act(async () => {
+      select.value = "f2";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const botao = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "Iniciar");
+    await act(async () => {
+      botao.click();
+    });
+    expect(iniciar).toHaveBeenCalledWith({ contato, chatbotId: "f2" });
+    expect(container.querySelector('[role="status"]').textContent).toContain("“Reativar” vai começar");
+  });
+
+  it("mostra a recusa do banco", async () => {
+    const iniciar = vi.fn(async () => { throw new Error("Esse fluxo não está mais ativo."); });
+    renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={fluxos} aoIniciarFluxo={iniciar} />);
+    const botao = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "Iniciar");
+    await act(async () => {
+      botao.click();
+    });
+    expect(container.querySelector('[role="status"]').textContent).toBe("Esse fluxo não está mais ativo.");
+  });
+});
