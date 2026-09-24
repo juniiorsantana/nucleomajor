@@ -589,7 +589,8 @@ function Paleta({ blocos, ramificado, aoAdicionar }) {
         <p className="text-[10px] font-bold uppercase tracking-[.14em] text-faint">Blocos</p>
         <p className="mt-1 text-[11.5px] leading-relaxed text-sub">Arraste para o mapa ou clique para adicionar.</p>
       </div>
-      <div className="flex flex-col gap-2 p-3">
+      <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="flex flex-col gap-2">
         {blocos.map(({ id, titulo, descricao, icone: Icone, classe }) => (
           <button
             key={id}
@@ -610,8 +611,9 @@ function Paleta({ blocos, ramificado, aoAdicionar }) {
             <Plus size={14} className="text-faint group-hover:text-accent" />
           </button>
         ))}
+        </div>
       </div>
-      <div className="mt-auto border-t border-line p-4 text-[10.5px] leading-relaxed text-faint">
+      <div className="mt-auto flex-none border-t border-line p-4 text-[10.5px] leading-relaxed text-faint">
         {ramificado
           ? "Puxe uma saída até outro bloco, ou solte no vazio para escolher o bloco ali. Cada saída segue para um bloco só; vários caminhos podem chegar ao mesmo bloco."
           : "Puxe uma saída roxa até a entrada do próximo bloco. Cada saída segue para um bloco só, e “Transferir conversa” encerra o fluxo."}
