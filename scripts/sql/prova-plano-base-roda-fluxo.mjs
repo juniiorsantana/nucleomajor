@@ -272,8 +272,8 @@ confere("a função auxiliar não é executável de fora", /permission denied/.t
 // ---------------------- 4. 20260926120000: o fluxo pergunta e tem gatilhos
 const MIGRATION_3 = "20260926120000_o_fluxo_pergunta_e_tem_gatilhos.sql";
 
-// A tabela de leads do site existe em produção (20260915000000) e não na
-// cadeia deste ramo; um retrato mínimo basta para o gatilho de campanha nascer.
+// A tabela de leads do site vem de 20260915000000. Se a cadeia não a tiver, um
+// retrato mínimo basta para o gatilho de campanha nascer.
 await db.exec(`create table if not exists public.campaign_site_leads (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null, campaign_id uuid not null, contact_id uuid)`);
@@ -451,7 +451,21 @@ await db.query("insert into public.chatbot_definitions(id,organization_id,name,c
   [fluxoCampanha, orgBase, DONO_BASE, JSON.stringify(FIM_SIMPLES({ tipo: "campanha", campanhaId: campanhaGatilho }))]);
 const antesDaCampanha = (await comandos()).length;
 const leadSite = randomUUID();
-await db.query("insert into public.campaign_site_leads (id, organization_id, campaign_id) values ($1,$2,$3)", [leadSite, orgBase, campanhaGatilho]);
+// Com a tabela de verdade, o lead pede telefone e nome, e a campanha de verdade
+// pede agente e perfil — nada disso é o que esta prova confere. Só a chave para
+// a campanha sai, neste banco descartável.
+const leadDeVerdade = (await db.query(`select 1 from information_schema.columns
+  where table_schema='public' and table_name='campaign_site_leads' and column_name='phone'`)).rows.length > 0;
+if (leadDeVerdade) {
+  for (const { conname } of (await db.query(`select conname from pg_constraint
+    where conrelid='public.campaign_site_leads'::regclass and confrelid='public.organization_campaigns'::regclass`)).rows) {
+    await db.exec(`alter table public.campaign_site_leads drop constraint "${conname}"`);
+  }
+  await db.query("insert into public.campaign_site_leads (id, organization_id, campaign_id, phone, name) values ($1,$2,$3,'5565911112222','Lead do site')",
+    [leadSite, orgBase, campanhaGatilho]);
+} else {
+  await db.query("insert into public.campaign_site_leads (id, organization_id, campaign_id) values ($1,$2,$3)", [leadSite, orgBase, campanhaGatilho]);
+}
 await db.query("update public.campaign_site_leads set contact_id=$1 where id=$2", [contatoGatilho, leadSite]);
 confere("o lead que entra na campanha enfileira o fluxo dela", (await comandos()).length === antesDaCampanha + 1
   && (await comandos()).at(-1).p.chatbotId === fluxoCampanha);
