@@ -14,6 +14,9 @@ const tipoPasso = {
   transferir: "Transferência",
   condicao: "Condição",
   encerrar: "Encerrar",
+  perguntar: "Pergunta",
+  coletar: "Pedir para digitar",
+  aguardar: "Aguardar",
 };
 
 /**
