@@ -7,7 +7,7 @@ export const ENTRADA_GESTAO =
   "w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
 
 export function nomeDoContato(contatos, contactId) {
-  return contatos.find((c) => c.id === contactId)?.nome || "Contato sem nome";
+  return contatos.find((c) => c.id === contactId)?.nome || "Lead sem nome";
 }
 
 export function valorInput(valor) {
@@ -123,7 +123,7 @@ export function Valor({ valor }) {
 }
 
 export function StatusNegocio({ status }) {
-  const textos = { aberto: "Aberto", ganho: "Ganho", perdido: "Perdido" };
+  const textos = { aberto: "Aberto", ganho: "Fechado", perdido: "Perdido" };
   const classes = {
     aberto: "bg-accent-soft text-accent-forte",
     ganho: "bg-success-soft text-success",

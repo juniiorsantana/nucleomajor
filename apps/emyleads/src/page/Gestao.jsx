@@ -70,7 +70,7 @@ const TELAS = [
         { id: "conversas", rotulo: "Conversas", icone: MessageSquare, grupo: "Atendimento" },
       ]
     : []),
-  { id: "contatos", rotulo: "Contatos", icone: Users, grupo: "Gestão" },
+  { id: "contatos", rotulo: "Leads", icone: Users, grupo: "Gestão" },
   { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão" },
   { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão" },
   { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão" },
@@ -212,7 +212,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
   };
 
   const remover = async () => {
-    if (!confirm("Excluir este contato? Negócios, tarefas e notas vão junto.")) return;
+    if (!confirm("Excluir este lead? Negócios, tarefas e notas vão junto.")) return;
     await api.contatos.remover({ id: contato.id });
     await aoSalvar();
     aoFechar();
@@ -223,7 +223,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
       <div className="w-full max-w-md overflow-hidden rounded-[14px] border border-line bg-bg shadow-2xl">
         <form onSubmit={enviar}>
           <div className="border-b border-line px-5 py-4 text-[16px] font-semibold text-fg">
-            {contato?.id ? "Editar contato" : "Adicionar contato"}
+            {contato?.id ? "Editar lead" : "Criar lead"}
           </div>
 
           <div className="grid grid-cols-2 gap-3 px-5 py-4">
@@ -294,7 +294,7 @@ function ModalNota({ contato, aoFechar, aoSalvar }) {
   };
 
   return (
-    <ModalGestao titulo={`Nova nota · ${contato.nome || "Contato"}`} aoFechar={aoFechar}>
+    <ModalGestao titulo={`Nova nota · ${contato.nome || "Lead"}`} aoFechar={aoFechar}>
       <form onSubmit={enviar}>
         <div className="px-5 py-4">
           <CampoFormulario rotulo="Anotação">
@@ -709,13 +709,13 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           ) : (
             <div
               className={`flex items-center gap-2.5 rounded-[12px] ${menuRecolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"}`}
-              title={menuRecolhido ? `EmyLeads · ${dados ? `${dados.contatos.length} contatos` : "carregando"}` : undefined}
+              title={menuRecolhido ? `EmyLeads · ${dados ? `${dados.contatos.length} leads` : "carregando"}` : undefined}
             >
               <Marca tamanho={30} texto={false} />
               {!menuRecolhido && (
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-semibold text-fg">EmyLeads</div>
-                  <div className="truncate text-[11.5px] text-sub">{dados ? `${dados.contatos.length} contatos` : "Carregando…"}</div>
+                  <div className="truncate text-[11.5px] text-sub">{dados ? `${dados.contatos.length} leads` : "Carregando…"}</div>
                 </div>
               )}
             </div>

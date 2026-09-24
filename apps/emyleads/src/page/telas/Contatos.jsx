@@ -149,7 +149,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
   const indicadores = [
     {
       icone: Users,
-      rotulo: "Contatos",
+      rotulo: "Leads",
       valor: contatos.length.toLocaleString("pt-BR"),
       nota: (() => {
         const n = contatos.filter((c) => agora - c.criadoEm < SEMANA).length;
@@ -220,7 +220,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
   const removerMarcados = async () => {
     if (
       !confirm(
-        `Excluir ${marcados.size} contato(s)? Negócios, tarefas e notas vão junto.`,
+        `Excluir ${marcados.size} lead(s)? Negócios, tarefas e notas vão junto.`,
       )
     )
       return;
@@ -249,18 +249,18 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
   return (
     <>
       <CabecalhoTela
-        titulo="Contatos"
+        titulo="Leads"
         busca={
           <CampoBusca
             valor={busca}
             aoMudar={setBusca}
-            placeholder="Buscar contatos..."
+            placeholder="Buscar leads..."
           />
         }
         acao={
           <BotaoPrimario onClick={() => aoAbrirContato?.()}>
             <Plus size={18} strokeWidth={2.4} />
-            Adicionar contato
+            Criar lead
           </BotaoPrimario>
         }
       />
@@ -452,8 +452,8 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
           {visiveis.length === 0 && (
             <p className="px-4 py-16 text-center text-[14px] text-sub">
               {contatos.length === 0
-                ? "Nenhum contato ainda. Importe do WhatsApp pelo painel, dentro de uma conversa."
-                : "Nenhum contato bate com os filtros."}
+                ? "Nenhum lead ainda. Abra uma conversa e clique em Criar lead."
+                : "Nenhum lead bate com os filtros."}
             </p>
           )}
 
@@ -462,7 +462,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
               <span className="text-[13.5px] text-sub">
                 Mostrando {(pAtual - 1) * POR_PAGINA + 1} a{" "}
                 {Math.min(pAtual * POR_PAGINA, filtrados.length)} de{" "}
-                {filtrados.length} contatos
+                {filtrados.length} leads
               </span>
               <div className="ml-auto">
                 <Paginacao pagina={pAtual} paginas={paginas} aoIr={setPagina} />

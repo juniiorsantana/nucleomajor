@@ -282,7 +282,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
         )) : <span className="text-[11.5px] text-faint">Nenhuma etiqueta.</span>}
       </div>
 
-      {!contato && <p className="mt-2 text-[11px] leading-4 text-faint">Salve o contato para adicionar etiquetas.</p>}
+      {!contato && <p className="mt-2 text-[11px] leading-4 text-faint">Crie o lead para adicionar etiquetas.</p>}
 
       {aberto && contato && (
         <div className="mt-2.5 rounded-[10px] border border-line bg-surface p-2">
@@ -505,7 +505,7 @@ export function FichaLateral({
             onClick={aoAbrirFicha}
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
           >
-            Abrir ficha completa
+            Abrir ficha do lead
             <ArrowRight size={14} strokeWidth={2} />
           </button>
         ) : (
@@ -523,7 +523,7 @@ export function FichaLateral({
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
           >
             <UserPlus size={14} strokeWidth={2} />
-            Salvar contato
+            Criar lead
           </button>
         )}
       </div>

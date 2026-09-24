@@ -73,8 +73,8 @@ function CampoTecnico({ chave, valor, aoCopiar, copiado }) {
 
 function rotuloEvento(evento) {
   const rotulos = {
-    "contact.created": "Contato criado",
-    "contact.updated": "Contato atualizado",
+    "contact.created": "Lead criado",
+    "contact.updated": "Lead atualizado",
     "deal.created": "Negócio criado",
     "deal.updated": "Negócio atualizado",
     "task.created": "Tarefa criada",
@@ -155,7 +155,7 @@ export default function FichaContato({
           <AvatarContato contato={contato} tamanho={42} />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-[17px] font-semibold tracking-tight text-fg">{contato.nome || "Sem nome"}</h2>
-            <p className="mt-0.5 truncate text-[12px] text-sub">{contato.empresa || "Contato sem empresa"}</p>
+            <p className="mt-0.5 truncate text-[12px] text-sub">{contato.empresa || "Lead sem empresa"}</p>
           </div>
           <button type="button" title="Fechar ficha" onClick={aoFechar} className="cursor-pointer rounded-[8px] p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
             <X size={18} />
@@ -206,7 +206,7 @@ export default function FichaContato({
           </section>
 
           <section className="border-b border-line px-5 py-4">
-            <BlocoTitulo>Dados do contato</BlocoTitulo>
+            <BlocoTitulo>Dados do lead</BlocoTitulo>
             <div className="grid gap-2.5">
               <LinhaDado icone={Phone}>{contato.telefone ? formatPhone(contato.telefone) : null}</LinhaDado>
               <LinhaDado icone={Mail}>{contato.email}</LinhaDado>
