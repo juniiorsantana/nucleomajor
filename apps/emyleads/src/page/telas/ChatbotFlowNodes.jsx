@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import { CircleStop, ListChecks, MessageSquareText, Plus, Radio, Share2, Split, Tags, TextCursorInput } from "lucide-react";
+import { CircleStop, Hourglass, ListChecks, MessageSquareText, Plus, Radio, Share2, Split, Tags, TextCursorInput } from "lucide-react";
 import { ROTULOS_SAIDA } from "../../domain/chatbots";
 
 /**
@@ -135,6 +135,7 @@ const APARENCIA = {
   encerrar: { icone: CircleStop, categoria: "Fim", tom: "encerrar", titulo: "Encerrar" },
   perguntar: { icone: ListChecks, categoria: "Pergunta", tom: "pergunta", titulo: "Pedir para escolher" },
   coletar: { icone: TextCursorInput, categoria: "Pergunta", tom: "pergunta", titulo: "Pedir para digitar" },
+  aguardar: { icone: Hourglass, categoria: "Espera", tom: "espera", titulo: "Aguardar" },
 };
 
 export function NoAcao({ data, selected }) {

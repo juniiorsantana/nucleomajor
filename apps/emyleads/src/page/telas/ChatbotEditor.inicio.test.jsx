@@ -72,5 +72,11 @@ describe("o início do fluxo no editor", () => {
     await abrir({ ramificado: true });
     expect(container.textContent).toContain("Pedir para escolher");
     expect(container.textContent).toContain("Pedir para digitar");
+    expect(container.textContent).toContain("Aguardar");
+  });
+
+  it("o bloco Aguardar só existe com caminhos", async () => {
+    await abrir({ ramificado: false });
+    expect(container.textContent).not.toContain("Espera e segue sozinho");
   });
 });

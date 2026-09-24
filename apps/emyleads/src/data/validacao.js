@@ -250,6 +250,9 @@ export function validarPasso(passo, nome = "Passo") {
   } else if (passo.tipo === TIPOS_PASSO.coletar) {
     texto(passo.texto, `${nome}.texto`, { vazio: true });
     texto(passo.variavel, `${nome}.variavel`, { vazio: true });
+  } else if (passo.tipo === TIPOS_PASSO.aguardar) {
+    if (typeof passo.duracao !== "number") throw erro(`${nome}.duracao inválido.`, `${nome}.duracao`);
+    texto(passo.unidade, `${nome}.unidade`);
   } else if (passo.tipo === TIPOS_PASSO.encerrar) {
     // Bloco terminal sem configuração própria.
   } else if (passo.tipo === TIPOS_PASSO.transferir) {

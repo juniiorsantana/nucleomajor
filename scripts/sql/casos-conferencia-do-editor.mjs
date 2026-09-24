@@ -90,6 +90,41 @@ function comColeta(d) {
   ];
 }
 
+/** O follow-up: cobra, espera 24 h; respondeu vai para a equipe, sem resposta cobra de novo. */
+function comEspera(d) {
+  d.gatilho = { tipo: "manual" };
+  d.passos = [
+    { id: "cobra", tipo: "enviar_mensagem", texto: "Conseguiu ver a proposta?" },
+    { id: "espera", tipo: "aguardar", duracao: 24, unidade: "horas" },
+    { id: "cobra2", tipo: "enviar_mensagem", texto: "Ficou alguma dúvida?" },
+    { id: "gente", tipo: "transferir", destino: "humano", motivo: "" },
+    { id: "fim", tipo: "encerrar" },
+  ];
+  d.canvas.conexoes = [
+    { source: "entrada", saida: "padrao", target: "condicoes" },
+    { source: "condicoes", saida: "padrao", target: "cobra" },
+    { source: "cobra", saida: "padrao", target: "espera" },
+    { source: "espera", saida: "respondeu", target: "gente" },
+    { source: "espera", saida: "sem_resposta", target: "cobra2" },
+    { source: "cobra2", saida: "padrao", target: "fim" },
+  ];
+}
+
+/** N esperas em fila, cada uma saindo para o fim se o contato responder. */
+function esperasEmFila(d, n) {
+  d.passos = [{ id: "fim", tipo: "encerrar" }];
+  d.canvas.conexoes = [{ source: "entrada", saida: "padrao", target: "condicoes" }];
+  let anterior = "condicoes";
+  let saida = "padrao";
+  for (let i = 0; i < n; i += 1) {
+    d.passos.push({ id: `e${i}`, tipo: "aguardar", duracao: 1, unidade: "horas" });
+    d.canvas.conexoes.push({ source: anterior, saida, target: `e${i}` }, { source: `e${i}`, saida: "respondeu", target: "fim" });
+    anterior = `e${i}`;
+    saida = "sem_resposta";
+  }
+  d.canvas.conexoes.push({ source: anterior, saida, target: "fim" });
+}
+
 const mutacoes = {
   "valido: bifurcação, convergência, IA e encerrar": () => {},
   "valido: linear só com mensagem": (d) => {
@@ -228,6 +263,23 @@ const mutacoes = {
   "recusa: gatilho etapa com id ruim": (d) => { d.gatilho = { tipo: "etapa", stageId: "abc" }; },
   "recusa: gatilho campanha sem id": (d) => { d.gatilho = { tipo: "campanha" }; },
   "recusa: gatilho como texto": (d) => { d.gatilho = "manual"; },
+  // Aguardar (20260926160000).
+  "valido: follow-up com espera": comEspera,
+  "valido: espera de 1 minuto": (d) => { comEspera(d); Object.assign(passo(d, "espera"), { duracao: 1, unidade: "minutos" }); },
+  "valido: espera de 30 dias": (d) => { comEspera(d); Object.assign(passo(d, "espera"), { duracao: 30, unidade: "dias" }); },
+  "valido: dez esperas": (d) => esperasEmFila(d, 10),
+  "recusa: onze esperas": (d) => esperasEmFila(d, 11),
+  "recusa: espera sem duracao": (d) => { comEspera(d); delete passo(d, "espera").duracao; },
+  "recusa: espera zero": (d) => { comEspera(d); passo(d, "espera").duracao = 0; },
+  "recusa: espera fracionada": (d) => { comEspera(d); passo(d, "espera").duracao = 1.5; },
+  "recusa: espera como texto": (d) => { comEspera(d); passo(d, "espera").duracao = "24"; },
+  "recusa: unidade desconhecida": (d) => { comEspera(d); passo(d, "espera").unidade = "semanas"; },
+  "recusa: mais de 30 dias": (d) => { comEspera(d); Object.assign(passo(d, "espera"), { duracao: 31, unidade: "dias" }); },
+  "recusa: mais de 720 horas": (d) => { comEspera(d); passo(d, "espera").duracao = 721; },
+  "recusa: mais de 1440 minutos": (d) => { comEspera(d); Object.assign(passo(d, "espera"), { duracao: 1441, unidade: "minutos" }); },
+  "recusa: espera sem destino quando responde": (d) => { comEspera(d); semSaida(d, "espera", "respondeu"); },
+  "recusa: espera sem destino quando nao responde": (d) => { comEspera(d); semSaida(d, "espera", "sem_resposta"); },
+  "recusa: espera com saida padrao": (d) => { comEspera(d); d.canvas.conexoes.push({ source: "espera", saida: "padrao", target: "fim" }); },
 };
 
 for (const [caso, mudar] of Object.entries(mutacoes)) {

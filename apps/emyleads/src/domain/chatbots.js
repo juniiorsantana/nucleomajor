@@ -15,6 +15,9 @@ export const TIPOS_PASSO = {
   // "Pedir para digitar" guarda o que o contato escreveu numa variável.
   perguntar: "perguntar",
   coletar: "coletar",
+  // Etapa 8 (migration 20260926160000): o fluxo espera um prazo e segue
+  // sozinho. Saídas `respondeu` (o contato escreveu antes) e `sem_resposta`.
+  aguardar: "aguardar",
 };
 
 /**
@@ -42,6 +45,25 @@ export const gatilhoDo = (chatbot) =>
 
 /** Id de opção no formato que o banco aceita: `^[a-z0-9_-]{1,40}$`. */
 export const novoIdDeOpcao = () => `op-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Unidades do bloco "Aguardar" e o teto de cada uma (o banco confere igual). */
+export const UNIDADES_DE_ESPERA = {
+  minutos: { rotulo: "minutos", maximo: 1440 },
+  horas: { rotulo: "horas", maximo: 720 },
+  dias: { rotulo: "dias", maximo: 30 },
+};
+
+/** No máximo 10 esperas num fluxo: o freio da insistência. */
+export const MAXIMO_DE_ESPERAS = 10;
+
+/** "24 horas", "1 dia", "30 minutos". */
+export function textoDaEspera(passo) {
+  const quantidade = Number(passo?.duracao) || 0;
+  const unidade = passo?.unidade;
+  if (unidade === "dias") return `${quantidade} ${quantidade === 1 ? "dia" : "dias"}`;
+  if (unidade === "minutos") return `${quantidade} ${quantidade === 1 ? "minuto" : "minutos"}`;
+  return `${quantidade} ${quantidade === 1 ? "hora" : "horas"}`;
+}
 
 /** Nomes que já são do contato e não podem virar variável de resposta. */
 export const VARIAVEIS_RESERVADAS = new Set(["nome", "empresa"]);
@@ -86,6 +108,8 @@ export const ROTULOS_SAIDA = {
   sucesso: "Sucesso",
   falha: "Falha",
   nao_resolvido: "Não entendeu",
+  respondeu: "Respondeu",
+  sem_resposta: "Não respondeu",
 };
 
 /** Lista vazia para tipo desconhecido — um bloco que não se sabe o que é não continua o fluxo. */
@@ -95,6 +119,7 @@ export const saidasDoPasso = (passo) => {
   if (passo?.tipo === TIPOS_PASSO.perguntar)
     return [...(passo.opcoes || []).map((opcao) => opcao.id), "nao_resolvido"];
   if (passo?.tipo === TIPOS_PASSO.coletar) return ["padrao", "nao_resolvido"];
+  if (passo?.tipo === TIPOS_PASSO.aguardar) return ["respondeu", "sem_resposta"];
   return SAIDAS_DO_PASSO[passo?.tipo] || [];
 };
 
@@ -147,6 +172,9 @@ export function criarPasso(tipo, partial = {}) {
   }
   if (tipo === TIPOS_PASSO.coletar) {
     return { id: uid(), tipo, texto: "", variavel: "resposta", prazoHoras: 24, ...partial };
+  }
+  if (tipo === TIPOS_PASSO.aguardar) {
+    return { id: uid(), tipo, duracao: 24, unidade: "horas", ...partial };
   }
   throw new Error(`Tipo de passo desconhecido: ${tipo}.`);
 }

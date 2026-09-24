@@ -19,7 +19,15 @@
  */
 
 import { NO_CONDICOES, NO_ENTRADA, SAIDA_PADRAO } from "./chatbotGrafo.js";
-import { DESTINOS_TRANSFERENCIA, TIPOS_GATILHO, TIPOS_PASSO, rotuloDaSaida, saidasDoPasso } from "./chatbots.js";
+import {
+  DESTINOS_TRANSFERENCIA,
+  MAXIMO_DE_ESPERAS,
+  TIPOS_GATILHO,
+  TIPOS_PASSO,
+  UNIDADES_DE_ESPERA,
+  rotuloDaSaida,
+  saidasDoPasso,
+} from "./chatbots.js";
 import { FUSOS_DO_BRASIL, horaValida, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "./regras.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,6 +55,7 @@ const NOMES = {
   [TIPOS_PASSO.transferir]: "Transferir conversa",
   [TIPOS_PASSO.perguntar]: "Pedir para escolher",
   [TIPOS_PASSO.coletar]: "Pedir para digitar",
+  [TIPOS_PASSO.aguardar]: "Aguardar",
 };
 const nomeDoBloco = (passo) => `“${NOMES[passo?.tipo] || "bloco"}”`;
 
@@ -165,8 +174,18 @@ export function problemaDoGatilho(gatilho) {
   return null;
 }
 
+/** `flow_validate_wait`: quanto o bloco "Aguardar" espera. */
+function problemaDaEspera(passo, nome) {
+  const unidade = UNIDADES_DE_ESPERA[passo.unidade];
+  if (!unidade) return `Escolha a unidade de tempo do bloco ${nome}.`;
+  if (!Number.isInteger(passo.duracao) || passo.duracao < 1 || passo.duracao > unidade.maximo)
+    return `O bloco ${nome} espera de 1 a ${unidade.maximo} ${unidade.rotulo}.`;
+  return null;
+}
+
 function problemaDoBloco(passo) {
   const nome = nomeDoBloco(passo);
+  if (passo.tipo === TIPOS_PASSO.aguardar) return problemaDaEspera(passo, nome);
   if (passo.tipo === TIPOS_PASSO.perguntar || passo.tipo === TIPOS_PASSO.coletar)
     return problemaDaPergunta(passo, nome);
   if (passo.tipo === TIPOS_PASSO.enviarMensagem) {
@@ -225,6 +244,9 @@ export function problemaParaOServidor(definicao) {
   if (problemaDaEntrada) return problemaDaEntrada;
   const problemaDoInicio = problemaDoGatilho(definicao.gatilho);
   if (problemaDoInicio) return problemaDoInicio;
+
+  if (passos.filter((passo) => passo?.tipo === TIPOS_PASSO.aguardar).length > MAXIMO_DE_ESPERAS)
+    return `O fluxo passa de ${MAXIMO_DE_ESPERAS} blocos “Aguardar”. Insistir demais põe o número em risco.`;
 
   const porId = new Map([[NO_ENTRADA, null], [NO_CONDICOES, null]]);
   for (const passo of passos) {

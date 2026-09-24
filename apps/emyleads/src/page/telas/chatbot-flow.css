@@ -434,3 +434,8 @@
 
 /* Etapa 7: o início é um cartão só; o nó de disparo continua no dado, escondido. */
 .flow-node--inicio .flow-node__status { margin-top: 8px; }
+
+/* Etapa 8: o bloco que espera. */
+.flow-node__icon--espera { color: var(--el-warning, #d97706); background: color-mix(in srgb, var(--el-warning, #d97706) 12%, transparent); }
+.flow-saida--respondeu::before { background: var(--el-success, #16a34a); }
+.flow-saida--sem_resposta::before { background: var(--el-warning, #d97706); }

@@ -18,6 +18,7 @@ import {
   CircleHelp,
   CircleStop,
   Clock,
+  Hourglass,
   LayoutDashboard,
   ListChecks,
   MessageSquareText,
@@ -36,14 +37,17 @@ import {
   ALVOS_IA,
   DESTINOS_TRANSFERENCIA,
   GATILHOS_SEM_MENSAGEM,
+  MAXIMO_DE_ESPERAS,
   ROTULOS_SAIDA,
   TIPOS_GATILHO,
   TIPOS_PASSO,
+  UNIDADES_DE_ESPERA,
   VARIAVEIS_RESERVADAS,
   gatilhoDo,
   novoIdDeOpcao,
   rotuloDaSaida,
   saidasDoPasso,
+  textoDaEspera,
 } from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
 import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
@@ -80,6 +84,7 @@ const TITULOS_PASSO = {
   [TIPOS_PASSO.encerrar]: "Encerrar",
   [TIPOS_PASSO.perguntar]: "Pedir para escolher",
   [TIPOS_PASSO.coletar]: "Pedir para digitar",
+  [TIPOS_PASSO.aguardar]: "Aguardar",
 };
 
 const DESTINOS = {
@@ -108,6 +113,7 @@ const BLOCOS = [
   { id: "atalho_horario", tipo: TIPOS_PASSO.condicao, titulo: "Horário", descricao: "Sim dentro do horário", icone: Clock, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeHorario },
   { id: TIPOS_PASSO.perguntar, tipo: TIPOS_PASSO.perguntar, titulo: "Pedir para escolher", descricao: "Menu com opções numeradas", icone: ListChecks, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
   { id: TIPOS_PASSO.coletar, tipo: TIPOS_PASSO.coletar, titulo: "Pedir para digitar", descricao: "Guarda a resposta do contato", icone: TextCursorInput, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
+  { id: TIPOS_PASSO.aguardar, tipo: TIPOS_PASSO.aguardar, titulo: "Aguardar", descricao: "Espera e segue sozinho (follow-up)", icone: Hourglass, classe: "text-warning bg-warning/10", ramificado: true },
   { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
   { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: "text-sub bg-surface-hover", ramificado: true },
 ];
@@ -131,6 +137,7 @@ function passoVazio(tipo, regra = null) {
       ],
     };
   if (tipo === TIPOS_PASSO.coletar) return { id: novoId(), tipo, texto: "", variavel: "resposta", prazoHoras: 24 };
+  if (tipo === TIPOS_PASSO.aguardar) return { id: novoId(), tipo, duracao: 24, unidade: "horas" };
   return { id: novoId(), tipo, adicionar: [], remover: [] };
 }
 
@@ -353,6 +360,46 @@ function PerguntaEditor({ passo, aoMudar }) {
 }
 
 /** "Pedir para digitar": guarda a resposta numa variável. */
+/** "Aguardar": quanto tempo o fluxo espera antes de seguir sozinho. */
+function EsperaEditor({ passo, passos, aoMudar }) {
+  const unidade = UNIDADES_DE_ESPERA[passo.unidade] || UNIDADES_DE_ESPERA.horas;
+  const esperas = passos.filter((item) => item.tipo === TIPOS_PASSO.aguardar).length;
+  return (
+    <div className="grid gap-4">
+      <div className="grid grid-cols-[1fr_1.2fr] gap-3">
+        <CampoFormulario rotulo="Esperar">
+          <input
+            type="number"
+            min={1}
+            max={unidade.maximo}
+            value={passo.duracao ?? 24}
+            onChange={(event) => aoMudar({ ...passo, duracao: Math.max(1, Math.min(unidade.maximo, Math.trunc(Number(event.target.value) || 1))) })}
+            className={entrada}
+          />
+        </CampoFormulario>
+        <CampoFormulario rotulo="Unidade">
+          <select
+            value={passo.unidade || "horas"}
+            onChange={(event) => {
+              const proxima = UNIDADES_DE_ESPERA[event.target.value];
+              aoMudar({ ...passo, unidade: event.target.value, duracao: Math.min(passo.duracao ?? 1, proxima.maximo) });
+            }}
+            className={entrada}
+          >
+            {Object.entries(UNIDADES_DE_ESPERA).map(([valor, { rotulo }]) => <option key={valor} value={valor}>{rotulo}</option>)}
+          </select>
+        </CampoFormulario>
+      </div>
+      <div className="rounded-[10px] border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
+        O fluxo espera {textoDaEspera(passo)} sem mandar nada. Se o contato escrever antes, segue por <strong>Respondeu</strong> e a próxima cobrança não sai. Se o prazo passar, segue por <strong>Não respondeu</strong>. Se alguém da equipe assumir a conversa, o fluxo para.
+      </div>
+      <p className={`text-[10.5px] leading-relaxed ${esperas > MAXIMO_DE_ESPERAS ? "text-danger" : "text-faint"}`}>
+        {esperas} de {MAXIMO_DE_ESPERAS} esperas neste fluxo. Insistir demais pelo WhatsApp põe o número em risco de bloqueio.
+      </p>
+    </div>
+  );
+}
+
 function ColetaEditor({ passo, aoMudar }) {
   const variavel = passo.variavel || "";
   const reservada = VARIAVEIS_RESERVADAS.has(variavel);
@@ -416,6 +463,7 @@ function resumoPasso(passo, tags, estagios) {
   if (passo.tipo === TIPOS_PASSO.perguntar) return passo.texto?.trim() || "Escreva a pergunta e as opções";
   if (passo.tipo === TIPOS_PASSO.coletar)
     return passo.texto?.trim() ? `${passo.texto.trim()} → {${passo.variavel || "resposta"}}` : "Escreva o que perguntar";
+  if (passo.tipo === TIPOS_PASSO.aguardar) return `Espera ${textoDaEspera(passo)}, a não ser que o contato responda`;
   const adicionar = (passo.adicionar || []).map((id) => tags.find((tag) => tag.id === id)?.nome || id);
   const remover = (passo.remover || []).map((id) => tags.find((tag) => tag.id === id)?.nome || id);
   const partes = [];
@@ -743,6 +791,8 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
               <PerguntaEditor passo={passo} aoMudar={atualizarPasso} />
             ) : passo.tipo === TIPOS_PASSO.coletar ? (
               <ColetaEditor passo={passo} aoMudar={atualizarPasso} />
+            ) : passo.tipo === TIPOS_PASSO.aguardar ? (
+              <EsperaEditor passo={passo} passos={passos} aoMudar={atualizarPasso} />
             ) : passo.tipo === TIPOS_PASSO.condicao ? (
               <ExpressaoEditor expressao={passo.expressao} tags={tags} estagios={estagios} aoMudar={(expressao) => atualizarPasso({ ...passo, expressao })} />
             ) : passo.tipo === TIPOS_PASSO.encerrar ? (
