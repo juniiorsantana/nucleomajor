@@ -642,7 +642,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
 
   // Os fluxos que alguém da equipe inicia na conversa (follow-up). Só os do
   // formato com caminhos têm gatilho; o banco confere de novo ao disparar.
-  const fluxosManuais = (dados.chatbots || []).filter(
+  // `dados` é nulo enquanto carrega — ler direto derrubava o portal inteiro.
+  const fluxosManuais = (dados?.chatbots || []).filter(
     (chatbot) => chatbot.ativo && chatbot.canvas?.versao === 3 && gatilhoDo(chatbot).tipo === TIPOS_GATILHO.manual,
   );
   const iniciarFluxo = ({ contato, chatbotId }) =>
