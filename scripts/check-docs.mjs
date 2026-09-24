@@ -46,7 +46,9 @@ for (const file of await markdownFiles(root)) {
   const content = await readFile(file, "utf8");
   for (const match of content.matchAll(linkPattern)) {
     const raw = match[1].trim().replace(/^<|>$/g, "");
-    if (!raw || raw.startsWith("#") || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue;
+    // `{{ .ConfirmationURL }}` e afins são marcadores de modelo (e-mails do
+    // Supabase citados nos docs), não caminhos de arquivo.
+    if (!raw || raw.startsWith("#") || raw.includes("{{") || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue;
     const target = decodeURIComponent(raw.split("#", 1)[0]);
     try { await access(resolve(dirname(file), target)); }
     catch { failures.push(`link quebrado em ${file.slice(root.length + 1)}: ${raw}`); }
