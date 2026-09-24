@@ -18,6 +18,7 @@ const slugToScreen = {
   conversas: "conversas",
   contatos: "contatos",
   funil: "funil",
+  relatorios: "relatorios",
   tarefas: "tarefas",
   agenda: "agenda",
   conhecimento: "conhecimento",

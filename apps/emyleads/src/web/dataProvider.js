@@ -24,6 +24,10 @@ function contato(row) {
     email: row.email || "", origem: row.source || "", responsavel: row.owner_label || "",
     tags: (row.contact_tags || []).map((item) => item.tag_id),
     criadoEm: epoch(row.created_at) || Date.now(), atualizadoEm: epoch(row.updated_at) || Date.now(),
+    // Quando virou lead; nulo é contato. `undefined` quer dizer que o banco
+    // ainda não tem a coluna (migration 20260926150000 não aplicada), e os
+    // Relatórios avisam em vez de contar zero.
+    leadEm: row.lead_at === undefined ? undefined : epoch(row.lead_at),
   };
 }
 
@@ -33,6 +37,7 @@ function negocio(row) {
     titulo: row.title || "", valor: row.value == null ? null : Number(row.value),
     origem: row.source || "", status: row.status || "aberto", motivoPerda: row.loss_reason || "",
     criadoEm: epoch(row.created_at) || Date.now(), atualizadoEm: epoch(row.updated_at) || Date.now(),
+    fechadoEm: row.closed_at === undefined ? undefined : epoch(row.closed_at),
   };
 }
 
@@ -154,6 +159,8 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
       company: texto(dados.empresa), job_title: texto(dados.cargo), email: texto(dados.email) || null,
       source: texto(dados.origem), owner_label: texto(dados.responsavel),
       last_interaction_at: iso(dados.ultimaEm), created_by: ctx.userId, updated_by: ctx.userId,
+      // O banco troca a data por `now()`; daqui só sai "é lead".
+      ...(dados.lead === false ? {} : { lead_at: new Date().toISOString() }),
     }).select("*").single(), "contato-criacao-falhou");
     await salvarTagsContato(ctx, row.id, dados.tags);
     await registrarEvento(ctx, { contactId: row.id, tipo: "contact.created", entidadeTipo: "contato", entidadeId: row.id });
@@ -173,9 +180,16 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
       payload[coluna] = campo === "telefone" ? normalizePhone(patch[campo]) || ""
         : campo === "ultimaEm" ? iso(patch[campo]) : patch[campo] || (campo === "email" || campo === "waId" ? null : "");
     }
-    const row = await executar(supabase.from("contacts").update(payload)
+    // `lead: true` transforma em lead; `lead: false` volta a ser contato, e o
+    // banco recusa enquanto houver negócio (hint `lead_tem_negocio`).
+    if (patch.lead !== undefined) payload.lead_at = patch.lead ? new Date().toISOString() : null;
+    const { data: row, error } = await supabase.from("contacts").update(payload)
       .eq("organization_id", ctx.organizationId).eq("id", id).is("deleted_at", null)
-      .select("*").single(), "contato-atualizacao-falhou");
+      .select("*").single();
+    if (error?.hint === "lead_tem_negocio") {
+      throw falha({ message: "Este contato tem negócio no Funil e continua lead. Remova o negócio antes." }, "contato-lead-com-negocio");
+    }
+    if (error) throw falha(error, "contato-atualizacao-falhou");
     if (patch.tags !== undefined) await salvarTagsContato(ctx, id, patch.tags);
     await registrarEvento(ctx, { contactId: id, tipo: "contact.updated", entidadeTipo: "contato", entidadeId: id, carga: { campos: Object.keys(patch) } });
     const tags = patch.tags ?? (await listarContatos()).find((item) => item.id === id)?.tags ?? [];
@@ -448,7 +462,29 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
     return { id };
   };
 
+  // Nulo quando a tabela ainda não existe no banco: os Relatórios mostram
+  // "sem histórico" em vez de zero.
+  const historicoDeEtapas = async ({ desde = null, ate = null } = {}) => {
+    const ctx = await contexto();
+    let consulta = supabase.from("deal_stage_history")
+      .select("deal_id,contact_id,from_stage_id,to_stage_id,from_status,to_status,changed_at")
+      .eq("organization_id", ctx.organizationId)
+      .order("changed_at", { ascending: true }).limit(20000);
+    if (desde) consulta = consulta.gte("changed_at", iso(desde));
+    if (ate) consulta = consulta.lt("changed_at", iso(ate));
+    const { data, error } = await consulta;
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205" || /deal_stage_history/.test(error.message || "")) return null;
+      throw falha(error, "historico-etapas-falhou");
+    }
+    return (data || []).map((r) => ({
+      negocioId: r.deal_id, contactId: r.contact_id, deEtapa: r.from_stage_id, paraEtapa: r.to_stage_id,
+      deStatus: r.from_status, paraStatus: r.to_status, em: epoch(r.changed_at),
+    }));
+  };
+
   const operacoes = {
+    "relatorios.historicoEtapas": historicoDeEtapas,
     "sync.executar": async () => ({ sincronizado: true, origem: "supabase" }),
     "sync.status": async () => ({ sincronizado: true, origem: "supabase" }),
     "sync.migracaoStatus": async () => ({ temDados: false, concluida: true, totais: {} }),
