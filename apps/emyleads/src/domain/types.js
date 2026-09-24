@@ -174,7 +174,7 @@ export function criarNota(partial = {}) {
  */
 export const ESTAGIOS_PADRAO = [
   { id: "novo-lead", nome: "Lead", ordem: 0 },
-  { id: "contato", nome: "Contato", ordem: 1 },
+  { id: "contato", nome: "Em contato", ordem: 1 },
   { id: "qualificacao", nome: "Qualificação", ordem: 2 },
   { id: "proposta", nome: "Proposta", ordem: 3 },
   { id: "negociacao", nome: "Negociação", ordem: 4 },

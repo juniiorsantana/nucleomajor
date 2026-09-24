@@ -40,7 +40,9 @@
 -- desconhecido (`flow_contact_for`, evento de origem `chatbot`) e o que o
 -- interruptor "não atender IA" cria. São contatos, não oportunidades.
 --
--- A primeira etapa do Funil passa de "Novo lead" para "Lead". Organizações
+-- A primeira etapa do Funil passa de "Novo lead" para "Lead", e a segunda de
+-- "Contato" para "Em contato" (o nome antigo colidia com "contato", a pessoa
+-- no CRM). Organizações
 -- novas nascem com as etapas de `create_organization`, que tem duas
 -- assinaturas com o nome antigo no corpo; em vez de reescrevê-las, um trigger
 -- em `stages` troca o nome na chegada. Os fluxos que disparam por etapa usam o
@@ -357,13 +359,14 @@ revoke all on function private.deal_track() from public;
 revoke all on function private.qualification_makes_lead() from public;
 revoke all on function private.site_event_makes_lead() from public;
 
--- ------------------------------------------- "Novo lead" vira "Lead"
+-- ------------------------- "Novo lead" vira "Lead", "Contato" vira "Em contato"
+--
+-- Só onde o nome ainda é o de fábrica: etapa que a empresa renomeou fica.
 
 update public.stages etapa
-set name = 'Lead'
-where etapa.legacy_id = 'novo-lead'
-  and etapa.name = 'Novo lead'
-  and etapa.deleted_at is null;
+set name = case etapa.legacy_id when 'novo-lead' then 'Lead' else 'Em contato' end
+where (etapa.legacy_id = 'novo-lead' and etapa.name = 'Novo lead')
+   or (etapa.legacy_id = 'contato' and etapa.name = 'Contato');
 
 create or replace function private.stage_default_name()
 returns trigger
@@ -373,6 +376,8 @@ as $$
 begin
   if new.legacy_id = 'novo-lead' and new.name = 'Novo lead' then
     new.name := 'Lead';
+  elsif new.legacy_id = 'contato' and new.name = 'Contato' then
+    new.name := 'Em contato';
   end if;
   return new;
 end;
