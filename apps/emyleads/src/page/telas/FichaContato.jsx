@@ -10,9 +10,11 @@ import {
   Pencil,
   Phone,
   Plus,
+  UserPlus,
   UserRound,
   X,
 } from "lucide-react";
+import { ehLead } from "../../domain/lead";
 import { fmtData, fmtMoeda, fmtVencimento } from "../../lib/formato";
 import { formatPhone } from "../../lib/phone";
 import { camposTecnicosDoContato, resumoValorTecnico, valorTecnico, fotoPersistidaDoContato } from "../../lib/contatoTecnico";
@@ -96,6 +98,7 @@ export default function FichaContato({
   estagios,
   aoFechar,
   aoEditar,
+  aoMarcarLead,
   aoCriarNegocio,
   aoCriarTarefa,
   aoCriarNota,
@@ -105,6 +108,20 @@ export default function FichaContato({
   const [copiado, setCopiado] = useState(false);
   const [copiadoCampo, setCopiadoCampo] = useState(null);
   const [tecnicosAbertos, setTecnicosAbertos] = useState(true);
+  const [marcando, setMarcando] = useState(false);
+  const [erroLead, setErroLead] = useState("");
+  const marcarLead = async () => {
+    if (!aoMarcarLead || marcando) return;
+    setMarcando(true);
+    setErroLead("");
+    try {
+      await aoMarcarLead();
+    } catch (e) {
+      setErroLead(e?.message || "Não foi possível marcar como lead.");
+    } finally {
+      setMarcando(false);
+    }
+  };
   const estagioPorId = useMemo(
     () => Object.fromEntries(estagios.map((e) => [e.id, e])),
     [estagios],
@@ -155,7 +172,7 @@ export default function FichaContato({
           <AvatarContato contato={contato} tamanho={42} />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-[17px] font-semibold tracking-tight text-fg">{contato.nome || "Sem nome"}</h2>
-            <p className="mt-0.5 truncate text-[12px] text-sub">{contato.empresa || "Lead sem empresa"}</p>
+            <p className="mt-0.5 truncate text-[12px] text-sub">{contato.empresa || (ehLead(contato) ? "Lead sem empresa" : "Contato sem empresa")}</p>
           </div>
           <button type="button" title="Fechar ficha" onClick={aoFechar} className="cursor-pointer rounded-[8px] p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
             <X size={18} />
@@ -163,6 +180,23 @@ export default function FichaContato({
         </header>
 
         <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
+          {!ehLead(contato) && (
+            <section className="flex items-center gap-3 border-b border-line bg-surface px-5 py-3">
+              <p className="min-w-0 flex-1 text-[12px] leading-[17px] text-sub">
+                Ainda é só contato: entrou pelo chatbot ou pela IA e ninguém o marcou como lead.
+                {erroLead && <span className="mt-1 block text-danger">{erroLead}</span>}
+              </p>
+              <button
+                type="button"
+                onClick={marcarLead}
+                disabled={!aoMarcarLead || marcando}
+                className="flex flex-none cursor-pointer items-center gap-1.5 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
+              >
+                <UserPlus size={14} />
+                {marcando ? "Marcando…" : "Marcar como lead"}
+              </button>
+            </section>
+          )}
           <section className="border-b border-line px-5 py-4">
             <div className="flex items-center gap-2">
               <button type="button" onClick={aoEditar} className="flex flex-1 items-center justify-center gap-2 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110">

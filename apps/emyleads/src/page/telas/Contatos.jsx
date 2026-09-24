@@ -10,6 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "../../data/client";
+import { distingueLead, ehLead } from "../../domain/lead";
 import { corDoEstagio } from "../../domain/types";
 import { fmtInteracao, fmtMoeda } from "../../lib/formato";
 import { formatPhone } from "../../lib/phone";
@@ -43,6 +44,9 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
   const [filtroEstagio, setFiltroEstagio] = useState("");
   const [filtroOrigem, setFiltroOrigem] = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  // Leads por padrão: é a lista de trabalho. "Todos os contatos" traz também
+  // quem o chatbot, a IA ou o "não atender IA" cadastraram sozinhos.
+  const [mostrar, setMostrar] = useState("leads");
   const [maisFiltros, setMaisFiltros] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [marcados, setMarcados] = useState(() => new Set());
@@ -109,6 +113,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
       .slice()
       .sort((a, b) => recencia(b) - recencia(a))
       .filter((c) => {
+        if (mostrar === "leads" && !ehLead(c)) return false;
         if (filtroOrigem && c.origem !== filtroOrigem) return false;
         if (filtroResponsavel && c.responsavel !== filtroResponsavel)
           return false;
@@ -123,6 +128,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
       });
   }, [
     contatos,
+    mostrar,
     busca,
     filtroOrigem,
     filtroResponsavel,
@@ -139,20 +145,22 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
 
   useEffect(
     () => setPagina(1),
-    [busca, filtroEstagio, filtroOrigem, filtroResponsavel],
+    [busca, filtroEstagio, filtroOrigem, filtroResponsavel, mostrar],
   );
 
   /* --- indicadores ------------------------------------------------ */
 
   const agora = Date.now();
   const abertos = negocios.filter((n) => n.status === "aberto");
+  const separaLead = distingueLead(contatos);
+  const leads = contatos.filter(ehLead);
   const indicadores = [
     {
       icone: Users,
       rotulo: "Leads",
-      valor: contatos.length.toLocaleString("pt-BR"),
+      valor: leads.length.toLocaleString("pt-BR"),
       nota: (() => {
-        const n = contatos.filter((c) => agora - c.criadoEm < SEMANA).length;
+        const n = leads.filter((c) => agora - (c.leadEm ?? c.criadoEm) < SEMANA).length;
         return n ? `${n} nesta semana` : null;
       })(),
     },
@@ -277,6 +285,26 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3 rounded-[14px] border border-line bg-bg p-4">
+          {separaLead && (
+            <div className="flex rounded-[10px] border border-line p-0.5" role="group" aria-label="Quem mostrar">
+              {[
+                ["leads", `Leads (${leads.length})`],
+                ["todos", `Todos os contatos (${contatos.length})`],
+              ].map(([id, rotulo]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={mostrar === id}
+                  onClick={() => setMostrar(id)}
+                  className={`cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium transition-colors ${
+                    mostrar === id ? "bg-accent-soft text-accent-forte" : "text-sub hover:text-fg"
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
           <Seletor
             valor={filtroEstagio}
             aoMudar={setFiltroEstagio}
@@ -389,8 +417,15 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
                       >
                         <Iniciais nome={c.nome} />
                         <div className="min-w-0">
-                          <div className="truncate text-[14px] font-medium text-fg hover:text-accent-forte">
-                            {c.nome || "Sem nome"}
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-[14px] font-medium text-fg hover:text-accent-forte">
+                              {c.nome || "Sem nome"}
+                            </span>
+                            {!ehLead(c) && (
+                              <span className="flex-none rounded-full bg-surface px-2 py-0.5 text-[10.5px] font-medium text-sub" title="Contato ainda não marcado como lead">
+                                Contato
+                              </span>
+                            )}
                           </div>
                           {c.empresa && (
                             <div className="truncate text-[12.5px] text-sub">
@@ -453,7 +488,9 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
             <p className="px-4 py-16 text-center text-[14px] text-sub">
               {contatos.length === 0
                 ? "Nenhum lead ainda. Abra uma conversa e clique em Criar lead."
-                : "Nenhum lead bate com os filtros."}
+                : mostrar === "leads" && leads.length === 0
+                  ? "Nenhum lead ainda. Os contatos cadastrados estão em Todos os contatos."
+                  : "Nenhum lead bate com os filtros."}
             </p>
           )}
 
@@ -462,7 +499,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
               <span className="text-[13.5px] text-sub">
                 Mostrando {(pAtual - 1) * POR_PAGINA + 1} a{" "}
                 {Math.min(pAtual * POR_PAGINA, filtrados.length)} de{" "}
-                {filtrados.length} leads
+                {filtrados.length} {mostrar === "leads" ? "leads" : "contatos"}
               </span>
               <div className="ml-auto">
                 <Paginacao pagina={pAtual} paginas={paginas} aoIr={setPagina} />

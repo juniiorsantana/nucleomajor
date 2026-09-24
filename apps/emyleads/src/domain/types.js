@@ -173,8 +173,8 @@ export function criarNota(partial = {}) {
  * um slug estável — renomear o rótulo não move nenhum negócio de lugar.
  */
 export const ESTAGIOS_PADRAO = [
-  { id: "novo-lead", nome: "Novo lead", ordem: 0 },
-  { id: "contato", nome: "Contato", ordem: 1 },
+  { id: "novo-lead", nome: "Lead", ordem: 0 },
+  { id: "contato", nome: "Em contato", ordem: 1 },
   { id: "qualificacao", nome: "Qualificação", ordem: 2 },
   { id: "proposta", nome: "Proposta", ordem: 3 },
   { id: "negociacao", nome: "Negociação", ordem: 4 },

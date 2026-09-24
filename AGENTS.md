@@ -1,3 +1,7 @@
+> **Comece por [`CLAUDE.md`](CLAUDE.md)**: é o ponto de partida comum a qualquer IA,
+> com o estado atual, o vocabulário (contato, lead, negócio) e o que está aberto.
+> As regras abaixo continuam valendo e prevalecem sobre qualquer resumo.
+
 # Ambiente de trabalho
 
 - Não usar nem iniciar o WSL local neste projeto. Ele está desativado e não faz
@@ -11,3 +15,5 @@
   entre branch remota e release não autoriza sobrescrever commits de produção.
 - Migrations de produção são aplicadas exclusivamente pelo SQL Editor, conforme
   instrução do usuário; não usar CLI, PAT, Management API ou `db push`.
+- Migration nova recebe número maior que o da última migration da `main`
+  atualizada; duas frentes em paralelo já produziram número repetido.

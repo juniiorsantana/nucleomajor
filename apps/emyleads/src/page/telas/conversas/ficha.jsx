@@ -12,6 +12,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { ehLead } from "../../../domain/lead";
 import { corDoEstagio } from "../../../domain/types";
 import { TONS, fmtMoeda, fmtRelativo, fmtVencimento } from "../../../lib/formato";
 import { formatPhone } from "../../../lib/phone";
@@ -330,6 +331,36 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
   );
 }
 
+function BotaoMarcarLead({ aoMarcar }) {
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const marcar = async () => {
+    if (!aoMarcar || salvando) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      await aoMarcar();
+    } catch (e) {
+      setErro(e?.message || "Não foi possível marcar como lead.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+  return (
+    <>
+      <button
+        onClick={marcar}
+        disabled={!aoMarcar || salvando}
+        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-accent py-2.5 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
+      >
+        <UserPlus size={14} strokeWidth={2} />
+        {salvando ? "Marcando…" : "Marcar como lead"}
+      </button>
+      {erro && <p className="text-[11px] text-danger">{erro}</p>}
+    </>
+  );
+}
+
 export function FichaLateral({
   conversa,
   contato,
@@ -343,6 +374,7 @@ export function FichaLateral({
   aoAtalho,
   aoAbrirFicha,
   aoSalvarContato,
+  aoMarcarLead,
   aoAtualizarEtiquetas,
   aoCriarEtiqueta,
   aoConsultarAtendimentoIA,
@@ -500,7 +532,19 @@ export function FichaLateral({
         tela mostra logo acima seria trabalho inventado.
       */}
       <div className="flex-none border-t border-line px-3.5 py-2.5">
-        {contato ? (
+        {contato && !ehLead(contato) ? (
+          // Já está no CRM (o chatbot ou a IA cadastraram), mas ninguém decidiu
+          // que é oportunidade. Criar de novo duplicaria; o que falta é a marca.
+          <div className="flex flex-col gap-1.5">
+            <BotaoMarcarLead aoMarcar={aoMarcarLead} />
+            <button
+              onClick={aoAbrirFicha}
+              className="cursor-pointer py-1 text-[11.5px] font-medium text-sub hover:text-fg"
+            >
+              Abrir ficha do contato
+            </button>
+          </div>
+        ) : contato ? (
           <button
             onClick={aoAbrirFicha}
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"

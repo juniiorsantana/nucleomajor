@@ -110,6 +110,7 @@ export default function Conversas({
   aoAbrirContato,
   aoNovoContato,
   aoAtualizarEtiquetas,
+  aoMarcarLead,
   aoCriarEtiqueta,
   aoConsultarAtendimentoIA,
   aoDefinirAtendimentoIA,
@@ -576,6 +577,7 @@ export default function Conversas({
           aoAbrirFicha={() => contato && aoAbrirContato(contato)}
           aoSalvarContato={aoNovoContato}
           aoAtualizarEtiquetas={aoAtualizarEtiquetas}
+          aoMarcarLead={aoMarcarLead && contato ? () => aoMarcarLead(contato) : undefined}
           aoCriarEtiqueta={aoCriarEtiqueta}
           aoConsultarAtendimentoIA={aoConsultarAtendimentoIA}
           aoDefinirAtendimentoIA={aoDefinirAtendimentoIA}

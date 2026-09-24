@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChartColumn, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
@@ -15,6 +15,7 @@ import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Conversas = lazy(() => import("./telas/Conversas"));
+const Relatorios = lazy(() => import("./telas/Relatorios"));
 const Inteligencia = lazy(() => import("./telas/Inteligencia"));
 const Chatbots = lazy(() => import("./telas/Chatbots"));
 const ChatbotEditor = lazy(() => import("./telas/ChatbotEditor"));
@@ -72,6 +73,9 @@ const TELAS = [
     : []),
   { id: "contatos", rotulo: "Leads", icone: Users, grupo: "Gestão" },
   { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão" },
+  // Só no portal: conta pela marca de lead e pelo histórico de etapas, que
+  // moram no banco; a extensão guarda os dados no navegador e não tem nenhum dos dois.
+  ...(PLATAFORMA_WEB ? [{ id: "relatorios", rotulo: "Relatórios", icone: ChartColumn, grupo: "Gestão" }] : []),
   { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão" },
   { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão" },
   ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Inteligência", icone: LibraryBig, grupo: "Automação" }] : []),
@@ -94,6 +98,7 @@ const RECURSO_DA_TELA = {
   conexoes: "whatsapp_web",
   contatos: "crm",
   funil: "crm",
+  relatorios: "crm",
   tarefas: "crm",
   agenda: "agenda",
   equipe: "team_management",
@@ -601,6 +606,12 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const consumirComando = () => setComando(null);
   const editorDeChatbotAberto = tela === "chatbots" && chatbotEditando !== undefined;
 
+  // Contato que o sistema cadastrou sozinho vira lead por decisão de alguém.
+  const marcarComoLead = async (contato) => {
+    await api.contatos.atualizar({ id: contato.id, patch: { lead: true } });
+    await carregar();
+  };
+
   const atualizarEtiquetasDoContato = async (contatoId, tags) => {
     await api.contatos.atualizar({ id: contatoId, patch: { tags } });
     await carregar();
@@ -760,6 +771,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               // aparecesse só num dos dois já estaria marcado.
               aoNovoContato={(preenchido) => setEditando(preenchido || null)}
               aoAtualizarEtiquetas={atualizarEtiquetasDoContato}
+              aoMarcarLead={marcarComoLead}
               aoCriarEtiqueta={criarEtiqueta}
               aoConsultarAtendimentoIA={consultarAtendimentoIA}
               aoDefinirAtendimentoIA={definirAtendimentoIA}
@@ -802,7 +814,12 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             aoAbrirContato={abrirFicha}
             comando={comando}
             aoConsumirComando={consumirComando}
+            aoVerRelatorios={PLATAFORMA_WEB ? () => trocarTela("relatorios") : undefined}
           />
+        ) : tela === "relatorios" ? (
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando relatórios…</div>}>
+            <Relatorios dados={dados} aoAbrirContato={abrirFicha} />
+          </Suspense>
         ) : tela === "tarefas" ? (
           <Tarefas
             dados={dados}
@@ -865,6 +882,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           estagios={dados.estagios}
           aoFechar={() => setFicha(null)}
           aoEditar={editarFicha}
+          aoMarcarLead={() => marcarComoLead(fichaAtualizada)}
           aoCriarNegocio={criarNegocio}
           aoCriarTarefa={criarTarefa}
           aoCriarNota={() => setNotaContato(fichaAtualizada)}
