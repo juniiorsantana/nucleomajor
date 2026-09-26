@@ -12,6 +12,7 @@ import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./act
 import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
 import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
 import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
+import { metaLeadsHandlerFromEnv } from "./metaLeads.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
@@ -946,7 +947,22 @@ async function staticFile(req, res, url) {
   return sendPublicFile(res, relative);
 }
 
-export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead } = {}) {
+// Montado na primeira chamada, e não na importação: uma variável META_* mal
+// escrita derruba só o webhook, com 503, e não o portal inteiro.
+let envMetaLeads = null;
+async function metaLeadsFromEnv(req, res, url) {
+  if (!envMetaLeads) {
+    try {
+      envMetaLeads = metaLeadsHandlerFromEnv();
+    } catch (error) {
+      console.error("meta-leads config invalid", error?.message);
+      throw new HttpError(503, "meta leads not configured", "meta-leads-not-configured");
+    }
+  }
+  return envMetaLeads(req, res, url);
+}
+
+export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, metaLeadsHandler = metaLeadsFromEnv } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
@@ -965,6 +981,8 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       // que exige uma.
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname === "/api/lead" && req.method === "POST") return await leadHandler(req, res, url);
+      // Antes da sessão: quem chama é o Meta, que se identifica pela assinatura.
+      if (url.pathname === "/api/webhooks/meta-leads") return await metaLeadsHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
       if (isPainelHost(req.headers.host)) return await painelFile(req, res, url);
       return await staticFile(req, res, url);
