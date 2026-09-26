@@ -8,15 +8,22 @@ que ele chame.
 Formulário do anúncio → aviso "leadgen" do Meta → POST /api/webhooks/meta-leads
   → o servidor confere a assinatura e busca o lead no Graph
   → nucleo_site_lead_receive(token da campanha, lead)
-  → contato + etiqueta + primeira mensagem (site_lead_welcome) + a IA da campanha segue
+  → contato + etiqueta, e então, conforme a ligação:
+      modo 'flow'  → o fluxo do chatbot de gatilho "campanha" manda a mensagem (sem IA)
+      modo 'agent' → primeira mensagem fixa (site_lead_welcome) e a IA da campanha segue
 ```
 
-A segunda metade é o **lead do site**, sem mudança: teto de leads por hora,
-nada de mensagem repetida para o mesmo telefone, nada sem consentimento, aviso
-para a equipe. Depende da migration `20260915000000` e do runtime
-`site_lead_welcome` na VPS (branch `feat/leads-do-site`), já em produção.
+A segunda metade é o **lead do site**: teto de leads por hora, nada de
+mensagem repetida para o mesmo telefone, nada sem consentimento. O modo
+'agent' depende da migration `20260915000000` e do runtime
+`site_lead_welcome` (já em produção) e avisa a equipe pela VPS. O modo 'flow'
+é o de `20260926180000`: nenhum comando para a VPS além do `flow_trigger`,
+que a release `fluxos-aguardar` já atende, e nenhum aviso à equipe (o lead
+aparece no CRM com a etiqueta). É o modo da Adriani, no plano Base.
 
-Código: `src/metaLeads.mjs`. Testes: `test/meta-leads.test.mjs`.
+Código: `src/metaLeads.mjs`. Testes: `test/meta-leads.test.mjs`,
+`test/formulario-pelo-fluxo-migration.test.mjs` e a prova em PGlite
+`scripts/sql/prova-formulario-pelo-fluxo.mjs`.
 
 ## Regras do webhook
 
@@ -36,15 +43,22 @@ Código: `src/metaLeads.mjs`. Testes: `test/meta-leads.test.mjs`.
 
 ## Ligar uma organização
 
-1. **Campanha.** Na organização, Inteligência → Campanhas: criar a campanha com
-   agente ativo e status teste ou ativa.
-2. **Token.** Rodar `scripts/sql/ligar-formulario-meta.sql` no SQL Editor, com
-   o nome da campanha. Guardar o `token_para_o_servidor`, que só aparece uma vez.
-3. **Servidor.** Na Hostinger, `META_LEADS_INTAKES` recebe
+1. **WhatsApp pareado.** A conexão da organização precisa estar `connected`,
+   com o runtime da VPS rodando com `NUCLEO_FLOW_RUNTIME=1`.
+2. **Campanha e token.** Rodar `scripts/sql/ligar-formulario-meta.sql` no SQL
+   Editor, com os nomes da organização e da campanha. Ele cria a campanha
+   (ativa) e a liga em modo 'flow'. Guardar o `token_para_o_servidor`, que
+   só aparece uma vez.
+3. **Fluxo.** No portal da organização, Chatbots: fluxo com gatilho "Lead da
+   campanha" = essa campanha, ativo. O primeiro bloco é a mensagem
+   (`{nome}` vira o primeiro nome); depois, as perguntas. O texto precisa da
+   aprovação do cliente, porque sai no WhatsApp dele. Sem fluxo ativo, o lead
+   entra no CRM e ninguém chama.
+4. **Servidor.** Na Hostinger, `META_LEADS_INTAKES` recebe
    `{"<id da página>": "<token>"}`. Uma entrada por página; mais clientes são
    mais entradas no mesmo JSON.
-4. **Meta.** Assinar a página nos avisos de lead (abaixo).
-5. **Teste.** Lead Ads Testing Tool
+5. **Meta.** Assinar a página nos avisos de lead (abaixo).
+6. **Teste.** Lead Ads Testing Tool
    (developers.facebook.com/tools/lead-ads-testing), com um número de teste.
    Conferir o contato no CRM e a mensagem no WhatsApp.
 
