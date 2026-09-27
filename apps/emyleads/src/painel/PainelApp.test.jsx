@@ -19,6 +19,7 @@ const plataforma = {
   planos: vi.fn(),
   vendas: vi.fn(),
   pedidosDeConexao: vi.fn(),
+  alertasDoModelo: vi.fn(),
 };
 vi.mock("../data/client", () => ({ api: { auth, plataforma } }));
 
@@ -54,6 +55,7 @@ beforeEach(() => {
   plataforma.planos.mockResolvedValue([]);
   plataforma.vendas.mockResolvedValue([]);
   plataforma.pedidosDeConexao.mockResolvedValue([]);
+  plataforma.alertasDoModelo.mockResolvedValue([]);
 });
 
 afterEach(async () => {
@@ -114,5 +116,29 @@ describe("portão", () => {
     const historico = [...container.querySelectorAll("nav button")].find((b) => b.textContent.includes("Histórico"));
     await act(async () => historico.click());
     expect(aoNavegar).toHaveBeenCalledWith("/historico");
+  });
+
+  it("o Cláudio dormindo aparece em cima da tela, e some quando não há alerta", async () => {
+    auth.estado.mockResolvedValue({ usuario: { email: "cmo@majorhub.com.br" } });
+    plataforma.estado.mockResolvedValue({ administrador: true });
+    plataforma.alertasDoModelo.mockResolvedValue([{
+      conexaoId: "8ee1e6d0", conexao: "Major 8362", empresaId: "org-major", empresa: "Major",
+      estado: "unavailable", codigo: "model_auth_unavailable", ultimaRespostaEm: null, sinalEm: null,
+    }]);
+    const aoNavegar = await montar("/historico");
+
+    const faixa = container.querySelector("[role=alert]");
+    expect(faixa.textContent).toContain("O Cláudio de Major pegou no sono");
+    expect(faixa.textContent).toContain("/login");
+    await act(async () => faixa.querySelector("button").click());
+    expect(aoNavegar).toHaveBeenCalledWith("/empresas/org-major");
+  });
+
+  it("sem alerta, ou com a leitura falhando, não há faixa", async () => {
+    auth.estado.mockResolvedValue({ usuario: { email: "cmo@majorhub.com.br" } });
+    plataforma.estado.mockResolvedValue({ administrador: true });
+    plataforma.alertasDoModelo.mockRejectedValue(new Error("rede"));
+    await montar("/historico");
+    expect(container.textContent).not.toContain("Cláudio");
   });
 });
