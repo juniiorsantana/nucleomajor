@@ -23,6 +23,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
   definirFerramenta("crm.tag.apply"),
   definirFerramenta("crm.deal.qualify"),
   definirFerramenta("conversation.handoff"),
+  definirFerramenta("conversation.handoff.agent"),
   definirFerramenta("calendar.read"),
   definirFerramenta("calendar.availability"),
   definirFerramenta("calendar.prepare"),
