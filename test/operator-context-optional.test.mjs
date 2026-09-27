@@ -31,6 +31,8 @@ const OPCIONAIS = new Map([
   // idêntico ao da migration logo acima — quem escreve sem ser operador é
   // cliente, e aqui isso é resposta normal, não falha aberta.
   ["20260904230000_resolvers_usam_agente_padrao.sql", ["nucleo_intelligence_context_resolve_v2"]],
+  // 14C acrescenta só a capacidade: corpo comparado integralmente pelo teste de handoff.
+  ["20260906190000_fase_14c_capacidade_handoff_agente.sql", ["nucleo_intelligence_context_resolve_v2"]],
   // A trava de IA por plano. As cascas públicas dos resolvedores perguntam a
   // mesma coisa que a `_v2` pergunta logo depois: quem escreveu é operador?
   // Zero linhas quer dizer "é cliente", e aí o interruptor exigido é

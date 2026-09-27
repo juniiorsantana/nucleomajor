@@ -61,16 +61,17 @@ function extrairListaDoCorpo(corpoFuncao) {
 // `create or replace function`. Migrations que redefinem uma função DIFERENTE
 // no mesmo arquivo (ex.: v3 chamando v2) não interferem, porque o corpo é
 // isolado pelo nome antes de procurar o bloco `not in (...)`.
-async function coletarWhitelistPorFuncao(nomeFuncao) {
-  const arquivos = (await readdir(MIGRATIONS_DIR)).filter((nome) => nome.endsWith(".sql")).sort();
+async function coletarWhitelistPorFuncao(nomeFuncao, fontes = null) {
+  const arquivos = (fontes ? Object.keys(fontes) : await readdir(MIGRATIONS_DIR)).filter((nome) => nome.endsWith(".sql")).sort();
   const assinatura = `create or replace function public.${nomeFuncao}(`;
 
   let encontrada = null;
   for (const nome of arquivos) {
-    const sql = await readFile(new URL(nome, MIGRATIONS_DIR), "utf8");
-    const inicio = sql.indexOf(assinatura);
+    const sql = fontes ? fontes[nome] : await readFile(new URL(nome, MIGRATIONS_DIR), "utf8");
+    const inicio = sql.toLowerCase().indexOf(assinatura);
     if (inicio === -1) continue;
-    const fim = sql.indexOf("$$;", inicio);
+    const aberturaCorpo = sql.slice(inicio).match(/\bas\s+(\$[a-z]*\$)/i);
+    const fim = aberturaCorpo ? sql.indexOf(`${aberturaCorpo[1]};`, inicio + aberturaCorpo.index + aberturaCorpo[0].length) : -1;
     if (fim === -1) continue;
     const corpo = sql.slice(inicio, fim);
     const ferramentas = extrairListaDoCorpo(corpo);
@@ -86,10 +87,18 @@ test("a extração de whitelist distingue v2 de v3 por nome de função, não pe
 
   assert.ok(v2, "nenhuma migration define nucleo_intelligence_context_resolve_v2 com a validação de ferramentas");
   assert.ok(v3, "nenhuma migration define nucleo_intelligence_context_resolve_v3 com a validação de ferramentas");
-  // As duas funções são redefinidas em arquivos diferentes hoje. Isto prova
-  // que a extração acompanha CADA função, e não apenas "a migration mais
-  // recente que menciona a mensagem de erro" (o bug do teste antigo).
-  assert.notEqual(v2.nome, v3.nome, "v2 e v3 deveriam ser localizadas em migrations diferentes");
+  // A 14C redefine ambas no mesmo arquivo: cada corpo continua isolado.
+  assert.ok(v2.ferramentas.includes("conversation.handoff.agent"));
+  assert.ok(v3.ferramentas.includes("conversation.handoff.agent"));
+  const fontes = { 'duas.sql': `
+CREATE OR REPLACE FUNCTION public.nucleo_intelligence_context_resolve_v2() AS $function$
+not in ('somente.v2'); published skill contains an unsupported tool
+$function$;
+create or replace function public.nucleo_intelligence_context_resolve_v3() as $$
+not in ('somente.v3'); published skill contains an unsupported tool
+$$;` };
+  assert.deepEqual((await coletarWhitelistPorFuncao('nucleo_intelligence_context_resolve_v2', fontes)).ferramentas, ['somente.v2']);
+  assert.deepEqual((await coletarWhitelistPorFuncao('nucleo_intelligence_context_resolve_v3', fontes)).ferramentas, ['somente.v3']);
 });
 
 test("nucleo_intelligence_context_resolve_v2 aceita exatamente o catálogo canônico de ferramentas", async () => {
