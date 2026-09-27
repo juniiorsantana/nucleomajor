@@ -1000,6 +1000,14 @@ três rodadas de tentativa e erro.
   cadastraram), `deal_stage_history` criada, 7 triggers, nenhum negócio
   fechado sem `closed_at`, etapas "Lead" e "Em contato". Contato ≠ lead ≠
   negócio: ver o cabeçalho da migration.
+- `20260927100000_o_claudio_dormindo_no_painel.sql` aplicada em 27/09/2026
+  por `supabase db query --linked -f`, com autorização do dono, depois de um
+  ensaio com rollback forçado que simulou o login vencido na 8ee1 (admin viu
+  1 alerta, não-admin barrado). Conferida por consulta: `platform_model_alerts()`
+  existe, `security definer` com `search_path=""`, `authenticated` executa e
+  `anon` não. Motivo: o login do Claude na VPS venceu nesse dia e a
+  administração só soube quando alguém tentou marcar reunião; a faixa do
+  painel da plataforma lê esta função.
 
 ## Dívidas de menor privilégio (FASES E e F)
 
