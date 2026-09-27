@@ -457,6 +457,23 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       return (data || []).map(empresaDaLinha);
     },
 
+    // Agentes parados pelo modelo (sem login, sem cota, falhando), de todas
+    // as empresas. É o que acende a faixa do Cláudio dormindo.
+    "plataforma.alertasDoModelo": async () => {
+      const { data, error } = await supabase.rpc("platform_model_alerts");
+      if (error) throw erroDaPlataforma(error, "plataforma-alertas-modelo-falhou");
+      return (data || []).map((linha) => ({
+        conexaoId: linha.connection_id,
+        conexao: linha.connection_name || "",
+        empresaId: linha.organization_id || null,
+        empresa: linha.organization_name || "",
+        estado: linha.model_status,
+        codigo: linha.error_code || "",
+        ultimaRespostaEm: linha.last_model_success_at || null,
+        sinalEm: linha.heartbeat_at || null,
+      }));
+    },
+
     "plataforma.empresa": async ({ id } = {}) => {
       if (!id) throw new Error("Empresa não informada.");
       const { data, error } = await supabase.rpc("platform_organization_detail", { target_organization: id });

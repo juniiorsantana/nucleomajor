@@ -3,6 +3,7 @@ import { Building2, Cable, History, KeyRound, LogOut, Receipt, ShieldAlert } fro
 import { api } from "../data/client";
 import { BotaoPrimario, Marca, Rail } from "../page/ui";
 import { ENTRADA_PAINEL, LiberarAcesso, PedidosDeConexao, VendasDoAsaas } from "./administracao";
+import FaixaDoClaudio from "./FaixaDoClaudio";
 import Empresas from "./telas/Empresas";
 import Empresa from "./telas/Empresa";
 import Historico from "./telas/Historico";
@@ -184,6 +185,7 @@ export default function PainelApp({ caminho = "/", aoNavegar = () => {} }) {
         />
       </div>
       <main className="portal-main flex min-h-0 min-w-0 flex-1 flex-col">
+        <FaixaDoClaudio aoAbrirEmpresa={(id) => ir({ tela: "empresa", id })} />
         {rota.tela === "empresas" && <Empresas aoAbrir={(id) => ir({ tela: "empresa", id })} />}
         {rota.tela === "empresa" && <Empresa id={rota.id} aoVoltar={() => ir({ tela: "empresas" })} />}
         {rota.tela === "liberar" && (
