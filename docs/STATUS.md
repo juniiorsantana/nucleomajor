@@ -1000,6 +1000,15 @@ três rodadas de tentativa e erro.
   cadastraram), `deal_stage_history` criada, 7 triggers, nenhum negócio
   fechado sem `closed_at`, etapas "Lead" e "Em contato". Contato ≠ lead ≠
   negócio: ver o cabeçalho da migration.
+- `20260926180000_o_formulario_chama_pelo_fluxo.sql` aplicada em 28/09/2026
+  pelo SQL Editor (conteúdo conferido por SHA-256 contra o arquivo), depois de
+  um ensaio com rollback forçado no mesmo dia e de conferir que as duas
+  funções substituídas continuavam as de 26/09 (receive `bbdae709…`, gatilho
+  `9809894d…`). Conferida por consulta: coluna `first_message` com as 2
+  ligações existentes em `agent`, check criado, corpo de
+  `nucleo_site_lead_receive` com md5 `19d383a0…` (igual ao arquivo), gatilho
+  olhando `welcome_requested`, `anon` executa o receive e não o gatilho.
+  Nenhuma campanha está em modo `flow` ainda.
 
 ## Dívidas de menor privilégio (FASES E e F)
 
