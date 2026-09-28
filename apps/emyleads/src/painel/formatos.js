@@ -130,3 +130,36 @@ export function descreverAcao(linha) {
       return linha.acao;
   }
 }
+
+/**
+ * A faixa do Cláudio: o que dizer ao admin sobre um agente parado pelo modelo.
+ * Login vencido é o único que não passa sozinho, então é o único que manda
+ * fazer alguma coisa. `alerta` é uma linha de `platform_model_alerts()`.
+ */
+export function descreverAlertaDoModelo(alerta) {
+  const onde = alerta?.empresa || alerta?.conexao || "uma conexão";
+  if (alerta?.codigo === "model_auth_unavailable") {
+    return {
+      tom: "perigo",
+      emoji: "😴",
+      titulo: `O Cláudio de ${onde} pegou no sono`,
+      detalhe: "O login do Claude na VPS venceu. Para acordar: terminal da Hostinger → su - nucleo → "
+        + "abrir o claude na pasta de login desta conexão → /login.",
+    };
+  }
+  if (alerta?.estado === "quota_exhausted" || alerta?.codigo === "model_quota_exhausted") {
+    return {
+      tom: "aviso",
+      emoji: "☕",
+      titulo: `O Cláudio de ${onde} estourou a cota`,
+      detalhe: "Volta sozinho quando o limite do Claude renovar.",
+    };
+  }
+  return {
+    tom: "aviso",
+    emoji: "🤕",
+    titulo: `O Cláudio de ${onde} está tropeçando`,
+    detalhe: `A última resposta falhou${alerta?.codigo ? ` (${alerta.codigo})` : ""}. `
+      + "Se continuar, confira o log do assistente na VPS.",
+  };
+}

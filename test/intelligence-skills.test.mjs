@@ -29,13 +29,19 @@ test("agenda interna e solicitação externa possuem fronteiras distintas", asyn
   assert.ok(agenda.spec.allowedTools.includes("calendar.confirm"));
   assert.ok(!agenda.spec.allowedTools.includes("calendar.request.submit"));
   assert.equal(request.audience, "customer");
-  assert.deepEqual(request.spec.allowedTools, [
-    "calendar.availability",
-    "calendar.request.prepare",
-    "calendar.request.submit",
-  ]);
+  // A fronteira é sobre AGENDA: o cliente só prepara e submete pedidos, nunca
+  // confirma nem prepara evento direto. Conhecimento e transferência humana
+  // acompanham a skill porque o lead pergunta sobre a Major e pede gente no
+  // meio da marcação — sem eles, a skill prometia o que não podia fazer.
+  assert.deepEqual(
+    request.spec.allowedTools.filter((tool) => tool.startsWith("calendar.")),
+    ["calendar.availability", "calendar.request.prepare", "calendar.request.submit"],
+  );
+  assert.ok(request.spec.allowedTools.includes("knowledge.search"));
+  assert.ok(request.spec.allowedTools.includes("conversation.handoff"));
   assert.ok(request.spec.guardrails.includes("no_direct_creation"));
   assert.ok(!request.spec.allowedTools.includes("calendar.confirm"));
+  assert.ok(!request.spec.allowedTools.includes("calendar.prepare"));
 });
 
 test("roteamento diferencia gatilho, bloqueio e fallback", () => {

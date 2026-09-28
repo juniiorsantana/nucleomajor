@@ -32,9 +32,9 @@ test("B: nenhum nome duplicado existe no Registry", () => {
   assert.equal(new Set(nomes).size, nomes.length, "TOOL_DEFINITIONS contém nomes repetidos");
 });
 
-test("C: existem exatamente 15 tools atualmente", () => {
-  assert.equal(TOOL_DEFINITIONS.length, 15);
-  assert.equal(TOOL_NAMES.size, 15);
+test("C: existem exatamente 16 tools atualmente", () => {
+  assert.equal(TOOL_DEFINITIONS.length, 16);
+  assert.equal(TOOL_NAMES.size, 16);
 });
 
 test("D: isKnownTool aceita tool válida e rejeita inválida", () => {
@@ -113,9 +113,10 @@ test("nenhuma migration SQL vigente (resolve_v2/v3) aceita ferramenta fora do Re
     let encontrada = null;
     for (const nome of arquivos) {
       const sql = await readFile(new URL(nome, MIGRATIONS_DIR), "utf8");
-      const inicio = sql.indexOf(assinatura);
+      const inicio = sql.toLowerCase().indexOf(assinatura);
       if (inicio === -1) continue;
-      const fim = sql.indexOf("$$;", inicio);
+      const aberturaCorpo = sql.slice(inicio).match(/\bas\s+(\$[a-z]*\$)/i);
+      const fim = aberturaCorpo ? sql.indexOf(`${aberturaCorpo[1]};`, inicio + aberturaCorpo.index + aberturaCorpo[0].length) : -1;
       if (fim === -1) continue;
       const corpo = sql.slice(inicio, fim);
       if (!corpo.includes(MARCADOR)) continue;

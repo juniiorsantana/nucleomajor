@@ -138,7 +138,10 @@ const OPERACOES = {
   "plataforma.historico": () => historico,
   "plataforma.vendas": () => [{ id: "v1", email: "vale@exemplo.invalido", plano: "completo", nomePlano: "Completo", ciclo: "MONTHLY", status: "active", empresa: "Loja Vale", codigoStatus: "redeemed" }],
   "plataforma.pedidosDeConexao": () => [{ conexaoId: "c9", empresaId: "adriane", empresa: "Clínica Adriane", dono: "adriane@exemplo.invalido", final: "8164", plano: "base", pedidoEm: iso(agora - 3_600_000), sinalEm: null }],
-  "plataforma.emitirAcesso": ({ email, plano }) => ({ access_code: "NM12-3456-7890-AB", email, plan_code: plano }),
+  "plataforma.alertasDoModelo": () => (parametros.has("dormindo")
+    ? [{ conexaoId: "8ee1e6d0-a9d0-4041-b6ea-878716a34a71", conexao: "Major 8362", empresaId: "major", empresa: "Major", estado: "unavailable", codigo: "model_auth_unavailable", ultimaRespostaEm: iso(agora - 4 * 86_400_000), sinalEm: iso(agora) }]
+    : []),
+  "plataforma.emitirAcesso":({ email, plano }) => ({ access_code: "NM12-3456-7890-AB", email, plan_code: plano }),
 };
 
 globalThis.__EMYLEADS_DEV_CALL__ = async (op, args = {}) => {

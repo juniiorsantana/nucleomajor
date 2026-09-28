@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { descreverAcao, descreverValor, diasAte, ehDoAsaas, ehRebaixamento, fimDoDia, fimMaisDias, situacao, venceEmBreve } from "./formatos";
+import { descreverAcao, descreverAlertaDoModelo, descreverValor, diasAte, ehDoAsaas, ehRebaixamento, fimDoDia, fimMaisDias, situacao, venceEmBreve } from "./formatos";
 
 const AGORA = Date.parse("2026-09-24T15:00:00Z");
 const DIA = 86_400_000;
@@ -92,5 +92,26 @@ describe("textos", () => {
     expect(descreverAcao({ acao: "subscription.end_now" })).toBe("Acesso encerrado");
     expect(descreverAcao({ acao: "subscription.set_plan", alvo: "completo", antes: { plan_code: "base" }, depois: { plan_code: "completo" } }))
       .toBe("Plano: base → completo");
+  });
+});
+
+describe("a faixa do Cláudio", () => {
+  it("login vencido é perigo e diz como acordar", () => {
+    const texto = descreverAlertaDoModelo({ empresa: "Major", estado: "unavailable", codigo: "model_auth_unavailable" });
+    expect(texto.tom).toBe("perigo");
+    expect(texto.titulo).toBe("O Cláudio de Major pegou no sono");
+    expect(texto.detalhe).toContain("/login");
+  });
+
+  it("cota é aviso e passa sozinha", () => {
+    const texto = descreverAlertaDoModelo({ empresa: "Major", estado: "quota_exhausted", codigo: "model_quota_exhausted" });
+    expect(texto.tom).toBe("aviso");
+    expect(texto.detalhe).toContain("renovar");
+  });
+
+  it("o resto diz o código, e sem empresa usa o nome da conexão", () => {
+    const texto = descreverAlertaDoModelo({ conexao: "Major 8362", estado: "unavailable", codigo: "model_timeout" });
+    expect(texto.titulo).toBe("O Cláudio de Major 8362 está tropeçando");
+    expect(texto.detalhe).toContain("(model_timeout)");
   });
 });

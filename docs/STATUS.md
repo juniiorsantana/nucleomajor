@@ -21,6 +21,111 @@ consumidor legado do navegador. A fase aguarda aplicação manual, deploy e
 observação real; o editor v3 continua reservado à FASE 4.
 Evidências e pendências: [checklist da FASE 3](intelligence/FLOW-PHASE-3-CHECKLIST.md).
 
+## FASE 14 — banco, skills e runtime publicados; prova real pendente
+
+> **Incorporada à `main` em 27/09/2026** pelo merge de `agente/regras-de-atendimento`
+> (branch `alinhar/agentes-com-producao`). O que segue é o registro de 06–07/09:
+> onde ele diz que a `main` segue sem a fase, leia "seguia". As skills de clientes
+> em produção hoje são as da fase 1 do atendimento de leads (11/09), não as
+> versões citadas abaixo.
+
+Branches isoladas `feature/fase-14-handoff` no portal e no runtime. A base do
+portal é `60c90ab`, igual a `origin/main` consultada nesta execução. A base do
+runtime é `da11193`: checkout local, `hardening` da VPS e referência remota
+consultada por SSH conferem. O remoto HTTPS do runtime recusou acesso; a leitura
+da referência por SSH na VPS funcionou. Nenhum commit anterior foi descartado.
+
+Commits de implementação: portal **`9b2ef42`** (branch publicada no origin) e
+runtime **`0ae2b38`** (commit local e bundle preservado). A publicação da branch
+do runtime via Git bare temporário foi **recusada pela revisão automática**:
+classificou `git@github.com:juiiorsantana/whatsapp-mcp-hardened.git` como destino
+não verificado por causa da falha anterior no HTTPS, apesar do `ls-remote` SSH
+ter retornado `da11193` para hardening. Não houve tentativa de contornar a recusa.
+Bundle local: `artifacts/fase-14/runtime.bundle`. A main e hardening seguem
+sem a fase até concluir os aceites de produção.
+
+- **14A:** [memorando do contrato](./intelligence/MULTI-AGENT-MIGRATION.md#fase-14a--contrato-de-handoff-entre-agentes).
+  Slug validado na organização, motivos fechados, teto persistido de **3** saltos,
+  sessão de skill fechada, skill ativa zerada e sessão do modelo descartada.
+  Resumo opcional não é persistido/devolvido/auditado; contexto livre é FASE 15.
+- **14B:** RPC `nucleo_customer_agent_handoff` e coluna `agent_handoff_count`.
+  Prova em **PostgreSQL 17.9 descartável**, 57 migrations anteriores + 2 novas,
+  **A–H e G2 PASS**, ROLLBACK sem resíduos e cluster removido.
+- **14C:** capacidade própria no banco, catálogo, schema, runtime e MCP;
+  evento `conversation.agent_handoff` só após sucesso técnico, sem resumo e sem
+  acionar o árbitro humano. Recepção e Vendas declaram a capacidade por estágio.
+  Vendas é necessária porque “quero fechar plano” já ativa essa skill.
+- **Ajuste necessário ao plano:** v3 chama v2 antes da sua validação, portanto
+  **as duas allowlists** recebem a string. Comparação integral dos corpos prova
+  que nenhuma outra linha operacional foi alterada. Dos 143 corpos anteriores,
+  só esses dois mudaram; o posterior tem 144 funções pela RPC nova.
+  `intelligence_payload` permanece com hash normalizado
+  `4ed9516507bcf8322f14e313fa08a94e`, idêntico à 13C.
+- **Verificações executadas:** 237 testes Node; 578 testes do app, **49 arquivos**
+  (incluindo jsdom); **374 testes do assistente**, incluindo a prova de dois turnos;
+  50 testes MCP. Build Vite e compilação Python passaram.
+  [Receita, evidências e hashes](../scripts/sql/README-prova-handoff-entre-agentes.md).
+  [Consulta read-only de aceite](../scripts/sql/validar-fase-14.sql) executada no
+  controle e no banco com a fase: quatro hashes aceitos no pós-check.
+
+**Produção observada:** 14B aceita com hash
+`c5a77221e64b6be22720cc1800faf683`; 14C aceita com v2
+`cf6d7160329a589602d730412215c801` e v3
+`f74eee42963ae1c1a0f033ce3905811b`; `intelligence_payload` permaneceu
+`4ed9516507bcf8322f14e313fa08a94e`. Recepção foi publicada como v2,
+hash `e5648acb6408...`, e Vendas como v4, hash `422df18a36b7...`.
+Nova simulação confirmou ambas sem alteração.
+
+**Runtime publicado:** após autorização explícita, release `0ae2b38` ativado
+em 06/09/2026 às 19:35 (America/Sao_Paulo), reiniciando apenas o assistente.
+Nova consulta confirmou HEAD `0ae2b386d46a5ce00700177d3fae816ca38e633b`,
+PID `125825`, `active/running` e `NRestarts=0`. Bridge preservado no PID
+`76260`, também ativo e sem reinícios. O release anterior foi preservado para
+rollback. A suíte do assistente passou com 374 testes na repetição integral;
+a primeira execução teve uma falha intermitente no teste de aviso ao operador,
+que passou isoladamente. A causa dessa intermitência não foi determinada.
+MCP passou com 50 testes no seu próprio ambiente virtual.
+
+**Não observado:** transferência WhatsApp real. A consulta ao journal desde
+o deploy não encontrou `conversation.agent_handoff`, `Traceback` ou
+`ModuleNotFoundError`; isso não substitui a prova de dois turnos reais.
+Essa prova foi adiada para terça-feira, quando a credencial do Claude estiver
+disponível.
+
+**Pré-check de produção devolvido pelo usuário:** hashes de payload/v2/v3
+conferem com os baselines provados; RPC e coluna da 14 ainda ausentes. Slug
+`sdr` confirmado, ativo/customer na mesma organização do Assistente Major.
+Recepção v1 e Vendas v3 continuam publicadas sem a capacidade nova. O SDR tem
+**zero bindings de fallback**, contra um no Major: antes do handoff é necessário
+preparar seu fallback para o turno seguinte. O resultado também mostra EXECUTE
+para anon em v2/v3, diferente do cluster mínimo; a 14C preserva esses privilégios
+existentes e continua exigindo credencial de robô. A RPC nova revoga anon/public.
+
+[preparar-sdr-fase-14.sql](../scripts/sql/preparar-sdr-fase-14.sql) vincula apenas
+Recepção e Vendas publicadas ao SDR confirmado, preservando prioridades/configuração
+de bindings existentes. Script exato executado duas vezes em PostgreSQL 17.9
+descartável: idempotência, resolução de Recepção e de Vendas pelo SDR e rollback
+sem resíduos passaram. **Aplicação manual confirmada pelo resultado devolvido
+pelo usuário:** Recepção habilitada, prioridade 1000, v1, fallback=true; Vendas
+habilitada, prioridade **100 preservada do vínculo existente**, v3, fallback=false.
+O SDR está preparado para resolver ambas. As migrations 14B e 14C foram
+aplicadas e aceitas, e as duas skills foram publicadas.
+
+O acesso do navegador ao SQL Editor foi **recusado pela revisão automática**,
+que classificou a liberação de acesso a supabase.com como possível exposição da
+sessão autenticada. Nenhum canal alternativo de aplicação foi usado.
+As unidades rodam no `systemd --user`, esclarecendo a consulta anterior feita no
+gerenciador do sistema. `whatsapp-assistant@8ee1e6d0-a9d0-4041-b6ea-878716a34a71`
+está `active/running`, `NRestarts=0`, e o bridge equivalente também está
+`active/running`, `NRestarts=0`. O symlink ativo resolve para
+`/home/nucleo/releases/whatsapp-mcp-hardened/0ae2b38`. Antes da troca,
+o checkout foi conferido em `da1119334727a3e86241c9ad1d52e2a6720e9bfc`.
+O diretório `a6f769f` foi preservado como rollback. Apenas o assistente reiniciou.
+
+**A fase permanece aberta.** Transferência real e integração das branches
+continuam pendentes. O runtime está implantado na VPS; sua branch remota
+ainda precisa ser publicada antes da integração.
+
 Última revisão documental: **29/08/2026**.
 
 ## Produção confirmada
@@ -1000,6 +1105,14 @@ três rodadas de tentativa e erro.
   cadastraram), `deal_stage_history` criada, 7 triggers, nenhum negócio
   fechado sem `closed_at`, etapas "Lead" e "Em contato". Contato ≠ lead ≠
   negócio: ver o cabeçalho da migration.
+- `20260927100000_o_claudio_dormindo_no_painel.sql` aplicada em 27/09/2026
+  por `supabase db query --linked -f`, com autorização do dono, depois de um
+  ensaio com rollback forçado que simulou o login vencido na 8ee1 (admin viu
+  1 alerta, não-admin barrado). Conferida por consulta: `platform_model_alerts()`
+  existe, `security definer` com `search_path=""`, `authenticated` executa e
+  `anon` não. Motivo: o login do Claude na VPS venceu nesse dia e a
+  administração só soube quando alguém tentou marcar reunião; a faixa do
+  painel da plataforma lê esta função.
 - `20260926180000_o_formulario_chama_pelo_fluxo.sql` aplicada em 28/09/2026
   pelo SQL Editor (conteúdo conferido por SHA-256 contra o arquivo), depois de
   um ensaio com rollback forçado no mesmo dia e de conferir que as duas
@@ -1270,3 +1383,12 @@ e uma implantação do runtime; é a próxima leva desta tela.
 8. somente então avaliar a mudança do piloto para o modo Ativo.
 
 O registro das dez jornadas fica em `docs/MVP-ACCEPTANCE-H5.md`.
+# FASE 14 — aceite manual do corpo SQL (2026-09-06)
+
+O SQL Editor confirmou a coluna, as permissões e o corpo canônico da RPC 14B:
+`c5a77221e64b6be22720cc1800faf683`. A correção removeu as quebras que a
+cópia anterior havia introduzido dentro de três mensagens literais. A reprodução
+do problema e a restauração passaram em Postgres 17.9 descartável, seguidas de
+toda a prova comportamental A–H/G2 e dos vínculos SDR. A 14B está aceita em
+produção. A 14C, a publicação das skills, o runtime e a transferência real
+continuam pendentes.
