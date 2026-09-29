@@ -1122,6 +1122,14 @@ três rodadas de tentativa e erro.
   `nucleo_site_lead_receive` com md5 `19d383a0…` (igual ao arquivo), gatilho
   olhando `welcome_requested`, `anon` executa o receive e não o gatilho.
   Nenhuma campanha está em modo `flow` ainda.
+- `20260929120000_o_lead_entra_no_funil.sql` aplicada em 29/09/2026 (18:22
+  UTC) pelo SQL Editor, com autorização do dono (conteúdo conferido por
+  SHA-256 `384de5cf…` contra o arquivo), depois de um ensaio com rollback
+  forçado: 1 negócio por lead nos três caminhos (criado já lead, negócio
+  manual primeiro, marcado depois). Conferida por consulta: trigger
+  `contacts_lead_enters_funnel` existe, 0 leads sem negócio, 49 negócios
+  novos na etapa "Lead" (44 Adriani Ademicon, 5 Núcleo Major — um lead do
+  site chegou entre o ensaio e a aplicação) e nenhum comando à VPS gerado.
 
 ## Dívidas de menor privilégio (FASES E e F)
 
