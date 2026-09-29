@@ -920,7 +920,18 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const blocos = useMemo(() => BLOCOS.filter((bloco) => ramificado || !bloco.ramificado), [ramificado]);
   const [inteligencia, setInteligencia] = useState({ skills: [], campaigns: [] });
   useEffect(() => {
-    api.inteligencia.carregar().then((dados) => setInteligencia({ skills: dados.skills || [], campaigns: dados.campaigns || [] })).catch(() => {});
+    // Sem Inteligência (plano Base) a carga dela falha, e o gatilho "Lead da
+    // campanha" ficava sem campanha para escolher — justo no plano que roda
+    // fluxo sem IA. As campanhas vêm então da mesma fonte da tela Campanhas.
+    const campanhasDoCrm = () =>
+      api.campanhas
+        .listar()
+        .then((lista) => (lista || []).map((campanha) => ({ id: campanha.id, name: campanha.nome, status: campanha.status })))
+        .catch(() => []);
+    api.inteligencia
+      .carregar()
+      .then((dados) => setInteligencia({ skills: dados.skills || [], campaigns: dados.campaigns || [] }))
+      .catch(async () => setInteligencia({ skills: [], campaigns: await campanhasDoCrm() }));
   }, []);
   const novo = !chatbot;
   const iniciais = useMemo(() => {

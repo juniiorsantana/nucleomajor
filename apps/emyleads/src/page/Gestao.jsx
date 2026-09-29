@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChartColumn, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { Bot, Cable, CalendarDays, ChartColumn, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, Megaphone, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
 import { api } from "../data/client";
 import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
@@ -16,6 +16,7 @@ import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Conversas = lazy(() => import("./telas/Conversas"));
 const Relatorios = lazy(() => import("./telas/Relatorios"));
+const Campanhas = lazy(() => import("./telas/Campanhas"));
 const Inteligencia = lazy(() => import("./telas/Inteligencia"));
 const Chatbots = lazy(() => import("./telas/Chatbots"));
 const ChatbotEditor = lazy(() => import("./telas/ChatbotEditor"));
@@ -72,6 +73,9 @@ const TELAS = [
       ]
     : []),
   { id: "contatos", rotulo: "Leads", icone: Users, grupo: "Gestão" },
+  // Só no portal: lê as campanhas e os leads delas no banco. Liberada pelo
+  // CRM, e não pela Inteligência, para o plano Base ver as campanhas dele.
+  ...(PLATAFORMA_WEB ? [{ id: "campanhas", rotulo: "Campanhas", icone: Megaphone, grupo: "Gestão" }] : []),
   { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão" },
   // Só no portal: conta pela marca de lead e pelo histórico de etapas, que
   // moram no banco; a extensão guarda os dados no navegador e não tem nenhum dos dois.
@@ -97,6 +101,7 @@ const RECURSO_DA_TELA = {
   conversas: "whatsapp_web",
   conexoes: "whatsapp_web",
   contatos: "crm",
+  campanhas: "crm",
   funil: "crm",
   relatorios: "crm",
   tarefas: "crm",
@@ -820,6 +825,17 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             aoAbrirContato={(c) => (c ? abrirFicha(c) : setEditando(null))}
             aoAbrirConversa={abrirConversaDoContato}
           />
+        ) : tela === "campanhas" ? (
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando campanhas…</div>}>
+            <Campanhas
+              dados={dados}
+              sessao={sessao}
+              temInteligencia={telaLiberada("conhecimento", recursos)}
+              aoAbrirContato={abrirFicha}
+              aoAbrirConversa={abrirConversaDoContato}
+              aoAbrirChatbots={telaLiberada("chatbots", recursos) ? () => trocarTela("chatbots") : undefined}
+            />
+          </Suspense>
         ) : tela === "funil" ? (
           <Funil
             dados={dados}
