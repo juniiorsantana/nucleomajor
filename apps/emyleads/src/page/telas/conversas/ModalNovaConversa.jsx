@@ -79,8 +79,10 @@ export function ModalNovaConversa({
   aoIniciar,
   aoAbrirConversa,
   aoFechar,
+  buscaInicial = "",
 }) {
-  const [busca, setBusca] = useState("");
+  // Vindo de "Começar conversa" num lead, o número já chega digitado.
+  const [busca, setBusca] = useState(buscaInicial);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState("");
 

@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Download,
+  MessageCircle,
   MoreVertical,
   Plus,
   SlidersHorizontal,
@@ -26,6 +27,13 @@ import {
   SeloWhatsApp,
   Seletor,
 } from "../ui";
+import { AvatarDoLead, SituacaoDaConversa } from "./leads/pecas";
+import {
+  ROTULOS_DA_SITUACAO,
+  conversaDoContato,
+  situacaoDaConversa,
+} from "./leads/conversaDoLead";
+import { useConversasDosLeads } from "./leads/useConversasDosLeads";
 
 const POR_PAGINA = 25;
 const SEMANA = 7 * 24 * 60 * 60 * 1000;
@@ -37,10 +45,15 @@ const SEMANA = 7 * 24 * 60 * 60 * 1000;
  * responde "como está o conjunto". São perguntas diferentes e por isso a
  * densidade também é: aqui cabe respiro, lá não cabia.
  */
-export default function Contatos({ dados, recarregar, aoAbrirContato }) {
+export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirConversa }) {
   const { contatos, negocios, tarefas, estagios } = dados;
 
+  // A conversa de WhatsApp de cada lead: foto, nome e quem falou por último.
+  const { indice, carregado: conversasCarregadas } = useConversasDosLeads();
+  const conversaDe = (contato) => conversaDoContato(indice, contato);
+
   const [busca, setBusca] = useState("");
+  const [filtroConversa, setFiltroConversa] = useState("");
   const [filtroEstagio, setFiltroEstagio] = useState("");
   const [filtroOrigem, setFiltroOrigem] = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
@@ -104,7 +117,10 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
    * de contatos, quem falou com você agora tem que estar no topo, senão a
    * primeira tela é sempre aleatória.
    */
-  const recencia = (c) => c.ultimaEm ?? c.atualizadoEm ?? c.criadoEm ?? 0;
+  // A última mensagem no WhatsApp também conta: o lead que acabou de
+  // responder sobe, mesmo que ninguém tenha mexido na ficha dele.
+  const recencia = (c) =>
+    Math.max(c.ultimaEm ?? c.atualizadoEm ?? c.criadoEm ?? 0, conversaDe(c)?.ultimaMensagemEm || 0);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -114,6 +130,8 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
       .sort((a, b) => recencia(b) - recencia(a))
       .filter((c) => {
         if (mostrar === "leads" && !ehLead(c)) return false;
+        if (filtroConversa && situacaoDaConversa(conversaDe(c)) !== filtroConversa)
+          return false;
         if (filtroOrigem && c.origem !== filtroOrigem) return false;
         if (filtroResponsavel && c.responsavel !== filtroResponsavel)
           return false;
@@ -121,19 +139,24 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
           return false;
         if (!q) return true;
         return (
-          c.nome.toLowerCase().includes(q) ||
+          (c.nome || "").toLowerCase().includes(q) ||
+          (conversaDe(c)?.nome || "").toLowerCase().includes(q) ||
           (c.empresa || "").toLowerCase().includes(q) ||
           (digitos && (c.telefone || "").includes(digitos))
         );
       });
+    // `conversaDe` só muda quando o índice muda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     contatos,
     mostrar,
     busca,
+    filtroConversa,
     filtroOrigem,
     filtroResponsavel,
     filtroEstagio,
     estagioDoContato,
+    indice,
   ]);
 
   const paginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
@@ -145,7 +168,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
 
   useEffect(
     () => setPagina(1),
-    [busca, filtroEstagio, filtroOrigem, filtroResponsavel, mostrar],
+    [busca, filtroConversa, filtroEstagio, filtroOrigem, filtroResponsavel, mostrar],
   );
 
   /* --- indicadores ------------------------------------------------ */
@@ -205,9 +228,10 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
 
   /* --- ações ------------------------------------------------------ */
 
-  const temFiltro = busca || filtroEstagio || filtroOrigem || filtroResponsavel;
+  const temFiltro = busca || filtroConversa || filtroEstagio || filtroOrigem || filtroResponsavel;
   const limpar = () => {
     setBusca("");
+    setFiltroConversa("");
     setFiltroEstagio("");
     setFiltroOrigem("");
     setFiltroResponsavel("");
@@ -306,6 +330,12 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
             </div>
           )}
           <Seletor
+            valor={filtroConversa}
+            aoMudar={setFiltroConversa}
+            rotuloVazio="Conversa"
+            opcoes={Object.entries(ROTULOS_DA_SITUACAO).map(([id, rotulo]) => ({ id, rotulo }))}
+          />
+          <Seletor
             valor={filtroEstagio}
             aoMudar={setFiltroEstagio}
             rotuloVazio="Todos os status"
@@ -385,13 +415,14 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
                 <Cabecalho>Status</Cabecalho>
                 <Cabecalho>Origem</Cabecalho>
                 <Cabecalho>Responsável</Cabecalho>
-                <Cabecalho>Última interação</Cabecalho>
+                <Cabecalho>Conversa</Cabecalho>
                 <Cabecalho className="w-24 text-right">Ações</Cabecalho>
               </tr>
             </thead>
             <tbody>
               {visiveis.map((c) => {
                 const estagio = estagioDoContato[c.id];
+                const conversa = conversaDe(c);
                 return (
                   <tr
                     key={c.id}
@@ -415,11 +446,11 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
                         onClick={() => aoAbrirContato?.(c)}
                         className="flex cursor-pointer items-center gap-3 text-left"
                       >
-                        <Iniciais nome={c.nome} />
+                        <AvatarDoLead contato={c} conversa={conversa} />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="truncate text-[14px] font-medium text-fg hover:text-accent-forte">
-                              {c.nome || "Sem nome"}
+                              {c.nome || conversa?.nome || "Sem nome"}
                             </span>
                             {!ehLead(c) && (
                               <span className="flex-none rounded-full bg-surface px-2 py-0.5 text-[10.5px] font-medium text-sub" title="Contato ainda não marcado como lead">
@@ -464,11 +495,27 @@ export default function Contatos({ dados, recarregar, aoAbrirContato }) {
                         <span className="text-[13.5px] text-faint">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[13.5px] text-sub">
-                      {fmtInteracao(c.ultimaEm ?? c.atualizadoEm)}
+                    <td className="px-4 py-3">
+                      {conversasCarregadas ? (
+                        <SituacaoDaConversa conversa={conversa} />
+                      ) : (
+                        <span className="text-[13.5px] text-sub">
+                          {fmtInteracao(c.ultimaEm ?? c.atualizadoEm)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {c.telefone && aoAbrirConversa && (
+                          <button
+                            title={conversa ? "Abrir conversa" : "Começar conversa"}
+                            aria-label={conversa ? "Abrir conversa" : "Começar conversa"}
+                            onClick={() => aoAbrirConversa(c)}
+                            className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-accent-forte"
+                          >
+                            <MessageCircle size={17} strokeWidth={1.75} />
+                          </button>
+                        )}
                         <button
                           title="Mais ações"
                           onClick={() => aoAbrirContato?.(c)}

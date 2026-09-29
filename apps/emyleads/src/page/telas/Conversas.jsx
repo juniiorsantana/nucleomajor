@@ -3,7 +3,7 @@ import { MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-rea
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
-import { formatPhone } from "../../lib/phone";
+import { formatPhone, variantesBR } from "../../lib/phone";
 import { SeloWhatsApp } from "../ui";
 import { EstadoVazioConversas, FaixaConexao, ModalConectarWhatsApp } from "./conversas/ConexaoDoWhatsApp";
 import { FASES } from "./conexoes/estadoDaConexao";
@@ -21,6 +21,7 @@ import {
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
+import { conversaDoTelefone } from "./conversas/conversasUtils";
 import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
 import { usePareamento } from "./conversas/usePareamento";
@@ -117,6 +118,8 @@ export default function Conversas({
   fluxosManuais = [],
   aoIniciarFluxo,
   aoAbrirConversa,
+  telefoneParaAbrir = null,
+  aoConsumirTelefone,
   sessao,
 }) {
   const {
@@ -189,6 +192,32 @@ export default function Conversas({
     [conversas]
   );
   const conversa = (conversas || []).find((c) => c.id === atual) || null;
+
+  /**
+   * "Abrir conversa" vindo da lista de Leads ou da ficha.
+   *
+   * Espera a lista carregar, acha a conversa pelo telefone (com ou sem o nono
+   * dígito) e a abre. Sem conversa, abre "Nova conversa" com o número já
+   * digitado: o lead do formulário que nunca escreveu é justamente esse caso.
+   */
+  const [buscaDaNovaConversa, setBuscaDaNovaConversa] = useState("");
+  useEffect(() => {
+    if (!telefoneParaAbrir || !Array.isArray(conversas)) return;
+    const achada = conversaDoTelefone(conversas, variantesBR(telefoneParaAbrir), variantesBR);
+    if (achada) {
+      setBusca("");
+      setFiltro("tudo");
+      setTipoLista("contatos");
+      setAtual(achada.id);
+      aoAbrirConversa?.();
+    } else {
+      setBuscaDaNovaConversa(telefoneParaAbrir);
+      setNovaConversa(true);
+    }
+    aoConsumirTelefone?.();
+    // Só reage ao pedido e à chegada da lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telefoneParaAbrir, conversas]);
 
   /**
    * Salvar um contato muda a lista, e nada avisava.
@@ -593,7 +622,11 @@ export default function Conversas({
           aoVerificar={verificarNumero}
           aoIniciar={iniciarConversa}
           aoAbrirConversa={setAtual}
-          aoFechar={() => setNovaConversa(false)}
+          buscaInicial={buscaDaNovaConversa}
+          aoFechar={() => {
+            setNovaConversa(false);
+            setBuscaDaNovaConversa("");
+          }}
         />
       )}
 
