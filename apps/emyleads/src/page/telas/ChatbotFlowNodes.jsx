@@ -35,26 +35,46 @@ function BotaoMais({ saida, aoPedirBloco }) {
   );
 }
 
+/**
+ * A porta de saída nasce cinza e ganha a cor da família do bloco quando a
+ * saída está ligada (design de 14/09): de longe dá para ver o que ainda está
+ * solto no fluxo.
+ */
+function PortaSaida({ saida, livre }) {
+  return (
+    <Handle
+      type="source"
+      position={Position.Right}
+      id={saida}
+      className={`flow-port flow-port--out ${livre ? "" : "is-ligada"}`}
+    />
+  );
+}
+
 /** Uma saída só: a porta fica na borda direita, como sempre foi. */
 function SaidaUnica({ saida = "padrao", livre, aoPedirBloco }) {
   return (
     <div className="flow-port-grupo">
-      <Handle type="source" position={Position.Right} id={saida} className="flow-port flow-port--out" />
+      <PortaSaida saida={saida} livre={livre} />
       {livre && <BotaoMais saida={saida} aoPedirBloco={aoPedirBloco} />}
     </div>
   );
 }
 
-/** Várias saídas: uma linha por caminho, e a porta alinhada à linha. */
+/**
+ * Várias saídas: uma linha por caminho, numerada, e a porta alinhada à linha.
+ * A linha ligada ganha a cor da família; a solta fica cinza.
+ */
 function SaidasNomeadas({ saidas, rotulos = {}, aoPedirBloco }) {
   return (
     <div className="flow-node__saidas">
-      {saidas.map(({ nome, livre }) => (
-        <div key={nome} className={`flow-saida flow-saida--${nome}`}>
+      {saidas.map(({ nome, livre }, indice) => (
+        <div key={nome} className={`flow-saida flow-saida--${nome} ${livre ? "" : "is-ligada"}`}>
+          <span className="flow-saida__num">{indice + 1}</span>
           {/* A opção de uma pergunta tem id próprio; o nome dela vem do bloco. */}
           <span className="flow-saida__rotulo">{rotulos[nome] || ROTULOS_SAIDA[nome] || nome}</span>
           <div className="flow-port-grupo flow-port-grupo--linha">
-            <Handle type="source" position={Position.Right} id={nome} className="flow-port flow-port--out" />
+            <PortaSaida saida={nome} livre={livre} />
             {livre && <BotaoMais saida={nome} aoPedirBloco={aoPedirBloco} />}
           </div>
         </div>

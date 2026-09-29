@@ -179,31 +179,62 @@
   stroke-width: 2;
 }
 
-.chatbot-flow .react-flow__controls {
-  overflow: hidden;
+/* A barra de zoom e a dica do design de 14/09, no lugar dos controles soltos
+   e do minimapa. */
+.chatbot-flow .flow-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
   border: 1px solid var(--el-line);
   border-radius: 10px;
   background: var(--el-bg);
-  box-shadow: 0 8px 22px rgb(18 23 48 / 9%);
+  box-shadow: 0 6px 18px rgb(18 23 48 / 10%);
 }
 
-.chatbot-flow .react-flow__controls-button {
-  width: 30px;
-  height: 30px;
-  border-bottom-color: var(--el-line);
-  background: var(--el-bg);
-  fill: var(--el-sub);
+.chatbot-flow .flow-zoom button {
+  display: inline-flex;
+  height: 28px;
+  min-width: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--el-sub);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.chatbot-flow .react-flow__controls-button:hover { background: var(--el-surface-hover); }
-.chatbot-flow .react-flow__controls-button svg { fill: currentColor; }
+.chatbot-flow .flow-zoom button:hover { background: var(--el-surface-hover); color: var(--el-fg); }
 
-.chatbot-flow .react-flow__minimap {
-  overflow: hidden;
+.chatbot-flow .flow-zoom__valor {
+  min-width: 42px;
+  color: var(--el-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.chatbot-flow .flow-zoom__ajustar { border-left: 1px solid var(--el-line); border-radius: 0 7px 7px 0; }
+
+.chatbot-flow .flow-dica {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   border: 1px solid var(--el-line);
-  border-radius: 10px;
+  border-radius: 999px;
+  padding: 7px 13px;
   background: color-mix(in srgb, var(--el-bg) 92%, transparent);
-  box-shadow: 0 8px 22px rgb(18 23 48 / 8%);
+  color: var(--el-sub);
+  font-size: 10.5px;
+  box-shadow: 0 6px 18px rgb(18 23 48 / 8%);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .chatbot-flow .flow-dica { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -285,20 +316,6 @@
   font-size: 11px;
   font-weight: 600;
 }
-
-.flow-saida::before {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--el-faint);
-  content: "";
-}
-
-.flow-saida--sim::before,
-.flow-saida--sucesso::before { background: var(--el-success); }
-.flow-saida--nao::before,
-.flow-saida--falha::before { background: var(--el-danger); }
 
 .flow-saida__rotulo {
   min-width: 0;
@@ -430,12 +447,75 @@
 
 /* Etapa 6: os blocos que perguntam. */
 .flow-node__icon--pergunta { color: var(--el-info, #0ea5e9); background: color-mix(in srgb, var(--el-info, #0ea5e9) 12%, transparent); }
-.flow-saida--nao_resolvido::before { background: var(--el-warning); }
 
 /* Etapa 7: o início é um cartão só; o nó de disparo continua no dado, escondido. */
 .flow-node--inicio .flow-node__status { margin-top: 8px; }
 
 /* Etapa 8: o bloco que espera. */
 .flow-node__icon--espera { color: var(--el-warning, #d97706); background: color-mix(in srgb, var(--el-warning, #d97706) 12%, transparent); }
-.flow-saida--respondeu::before { background: var(--el-success, #16a34a); }
-.flow-saida--sem_resposta::before { background: var(--el-warning, #d97706); }
+
+/* --- Visual do design de 14/09 (aplicado em 29/09) ---------------------------
+   Cada família tem uma cor só, usada no ícone, no nome da família, nas
+   saídas ligadas e na porta. A saída ainda solta fica cinza: de longe dá para
+   ver o que falta ligar no fluxo. */
+
+.flow-node {
+  --fam-azul: #2563eb;
+  --fam-cor: var(--el-accent-forte);
+  --fam-fundo: color-mix(in srgb, var(--fam-cor) 11%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .flow-node { --fam-azul: #7aa7ff; }
+}
+
+.flow-node--mensagem,
+.flow-node--pergunta { --fam-cor: var(--fam-azul); }
+.flow-node--condicao { --fam-cor: var(--el-warning); }
+.flow-node--etiqueta { --fam-cor: var(--el-success); }
+.flow-node--espera,
+.flow-node--encerrar { --fam-cor: var(--el-sub); }
+.flow-node--transferencia,
+.flow-node--inicio { --fam-cor: var(--el-accent-forte); }
+
+.flow-node__icon--mensagem,
+.flow-node__icon--pergunta,
+.flow-node__icon--condicao,
+.flow-node__icon--etiqueta,
+.flow-node__icon--espera,
+.flow-node__icon--encerrar,
+.flow-node__icon--transferencia,
+.flow-node__icon--entrada { color: var(--fam-cor); background: var(--fam-fundo); }
+
+.flow-node .flow-node__category { color: var(--fam-cor); }
+
+.flow-saida__num {
+  flex: none;
+  min-width: 9px;
+  color: var(--el-faint);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-saida.is-ligada {
+  border-color: color-mix(in srgb, var(--fam-cor) 22%, transparent);
+  background: var(--fam-fundo);
+  color: var(--fam-cor);
+}
+
+.flow-saida.is-ligada .flow-saida__num { color: var(--fam-cor); opacity: .7; }
+
+.chatbot-flow .flow-port--out {
+  background: var(--el-line-strong);
+  box-shadow: 0 0 0 1px var(--el-line-strong);
+}
+
+.chatbot-flow .flow-port--out.is-ligada {
+  background: var(--fam-cor);
+  box-shadow: 0 0 0 1px var(--fam-cor);
+}
+
+.chatbot-flow .flow-port--out:hover {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--fam-cor) 17%, transparent);
+}
