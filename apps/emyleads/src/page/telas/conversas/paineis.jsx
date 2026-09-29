@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  CalendarPlus,
   DollarSign,
   Filter,
   MessageSquareText,
@@ -194,18 +193,15 @@ export function PainelModelos({
 /**
  * Atalhos rápidos.
  *
- * Seis no desenho, três com formulário de verdade. Tarefa, Nota e Negócio
- * abrem o `Formularios` que o painel do WhatsApp já usa — mesmo formulário,
- * mesma gravação, mesmo lugar no rodapé.
+ * Tarefa, Nota e Negócio abrem o `Formularios` que o painel do WhatsApp já
+ * usa — mesmo formulário, mesma gravação, mesmo lugar no rodapé.
  *
- * Agendar, Mover no funil e Etiqueta continuam no lugar que o desenho deu a
- * eles, mas dizem que ainda não têm para onde escrever. Botão que some é pior
- * que botão que explica: o desenho previu os seis, e esconder três faria a
- * tela mentir sobre o que ela vai ser.
+ * Mover no funil e Etiqueta ainda dizem que não têm para onde escrever.
+ * Agendar saiu em 29/09/2026 (o dono pediu): não fazia nada, e cada atalho vai
+ * ser refeito um a um.
  */
 const ATALHOS = [
   { id: "tarefa", rotulo: "Nova tarefa", icone: SquareCheckBig, pronto: true },
-  { id: "agenda", rotulo: "Agendar", icone: CalendarPlus, pronto: false },
   { id: "nota", rotulo: "Nota interna", icone: StickyNote, pronto: true },
   { id: "negocio", rotulo: "Novo negócio", icone: DollarSign, pronto: true },
   { id: "funil", rotulo: "Mover no funil", icone: Filter, pronto: false },
@@ -213,7 +209,6 @@ const ATALHOS = [
 ];
 
 const PENDENTES = {
-  agenda: "Agendar ainda não tem rota própria aqui — a Agenda cria o compromisso hoje.",
   funil: "Mover no funil ainda não tem rota própria aqui — o Funil move o negócio hoje.",
   etiqueta: "Etiquetar ainda não tem rota própria aqui — a ficha do contato edita as etiquetas hoje.",
 };

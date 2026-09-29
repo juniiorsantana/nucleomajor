@@ -35,7 +35,6 @@ const base = {
   etiquetas: [],
   todasEtiquetas: [],
   aoFechar: () => {},
-  aoAtalho: () => {},
   aoAbrirFicha: () => {},
   aoSalvarContato: () => {},
   aoAtualizarEtiquetas: async () => {},
@@ -212,5 +211,25 @@ describe("iniciar fluxo pela ficha", () => {
       botao.click();
     });
     expect(container.querySelector('[role="status"]').textContent).toBe("Esse fluxo não está mais ativo.");
+  });
+});
+
+describe("negócio na ficha", () => {
+  it("não tem mais os atalhos Tarefa, Agenda, Nota e Negócio", () => {
+    renderizar(<FichaLateral {...base} />);
+    const rotulos = [...container.querySelectorAll("button")].map((b) => b.textContent.trim());
+    for (const rotulo of ["Tarefa", "Agenda", "Nota", "Negócio"]) expect(rotulos).not.toContain(rotulo);
+  });
+
+  it("o negócio que entrou sozinho no Funil aparece como a definir", () => {
+    renderizar(
+      <FichaLateral
+        {...base}
+        contato={{ id: "k1", tags: [], leadEm: 1 }}
+        negocio={{ id: "n1", titulo: "", criadoEm: Date.now() }}
+        estagio={{ nome: "Lead", ordem: 0 }}
+      />
+    );
+    expect(container.textContent).toContain("Negócio a definir");
   });
 });

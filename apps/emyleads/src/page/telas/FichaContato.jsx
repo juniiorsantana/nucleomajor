@@ -249,7 +249,7 @@ export default function FichaContato({
                     <button key={negocio.id} type="button" onClick={() => aoAbrirNegocio?.(negocio)} className="flex items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-left hover:border-line-strong hover:bg-surface-hover">
                       <CircleDollarSign size={15} className="flex-none text-accent-forte" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-semibold text-fg">{negocio.titulo || "Sem título"}</span>
+                        <span className="block truncate text-[12px] font-semibold text-fg">{negocio.titulo || "Negócio a definir"}</span>
                         <span className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-sub"><Valor valor={negocio.valor} /> · {estagio?.nome || "Sem estágio"}</span>
                       </span>
                       <StatusNegocio status={negocio.status} />

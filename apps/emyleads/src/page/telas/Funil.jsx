@@ -284,7 +284,7 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
   );
 }
 
-function FormularioNegocio({ negocio, contatos, estagios, idFechado, origens, aoFechar, recarregar }) {
+function FormularioNegocio({ negocio, contatos, negocios = [], estagios, idFechado, origens, aoFechar, aoEditarExistente, recarregar }) {
   const vazio = {
     contactId: negocio?.contactId || "",
     titulo: "",
@@ -314,6 +314,14 @@ function FormularioNegocio({ negocio, contatos, estagios, idFechado, origens, ao
   const [salvando, setSalvando] = useState(false);
 
   const alterar = (campo, valor) => setForm((atual) => ({ ...atual, [campo]: valor }));
+
+  // Todo lead já entra no Funil sozinho. "Novo negócio" para quem já está lá
+  // quase sempre quer dizer "dizer o que ele quer", e criar outro deixaria dois
+  // cartões da mesma pessoa. Criar outro continua possível: há cliente que
+  // compra duas coisas.
+  const existente = !negocio?.id && form.contactId
+    ? negocios.find((n) => n.contactId === form.contactId && n.status === "aberto")
+    : null;
 
   const enviar = async (event) => {
     event.preventDefault();
@@ -370,13 +378,28 @@ function FormularioNegocio({ negocio, contatos, estagios, idFechado, origens, ao
           <CampoFormulario rotulo="Lead" className="col-span-2">
             <SeletorDeLead contatos={contatos} valor={form.contactId} aoMudar={(id) => alterar("contactId", id)} />
           </CampoFormulario>
-          <CampoFormulario rotulo="Título" className="col-span-2">
+          {existente && (
+            <div className="col-span-2 rounded-[8px] border border-accent/30 bg-accent-soft/50 px-3 py-2.5 text-[12.5px] text-sub">
+              Este lead já está no Funil
+              {existente.titulo ? <> com <strong className="font-semibold text-fg">{existente.titulo}</strong></> : ""}.
+              {aoEditarExistente && (
+                <button
+                  type="button"
+                  onClick={() => aoEditarExistente(existente)}
+                  className="ml-1 cursor-pointer font-semibold text-accent-forte hover:underline"
+                >
+                  Editar esse negócio
+                </button>
+              )}
+              <span className="mt-0.5 block text-[11.5px] text-faint">Salvar aqui cria um segundo negócio para a mesma pessoa.</span>
+            </div>
+          )}
+          <CampoFormulario rotulo="O que o cliente quer" className="col-span-2">
             <input
-              required
               value={form.titulo}
               onChange={(e) => alterar("titulo", e.target.value)}
               className={ENTRADA_GESTAO}
-              placeholder="Ex.: Site institucional"
+              placeholder="Ex.: produto, serviço ou plano de interesse"
             />
           </CampoFormulario>
           <CampoFormulario rotulo="Valor">
@@ -560,18 +583,28 @@ function CardNegocio({ negocio, contato, arrastando, aoArrastar, aoSoltarCard, a
     >
       <div className="flex items-start gap-2">
         <Iniciais nome={contato?.nome} tamanho={27} />
+        {/*
+          Quem é vem antes do que é: no kanban a equipe procura a pessoa. O
+          negócio do lead que entrou sozinho no Funil nasce sem título, e o
+          cartão diz que falta defini-lo em vez de repetir "Sem título".
+        */}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[13.5px] font-semibold text-fg">{negocio.titulo || "Sem título"}</h3>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              aoAbrirContato?.(contato);
-            }}
-            className="mt-0.5 flex max-w-full cursor-pointer items-center gap-1 text-left text-[10.5px] text-sub hover:text-accent-forte"
-          >
-            <span className="truncate">{contato?.nome || "Lead sem nome"}</span>
-          </button>
+          <h3 className="truncate text-[13.5px] font-semibold text-fg">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                aoAbrirContato?.(contato);
+              }}
+              title="Abrir ficha do contato"
+              className="max-w-full cursor-pointer truncate text-left hover:text-accent-forte hover:underline"
+            >
+              {contato?.nome || "Lead sem nome"}
+            </button>
+          </h3>
+          <p className={`mt-0.5 truncate text-[11.5px] ${negocio.titulo ? "text-sub" : "italic text-faint"}`}>
+            {negocio.titulo || "Negócio a definir"}
+          </p>
         </div>
         <button
           type="button"
@@ -895,10 +928,12 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
           key={editando?.id || "novo"}
           negocio={editando}
           contatos={contatos}
+          negocios={negocios}
           estagios={estagiosOrdenados}
           idFechado={idFechado}
           origens={origens}
           aoFechar={() => setEditando(undefined)}
+          aoEditarExistente={(existente) => setEditando(existente)}
           recarregar={recarregar}
         />
       )}
