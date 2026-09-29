@@ -41,6 +41,13 @@ test("publica configuração, a página SaaS, o app e a página de convite", asy
   assert.match(await pageResponse.text(), /EmyLeads/i);
   assert.equal(pageResponse.headers.get("x-frame-options"), "DENY");
 
+  // O Meta só publica o app dos formulários com esta URL respondendo.
+  for (const caminho of ["/privacidade", "/privacidade/"]) {
+    const privacidade = await fetch(`${origin}${caminho}`);
+    assert.equal(privacidade.status, 200, caminho);
+    assert.match(await privacidade.text(), /Política de privacidade/);
+  }
+
   const appResponse = await fetch(`${origin}/app`);
   assert.equal(appResponse.status, 200);
   assert.match(await appResponse.text(), /EmyLeads · Núcleo Major/i);
