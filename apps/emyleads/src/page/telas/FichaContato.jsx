@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckSquare,
@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Database,
   Mail,
+  MessageCircle,
   Pencil,
   Phone,
   Plus,
@@ -17,9 +18,11 @@ import {
 import { ehLead } from "../../domain/lead";
 import { fmtData, fmtMoeda, fmtVencimento } from "../../lib/formato";
 import { formatPhone } from "../../lib/phone";
-import { camposTecnicosDoContato, resumoValorTecnico, valorTecnico, fotoPersistidaDoContato } from "../../lib/contatoTecnico";
-import { Iniciais, PilulaEstagio } from "../ui";
+import { camposTecnicosDoContato, resumoValorTecnico, valorTecnico } from "../../lib/contatoTecnico";
 import { StatusNegocio, Valor } from "./gestaoCompartilhados";
+import { conversaDoContato } from "./leads/conversaDoLead";
+import { AvatarDoLead, ResumoDaConversa } from "./leads/pecas";
+import { useConversasDosLeads } from "./leads/useConversasDosLeads";
 
 function LinhaDado({ icone: Icone, children, vazio = false }) {
   return (
@@ -37,26 +40,6 @@ function BlocoTitulo({ children, acao }) {
       {acao}
     </div>
   );
-}
-
-function AvatarContato({ contato, tamanho = 42 }) {
-  const foto = fotoPersistidaDoContato(contato);
-  const [visivel, setVisivel] = useState(Boolean(foto));
-
-  useEffect(() => setVisivel(Boolean(foto)), [foto]);
-
-  if (foto && visivel) {
-    return (
-      <img
-        src={foto}
-        alt=""
-        onError={() => setVisivel(false)}
-        className="flex-none rounded-full object-cover"
-        style={{ width: tamanho, height: tamanho }}
-      />
-    );
-  }
-  return <Iniciais nome={contato.nome} tamanho={tamanho} />;
 }
 
 function CampoTecnico({ chave, valor, aoCopiar, copiado }) {
@@ -104,10 +87,15 @@ export default function FichaContato({
   aoCriarNota,
   aoAbrirNegocio,
   aoAbrirTarefa,
+  aoAbrirConversa,
 }) {
   const [copiado, setCopiado] = useState(false);
   const [copiadoCampo, setCopiadoCampo] = useState(null);
-  const [tecnicosAbertos, setTecnicosAbertos] = useState(true);
+  // Fechado: é para quem precisa depurar, não para quem atende o lead.
+  const [tecnicosAbertos, setTecnicosAbertos] = useState(false);
+  const { indice } = useConversasDosLeads();
+  const conversa = conversaDoContato(indice, contato);
+  const abrirConversa = contato.telefone && aoAbrirConversa ? () => aoAbrirConversa(contato) : null;
   const [marcando, setMarcando] = useState(false);
   const [erroLead, setErroLead] = useState("");
   const marcarLead = async () => {
@@ -169,10 +157,13 @@ export default function FichaContato({
     <div className="fixed inset-0 z-40 bg-black/25" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
       <aside className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-line bg-bg shadow-2xl">
         <header className="flex items-start gap-3 border-b border-line px-5 py-4">
-          <AvatarContato contato={contato} tamanho={42} />
+          <AvatarDoLead contato={contato} conversa={conversa} tamanho={42} />
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[17px] font-semibold tracking-tight text-fg">{contato.nome || "Sem nome"}</h2>
-            <p className="mt-0.5 truncate text-[12px] text-sub">{contato.empresa || (ehLead(contato) ? "Lead sem empresa" : "Contato sem empresa")}</p>
+            <h2 className="truncate text-[17px] font-semibold tracking-tight text-fg">{contato.nome || conversa?.nome || "Sem nome"}</h2>
+            <p className="mt-0.5 truncate text-[12px] text-sub">
+              {[contato.telefone && formatPhone(contato.telefone), contato.empresa].filter(Boolean).join(" · ") ||
+                (ehLead(contato) ? "Lead" : "Contato")}
+            </p>
           </div>
           <button type="button" title="Fechar ficha" onClick={aoFechar} className="cursor-pointer rounded-[8px] p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
             <X size={18} />
@@ -199,16 +190,30 @@ export default function FichaContato({
           )}
           <section className="border-b border-line px-5 py-4">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={aoEditar} className="flex flex-1 items-center justify-center gap-2 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110">
+              {abrirConversa && (
+                <button type="button" onClick={abrirConversa} className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110">
+                  <MessageCircle size={14} />
+                  {conversa ? "Abrir conversa" : "Começar conversa"}
+                </button>
+              )}
+              <button type="button" onClick={aoEditar} className={`flex cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg ${abrirConversa ? "" : "flex-1"}`}>
                 <Pencil size={14} />
-                Editar contato
+                Editar
               </button>
-              <button type="button" onClick={copiarTelefone} disabled={!contato.telefone} className="flex items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" title={copiado ? "Copiado" : "Copiar telefone"} aria-label="Copiar telefone" onClick={copiarTelefone} disabled={!contato.telefone} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-line px-2.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40">
                 <Clipboard size={14} />
-                {copiado ? "Copiado" : "Copiar telefone"}
+                {copiado && "Copiado"}
               </button>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
+          </section>
+
+          <section className="border-b border-line px-5 py-4">
+            <BlocoTitulo>Conversa no WhatsApp</BlocoTitulo>
+            <ResumoDaConversa conversa={conversa} aoAbrirConversa={abrirConversa} podeComecar={Boolean(abrirConversa)} />
+          </section>
+
+          <section className="border-b border-line px-5 py-4">
+            <div className="grid grid-cols-3 gap-2">
               <div className="rounded-[8px] bg-surface px-2.5 py-2">
                 <span className="block text-[10px] text-faint">Negócios abertos</span>
                 <strong className="mt-1 block text-[16px] font-semibold text-fg">{abertas.length}</strong>
@@ -222,21 +227,6 @@ export default function FichaContato({
                 <strong className="mt-1 block text-[16px] font-semibold text-fg">{tarefasAbertas.length}</strong>
               </div>
             </div>
-          </section>
-
-          <section className="border-b border-line px-5 py-3">
-            <button type="button" onClick={() => setTecnicosAbertos(!tecnicosAbertos)} className="flex w-full items-center gap-2 text-left">
-              <Database size={14} className="text-faint" />
-              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.1em] text-faint">Dados técnicos · {camposTecnicos.length}</span>
-              <ChevronDown size={14} className={`text-faint transition-transform ${tecnicosAbertos ? "rotate-180" : ""}`} />
-            </button>
-            {tecnicosAbertos && (
-              <div className="mt-2 rounded-[8px] bg-surface px-2">
-                {camposTecnicos.map(([chave, valor]) => (
-                  <CampoTecnico key={chave} chave={chave} valor={valor} aoCopiar={copiarTecnico} copiado={copiadoCampo} />
-                ))}
-              </div>
-            )}
           </section>
 
           <section className="border-b border-line px-5 py-4">
@@ -315,6 +305,21 @@ export default function FichaContato({
                 ))}
               </div>
             ) : <p className="text-[12px] text-faint">Nenhuma atividade registrada.</p>}
+          </section>
+
+          <section className="border-t border-line px-5 py-3">
+            <button type="button" onClick={() => setTecnicosAbertos(!tecnicosAbertos)} className="flex w-full cursor-pointer items-center gap-2 text-left">
+              <Database size={14} className="text-faint" />
+              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.1em] text-faint">Detalhes técnicos · {camposTecnicos.length}</span>
+              <ChevronDown size={14} className={`text-faint transition-transform ${tecnicosAbertos ? "rotate-180" : ""}`} />
+            </button>
+            {tecnicosAbertos && (
+              <div className="mt-2 rounded-[8px] bg-surface px-2">
+                {camposTecnicos.map(([chave, valor]) => (
+                  <CampoTecnico key={chave} chave={chave} valor={valor} aoCopiar={copiarTecnico} copiado={copiadoCampo} />
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </aside>

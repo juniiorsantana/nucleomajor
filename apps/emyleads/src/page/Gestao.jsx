@@ -473,6 +473,9 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const [erro, setErro] = useState(null);
   const [editando, setEditando] = useState(undefined); // undefined = fechado
   const [ficha, setFicha] = useState(null);
+  // O telefone cuja conversa a tela de Conversas deve abrir ao montar: é
+  // assim que "Abrir conversa" na lista de Leads e na ficha leva ao chat.
+  const [telefoneParaAbrir, setTelefoneParaAbrir] = useState(null);
   const [notaContato, setNotaContato] = useState(null);
   const [comando, setComando] = useState(null);
   const [chatbotEditando, setChatbotEditando] = useState(undefined); // undefined = lista fechada, null = novo
@@ -565,6 +568,13 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
 
   const abrirFicha = (contato) => {
     if (contato) setFicha(contato);
+  };
+
+  const abrirConversaDoContato = (contato) => {
+    if (!contato?.telefone) return;
+    setFicha(null);
+    setTelefoneParaAbrir(contato.telefone);
+    trocarTela("conversas");
   };
 
   const fichaAtualizada = ficha && dados
@@ -780,6 +790,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               aoAbrirConversa={() => {
                 if (!menuRecolhido) alternarMenu();
               }}
+              telefoneParaAbrir={telefoneParaAbrir}
+              aoConsumirTelefone={() => setTelefoneParaAbrir(null)}
               sessao={sessao}
             />
           </Suspense>
@@ -806,6 +818,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             dados={dados}
             recarregar={carregar}
             aoAbrirContato={(c) => (c ? abrirFicha(c) : setEditando(null))}
+            aoAbrirConversa={abrirConversaDoContato}
           />
         ) : tela === "funil" ? (
           <Funil
@@ -888,6 +901,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           aoCriarNota={() => setNotaContato(fichaAtualizada)}
           aoAbrirNegocio={abrirNegocio}
           aoAbrirTarefa={abrirTarefa}
+          aoAbrirConversa={abrirConversaDoContato}
         />
       )}
       {notaContato && (
