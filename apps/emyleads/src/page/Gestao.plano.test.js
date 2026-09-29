@@ -13,9 +13,14 @@ describe("menu pelo plano", () => {
     const base = { crm: true, agenda: true, assistant: false, ai_customer: false, ai_team: false, knowledge: false, chatbots: false };
     expect(telaLiberada("conhecimento", base)).toBe(false);
     expect(telaLiberada("chatbots", base)).toBe(false);
-    for (const tela of ["conversas", "contatos", "funil", "tarefas", "agenda", "conexoes", "equipe", "config", "conta"]) {
+    for (const tela of ["conversas", "contatos", "campanhas", "funil", "tarefas", "agenda", "conexoes", "equipe", "config", "conta"]) {
       expect(telaLiberada(tela, base)).toBe(true);
     }
+  });
+
+  it("Campanhas vale para quem tem CRM, com ou sem Inteligência", () => {
+    expect(telaLiberada("campanhas", { crm: true, assistant: false })).toBe(true);
+    expect(telaLiberada("campanhas", { crm: false })).toBe(false);
   });
 
   it("nos planos com IA, tudo aparece", () => {

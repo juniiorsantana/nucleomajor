@@ -190,8 +190,19 @@ test("M: a UI ativa não escolhe agente por audience arbitrária", async () => {
     /\.find\(\(item\) => item\.audience === "internal"\)/,
     "a seleção do agente interno deve exigir is_default",
   );
+  // O editor de campanha saiu da Inteligência para a tela Campanhas em
+  // 28/09/2026 (`campanhas/IaDaCampanha.jsx`); a regra foi junto.
+  const iaDaCampanha = await readFile(
+    new URL("../apps/emyleads/src/page/telas/campanhas/IaDaCampanha.jsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    iaDaCampanha,
+    /\.find\(\(item\) => item\.audience === "customer"\)/,
+    "a seleção do agente de clientes deve exigir is_default",
+  );
   assert.match(
-    tela,
+    iaDaCampanha,
     /\.find\(\(item\) => item\.audience === "customer" && item\.is_default\)/,
     "a campanha deve ser amarrada ao agente PADRÃO de clientes",
   );

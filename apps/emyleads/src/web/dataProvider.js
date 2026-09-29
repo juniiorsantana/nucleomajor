@@ -569,6 +569,48 @@ export function criarOperacoesDadosWeb({ supabase = obterSupabaseWeb(), area = w
       return { id, contatosAfetados: count || 0 };
     },
 
+    // As campanhas e quem entrou por elas, para a tela Campanhas. Só leitura
+    // e só o que todo membro já lê pela RLS: vale para o plano Base, que não
+    // tem a Central de Inteligência. O token do formulário
+    // (`campaign_site_intakes`) não sai daqui — ele mora só no servidor.
+    "campanhas.listar": async () => {
+      const ctx = await contexto();
+      const [campanhas, leads] = await Promise.all([
+        executar(
+          supabase.from("organization_campaigns")
+            .select("id,name,status,objective,created_at,updated_at")
+            .eq("organization_id", ctx.organizationId)
+            .order("created_at", { ascending: false }),
+          "campanhas-falhou",
+        ),
+        executar(
+          supabase.from("campaign_site_leads")
+            .select("campaign_id,contact_id,phone,consent,welcome_requested,submissions,first_received_at")
+            .eq("organization_id", ctx.organizationId)
+            .order("first_received_at", { ascending: false })
+            .limit(2000),
+          "campanhas-leads-falhou",
+        ),
+      ]);
+      return (campanhas || []).map((row) => ({
+        id: row.id,
+        nome: row.name || "Campanha sem nome",
+        status: row.status,
+        objetivo: row.objective || "",
+        criadaEm: epoch(row.created_at),
+        leads: (leads || [])
+          .filter((lead) => lead.campaign_id === row.id)
+          .map((lead) => ({
+            contactId: lead.contact_id,
+            telefone: lead.phone,
+            consentiu: lead.consent === true,
+            chamado: lead.welcome_requested === true,
+            envios: Number(lead.submissions || 1),
+            chegouEm: epoch(lead.first_received_at),
+          })),
+      }));
+    },
+
     "chatbots.listar": listarChatbots,
     "chatbots.buscar": async ({ id }) => (await listarChatbots()).find((item) => item.id === id) || null,
     "chatbots.criar": criarChatbotWeb,

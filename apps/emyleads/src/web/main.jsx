@@ -17,6 +17,7 @@ import Gestao from "../page/Gestao";
 const slugToScreen = {
   conversas: "conversas",
   contatos: "contatos",
+  campanhas: "campanhas",
   funil: "funil",
   relatorios: "relatorios",
   tarefas: "tarefas",
