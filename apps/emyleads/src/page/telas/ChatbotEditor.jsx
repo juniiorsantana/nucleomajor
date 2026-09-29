@@ -3,13 +3,14 @@ import {
   Background,
   BackgroundVariant,
   ConnectionMode,
-  Controls,
   MarkerType,
-  MiniMap,
+  Panel,
   reconnectEdge,
   ReactFlow,
   useEdgesState,
   useNodesState,
+  useReactFlow,
+  useViewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -19,10 +20,14 @@ import {
   CircleStop,
   Clock,
   Hourglass,
+  Info,
   LayoutDashboard,
   ListChecks,
+  Maximize2,
   MessageSquareText,
+  Minus,
   Plus,
+  Search,
   Share2,
   Save,
   Split,
@@ -104,19 +109,43 @@ const regraDeHorario = () => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "0
  * cria um bloco de Condição já com a regra certa. O mesmo predicado não
  * precisa de um segundo bloco — só de um jeito mais curto de chegar nele.
  */
+// As cores de cada família são as mesmas do cartão no mapa (`chatbot-flow.css`,
+// seção "Visual do design de 14/09"): azul para quem fala com o contato,
+// laranja para quem decide o caminho, cinza para a espera e o fim.
+const COR_AZUL = "text-blue-600 bg-blue-500/10";
+const COR_DECISAO = "text-warning bg-warning/10";
+const COR_NEUTRA = "text-sub bg-surface-hover";
+
+/** Os grupos da paleta, na ordem do design de 14/09. */
+export const GRUPOS_DA_PALETA = ["Falar com o contato", "Decidir o caminho", "Tempo", "Mudar o contato", "Encerrar"];
+
 const BLOCOS = [
-  { id: TIPOS_PASSO.enviarMensagem, tipo: TIPOS_PASSO.enviarMensagem, titulo: "Enviar mensagem", descricao: "Responde no WhatsApp", icone: MessageSquareText, classe: "text-blue-600 bg-blue-500/10" },
-  { id: TIPOS_PASSO.editarEtiquetas, tipo: TIPOS_PASSO.editarEtiquetas, titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
-  { id: TIPOS_PASSO.condicao, tipo: TIPOS_PASSO.condicao, titulo: "Condição", descricao: "Segue por Sim ou por Não", icone: Split, classe: "text-warning bg-warning/10", ramificado: true },
-  { id: "atalho_etiqueta", tipo: TIPOS_PASSO.condicao, titulo: "Tem etiqueta", descricao: "Sim para quem tiver a etiqueta", icone: Tag, classe: "text-warning bg-warning/10", ramificado: true, regra: () => ({ tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }) },
-  { id: "atalho_dias", tipo: TIPOS_PASSO.condicao, titulo: "Dias da semana", descricao: "Sim nos dias marcados", icone: CalendarDays, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeDias },
-  { id: "atalho_horario", tipo: TIPOS_PASSO.condicao, titulo: "Horário", descricao: "Sim dentro do horário", icone: Clock, classe: "text-warning bg-warning/10", ramificado: true, regra: regraDeHorario },
-  { id: TIPOS_PASSO.perguntar, tipo: TIPOS_PASSO.perguntar, titulo: "Pedir para escolher", descricao: "Menu com opções numeradas", icone: ListChecks, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
-  { id: TIPOS_PASSO.coletar, tipo: TIPOS_PASSO.coletar, titulo: "Pedir para digitar", descricao: "Guarda a resposta do contato", icone: TextCursorInput, classe: "text-sky-600 bg-sky-500/10", ramificado: true },
-  { id: TIPOS_PASSO.aguardar, tipo: TIPOS_PASSO.aguardar, titulo: "Aguardar", descricao: "Espera e segue sozinho (follow-up)", icone: Hourglass, classe: "text-warning bg-warning/10", ramificado: true },
-  { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
-  { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: "text-sub bg-surface-hover", ramificado: true },
+  { id: TIPOS_PASSO.enviarMensagem, tipo: TIPOS_PASSO.enviarMensagem, grupo: "Falar com o contato", titulo: "Enviar mensagem", descricao: "Responde no WhatsApp", icone: MessageSquareText, classe: COR_AZUL },
+  { id: TIPOS_PASSO.perguntar, tipo: TIPOS_PASSO.perguntar, grupo: "Falar com o contato", titulo: "Pedir para escolher", descricao: "Menu com opções numeradas", icone: ListChecks, classe: COR_AZUL, ramificado: true },
+  { id: TIPOS_PASSO.coletar, tipo: TIPOS_PASSO.coletar, grupo: "Falar com o contato", titulo: "Pedir para digitar", descricao: "Guarda a resposta do contato", icone: TextCursorInput, classe: COR_AZUL, ramificado: true },
+  { id: TIPOS_PASSO.condicao, tipo: TIPOS_PASSO.condicao, grupo: "Decidir o caminho", titulo: "Condição", descricao: "Segue por Sim ou por Não", icone: Split, classe: COR_DECISAO, ramificado: true },
+  { id: "atalho_dias", tipo: TIPOS_PASSO.condicao, grupo: "Decidir o caminho", titulo: "Dias da semana", descricao: "Sim nos dias marcados", icone: CalendarDays, classe: COR_DECISAO, ramificado: true, regra: regraDeDias },
+  { id: "atalho_horario", tipo: TIPOS_PASSO.condicao, grupo: "Decidir o caminho", titulo: "Horário", descricao: "Sim dentro do horário", icone: Clock, classe: COR_DECISAO, ramificado: true, regra: regraDeHorario },
+  { id: "atalho_etiqueta", tipo: TIPOS_PASSO.condicao, grupo: "Decidir o caminho", titulo: "Tem etiqueta", descricao: "Sim para quem tiver a etiqueta", icone: Tag, classe: COR_DECISAO, ramificado: true, regra: () => ({ tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }) },
+  { id: TIPOS_PASSO.aguardar, tipo: TIPOS_PASSO.aguardar, grupo: "Tempo", titulo: "Aguardar", descricao: "Espera e segue sozinho (follow-up)", icone: Hourglass, classe: COR_NEUTRA, ramificado: true },
+  { id: TIPOS_PASSO.editarEtiquetas, tipo: TIPOS_PASSO.editarEtiquetas, grupo: "Mudar o contato", titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
+  { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, grupo: "Encerrar", titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
+  { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, grupo: "Encerrar", titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: COR_NEUTRA, ramificado: true },
 ];
+
+/**
+ * A paleta em grupos, já filtrada pela busca. Grupo sem bloco (pela busca ou
+ * pelo formato sem caminhos) some, em vez de mostrar um título vazio.
+ */
+export function blocosAgrupados(blocos, busca = "") {
+  const termo = busca.trim().toLowerCase();
+  const visiveis = termo
+    ? blocos.filter((bloco) => `${bloco.titulo} ${bloco.descricao}`.toLowerCase().includes(termo))
+    : blocos;
+  return GRUPOS_DA_PALETA
+    .map((grupo) => ({ grupo, blocos: visiveis.filter((bloco) => bloco.grupo === grupo) }))
+    .filter((item) => item.blocos.length);
+}
 
 function passoVazio(tipo, regra = null) {
   if (tipo === TIPOS_PASSO.enviarMensagem) return { id: novoId(), tipo, texto: "" };
@@ -631,42 +660,86 @@ function ExpressaoEditor({ expressao, tags, estagios, aoMudar }) {
 }
 
 function Paleta({ blocos, ramificado, aoAdicionar }) {
+  const [busca, setBusca] = useState("");
+  const grupos = blocosAgrupados(blocos, busca);
   return (
     <aside className="z-10 flex w-[224px] flex-none flex-col border-r border-line bg-bg">
-      <div className="border-b border-line px-4 py-4">
+      <div className="border-b border-line px-3.5 pb-3 pt-3.5">
         <p className="text-[10px] font-bold uppercase tracking-[.14em] text-faint">Blocos</p>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-sub">Arraste para o mapa ou clique para adicionar.</p>
+        <label className="mt-2 flex h-8 items-center gap-2 rounded-[9px] border border-line bg-surface px-2.5 focus-within:border-accent">
+          <Search size={13} className="flex-none text-faint" aria-hidden="true" />
+          <input
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+            placeholder="Buscar bloco"
+            aria-label="Buscar bloco"
+            className="w-full bg-transparent text-[11.5px] text-fg outline-none placeholder:text-faint"
+          />
+        </label>
       </div>
-      <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="flex flex-col gap-2">
-        {blocos.map(({ id, titulo, descricao, icone: Icone, classe }) => (
-          <button
-            key={id}
-            type="button"
-            draggable
-            onDragStart={(event) => {
-              event.dataTransfer.setData("application/emyleads-flow", id);
-              event.dataTransfer.effectAllowed = "copy";
-            }}
-            onClick={() => aoAdicionar(id)}
-            className="group flex cursor-grab items-center gap-3 rounded-[11px] border border-line bg-bg p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md active:cursor-grabbing"
-          >
-            <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-[9px] ${classe}`}><Icone size={17} /></span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-[12px] font-semibold text-fg">{titulo}</strong>
-              <small className="mt-0.5 block text-[10.5px] text-sub">{descricao}</small>
-            </span>
-            <Plus size={14} className="text-faint group-hover:text-accent" />
-          </button>
-        ))}
+      <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-2.5 pb-4 pt-3">
+        {grupos.length === 0 && <p className="px-1.5 text-[11px] text-faint">Nenhum bloco com esse nome.</p>}
+        <div className="flex flex-col gap-3.5">
+          {grupos.map(({ grupo, blocos: doGrupo }) => (
+            <section key={grupo} aria-label={grupo}>
+              <h3 className="px-1.5 text-[9.5px] font-bold uppercase tracking-[.12em] text-faint">{grupo}</h3>
+              <div className="mt-1.5 flex flex-col gap-1">
+                {doGrupo.map(({ id, titulo, descricao, icone: Icone, classe }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("application/emyleads-flow", id);
+                      event.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => aoAdicionar(id)}
+                    title={`${titulo}: arraste para o mapa ou clique para adicionar`}
+                    className="group flex w-full cursor-grab items-center gap-2.5 rounded-[10px] border border-transparent px-2 py-1.5 text-left transition-colors hover:border-line hover:bg-surface active:cursor-grabbing"
+                  >
+                    <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[9px] ${classe}`}><Icone size={15} /></span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-[11.5px] font-semibold text-fg">{titulo}</strong>
+                      <small className="mt-px block text-[10px] leading-[1.35] text-sub">{descricao}</small>
+                    </span>
+                    <Plus size={13} className="flex-none text-transparent group-hover:text-accent" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </div>
       <div className="mt-auto flex-none border-t border-line p-4 text-[10.5px] leading-relaxed text-faint">
         {ramificado
           ? "Puxe uma saída até outro bloco, ou solte no vazio para escolher o bloco ali. Cada saída segue para um bloco só; vários caminhos podem chegar ao mesmo bloco."
-          : "Puxe uma saída roxa até a entrada do próximo bloco. Cada saída segue para um bloco só, e “Transferir conversa” encerra o fluxo."}
+          : "Puxe a saída de um bloco até a entrada do próximo. A saída ganha a cor do bloco quando está ligada; cada uma segue para um bloco só, e “Transferir conversa” encerra o fluxo."}
       </div>
     </aside>
+  );
+}
+
+/**
+ * A barra de zoom do design de 14/09: menos, a porcentagem, mais e "Ajustar",
+ * numa peça só no canto do mapa. A porcentagem responde à pergunta que os
+ * três ícones soltos não respondiam: "estou vendo o fluxo em que tamanho?".
+ */
+export function BarraDeZoom() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const { zoom } = useViewport();
+  return (
+    <Panel position="bottom-left" className="flow-zoom" aria-label="Zoom do mapa">
+      <button type="button" onClick={() => zoomOut({ duration: 160 })} aria-label="Diminuir zoom" title="Diminuir zoom">
+        <Minus size={14} />
+      </button>
+      <span className="flow-zoom__valor" aria-live="polite">{Math.round(zoom * 100)}%</span>
+      <button type="button" onClick={() => zoomIn({ duration: 160 })} aria-label="Aumentar zoom" title="Aumentar zoom">
+        <Plus size={14} />
+      </button>
+      <button type="button" onClick={() => fitView({ padding: 0.2, maxZoom: 1, duration: 260 })} className="flow-zoom__ajustar" title="Mostrar o fluxo inteiro">
+        <Maximize2 size={13} /> Ajustar
+      </button>
+    </Panel>
   );
 }
 
@@ -986,6 +1059,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const saidasLivres = (id, saidas) =>
     saidas.filter((saida) => !conexoes.some((conexao) => conexao.source === id && (conexao.saida || SAIDA_PADRAO) === saida));
 
+  // O selo do topo conta o que ainda está solto (design de 14/09: "3 saídas
+  // sem destino"), em vez de só dizer que o fluxo está incompleto.
+  const saidasSoltas = ramificado
+    ? saidasLivres(NO_CONDICOES, [SAIDA_PADRAO]).length +
+      passos.reduce((total, passo) => total + saidasLivres(passo.id, saidasDoPasso(passo)).length, 0)
+    : 0;
+
   const abrirSeletor = (evento, extra) => {
     const ponto = evento?.changedTouches?.[0] || evento;
     const caixa = area.current?.getBoundingClientRect();
@@ -1226,7 +1306,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       posicoes = new Map(ordem.map((id, indice) => [id, { x: 72 + indice * 380, y: indice % 2 === 0 ? 176 : 236 }]));
     }
     setNos((atuais) => atuais.map((no) => ({ ...no, position: posicoes.get(no.id) || no.position })));
-    requestAnimationFrame(() => instancia.current?.fitView({ padding: 0.18, duration: 420 }));
+    requestAnimationFrame(() => instancia.current?.fitView({ padding: 0.18, maxZoom: 1, duration: 420 }));
   };
 
   const salvar = async () => {
@@ -1284,9 +1364,12 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         <div className="ml-auto flex items-center gap-2">
           <span
             title={pendencia || undefined}
-            className={`hidden rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${pendencia || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
+            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${saidasSoltas || pendencia || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
           >
-            {pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
+            {saidasSoltas
+              ? `${saidasSoltas} ${saidasSoltas === 1 ? "saída sem destino" : "saídas sem destino"}`
+              : pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
           </span>
           <button type="button" onClick={organizar} className="flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg">
             <LayoutDashboard size={14} /> Organizar
@@ -1349,7 +1432,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             isValidConnection={(conexao) => permitida(conexao)}
             connectionMode={ConnectionMode.Strict}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
             minZoom={0.28}
             maxZoom={1.7}
             panOnScroll
@@ -1364,14 +1447,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             proOptions={{ hideAttribution: true }}
           >
             <Background variant={BackgroundVariant.Dots} gap={19} size={1.2} color="var(--flow-grid)" />
-            <Controls showInteractive={false} position="bottom-left" />
-            <MiniMap
-              pannable
-              zoomable
-              position="bottom-right"
-              nodeColor={(no) => no.id === NO_ENTRADA ? "var(--el-accent)" : no.id === NO_CONDICOES ? "var(--el-warning)" : "var(--el-line-strong)"}
-              maskColor="color-mix(in srgb, var(--el-surface) 72%, transparent)"
-            />
+            {/* Sem minimapa (design de 14/09): o mapa fica inteiro livre, e
+                "Ajustar" traz o fluxo todo para a tela quando se perde. */}
+            <BarraDeZoom />
+            <Panel position="bottom-right" className="flow-dica">
+              <Info size={13} aria-hidden="true" />
+              {ramificado ? "Arraste um bloco da lista, ou puxe uma saída para conectar" : "Arraste um bloco da lista, ou clique para adicionar"}
+            </Panel>
           </ReactFlow>
         </main>
         <Inspetor
