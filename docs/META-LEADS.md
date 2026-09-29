@@ -70,12 +70,23 @@ Uma vez, no app da Major:
    `https://nucleomajor.com/api/webhooks/meta-leads`, token de verificação =
    `META_WEBHOOK_VERIFY_TOKEN`. Assinar o campo **leadgen**.
 2. `META_APP_SECRET` = Configurações do app → Básico → Chave secreta.
+   O app da Major é o **AdsMajor** (1210997597353143). Cada objeto aceita **um**
+   endereço por app: até 28/09/2026 o de Page apontava para outro projeto
+   Supabase (`pbdppryebouigczncyfm`, desativado), e trocar o endereço muda o
+   destino de todas as páginas assinadas nesse app. O token de verificação é
+   um texto inventado, igual nos dois lados; ao colar, esvazie o campo antes,
+   porque ele vem preenchido com o valor anterior.
 3. **Token de acesso.** No portfólio (Business Manager), criar um usuário do
    sistema, dar a ele acesso às páginas dos clientes e gerar um token do app com
    `leads_retrieval`, `pages_show_list`, `pages_read_engagement`,
    `pages_manage_metadata` e `pages_manage_ads`. Vai para
    `META_LEADS_ACCESS_TOKEN`. Token de usuário do sistema não expira quando
    alguém troca a senha do Facebook.
+   A página do cliente costuma estar no **portfólio dele**, não no da Major: o
+   usuário do sistema só a enxerga depois que o portfólio do cliente a
+   compartilha com a Major Hub (280820469323734) como **parceiro**, com as
+   tarefas Anúncios e Leads (Estatísticas vem junto). Foi assim com a Adriani
+   (página 1244817988723251) em 28/09/2026.
 4. **Página nos avisos.** Para cada página:
    `POST /{page-id}/subscribed_apps?subscribed_fields=leadgen` com o token da
    página (Graph API Explorer resolve).
@@ -84,9 +95,12 @@ Uma vez, no app da Major:
 
 ### Modo de desenvolvimento ou publicado
 
-Com o app **em desenvolvimento**, o Meta só manda avisos de leads de teste e de
-quem tem função no app. Lead de anúncio de verdade só chega com o app
-**publicado** (Live). Publicar exige URL de política de privacidade,
+Com o app **em desenvolvimento**, o Meta só entrega os avisos de teste
+disparados pelo próprio painel (botão "Test" em Webhooks). Nada de dado real
+chega, nem de administradores, desenvolvedores ou testers do app, e por isso
+nem o Lead Ads Testing Tool funciona antes de publicar (aviso da tela de
+Webhooks, 28/09/2026). **Publicar (Live) é obrigatório.** Publicar exige URL
+de política de privacidade (`https://nucleomajor.com/privacidade`),
 categoria e ícone; as permissões acima, usadas nas páginas que o próprio
 portfólio administra, costumam bastar com acesso padrão. Acesso avançado e
 análise do app só entram quando o app for ler páginas de terceiros que não
