@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
-  CalendarPlus,
   Check,
-  DollarSign,
   Play,
   Plus,
-  SquareCheckBig,
-  StickyNote,
   Tag,
   UserPlus,
   X,
@@ -134,13 +130,6 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
  * mesmo `dados` que a tela de Contatos usa. Só o histórico de mensagens é de
  * demonstração; a ficha nunca foi.
  */
-
-const ATALHOS_DA_FICHA = [
-  { id: "tarefa", rotulo: "Tarefa", icone: SquareCheckBig },
-  { id: "agenda", rotulo: "Agenda", icone: CalendarPlus },
-  { id: "nota", rotulo: "Nota", icone: StickyNote },
-  { id: "negocio", rotulo: "Negócio", icone: DollarSign },
-];
 
 /**
  * "Iniciar fluxo": o disparo manual de um fluxo de follow-up.
@@ -371,7 +360,6 @@ export function FichaLateral({
   etiquetas,
   todasEtiquetas,
   aoFechar,
-  aoAtalho,
   aoAbrirFicha,
   aoSalvarContato,
   aoMarcarLead,
@@ -433,19 +421,6 @@ export function FichaLateral({
 
         <IniciarFluxo contato={contato} fluxos={fluxosManuais} aoIniciar={aoIniciarFluxo} />
 
-        <div className="mt-3.5 grid grid-cols-4 gap-1.5">
-          {ATALHOS_DA_FICHA.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => aoAtalho(a.id)}
-              className="flex cursor-pointer flex-col items-center gap-1.5 rounded-[10px] border border-line px-1 py-2.5 text-[10.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
-            >
-              <a.icone size={15} strokeWidth={1.9} />
-              {a.rotulo}
-            </button>
-          ))}
-        </div>
-
         {negocio ? (
           <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
             <div className="flex items-center gap-2">
@@ -456,7 +431,9 @@ export function FichaLateral({
                 </span>
               )}
             </div>
-            <div className="mt-1.5 text-[12.5px] font-medium text-fg">{negocio.titulo}</div>
+            <div className={`mt-1.5 text-[12.5px] font-medium ${negocio.titulo ? "text-fg" : "italic text-faint"}`}>
+              {negocio.titulo || "Negócio a definir"}
+            </div>
             <div className="mt-0.5 text-[11px] text-faint">
               aberto {fmtRelativo(negocio.criadoEm)}
               {negocio.origem ? ` · origem ${negocio.origem}` : ""}

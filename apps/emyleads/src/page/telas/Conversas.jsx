@@ -293,11 +293,6 @@ export default function Conversas({
     setAba(null);
   };
 
-  const abrirAtalho = (qual) => {
-    setAba("atalhos");
-    setAtalho(qual);
-  };
-
   if (erro) {
     return (
       <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
@@ -602,7 +597,6 @@ export default function Conversas({
           etiquetas={etiquetas}
           todasEtiquetas={dados.tags}
           aoFechar={() => setFichaAberta(false)}
-          aoAtalho={abrirAtalho}
           aoAbrirFicha={() => contato && aoAbrirContato(contato)}
           aoSalvarContato={aoNovoContato}
           aoAtualizarEtiquetas={aoAtualizarEtiquetas}
