@@ -19,6 +19,7 @@ import {
   somarPorCategoria,
   somarPorPessoa,
   tipoDoEvento,
+  proximoHorarioLivre,
 } from "./agendaUtils";
 
 describe("permissões de eventos pessoais", () => {
@@ -33,6 +34,13 @@ describe("permissões de eventos pessoais", () => {
   it("não permite que dono ou administrador edite evento pessoal de outra pessoa", () => {
     expect(eventoEditavel(pessoalDoLucas, "junior", "owner")).toBe(false);
     expect(eventoEditavel(pessoalDoLucas, "admin", "admin")).toBe(false);
+  });
+
+  it("deixa quem criou um evento da empresa editá-lo, sem ser gestor", () => {
+    const daEmpresa = { id: "reuniao", sourceType: "event", ownerId: "lucas", titulo: "Reunião", visibilidade: "organization" };
+    expect(eventoEditavel(daEmpresa, "lucas", "member")).toBe(true);
+    expect(eventoEditavel(daEmpresa, "ana", "member")).toBe(false);
+    expect(eventoEditavel(daEmpresa, "junior", "owner")).toBe(true);
   });
 
   it("identifica o evento pessoal de outro profissional para a interface somente leitura", () => {
@@ -377,5 +385,24 @@ describe("densidade e passo em função do zoom", () => {
     expect(densidadeDoBloco(64 / 2)).toBe("media");
     expect(densidadeDoBloco(96 / 2)).toBe("media");
     expect(densidadeDoBloco(144 / 2)).toBe("completa");
+  });
+});
+
+describe("próximo horário livre", () => {
+  const dia = new Date(2026, 8, 30);
+  it("hoje começa na próxima meia hora, e não às 9h", () => {
+    const agora = new Date(2026, 8, 30, 15, 10);
+    expect(proximoHorarioLivre([], dia, { agora })).toEqual({ inicio: 15 * 60 + 30, fim: 16 * 60 + 30 });
+  });
+  it("pula o que já está ocupado", () => {
+    const agora = new Date(2026, 8, 29, 20, 0);
+    const ocupado = evento("ocupado", new Date(2026, 8, 30, 8).toISOString(), new Date(2026, 8, 30, 9, 30).toISOString());
+    expect(proximoHorarioLivre([ocupado], dia, { agora })).toEqual({ inicio: 9 * 60 + 30, fim: 10 * 60 + 30 });
+  });
+  it("tarde da noite não passa da meia-noite", () => {
+    const agora = new Date(2026, 8, 30, 23, 40);
+    const { inicio, fim } = proximoHorarioLivre([], dia, { agora });
+    expect(fim).toBeLessThanOrEqual(24 * 60);
+    expect(inicio).toBeGreaterThanOrEqual(22 * 60);
   });
 });
