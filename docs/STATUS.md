@@ -15,7 +15,11 @@ painel (função `conversation_insights`, nasce desligada) e por conexão no env
 (`NUCLEO_INSIGHTS=1`).
 
 - **Banco:** `20260930100000_o_coordenador_le_as_conversas.sql`, provada em
-  PGlite (43 PASS). **Não aplicada.** Roteiro: `docs/coordenador-jev/APLICAR.md`.
+  PGlite (43 PASS). **Aplicada em 01/10/2026** pelo SQL Editor e conferida
+  pelo catálogo: as 13 colunas de `scripts/sql/validar-coordenador-jev.sql`
+  deram `true`, corpos das RPCs sem CRLF. Função ligada **só para a Núcleo
+  Major** no painel no mesmo dia (`org_has_feature`: Major `true`, Adriani
+  `false`).
 - **Runtime:** `patches/runtime-coordenador-jev.patch` sobre a release
   `claudio-dormindo`, 967 testes OK, `git apply --check` OK na VPS. **Não
   publicado.** Roteiro: `patches/runtime-coordenador-jev-DEPLOY.md`.
@@ -225,6 +229,10 @@ conhecimento. O lado interno continua sem skill de fallback.
   dentro do assistente.
 
 ## Banco aplicado
+
+- `20260930100000_o_coordenador_le_as_conversas.sql` aplicada em 01/10/2026 e
+  conferida pelo catálogo (13 verificações `true`). Ver
+  `docs/coordenador-jev/PLANO.md`.
 
 - Ferramenta interna de tarefas aplicada.
 - Piloto externo H aplicado.

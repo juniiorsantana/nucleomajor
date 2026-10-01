@@ -50,7 +50,7 @@ total de US$ 0,0046. Pela confiança das respostas (sem conferência humana):
 | # | Etapa | Estado |
 |---|---|---|
 | 1 | Plano escrito (este arquivo) | feito |
-| 2 | Banco: migration `20260930100000`, prova em PGlite | feito; **falta aplicar** |
+| 2 | Banco: migration `20260930100000`, prova em PGlite | aplicada e conferida em 01/10; ligada só para a Major |
 | 3 | Runtime: `coordenador.py` + `jev_framework.py`, patch e roteiro | feito; **falta o deploy** |
 | 4 | Portal: "Leitura automática" na ficha da conversa | feito; **falta o merge** |
 | 5 | Botão "Analisar conversa" com o Agente Analista (Claude) e créditos | não começou |
@@ -106,8 +106,11 @@ portal: ficha lateral da conversa ("Leitura automática")
   provada (43 PASS); runtime com 967 testes OK (29 novos); patch na `/tmp` da
   VPS com `git apply --check` OK; portal com 918 testes do app e 332 do
   servidor OK, build OK.
-- **Falta, nesta ordem:** (1) aplicar a migration (`APLICAR.md`); (2) ligar a
-  função para a Major no painel; (3) criar a chave de produção no OpenRouter;
+- **01/10/2026, mais tarde:** migration aplicada pelo SQL Editor (autorizada
+  pelo dono nesta sessão) e conferida: 13 verificações `true`. Função ligada
+  só para a Major no painel; `org_has_feature` confirma Major `true`, Adriani
+  `false`.
+- **Falta, nesta ordem:** (3) criar a chave de produção no OpenRouter;
   (4) deploy do runtime (`runtime-coordenador-jev-DEPLOY.md`); (5) merge do PR
   do portal; (6) depois de uma semana, conferir uma amostra das leituras e
   decidir os cortes da etapa 6.
