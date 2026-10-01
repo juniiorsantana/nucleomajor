@@ -15,6 +15,13 @@ const PLATAFORMA_WEB =
 const RECARGA_MS = 20000;
 
 /**
+ * A leitura automática (coordenador da VPS com o Jev) muda no máximo a cada
+ * ciclo do coordenador, cinco minutos por padrão, e não tem aviso de realtime
+ * de propósito. Buscar no mesmo passo seria o bastante.
+ */
+const RECARGA_LEITURAS_MS = 5 * 60 * 1000;
+
+/**
  * Quanto a tela espera pelo desfecho de um comando.
  *
  * Primeiro consulta a cada dois segundos; depois desacelera para dez segundos
@@ -89,6 +96,9 @@ export function useConversas(organizacaoId) {
    */
   const [eventos, setEventos] = useState([]);
   const [organizacaoDoEstado, setOrganizacaoDoEstado] = useState(organizacaoId || null);
+  // A leitura automática em vigor de cada conversa, por id. Vazia quando a
+  // empresa não tem a função ou o banco ainda não tem a tabela.
+  const [leituras, setLeituras] = useState({});
 
   const organizacaoRef = useRef(organizacaoId);
   organizacaoRef.current = organizacaoId;
@@ -160,6 +170,34 @@ export function useConversas(organizacaoId) {
       vivo = false;
     };
   }, [organizacaoId, carregarLista]);
+
+  /**
+   * As leituras automáticas. Falha aqui é silenciosa: o bloco da ficha some, e
+   * nada mais na tela depende dele.
+   */
+  useEffect(() => {
+    let vivo = true;
+    const organizacaoEsperada = organizacaoId;
+    setLeituras({});
+    if (!organizacaoEsperada) return () => {
+      vivo = false;
+    };
+    // Dentro do `then`: um provider sem a operação (bancada antiga, teste)
+    // falha como promessa recusada, e não como exceção que derruba a tela.
+    const buscar = () =>
+      Promise.resolve()
+        .then(() => api.conversas.leituras())
+        .then((mapa) => {
+          if (vivo && organizacaoEsperada === organizacaoRef.current) setLeituras(mapa || {});
+        })
+        .catch(() => {});
+    buscar();
+    const timer = setInterval(buscar, RECARGA_LEITURAS_MS);
+    return () => {
+      vivo = false;
+      clearInterval(timer);
+    };
+  }, [organizacaoId]);
 
   /**
    * A equipe, para o menu de a quem atribuir.
@@ -669,6 +707,7 @@ export function useConversas(organizacaoId) {
     setAtual,
     mensagens: estadoDoEscopoAtual ? naTela : [],
     equipe: estadoDoEscopoAtual ? equipe : [],
+    leituras: estadoDoEscopoAtual ? leituras : {},
     erro: estadoDoEscopoAtual ? erro : "",
     aviso: estadoDoEscopoAtual ? aviso : "",
     // A lista se atualiza sozinha pelo realtime e pelo timer, e isto é para

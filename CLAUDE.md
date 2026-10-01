@@ -162,6 +162,9 @@ que está no PR #2.
    VPS estão à frente do remoto.
 
 **Próximas construções**
+0. **Coordenador Jev** (01/10/2026): migration, runtime e portal prontos,
+   esperando aplicação, deploy e merge, nessa ordem. Ver
+   `docs/coordenador-jev/PLANO.md`.
 7. **Fluxos, etapa 4:** "Status esperando" (depende de existir estado de
    conversa) e o fuso da organização guardado no banco. **Etapas 9 a 11**
    ainda não iniciadas (ver o plano, fora do git).

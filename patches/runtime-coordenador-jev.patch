@@ -1,0 +1,1212 @@
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 8fe95d7..7be062e 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -174,6 +174,18 @@ class Config:
+     # O navegador grava áudio em WebM/Opus; o WhatsApp só toca mensagem de voz
+     # em Ogg/Opus. A conversão é do ffmpeg, e este é o binário.
+     ffmpeg_bin: str = "ffmpeg"
++    # O coordenador (desde 01/10/2026): lê as conversas com o Jev.
++    #
++    # Desligado por padrão, e com duas travas: esta, por conexão, no env da
++    # unit; e a função `conversation_insights` da empresa, no painel da
++    # plataforma, que o banco confere a cada ciclo. `insights_key_path` é o
++    # arquivo com a chave do OpenRouter, uma linha só, fora do repositório e
++    # com permissão 600. Ver coordenador.py.
++    insights_enabled: bool = False
++    insights_key_path: Optional[Path] = None
++    insights_poll_seconds: float = 300.0
++    insights_quiet_minutes: int = 60
++    insights_batch: int = 5
+ 
+     @classmethod
+     def from_env(cls) -> "Config":
+@@ -309,6 +321,15 @@ class Config:
+                 _env_str("WHATSAPP_OUTBOX_DIR", str(REPO_ROOT / "whatsapp-bridge" / "outbox"))
+             ).expanduser(),
+             ffmpeg_bin=_env_str("EMYLEADS_FFMPEG_BIN", "ffmpeg").strip() or "ffmpeg",
++            insights_enabled=_env_str("NUCLEO_INSIGHTS", "0") == "1",
++            insights_key_path=(
++                Path(_env_str("NUCLEO_INSIGHTS_KEY_PATH")).expanduser()
++                if _env_str("NUCLEO_INSIGHTS_KEY_PATH")
++                else None
++            ),
++            insights_poll_seconds=max(60.0, _env_float("NUCLEO_INSIGHTS_POLL_SECONDS", 300.0)),
++            insights_quiet_minutes=max(5, min(1440, _env_int("NUCLEO_INSIGHTS_QUIET_MINUTES", 60))),
++            insights_batch=max(1, min(10, _env_int("NUCLEO_INSIGHTS_BATCH", 5))),
+         )
+ 
+ 
+diff --git a/whatsapp-assistant/coordenador.py b/whatsapp-assistant/coordenador.py
+new file mode 100644
+index 0000000..1127a37
+--- /dev/null
++++ b/whatsapp-assistant/coordenador.py
+@@ -0,0 +1,339 @@
++"""O coordenador: lê as conversas com o Jev e grava o que entendeu.
++
++De tempos em tempos (`NUCLEO_INSIGHTS_POLL_SECONDS`, 5 minutos por padrão) ele
++pergunta ao banco quais conversas desta conexão pedem leitura
++(`nucleo_insights_pending`), monta cada uma como texto, manda para o Jev com as
++perguntas de `jev_framework.py` e devolve as respostas (`nucleo_insights_record`).
++
++O Jev é um modelo de DECISÃO da TypeSafe, chamado pelo OpenRouter: não escreve
++texto, responde cada pergunta com uma opção fechada e a chance de estar certa.
++Custa perto de US$ 0,0002 por conversa e responde em menos de um segundo
++(medido em 01/10/2026 com 30 conversas reais da Major).
++
++O que este trabalhador NÃO faz, de propósito:
++  * não age. Nenhuma etiqueta, tarefa ou aviso sai daqui na primeira versão: os
++    cortes de confiança vão ser medidos nas leituras reais antes;
++  * não fica no caminho da resposta ao cliente. Roda numa thread própria; se o
++    Jev cair, o atendimento não percebe;
++  * não registra texto de mensagem em log nenhum, nem a chave.
++
++Duas travas para ligar: `NUCLEO_INSIGHTS=1` no env desta conexão e a função
++`conversation_insights` ligada para a empresa no painel. Com a segunda
++desligada o banco responde `enabled = false` e o coordenador só espera.
++"""
++
++from __future__ import annotations
++
++import threading
++import time
++from datetime import datetime
++from pathlib import Path
++from typing import Any, Callable, Optional
++from zoneinfo import ZoneInfo
++
++import requests
++
++import audit
++import jev_framework
++from operator_verification import OperatorVerificationError
++
++JEV_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
++# Versão fixa, nunca a "latest": uma versão nova pode mudar as respostas, e os
++# números gerais precisam saber de que régua cada leitura veio.
++JEV_MODEL = "typesafe/jev-1.13"
++JEV_TIMEOUT = 30
++# Teto de texto por conversa. O Jev aceita 32 mil tokens; 60 mil caracteres
++# ficam bem abaixo disso mesmo com as perguntas junto.
++TEXTO_MAXIMO = 60000
++
++CONTEXTO = (
++    "Conversa de WhatsApp entre um contato (Lead) e uma empresa. As mensagens da "
++    "empresa podem ser da equipe, de um agente de IA ou automáticas. [áudio] e "
++    "[imagem] marcam mídias cujo conteúdo não está disponível."
++)
++
++ROTULO_MIDIA = {
++    "audio": "[áudio]",
++    "ptt": "[áudio]",
++    "image": "[imagem]",
++    "video": "[vídeo]",
++    "document": "[documento]",
++    "sticker": "[figurinha]",
++}
++
++
++class JevPausa(RuntimeError):
++    """Falha que não é desta conversa: chave, crédito, limite, Jev fora do ar.
++
++    Gravar falha em cada conversa por causa disso seria mentir no histórico e
++    segurar todas por uma hora. O ciclo para e o trabalhador espera mais.
++    """
++
++    def __init__(self, codigo: str):
++        super().__init__(codigo)
++        self.codigo = codigo
++
++
++class JevRecusa(RuntimeError):
++    """Falha desta conversa: o Jev recusou o pedido ou respondeu torto."""
++
++    def __init__(self, codigo: str):
++        super().__init__(codigo)
++        self.codigo = codigo
++
++
++def ler_chave(caminho: Optional[Path]) -> str:
++    if caminho is None:
++        raise JevPausa("jev_key_missing")
++    try:
++        chave = Path(caminho).read_text(encoding="utf-8").strip()
++    except OSError:
++        raise JevPausa("jev_key_unreadable")
++    # Aceita o arquivo com a linha `OPENROUTER_API_KEY=...`, que é como a chave
++    # costuma ser guardada, ou só a chave.
++    if "=" in chave and not chave.startswith("sk-or-"):
++        chave = chave.split("=", 1)[1].strip()
++    if not chave.startswith("sk-or-") or any(c.isspace() for c in chave):
++        raise JevPausa("jev_key_invalid")
++    return chave
++
++
++class JevClient:
++    def __init__(self, key_loader: Callable[[], str], session: Optional[requests.Session] = None):
++        self.key_loader = key_loader
++        self.session = session or requests.Session()
++
++    def decidir(self, conversa_em_texto: str) -> dict[str, Any]:
++        corpo = {
++            "model": JEV_MODEL,
++            "state": {"contexto": CONTEXTO, "conversa": conversa_em_texto},
++            "questions": jev_framework.perguntas_para_api(),
++        }
++        inicio = time.monotonic()
++        try:
++            resposta = self.session.post(
++                JEV_ENDPOINT,
++                json=corpo,
++                headers={
++                    "Authorization": f"Bearer {self.key_loader()}",
++                    "Content-Type": "application/json",
++                    "X-Title": "Nucleo Major",
++                },
++                timeout=JEV_TIMEOUT,
++            )
++        except requests.Timeout:
++            raise JevPausa("jev_timeout")
++        except requests.RequestException:
++            raise JevPausa("jev_unreachable")
++        latencia = int((time.monotonic() - inicio) * 1000)
++        if resposta.status_code in (401, 402, 403, 429) or resposta.status_code >= 500:
++            raise JevPausa(f"jev_http_{resposta.status_code}")
++        if resposta.status_code >= 400:
++            raise JevRecusa(f"jev_http_{resposta.status_code}")
++        try:
++            dados = resposta.json()
++        except ValueError:
++            raise JevRecusa("jev_invalid_json")
++        if not isinstance(dados, dict) or not isinstance(dados.get("answers"), dict):
++            raise JevRecusa("jev_no_answers")
++        dados["_latency_ms"] = latencia
++        return dados
++
++
++def _quando(valor: Any, fuso: ZoneInfo) -> str:
++    try:
++        instante = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
++    except ValueError:
++        return "--/-- --:--"
++    return instante.astimezone(fuso).strftime("%d/%m %H:%M")
++
++
++def conversa_em_texto(mensagens: list[dict], fuso: ZoneInfo) -> str:
++    """A conversa como o Jev lê: uma linha por mensagem, quem falou e quando."""
++    linhas = []
++    for mensagem in mensagens:
++        if not isinstance(mensagem, dict):
++            continue
++        if not mensagem.get("fromMe"):
++            autor = "Lead"
++        elif mensagem.get("authorKind") == "ia":
++            autor = "Empresa (agente de IA)"
++        elif mensagem.get("authorKind") == "bot":
++            autor = "Empresa (mensagem automática)"
++        else:
++            autor = "Empresa (equipe)"
++        texto = str(mensagem.get("content") or "").strip()
++        midia = str(mensagem.get("mediaType") or "").strip().lower()
++        if midia:
++            texto = (ROTULO_MIDIA.get(midia) or f"[{midia}]") + (f" {texto}" if texto else "")
++        if not texto:
++            continue
++        linhas.append(f"[{_quando(mensagem.get('sentAt'), fuso)}] {autor}: {texto}")
++    texto = "\n".join(linhas)
++    # Corta pelo começo: o fim da conversa é o que mais diz sobre o agora.
++    return texto[-TEXTO_MAXIMO:]
++
++
++class Coordenador:
++    def __init__(
++        self,
++        *,
++        verifier,
++        jev: JevClient,
++        interval: float = 300.0,
++        quiet_minutes: int = 60,
++        batch: int = 5,
++        timezone: str = "America/Sao_Paulo",
++    ) -> None:
++        self.verifier = verifier
++        self.jev = jev
++        self.interval = max(60.0, float(interval))
++        self.quiet_minutes = max(5, min(int(quiet_minutes), 1440))
++        self.batch = max(1, min(int(batch), 10))
++        try:
++            self.fuso = ZoneInfo(timezone)
++        except Exception:  # pragma: no cover - fuso inválido no env
++            self.fuso = ZoneInfo("America/Sao_Paulo")
++        self._stop = threading.Event()
++        self._thread: Optional[threading.Thread] = None
++
++    # ------------------------------------------------------------- um ciclo
++
++    def poll_once(self) -> dict:
++        pendentes = self.verifier.insights_pending(self.batch, self.quiet_minutes)
++        if not pendentes.get("enabled"):
++            return {"enabled": False, "ok": 0, "failed": 0}
++        resumo = {"enabled": True, "ok": 0, "failed": 0, "cost_usd": 0.0}
++        for conversa in pendentes.get("conversations") or []:
++            if self._stop.is_set():
++                break
++            situacao = self._ler(conversa)
++            resumo[situacao["status"]] += 1
++            resumo["cost_usd"] += situacao.get("cost_usd", 0.0)
++        resumo["cost_usd"] = round(resumo["cost_usd"], 8)
++        return resumo
++
++    def _ler(self, conversa: dict) -> dict:
++        telefone = str(conversa.get("phone") or "")
++        mensagens = conversa.get("messages") if isinstance(conversa.get("messages"), list) else []
++        base = {
++            "phone": telefone,
++            "analyzedUntil": conversa.get("lastMessageAt"),
++            "messagesCount": len(mensagens),
++            "frameworkVersion": jev_framework.FRAMEWORK_VERSION,
++        }
++        texto = conversa_em_texto(mensagens, self.fuso)
++        if not texto:
++            return self._falha(base, "conversation_empty")
++        try:
++            dados = self.jev.decidir(texto)
++        except JevRecusa as recusa:
++            return self._falha(base, recusa.codigo)
++        # JevPausa sobe: o ciclo inteiro para, e nada é gravado.
++
++        respostas = []
++        brutas = dados.get("answers") or {}
++        for pergunta in jev_framework.PERGUNTAS:
++            normalizada = jev_framework.normalizar(pergunta.chave, brutas.get(pergunta.chave))
++            if normalizada is not None:
++                respostas.append(normalizada)
++        if not respostas:
++            return self._falha(base, "jev_answers_unusable")
++
++        uso = dados.get("usage") if isinstance(dados.get("usage"), dict) else {}
++        custo = _custo(uso.get("cost"))
++        payload = {
++            **base,
++            "status": "ok",
++            "model": str(dados.get("model") or JEV_MODEL)[:80],
++            "inputTokens": _inteiro(uso.get("input_tokens")),
++            "costUsd": custo,
++            "latencyMs": _inteiro(dados.get("_latency_ms")),
++            "answers": respostas,
++        }
++        self.verifier.insights_record(payload)
++        audit.log(
++            "insights.read",
++            phone=telefone or None,
++            messages=len(mensagens),
++            answers=len(respostas),
++            missing=len(jev_framework.PERGUNTAS) - len(respostas),
++            input_tokens=payload["inputTokens"],
++            cost_usd=custo,
++            latency_ms=payload["latencyMs"],
++            model=payload["model"],
++        )
++        return {"status": "ok", "cost_usd": custo}
++
++    def _falha(self, base: dict, codigo: str) -> dict:
++        try:
++            self.verifier.insights_record({**base, "status": "failed", "errorCode": codigo, "answers": []})
++        except OperatorVerificationError as exc:
++            audit.log("insights.record_failed", error_code=codigo, error=str(exc))
++        audit.log("insights.failed", phone=base.get("phone") or None, error_code=codigo)
++        return {"status": "failed"}
++
++    # ------------------------------------------------------------- a thread
++
++    def start(self) -> None:
++        if self._thread and self._thread.is_alive():
++            return
++        self._stop.clear()
++        self._thread = threading.Thread(target=self._run, name="coordenador", daemon=True)
++        self._thread.start()
++
++    def stop(self) -> None:
++        self._stop.set()
++        if self._thread:
++            self._thread.join(timeout=JEV_TIMEOUT + 5)
++
++    def _run(self) -> None:
++        delay = self.interval
++        ultimo = ""
++        ultimo_log = 0.0
++        while not self._stop.is_set():
++            try:
++                resumo = self.poll_once()
++                if resumo.get("ok") or resumo.get("failed"):
++                    audit.log("insights.cycle", **resumo)
++                elif not resumo.get("enabled") and time.monotonic() - ultimo_log >= 3600:
++                    # Desligada no painel: uma linha por hora basta para se
++                    # saber, pelo journal, por que nada está sendo lido.
++                    audit.log("insights.disabled")
++                    ultimo_log = time.monotonic()
++                delay = self.interval
++                ultimo = ""
++            except JevPausa as pausa:
++                agora = time.monotonic()
++                if pausa.codigo != ultimo or agora - ultimo_log >= 600:
++                    audit.log("insights.paused", error_code=pausa.codigo)
++                    ultimo = pausa.codigo
++                    ultimo_log = agora
++                delay = min(3600.0, delay * 2.0)
++            except OperatorVerificationError as exc:
++                agora = time.monotonic()
++                erro = str(exc)
++                if erro != ultimo or agora - ultimo_log >= 600:
++                    audit.log("insights.failed", error_code="control_plane_unavailable", error=erro)
++                    ultimo = erro
++                    ultimo_log = agora
++                delay = min(3600.0, delay * 2.0)
++            except Exception as exc:  # pragma: no cover - última barreira de um daemon
++                audit.log("insights.failed", error_code="unexpected", error=type(exc).__name__)
++                delay = min(3600.0, delay * 2.0)
++            self._stop.wait(delay)
++
++
++def _inteiro(valor: Any) -> int:
++    try:
++        return max(0, int(valor))
++    except (TypeError, ValueError):
++        return 0
++
++
++def _custo(valor: Any) -> float:
++    try:
++        numero = float(valor)
++    except (TypeError, ValueError):
++        return 0.0
++    return round(numero, 8) if numero >= 0 else 0.0
+diff --git a/whatsapp-assistant/jev_framework.py b/whatsapp-assistant/jev_framework.py
+new file mode 100644
+index 0000000..ca997d0
+--- /dev/null
++++ b/whatsapp-assistant/jev_framework.py
+@@ -0,0 +1,238 @@
++"""As perguntas que o coordenador faz ao Jev sobre cada conversa.
++
++Framework da Major, versão `major-v1` (01/10/2026). Nasceu do teste com 30
++conversas reais da própria Major, que mostrou três ajustes em relação ao
++rascunho:
++
++  * a temperatura em cinco níveis deixava o Jev dividido entre vizinhos
++    (confiança média de 47%). Ficou em três: frio, morno, quente;
++  * "respondeu tudo?" dava "não" em 26 de 30 — qualquer pergunta solta virava
++    falha. Virou "ficou pergunta IMPORTANTE sem resposta?", com o que conta;
++  * "promessa pendente" contava "vou verificar" que se resolvia na mensagem
++    seguinte. Agora é promessa CONCRETA que a conversa terminou sem cumprir.
++
++Mudar uma pergunta muda o que os números gerais medem: troque a versão junto,
++para o banco saber separar uma régua da outra.
++
++Cada pergunta tem um tipo do Jev:
++  * `noul`: sim ou não. Guardada como `sim`/`nao`;
++  * `choice`: uma opção fechada. Guardada pela chave da opção;
++  * `score`: posição numa escala. Guardada pela chave do nível mais provável.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import Any
++
++FRAMEWORK_VERSION = "major-v1"
++
++
++@dataclass(frozen=True)
++class Pergunta:
++    chave: str
++    grupo: str  # lead, atendimento, sinais, desfecho
++    tipo: str  # noul, choice, score
++    instrucao: str
++    # noul: {"true": ..., "false": ...}; choice: {opcao: descricao};
++    # score: tuple de (chave_do_nivel, descricao), do menor para o maior.
++    criterios: Any
++
++    def para_api(self) -> dict[str, Any]:
++        if self.tipo == "score":
++            criteria: Any = [descricao for _, descricao in self.criterios]
++        else:
++            criteria = dict(self.criterios)
++        return {"type": self.tipo, "instructions": self.instrucao, "criteria": criteria}
++
++
++PERGUNTAS: tuple[Pergunta, ...] = (
++    # ------------------------------------------------------------- o lead
++    Pergunta("intencao", "lead", "choice", "Qual é a intenção principal do contato nesta conversa?", {
++        "comprar_agora": "Quer comprar ou contratar agora; pergunta como pagar, quando começar ou pede para fechar.",
++        "pesquisando": "Está comparando ou levantando informações (preço, horários, condições) antes de decidir.",
++        "curiosidade": "Só curiosidade, sem sinal de que pretende comprar.",
++        "ja_cliente": "Já é cliente e fala de algo do serviço que já usa (suporte, remarcação, dúvida, reclamação).",
++        "fora_do_perfil": "Não é um cliente possível: engano, fornecedor, parceiro, candidato a vaga, spam.",
++    }),
++    Pergunta("disse_necessidade", "lead", "noul", "O contato disse o que quer resolver ou qual é o objetivo dele?", {
++        "true": "Ele explica a necessidade, dor ou objetivo, mesmo que de forma curta.",
++        "false": "Ele só pergunta preço ou informação, sem dizer o que quer resolver.",
++    }),
++    Pergunta("prazo", "lead", "choice", "Para quando o contato quer resolver?", {
++        "agora": "Quer resolver hoje ou nos próximos dias.",
++        "este_mes": "Fala em resolver nas próximas semanas ou neste mês.",
++        "sem_prazo": "Diz que é para depois, sem pressa, ou que vai pensar.",
++        "nao_falou": "A conversa não dá nenhuma pista de prazo.",
++    }),
++    Pergunta("sensibilidade_preco", "lead", "score", "Como o contato reagiu ao preço?", (
++        ("nao_falou", "Não falou de preço."),
++        ("perguntou", "Perguntou o preço, sem reclamar."),
++        ("reclamou", "Reclamou do preço, achou caro ou pediu desconto."),
++    )),
++    Pergunta("decisor", "lead", "choice", "Quem decide a compra?", {
++        "o_proprio": "O próprio contato decide.",
++        "outra_pessoa": "Depende de outra pessoa (cônjuge, sócio, pais, chefe).",
++        "nao_da_para_saber": "A conversa não mostra quem decide.",
++    }),
++    Pergunta("objecao_principal", "lead", "choice", "Qual foi a principal objeção do contato?", {
++        "nenhuma": "Não houve objeção.",
++        "preco": "Preço, valor ou forma de pagamento.",
++        "horario_tempo": "Horário, agenda ou falta de tempo.",
++        "confianca": "Desconfiança da empresa, do resultado ou do serviço.",
++        "concorrente": "Está considerando outra empresa.",
++        "nao_e_o_momento": "Diz que agora não é o momento.",
++        "decisor_ausente": "Precisa consultar outra pessoa.",
++        "localizacao": "Distância ou localização.",
++        "outra": "Outra objeção que não se encaixa acima.",
++    }),
++    Pergunta("temperatura", "lead", "score", "Qual a temperatura do lead no fim da conversa?", (
++        ("frio", "Frio: sem interesse, respostas secas ou parou de responder."),
++        ("morno", "Morno: interessado, mas com dúvida, objeção aberta ou sem pressa."),
++        ("quente", "Quente: quer fechar, agendar ou comprar logo."),
++    )),
++    # -------------------------------------------------------- o atendimento
++    Pergunta("pergunta_sem_resposta", "atendimento", "noul",
++             "Ficou alguma pergunta importante do contato sem resposta da empresa?", {
++        "true": "Sim: uma pergunta clara do contato (preço, horário, como funciona, prazo) não recebeu resposta até o fim da conversa.",
++        "false": "Não: as perguntas importantes foram respondidas, mesmo que de forma curta, ou o contato não fez perguntas.",
++    }),
++    Pergunta("perguntou_antes_preco", "atendimento", "choice",
++             "A empresa fez perguntas para entender o contato antes de passar o preço?", {
++        "sim": "Perguntou objetivo, necessidade ou situação antes de falar de valor.",
++        "nao": "Passou o preço direto, sem perguntar nada antes.",
++        "nao_se_aplica": "Preço não foi assunto na conversa.",
++    }),
++    Pergunta("valor_antes_preco", "atendimento", "choice",
++             "A empresa mostrou o valor do serviço (benefícios, o que está incluso, resultados) antes ou junto do preço?", {
++        "sim": "Explicou benefícios ou o que está incluso antes ou junto do preço.",
++        "nao": "Só falou o número, sem mostrar valor.",
++        "nao_se_aplica": "Preço não foi assunto na conversa.",
++    }),
++    Pergunta("tratou_objecao", "atendimento", "choice", "Como a empresa lidou com a objeção do contato?", {
++        "nao_houve_objecao": "O contato não fez objeção.",
++        "ignorou": "A objeção não teve resposta.",
++        "resposta_generica": "Respondeu de forma genérica, sem argumento ou alternativa.",
++        "argumentou": "Respondeu com argumento, alternativa ou condição para quebrar a objeção.",
++    }),
++    Pergunta("propos_proximo_passo", "atendimento", "noul",
++             "A empresa propôs um próximo passo concreto (agendar, visita, aula experimental, enviar proposta com data)?", {
++        "true": "Propôs um próximo passo concreto.",
++        "false": "Não propôs próximo passo, ou só disse algo vago como \"qualquer coisa me chama\".",
++    }),
++    Pergunta("promessa_pendente", "atendimento", "noul",
++             "A empresa prometeu uma ação concreta para depois (enviar algo, retornar, confirmar) e a conversa terminou sem ela?", {
++        "true": "Há promessa concreta da empresa que não foi cumprida até a última mensagem.",
++        "false": "Não houve promessa concreta, ou ela foi cumprida na própria conversa (por exemplo, \"vou verificar\" seguido da resposta).",
++    }),
++    Pergunta("tom_empresa", "atendimento", "score", "Qual o tom da empresa com o contato?", (
++        ("frio", "Frio ou ríspido."),
++        ("adequado", "Adequado e educado."),
++        ("caloroso", "Caloroso e próximo."),
++    )),
++    # ----------------------------------------------------------- os sinais
++    Pergunta("insatisfeito", "sinais", "noul", "O contato demonstra insatisfação com a empresa?", {
++        "true": "Reclama, mostra irritação, frustração ou decepção com a empresa ou o serviço.",
++        "false": "Não demonstra insatisfação.",
++    }),
++    Pergunta("pediu_humano", "sinais", "noul",
++             "O contato pediu para falar com uma pessoa em vez de um robô ou assistente?", {
++        "true": "Pede atendente, pessoa, humano, ou reclama de estar falando com robô.",
++        "false": "Não fez esse pedido.",
++    }),
++    Pergunta("precisa_resposta", "sinais", "noul", "A última mensagem do contato precisa de resposta da empresa?", {
++        "true": "A última mensagem do contato tem pergunta, pedido ou assunto em aberto e a empresa ainda não respondeu.",
++        "false": "A última mensagem é só agradecimento, confirmação ou despedida, ou a empresa já respondeu.",
++    }),
++    # ---------------------------------------------------------- o desfecho
++    Pergunta("andamento", "desfecho", "choice", "Como está a conversa agora?", {
++        "em_andamento": "Negociação ou atendimento ainda em curso.",
++        "ganho": "Fechou: comprou, contratou ou agendou.",
++        "perdido": "Disse que não vai fechar.",
++        "esfriou": "Parou de responder ou disse que vai pensar, sem retorno.",
++    }),
++    Pergunta("resolvido", "desfecho", "choice", "O que o contato precisava foi resolvido?", {
++        "sim": "O pedido ou dúvida do contato foi resolvido.",
++        "nao": "Ainda falta resolver algo que o contato pediu.",
++        "nao_se_aplica": "Não havia pedido ou problema para resolver.",
++    }),
++)
++
++POR_CHAVE = {pergunta.chave: pergunta for pergunta in PERGUNTAS}
++
++
++def perguntas_para_api() -> dict[str, Any]:
++    return {pergunta.chave: pergunta.para_api() for pergunta in PERGUNTAS}
++
++
++def _numero(valor: Any) -> float | None:
++    try:
++        numero = float(valor)
++    except (TypeError, ValueError):
++        return None
++    if numero != numero or numero < 0 or numero > 1:  # NaN ou fora de 0..1
++        return None
++    return round(numero, 4)
++
++
++def normalizar(chave: str, bruta: Any) -> dict[str, Any] | None:
++    """Uma resposta do Jev no formato que o banco guarda.
++
++    Devolve `{"question", "answer", "probability", "distribution"}` ou `None`
++    quando a resposta não bate com a pergunta — tipo trocado, opção que não
++    existe, nível fora da escala. Resposta que não se entende não é gravada:
++    um "talvez" inventado aqui contaminaria os números gerais.
++    """
++    pergunta = POR_CHAVE.get(chave)
++    if pergunta is None or not isinstance(bruta, dict) or bruta.get("type") != pergunta.tipo:
++        return None
++
++    if pergunta.tipo == "noul":
++        sim = _numero(bruta.get("noul"))
++        if sim is None:
++            return None
++        resposta = "sim" if sim >= 0.5 else "nao"
++        return {
++            "question": chave,
++            "answer": resposta,
++            "probability": sim if resposta == "sim" else round(1 - sim, 4),
++            "distribution": {"sim": sim, "nao": round(1 - sim, 4)},
++        }
++
++    if pergunta.tipo == "choice":
++        escolha = bruta.get("choice")
++        if escolha not in pergunta.criterios:
++            return None
++        probabilidades = bruta.get("probabilities") if isinstance(bruta.get("probabilities"), dict) else {}
++        distribuicao = {
++            opcao: valor
++            for opcao, valor in ((opcao, _numero(probabilidades.get(opcao))) for opcao in pergunta.criterios)
++            if valor is not None
++        }
++        chance = distribuicao.get(escolha)
++        if chance is None:
++            chance = _numero(bruta.get("confidence"))
++        return {"question": chave, "answer": escolha, "probability": chance, "distribution": distribuicao}
++
++    # score: o Jev devolve a posição esperada e a probabilidade de cada nível,
++    # indexada pelo número do nível ("0", "1", ...).
++    niveis = pergunta.criterios
++    probabilidades = bruta.get("probabilities") if isinstance(bruta.get("probabilities"), dict) else {}
++    distribuicao = {}
++    for indice, (nivel, _) in enumerate(niveis):
++        valor = _numero(probabilidades.get(str(indice)))
++        if valor is not None:
++            distribuicao[nivel] = valor
++    if distribuicao:
++        nivel_escolhido = max(distribuicao, key=distribuicao.get)
++        chance = distribuicao[nivel_escolhido]
++    else:
++        try:
++            posicao = round(float(bruta.get("score")))
++        except (TypeError, ValueError):
++            return None
++        if not 0 <= posicao < len(niveis):
++            return None
++        nivel_escolhido = niveis[posicao][0]
++        chance = _numero(bruta.get("confidence"))
++    return {"question": chave, "answer": nivel_escolhido, "probability": chance, "distribution": distribuicao}
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index d79c28d..a116f31 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -205,6 +205,21 @@ def main() -> int:
+             media=media_mirror,
+         )
+         conversation_syncer.start()
++    # O coordenador: lê as conversas com o Jev (desde 01/10/2026). Thread
++    # própria, fora do caminho da resposta ao cliente. Ver coordenador.py.
++    coordenador_de_leituras = None
++    if cfg.insights_enabled and verifier is not None:
++        import coordenador
++
++        coordenador_de_leituras = coordenador.Coordenador(
++            verifier=verifier,
++            jev=coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path)),
++            interval=cfg.insights_poll_seconds,
++            quiet_minutes=cfg.insights_quiet_minutes,
++            batch=cfg.insights_batch,
++            timezone=cfg.customer_timezone,
++        )
++        coordenador_de_leituras.start()
+     # Um código por conexão registrada, gerado a cada boot com
+     # EMYLEADS_GATEWAY_BOOTSTRAP=1. Códigos vivem só em memória: reiniciar o
+     # serviço invalida os pendentes, que é o comportamento certo para um
+@@ -274,6 +289,10 @@ def main() -> int:
+         # rótulo" se confere aqui antes de se procurar defeito.
+         media_mirror=cfg.media_mirror_enabled and cfg.conversation_sync_enabled,
+         outbox_dir=str(cfg.outbox_dir),
++        # E se o coordenador está lendo as conversas. A outra trava (a função
++        # da empresa no painel) só o banco sabe; o journal mostra
++        # `insights.disabled` quando é ela que está desligada.
++        insights_enabled=coordenador_de_leituras is not None,
+     )
+ 
+     return _wait_forever(
+@@ -286,6 +305,7 @@ def main() -> int:
+         command_poller,
+         conversation_syncer,
+         flow_executor,
++        coordenador_de_leituras,
+     )
+ 
+ 
+@@ -299,6 +319,7 @@ def _wait_forever(
+     command_poller=None,
+     conversation_syncer=None,
+     flow_executor=None,
++    coordenador_de_leituras=None,
+ ) -> int:
+     done = threading.Event()
+ 
+@@ -312,6 +333,8 @@ def _wait_forever(
+     done.wait()
+ 
+     httpd.shutdown()
++    if coordenador_de_leituras is not None:
++        coordenador_de_leituras.stop()
+     if flow_executor is not None:
+         flow_executor.stop()
+     if conversation_syncer is not None:
+diff --git a/whatsapp-assistant/operator_verification.py b/whatsapp-assistant/operator_verification.py
+index edd9ab7..3238c68 100644
+--- a/whatsapp-assistant/operator_verification.py
++++ b/whatsapp-assistant/operator_verification.py
+@@ -515,6 +515,32 @@ class OperatorVerifier:
+             "execution_id": execution_id, "cancellation_reason": reason,
+         }, "cancelamento do fluxo")
+ 
++    def insights_pending(self, max_items: int, quiet_minutes: int) -> dict[str, Any]:
++        """As conversas desta conexão que pedem leitura do coordenador.
++
++        Mesma garantia da sincronia: empresa e conexão saem do usuário-robô
++        autenticado. Com a função `conversation_insights` desligada para a
++        empresa, o banco devolve `enabled = false` e nenhuma conversa.
++        """
++        return self._rpc(
++            "nucleo_insights_pending",
++            {
++                "max_items": max(1, min(int(max_items), 10)),
++                "quiet_minutes": max(5, min(int(quiet_minutes), 1440)),
++            },
++            "leitura pendente do coordenador",
++        )
++
++    def insights_record(self, payload: dict[str, Any]) -> dict[str, Any]:
++        """Grava a leitura de uma conversa. Ver `coordenador.py`."""
++        if not isinstance(payload, dict):
++            raise OperatorVerificationError("leitura do coordenador possui formato inválido")
++        return self._rpc(
++            "nucleo_insights_record",
++            {"record_payload": payload},
++            "gravação da leitura do coordenador",
++        )
++
+     def _rpc(self, name: str, body: dict[str, Any], label: str) -> dict[str, Any]:
+         response = self._chamar(
+             "POST", f"/rest/v1/rpc/{name}", label, json=body,
+diff --git a/whatsapp-assistant/test_coordenador.py b/whatsapp-assistant/test_coordenador.py
+new file mode 100644
+index 0000000..eef453f
+--- /dev/null
++++ b/whatsapp-assistant/test_coordenador.py
+@@ -0,0 +1,479 @@
++"""O coordenador e o framework de perguntas do Jev.
++
++O que estes testes prendem:
++  * as perguntas saem no formato que o Jev aceita (medido em 01/10/2026) e
++    as respostas voltam no formato que o banco aceita, recusando o que não
++    bate com a pergunta;
++  * falha de chave, crédito ou Jev fora do ar PARA o ciclo sem gravar falha
++    em conversa nenhuma; falha da conversa grava `failed` só nela;
++  * com a função desligada no painel, o Jev não é chamado;
++  * texto de mensagem e chave nunca vão para o log.
++"""
++
++import json
++import os
++import re
++import tempfile
++import time
++import unittest
++from pathlib import Path
++from unittest.mock import patch
++from zoneinfo import ZoneInfo
++
++import requests
++
++import coordenador
++import jev_framework
++from config import Config
++from operator_verification import OperatorVerificationError, OperatorVerifier
++
++
++class FakeResponse:
++    def __init__(self, status_code, payload=None, raw=None):
++        self.status_code = status_code
++        self._payload = payload
++        self.content = (raw if raw is not None else json.dumps(payload)).encode("utf-8")
++
++    def json(self):
++        if self._payload is None:
++            raise ValueError("not json")
++        return self._payload
++
++
++class FakeSession:
++    def __init__(self, responses):
++        self.responses = list(responses)
++        self.calls = []
++
++    def post(self, url, **kwargs):
++        self.calls.append((url, kwargs))
++        resposta = self.responses.pop(0)
++        if isinstance(resposta, Exception):
++            raise resposta
++        return resposta
++
++
++def resposta_do_jev(**sobrepor):
++    """Uma resposta no formato real do Jev, para todas as perguntas."""
++    answers = {}
++    for pergunta in jev_framework.PERGUNTAS:
++        if pergunta.tipo == "noul":
++            answers[pergunta.chave] = {"type": "noul", "noul": 0.2}
++        elif pergunta.tipo == "choice":
++            opcoes = list(pergunta.criterios)
++            answers[pergunta.chave] = {
++                "type": "choice",
++                "choice": opcoes[0],
++                "confidence": 0.6,
++                "probabilities": {opcao: (0.8 if i == 0 else 0.2 / (len(opcoes) - 1)) for i, opcao in enumerate(opcoes)},
++            }
++        else:
++            answers[pergunta.chave] = {
++                "type": "score",
++                "score": 1.1,
++                "confidence": 0.7,
++                "probabilities": {"0": 0.1, "1": 0.7, "2": 0.2},
++            }
++    answers.update(sobrepor)
++    return {
++        "id": "gen-dec-1",
++        "model": "typesafe/jev-1.13-20260917",
++        "provider": "TypeSafe",
++        "answers": answers,
++        "usage": {"input_tokens": 4005, "output_tokens": 70, "cost": 0.000168},
++    }
++
++
++class FakeVerifier:
++    def __init__(self, pendentes):
++        self.pendentes = pendentes
++        self.gravadas = []
++        self.pedidos = []
++
++    def insights_pending(self, max_items, quiet_minutes):
++        self.pedidos.append((max_items, quiet_minutes))
++        return self.pendentes
++
++    def insights_record(self, payload):
++        self.gravadas.append(payload)
++        return {"recorded": True}
++
++
++class FakeJev:
++    def __init__(self, resultados):
++        self.resultados = list(resultados)
++        self.textos = []
++
++    def decidir(self, texto):
++        self.textos.append(texto)
++        resultado = self.resultados.pop(0)
++        if isinstance(resultado, Exception):
++            raise resultado
++        return {**resultado, "_latency_ms": 512}
++
++
++def conversa(telefone="5565900000001", mensagens=None):
++    return {
++        "phone": telefone,
++        "lastMessageAt": "2026-10-01T12:00:00+00:00",
++        "messages": mensagens if mensagens is not None else [
++            {"sentAt": "2026-10-01T11:00:00+00:00", "fromMe": False, "authorKind": "", "mediaType": "", "content": "Quanto custa o plano?"},
++            {"sentAt": "2026-10-01T11:01:00+00:00", "fromMe": True, "authorKind": "ia", "mediaType": "", "content": "R$ 289 por mês."},
++        ],
++    }
++
++
++class FrameworkTests(unittest.TestCase):
++    def test_chaves_unicas_e_validas_para_o_banco(self):
++        chaves = [pergunta.chave for pergunta in jev_framework.PERGUNTAS]
++        self.assertEqual(len(chaves), len(set(chaves)))
++        for chave in chaves:
++            self.assertRegex(chave, r"^[a-z][a-z0-9_]{1,40}$")
++        # O banco aceita até 40 respostas por leitura.
++        self.assertLessEqual(len(chaves), 40)
++
++    def test_formato_da_api(self):
++        api = jev_framework.perguntas_para_api()
++        self.assertEqual(api["insatisfeito"]["type"], "noul")
++        self.assertEqual(set(api["insatisfeito"]["criteria"]), {"true", "false"})
++        self.assertEqual(api["temperatura"]["type"], "score")
++        self.assertIsInstance(api["temperatura"]["criteria"], list)
++        self.assertEqual(len(api["temperatura"]["criteria"]), 3)
++        self.assertIsInstance(api["intencao"]["criteria"], dict)
++
++    def test_ajustes_do_teste_de_01_10(self):
++        self.assertEqual([n for n, _ in jev_framework.POR_CHAVE["temperatura"].criterios], ["frio", "morno", "quente"])
++        self.assertIn("pergunta_sem_resposta", jev_framework.POR_CHAVE)
++        self.assertNotIn("respondeu_tudo", jev_framework.POR_CHAVE)
++        self.assertIn("CONCRETA", jev_framework.POR_CHAVE["promessa_pendente"].instrucao.upper())
++
++    def test_noul_vira_sim_ou_nao_com_a_chance_da_resposta(self):
++        r = jev_framework.normalizar("insatisfeito", {"type": "noul", "noul": 0.2})
++        self.assertEqual(r["answer"], "nao")
++        self.assertEqual(r["probability"], 0.8)
++        self.assertEqual(r["distribution"], {"sim": 0.2, "nao": 0.8})
++        r = jev_framework.normalizar("insatisfeito", {"type": "noul", "noul": 0.91})
++        self.assertEqual((r["answer"], r["probability"]), ("sim", 0.91))
++
++    def test_choice_guarda_a_opcao_e_a_distribuicao(self):
++        r = jev_framework.normalizar("intencao", {
++            "type": "choice", "choice": "pesquisando", "confidence": 0.5,
++            "probabilities": {"pesquisando": 0.78, "comprar_agora": 0.22, "inventada": 0.9},
++        })
++        self.assertEqual(r["answer"], "pesquisando")
++        self.assertEqual(r["probability"], 0.78)
++        self.assertNotIn("inventada", r["distribution"])
++
++    def test_score_vira_o_nivel_mais_provavel(self):
++        r = jev_framework.normalizar("temperatura", {
++            "type": "score", "score": 1.4, "confidence": 0.5,
++            "probabilities": {"0": 0.05, "1": 0.35, "2": 0.6},
++        })
++        self.assertEqual((r["answer"], r["probability"]), ("quente", 0.6))
++        self.assertEqual(r["distribution"], {"frio": 0.05, "morno": 0.35, "quente": 0.6})
++
++    def test_score_sem_distribuicao_usa_a_posicao(self):
++        r = jev_framework.normalizar("tom_empresa", {"type": "score", "score": 1.9, "confidence": 0.66})
++        self.assertEqual((r["answer"], r["probability"]), ("caloroso", 0.66))
++
++    def test_resposta_que_nao_bate_e_descartada(self):
++        self.assertIsNone(jev_framework.normalizar("intencao", {"type": "choice", "choice": "talvez"}))
++        self.assertIsNone(jev_framework.normalizar("intencao", {"type": "noul", "noul": 0.5}))
++        self.assertIsNone(jev_framework.normalizar("insatisfeito", {"type": "noul", "noul": 1.7}))
++        self.assertIsNone(jev_framework.normalizar("tom_empresa", {"type": "score", "score": 7}))
++        self.assertIsNone(jev_framework.normalizar("nao_existe", {"type": "noul", "noul": 0.1}))
++        self.assertIsNone(jev_framework.normalizar("insatisfeito", None))
++
++
++class TextoDaConversaTests(unittest.TestCase):
++    def test_quem_falou_e_quando(self):
++        texto = coordenador.conversa_em_texto([
++            {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "content": "Oi"},
++            {"sentAt": "2026-10-01T12:01:00Z", "fromMe": True, "authorKind": "ia", "content": "Olá!"},
++            {"sentAt": "2026-10-01T12:02:00Z", "fromMe": True, "authorKind": "humano", "content": "Sou o Júnior"},
++            {"sentAt": "2026-10-01T12:03:00Z", "fromMe": True, "authorKind": "", "content": "Do celular"},
++            {"sentAt": "2026-10-01T12:04:00Z", "fromMe": True, "authorKind": "bot", "content": "Lembrete"},
++        ], ZoneInfo("America/Sao_Paulo"))
++        linhas = texto.split("\n")
++        self.assertEqual(linhas[0], "[01/10 09:00] Lead: Oi")
++        self.assertIn("Empresa (agente de IA): Olá!", linhas[1])
++        self.assertIn("Empresa (equipe): Sou o Júnior", linhas[2])
++        self.assertIn("Empresa (equipe): Do celular", linhas[3])
++        self.assertIn("Empresa (mensagem automática): Lembrete", linhas[4])
++
++    def test_midia_vira_rotulo_e_vazia_some(self):
++        texto = coordenador.conversa_em_texto([
++            {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "mediaType": "audio", "content": ""},
++            {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "mediaType": "image", "content": "olha"},
++            {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "content": "   "},
++        ], ZoneInfo("America/Sao_Paulo"))
++        self.assertEqual(texto.split("\n")[0].split("] ")[1], "Lead: [áudio]")
++        self.assertIn("Lead: [imagem] olha", texto)
++        self.assertEqual(len(texto.split("\n")), 2)
++
++    def test_conversa_gigante_guarda_o_fim(self):
++        mensagens = [
++            {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "content": f"m{i} " + "x" * 2000}
++            for i in range(80)
++        ]
++        texto = coordenador.conversa_em_texto(mensagens, ZoneInfo("America/Sao_Paulo"))
++        self.assertLessEqual(len(texto), coordenador.TEXTO_MAXIMO)
++        self.assertIn("m79 ", texto)
++        self.assertNotIn("m0 ", texto)
++
++
++class ChaveTests(unittest.TestCase):
++    def test_aceita_a_linha_com_nome_ou_so_a_chave(self):
++        with tempfile.TemporaryDirectory() as pasta:
++            arquivo = Path(pasta) / "openrouter.key"
++            arquivo.write_text("OPENROUTER_API_KEY=sk-or-v1-abc123\n", encoding="utf-8")
++            self.assertEqual(coordenador.ler_chave(arquivo), "sk-or-v1-abc123")
++            arquivo.write_text("sk-or-v1-xyz\n", encoding="utf-8")
++            self.assertEqual(coordenador.ler_chave(arquivo), "sk-or-v1-xyz")
++
++    def test_sem_chave_pausa(self):
++        with self.assertRaises(coordenador.JevPausa) as falta:
++            coordenador.ler_chave(None)
++        self.assertEqual(falta.exception.codigo, "jev_key_missing")
++        with tempfile.TemporaryDirectory() as pasta:
++            with self.assertRaises(coordenador.JevPausa) as ilegivel:
++                coordenador.ler_chave(Path(pasta) / "nao-existe")
++            self.assertEqual(ilegivel.exception.codigo, "jev_key_unreadable")
++            arquivo = Path(pasta) / "ruim"
++            arquivo.write_text("chave-errada", encoding="utf-8")
++            with self.assertRaises(coordenador.JevPausa) as invalida:
++                coordenador.ler_chave(arquivo)
++            self.assertEqual(invalida.exception.codigo, "jev_key_invalid")
++
++
++class JevClientTests(unittest.TestCase):
++    def cliente(self, respostas):
++        sessao = FakeSession(respostas)
++        return coordenador.JevClient(lambda: "sk-or-v1-teste", session=sessao), sessao
++
++    def test_pedido_no_formato_do_jev(self):
++        cliente, sessao = self.cliente([FakeResponse(200, resposta_do_jev())])
++        dados = cliente.decidir("[01/10 09:00] Lead: Oi")
++        url, kwargs = sessao.calls[0]
++        self.assertEqual(url, "https://openrouter.ai/api/alpha/decisions")
++        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer sk-or-v1-teste")
++        self.assertEqual(kwargs["json"]["model"], "typesafe/jev-1.13")
++        self.assertEqual(kwargs["json"]["state"]["conversa"], "[01/10 09:00] Lead: Oi")
++        self.assertEqual(set(kwargs["json"]["questions"]), set(jev_framework.POR_CHAVE))
++        self.assertIn("_latency_ms", dados)
++
++    def test_chave_credito_limite_e_queda_pausam(self):
++        for status in (401, 402, 403, 429, 500, 503):
++            cliente, _ = self.cliente([FakeResponse(status, {"error": "x"})])
++            with self.assertRaises(coordenador.JevPausa) as pausa:
++                cliente.decidir("texto")
++            self.assertEqual(pausa.exception.codigo, f"jev_http_{status}")
++        for erro, codigo in ((requests.Timeout(), "jev_timeout"), (requests.ConnectionError(), "jev_unreachable")):
++            cliente, _ = self.cliente([erro])
++            with self.assertRaises(coordenador.JevPausa) as pausa:
++                cliente.decidir("texto")
++            self.assertEqual(pausa.exception.codigo, codigo)
++
++    def test_pedido_recusado_ou_resposta_torta_e_da_conversa(self):
++        casos = (
++            (FakeResponse(400, {"error": "bad"}), "jev_http_400"),
++            (FakeResponse(200, None, raw="<html>"), "jev_invalid_json"),
++            (FakeResponse(200, {"model": "x"}), "jev_no_answers"),
++        )
++        for resposta, codigo in casos:
++            cliente, _ = self.cliente([resposta])
++            with self.assertRaises(coordenador.JevRecusa) as recusa:
++                cliente.decidir("texto")
++            self.assertEqual(recusa.exception.codigo, codigo)
++
++
++class CoordenadorTests(unittest.TestCase):
++    def setUp(self):
++        self.logs = []
++        patcher = patch.object(coordenador.audit, "log", side_effect=lambda evento, **campos: self.logs.append((evento, campos)))
++        patcher.start()
++        self.addCleanup(patcher.stop)
++
++    def novo(self, pendentes, resultados):
++        verifier = FakeVerifier(pendentes)
++        jev = FakeJev(resultados)
++        return coordenador.Coordenador(verifier=verifier, jev=jev, interval=300, quiet_minutes=60, batch=5), verifier, jev
++
++    def test_desligada_no_painel_nao_chama_o_jev(self):
++        c, verifier, jev = self.novo({"enabled": False, "conversations": []}, [])
++        self.assertEqual(c.poll_once(), {"enabled": False, "ok": 0, "failed": 0})
++        self.assertEqual(jev.textos, [])
++        self.assertEqual(verifier.gravadas, [])
++        self.assertEqual(verifier.pedidos, [(5, 60)])
++
++    def test_le_e_grava_cada_conversa(self):
++        c, verifier, jev = self.novo(
++            {"enabled": True, "conversations": [conversa("5565900000001"), conversa("5565900000002")]},
++            [resposta_do_jev(), resposta_do_jev(insatisfeito={"type": "noul", "noul": 0.93})],
++        )
++        resumo = c.poll_once()
++        self.assertEqual((resumo["ok"], resumo["failed"]), (2, 0))
++        self.assertAlmostEqual(resumo["cost_usd"], 0.000336)
++        self.assertEqual(len(verifier.gravadas), 2)
++        gravada = verifier.gravadas[1]
++        self.assertEqual(gravada["status"], "ok")
++        self.assertEqual(gravada["phone"], "5565900000002")
++        self.assertEqual(gravada["analyzedUntil"], "2026-10-01T12:00:00+00:00")
++        self.assertEqual(gravada["frameworkVersion"], "major-v1")
++        self.assertEqual(gravada["model"], "typesafe/jev-1.13-20260917")
++        self.assertEqual((gravada["inputTokens"], gravada["latencyMs"]), (4005, 512))
++        self.assertEqual(len(gravada["answers"]), len(jev_framework.PERGUNTAS))
++        insatisfeito = next(r for r in gravada["answers"] if r["question"] == "insatisfeito")
++        self.assertEqual((insatisfeito["answer"], insatisfeito["probability"]), ("sim", 0.93))
++        self.assertIn("Lead: Quanto custa o plano?", jev.textos[0])
++
++    def test_resposta_parcial_grava_so_o_que_se_entende(self):
++        c, verifier, _ = self.novo(
++            {"enabled": True, "conversations": [conversa()]},
++            [resposta_do_jev(intencao={"type": "choice", "choice": "talvez"})],
++        )
++        c.poll_once()
++        chaves = {r["question"] for r in verifier.gravadas[0]["answers"]}
++        self.assertNotIn("intencao", chaves)
++        self.assertEqual(len(chaves), len(jev_framework.PERGUNTAS) - 1)
++
++    def test_recusa_do_jev_grava_falha_so_naquela_conversa(self):
++        c, verifier, _ = self.novo(
++            {"enabled": True, "conversations": [conversa("5565900000001"), conversa("5565900000002")]},
++            [coordenador.JevRecusa("jev_http_400"), resposta_do_jev()],
++        )
++        resumo = c.poll_once()
++        self.assertEqual((resumo["ok"], resumo["failed"]), (1, 1))
++        self.assertEqual(verifier.gravadas[0]["status"], "failed")
++        self.assertEqual(verifier.gravadas[0]["errorCode"], "jev_http_400")
++        self.assertEqual(verifier.gravadas[0]["answers"], [])
++        self.assertEqual(verifier.gravadas[1]["status"], "ok")
++
++    def test_pausa_para_o_ciclo_sem_gravar_falha(self):
++        c, verifier, jev = self.novo(
++            {"enabled": True, "conversations": [conversa("5565900000001"), conversa("5565900000002")]},
++            [coordenador.JevPausa("jev_http_402"), resposta_do_jev()],
++        )
++        with self.assertRaises(coordenador.JevPausa):
++            c.poll_once()
++        self.assertEqual(verifier.gravadas, [])
++        self.assertEqual(len(jev.textos), 1)
++
++    def test_conversa_sem_texto_e_respostas_inuteis_viram_falha(self):
++        c, verifier, jev = self.novo(
++            {"enabled": True, "conversations": [conversa(mensagens=[]), conversa("5565900000009")]},
++            [{"answers": {"intencao": {"type": "noul", "noul": 0.3}}}],
++        )
++        c.poll_once()
++        self.assertEqual([g["errorCode"] for g in verifier.gravadas], ["conversation_empty", "jev_answers_unusable"])
++        self.assertEqual(len(jev.textos), 1)
++
++    def test_log_nunca_leva_texto_nem_telefone_aberto(self):
++        c, _, _ = self.novo(
++            {"enabled": True, "conversations": [conversa()]},
++            [resposta_do_jev()],
++        )
++        c.poll_once()
++        bruto = json.dumps(self.logs, ensure_ascii=False, default=str)
++        self.assertNotIn("Quanto custa", bruto)
++        self.assertNotIn("R$ 289", bruto)
++        evento, campos = self.logs[0]
++        self.assertEqual(evento, "insights.read")
++        # `phone` é campo que o audit transforma em hash.
++        self.assertIn("phone", campos)
++        self.assertNotIn("content", campos)
++
++    def test_falha_ao_gravar_a_falha_nao_derruba_o_ciclo(self):
++        class VerifierQueRecusa(FakeVerifier):
++            def insights_record(self, payload):
++                if payload["status"] == "failed":
++                    raise OperatorVerificationError("Supabase recusou")
++                return super().insights_record(payload)
++
++        verifier = VerifierQueRecusa({"enabled": True, "conversations": [conversa(mensagens=[]), conversa("5565900000002")]})
++        c = coordenador.Coordenador(verifier=verifier, jev=FakeJev([resposta_do_jev()]))
++        resumo = c.poll_once()
++        self.assertEqual((resumo["ok"], resumo["failed"]), (1, 1))
++
++    def test_thread_sobe_e_para(self):
++        verifier = FakeVerifier({"enabled": False, "conversations": []})
++        c = coordenador.Coordenador(verifier=verifier, jev=FakeJev([]), interval=60)
++        c.start()
++        for _ in range(50):
++            if verifier.pedidos:
++                break
++            time.sleep(0.02)
++        c.stop()
++        self.assertEqual(len(verifier.pedidos), 1)
++        self.assertFalse(c._thread.is_alive())
++
++
++class ConfigTests(unittest.TestCase):
++    def _env(self, **extra):
++        values = {
++            "ASSISTANT_VAULT": "/tmp/vault-do-perfil",
++            "ASSISTANT_OWNER": "556500000000",
++            "ASSISTANT_STATE_DB": "/tmp/perfil/assistant.db",
++            **extra,
++        }
++        return patch.dict(os.environ, values, clear=False)
++
++    def test_desligado_por_padrao(self):
++        with self._env():
++            for nome in ("NUCLEO_INSIGHTS", "NUCLEO_INSIGHTS_KEY_PATH"):
++                os.environ.pop(nome, None)
++            cfg = Config.from_env()
++        self.assertFalse(cfg.insights_enabled)
++        self.assertIsNone(cfg.insights_key_path)
++        self.assertEqual((cfg.insights_poll_seconds, cfg.insights_quiet_minutes, cfg.insights_batch), (300.0, 60, 5))
++
++    def test_liga_pelo_env_e_respeita_os_tetos(self):
++        with self._env(
++            NUCLEO_INSIGHTS="1",
++            NUCLEO_INSIGHTS_KEY_PATH="/tmp/openrouter.key",
++            NUCLEO_INSIGHTS_POLL_SECONDS="5",
++            NUCLEO_INSIGHTS_QUIET_MINUTES="9999",
++            NUCLEO_INSIGHTS_BATCH="50",
++        ):
++            cfg = Config.from_env()
++        self.assertTrue(cfg.insights_enabled)
++        self.assertEqual(cfg.insights_key_path, Path("/tmp/openrouter.key"))
++        self.assertEqual((cfg.insights_poll_seconds, cfg.insights_quiet_minutes, cfg.insights_batch), (60.0, 1440, 10))
++
++
++class VerifierTests(unittest.TestCase):
++    def _verifier(self, respostas):
++        pasta = tempfile.TemporaryDirectory()
++        self.addCleanup(pasta.cleanup)
++        caminho = Path(pasta.name) / "credential.json"
++        caminho.write_text(json.dumps({
++            "supabase_url": "https://example.supabase.co",
++            "publishable_key": "publishable-key",
++            "access_token": "access-token",
++            "refresh_token": "refresh-token",
++            "expires_at": int(time.time()) + 3600,
++        }), encoding="utf-8")
++        if os.name != "nt":
++            os.chmod(caminho, 0o600)
++        sessao = FakeSession(respostas)
++        return OperatorVerifier(caminho, session=sessao), sessao
++
++    def test_pendentes_chama_a_rpc_estreita_com_tetos(self):
++        verifier, sessao = self._verifier([FakeResponse(200, {"enabled": True, "conversations": []})])
++        verifier.insights_pending(99, 2)
++        url, kwargs = sessao.calls[0]
++        self.assertTrue(url.endswith("/rest/v1/rpc/nucleo_insights_pending"))
++        self.assertEqual(kwargs["json"], {"max_items": 10, "quiet_minutes": 5})
++
++    def test_gravar_manda_o_payload_inteiro(self):
++        verifier, sessao = self._verifier([FakeResponse(200, {"recorded": True})])
++        verifier.insights_record({"phone": "5565900000001", "status": "ok"})
++        url, kwargs = sessao.calls[0]
++        self.assertTrue(url.endswith("/rest/v1/rpc/nucleo_insights_record"))
++        self.assertEqual(kwargs["json"], {"record_payload": {"phone": "5565900000001", "status": "ok"}})
++        with self.assertRaises(OperatorVerificationError):
++            verifier.insights_record("nao e objeto")
++
++
++if __name__ == "__main__":
++    unittest.main()

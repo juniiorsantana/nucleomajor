@@ -233,3 +233,48 @@ describe("negócio na ficha", () => {
     expect(container.textContent).toContain("Negócio a definir");
   });
 });
+
+describe("leitura automática na ficha", () => {
+  const leitura = {
+    lidaEm: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
+    ate: null,
+    mensagens: 18,
+    temperatura: { chave: "temperatura", rotulo: "Temperatura", valor: "Morno", tom: "warning", incerto: false, chance: 0.74 },
+    sinais: [{ chave: "insatisfeito", texto: "Cliente insatisfeito", tom: "danger" }],
+    grupos: [
+      {
+        titulo: "O lead",
+        itens: [
+          { chave: "temperatura", rotulo: "Temperatura", valor: "Morno", tom: "warning", incerto: false, chance: 0.74 },
+          { chave: "objecao_principal", rotulo: "Objeção", valor: "Preço", tom: "", incerto: false, chance: 0.88 },
+        ],
+      },
+      {
+        titulo: "O atendimento",
+        itens: [{ chave: "pergunta_sem_resposta", rotulo: "Pergunta sem resposta", valor: "Sim", tom: "danger", incerto: false, chance: 0.79 }],
+      },
+    ],
+  };
+
+  it("sem leitura, o bloco não aparece", () => {
+    renderizar(<FichaLateral {...base} />);
+    expect(container.textContent).not.toContain("Leitura automática");
+  });
+
+  it("mostra temperatura, sinais, os dois grupos e quando foi lida", () => {
+    renderizar(<FichaLateral {...base} leitura={leitura} />);
+    const texto = container.textContent;
+    expect(texto).toContain("Leitura automática");
+    expect(texto).toContain("Morno");
+    expect(texto).toContain("Cliente insatisfeito");
+    expect(texto).toContain("O lead");
+    expect(texto).toContain("Objeção");
+    expect(texto).toContain("Preço");
+    expect(texto).toContain("Pergunta sem resposta");
+    expect(texto).toContain("18 mensagens");
+    // A temperatura aparece uma vez só, no cabeçalho do bloco.
+    expect(texto.match(/Temperatura/g)).toBeNull();
+    const preco = [...container.querySelectorAll("span")].find((s) => s.textContent === "Preço");
+    expect(preco.getAttribute("title")).toBe("Chance de acerto: 88%");
+  });
+});

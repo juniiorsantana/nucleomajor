@@ -4,6 +4,7 @@ import {
   Check,
   Play,
   Plus,
+  Sparkles,
   Tag,
   UserPlus,
   X,
@@ -196,6 +197,84 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
   );
 }
 
+const SELO_DO_SINAL = {
+  danger: "border-danger/25 bg-danger/5 text-danger",
+  warning: "border-warning/25 bg-warning/5 text-warning",
+};
+
+const chanceEmTexto = (chance) =>
+  chance == null ? "Chance de acerto desconhecida" : `Chance de acerto: ${Math.round(chance * 100)}%`;
+
+/**
+ * A leitura automática da conversa: o coordenador da VPS leu com o Jev depois
+ * que a conversa ficou parada, e isto é o que ele entendeu. Só registra e
+ * mostra; não muda nada no contato.
+ *
+ * Sem leitura (empresa sem a função, conversa ainda não lida), o bloco não
+ * aparece: um "ainda não lida" em toda conversa nova seria ruído.
+ */
+function LeituraAutomatica({ leitura }) {
+  if (!leitura) return null;
+  return (
+    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+      <div className="flex items-center gap-1.5">
+        <Sparkles size={13} strokeWidth={2.2} className="flex-none text-accent-forte" />
+        <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
+          Leitura automática
+        </span>
+        {leitura.temperatura && (
+          <span
+            title={chanceEmTexto(leitura.temperatura.chance)}
+            className={`ml-auto text-[11.5px] font-semibold ${TONS[leitura.temperatura.tom] || "text-fg"}`}
+          >
+            {leitura.temperatura.valor}
+          </span>
+        )}
+      </div>
+
+      {leitura.sinais.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {leitura.sinais.map((sinal) => (
+            <span
+              key={sinal.chave}
+              className={`rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${SELO_DO_SINAL[sinal.tom] || "border-line text-sub"}`}
+            >
+              {sinal.texto}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {leitura.grupos.map((grupo) => (
+        <div key={grupo.titulo} className="mt-2.5">
+          <span className="text-[10.5px] font-semibold text-sub">{grupo.titulo}</span>
+          <div className="mt-1 flex flex-col gap-1">
+            {grupo.itens
+              .filter((item) => item.chave !== "temperatura")
+              .map((item) => (
+                <div key={item.chave} className="flex items-baseline gap-2 text-[11.5px]">
+                  <span className="min-w-0 flex-1 text-faint">{item.rotulo}</span>
+                  <span
+                    title={chanceEmTexto(item.chance)}
+                    className={`text-right font-medium ${item.tom ? TONS[item.tom] : "text-fg"}`}
+                  >
+                    {item.valor}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      ))}
+
+      <span className="mt-2 block text-[10.5px] text-faint">
+        {[`lida ${fmtRelativo(leitura.lidaEm)}`, leitura.mensagens ? `${leitura.mensagens} mensagens` : ""]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </div>
+  );
+}
+
 function Linha({ rotulo, children }) {
   return (
     <div className="flex items-start gap-2">
@@ -369,6 +448,7 @@ export function FichaLateral({
   aoDefinirAtendimentoIA,
   fluxosManuais = [],
   aoIniciarFluxo,
+  leitura = null,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -420,6 +500,8 @@ export function FichaLateral({
         )}
 
         <IniciarFluxo contato={contato} fluxos={fluxosManuais} aoIniciar={aoIniciarFluxo} />
+
+        <LeituraAutomatica leitura={leitura} />
 
         {negocio ? (
           <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
