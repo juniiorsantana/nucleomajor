@@ -5,7 +5,7 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
-## Coordenador Jev: pronto, esperando aplicação (01/10/2026)
+## Coordenador Jev: no ar, esperando a chave de produção (01/10/2026)
 
 Leitura automática das conversas com o Jev (`typesafe/jev-1.13`, pelo
 OpenRouter): o runtime lê cada conversa parada, grava temperatura, intenção,
@@ -20,9 +20,12 @@ painel (função `conversation_insights`, nasce desligada) e por conexão no env
   deram `true`, corpos das RPCs sem CRLF. Função ligada **só para a Núcleo
   Major** no painel no mesmo dia (`org_has_feature`: Major `true`, Adriani
   `false`).
-- **Runtime:** `patches/runtime-coordenador-jev.patch` sobre a release
-  `claudio-dormindo`, 967 testes OK, `git apply --check` OK na VPS. **Não
-  publicado.** Roteiro: `patches/runtime-coordenador-jev-DEPLOY.md`.
+- **Runtime:** release **`coordenador-jev`** ativa desde 01/10/2026 23:49 UTC
+  (rollback `claudio-dormindo`), só o assistente da Major reiniciado. Espera a
+  chave de produção do OpenRouter em
+  `~/.config/nucleo-major/openrouter-insights.key`; até lá o journal mostra
+  `insights.paused` (`jev_key_unreadable`). Roteiro e registro:
+  `patches/runtime-coordenador-jev-DEPLOY.md`.
 - **Portal:** bloco "Leitura automática" na ficha da conversa, tolerante a
   banco sem a tabela. Plano e andamento: `docs/coordenador-jev/PLANO.md`.
 

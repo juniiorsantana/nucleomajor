@@ -176,4 +176,15 @@ As leituras já gravadas ficam no banco; não atrapalham nada.
 
 - 01/10/2026: patch em `/tmp` da VPS, hash conferido, `git apply --check` na
   release ativa `claudio-dormindo` OK.
-- Falta: passos 0 a 7.
+- 01/10/2026, 23:49 UTC (autorizado pelo dono nesta sessão): base conferida
+  pelos 3 hashes; release `coordenador-jev` criada com o patch; na VPS, 29
+  testes do coordenador OK e a suíte inteira com 966/967 (a falha,
+  `test_worker...test_timeout_do_claude_nao_envia_e_worker_sobrevive`, passa
+  sozinha nas duas releases e `worker.py`/`test_worker.py` são idênticos: é
+  sensível a tempo, não do patch); env da Major com backup
+  `.antes-coordenador` e as duas linhas; symlink virado; só o assistente da
+  Major reiniciado (`active`, `NRestarts=0`); Bridge intocado.
+- Journal: `insights.paused` com `jev_key_unreadable`, o esperado sem a chave.
+  Rollback: `claudio-dormindo`.
+- **Falta só o passo 4 (a chave), que é do dono.** Depois de gravar o arquivo,
+  reinicie o assistente da Major para não esperar o recuo (até 1 h).
