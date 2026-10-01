@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
+import { leituraDaConversa } from "../../domain/leituraDaConversa";
 import { DONOS_CURTOS } from "../../ui/atendimento";
 import { nomeCurto } from "../../ui/perfil";
 import { formatPhone, variantesBR } from "../../lib/phone";
@@ -129,6 +130,7 @@ export default function Conversas({
     setAtual,
     mensagens,
     equipe,
+    leituras,
     erro,
     aviso,
     recarregarLista,
@@ -606,6 +608,7 @@ export default function Conversas({
           aoDefinirAtendimentoIA={aoDefinirAtendimentoIA}
           fluxosManuais={fluxosManuais}
           aoIniciarFluxo={aoIniciarFluxo}
+          leitura={leituraDaConversa(leituras?.[conversa.id])}
         />
       )}
 

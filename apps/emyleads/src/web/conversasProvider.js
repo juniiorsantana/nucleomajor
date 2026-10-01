@@ -715,5 +715,26 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         resultado: data?.result || null,
       };
     },
+
+    /**
+     * As leituras automáticas em vigor (o coordenador da VPS com o Jev), por
+     * conversa: `{ [id da conversa]: linha }`.
+     *
+     * Falhar aqui devolve vazio, e de propósito: banco antes da migration
+     * 20260930100000, ou empresa sem a função, não pode derrubar a tela de
+     * Conversas por causa de um bloco opcional da ficha.
+     */
+    "conversas.leituras": async () => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase
+        .from("conversation_insight_runs")
+        .select("connection_id,contact_phone,analyzed_until,created_at,messages_count,summary")
+        .eq("organization_id", organizationId)
+        .eq("is_latest", true);
+      if (error) return {};
+      return Object.fromEntries(
+        (data || []).map((linha) => [idDaConversa(linha.connection_id, linha.contact_phone), linha])
+      );
+    },
   };
 }

@@ -5,6 +5,23 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Coordenador Jev: pronto, esperando aplicação (01/10/2026)
+
+Leitura automática das conversas com o Jev (`typesafe/jev-1.13`, pelo
+OpenRouter): o runtime lê cada conversa parada, grava temperatura, intenção,
+objeção, qualidade do atendimento e sinais, e a ficha lateral da conversa
+mostra. Só registra e mostra; nenhuma ação sozinha. Ligado por empresa no
+painel (função `conversation_insights`, nasce desligada) e por conexão no env
+(`NUCLEO_INSIGHTS=1`).
+
+- **Banco:** `20260930100000_o_coordenador_le_as_conversas.sql`, provada em
+  PGlite (43 PASS). **Não aplicada.** Roteiro: `docs/coordenador-jev/APLICAR.md`.
+- **Runtime:** `patches/runtime-coordenador-jev.patch` sobre a release
+  `claudio-dormindo`, 967 testes OK, `git apply --check` OK na VPS. **Não
+  publicado.** Roteiro: `patches/runtime-coordenador-jev-DEPLOY.md`.
+- **Portal:** bloco "Leitura automática" na ficha da conversa, tolerante a
+  banco sem a tabela. Plano e andamento: `docs/coordenador-jev/PLANO.md`.
+
 ## Construtor de fluxos — FASE 3 em implementação (07/09/2026)
 
 Na branch `feature/flow-builder-phase-3` e na branch de runtime

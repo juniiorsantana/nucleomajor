@@ -941,3 +941,36 @@ describe("enviar arquivo pela fila", () => {
     expect(rpcs.at(-1)[1].command_payload).toEqual({ clientId: "aaaa-3", text: "oi" });
   });
 });
+
+describe("conversas.leituras", () => {
+  const LEITURA = {
+    connection_id: CONNECTION_ID,
+    contact_phone: "5565999990001",
+    analyzed_until: "2026-10-01T13:50:00Z",
+    created_at: "2026-10-01T15:00:00Z",
+    messages_count: 12,
+    summary: { temperatura: { a: "morno", p: 0.7 } },
+  };
+
+  function comLeituras(resultado) {
+    const chamadas = [];
+    const supabase = { from: vi.fn((tabela) => criarConsulta(tabela, resultado, chamadas)) };
+    const area = { get: vi.fn(async () => ({ [WORKSPACE_KEY]: ORGANIZATION_ID })) };
+    return { operacoes: criarOperacoesConversasWeb({ supabase, area }), chamadas };
+  }
+
+  it("devolve a leitura em vigor pelo id da conversa, presa à organização", async () => {
+    const { operacoes, chamadas } = comLeituras({ data: [LEITURA], error: null });
+    const mapa = await operacoes["conversas.leituras"]();
+    expect(mapa).toEqual({ [`${CONNECTION_ID}:5565999990001`]: LEITURA });
+    const consulta = consultaDe(chamadas, "conversation_insight_runs");
+    expect(consulta.filtros).toContainEqual(["organization_id", ORGANIZATION_ID]);
+    expect(consulta.filtros).toContainEqual(["is_latest", true]);
+    expect(consulta.campos).toContain("summary");
+  });
+
+  it("banco sem a tabela ou recusa vira vazio, sem derrubar a tela", async () => {
+    const { operacoes } = comLeituras({ data: null, error: { message: 'relation "conversation_insight_runs" does not exist' } });
+    await expect(operacoes["conversas.leituras"]()).resolves.toEqual({});
+  });
+});

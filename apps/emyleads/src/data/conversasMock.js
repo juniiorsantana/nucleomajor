@@ -387,6 +387,36 @@ export function criarOperacoesConversas({ listarContatos }) {
     /** Na bancada nada fica pendente: o comando já terminou quando foi pedido. */
     "conversas.desfecho": async () => ({ situacao: "completed", motivo: "" }),
 
+    /**
+     * Bancada: a primeira conversa da lista tem uma leitura automática de
+     * exemplo, para o bloco da ficha poder ser desenhado sem banco. Os valores
+     * são inventados e seguem o formato do `summary` gravado pela VPS.
+     */
+    "conversas.leituras": async () => {
+      const [primeira] = await listar();
+      if (!primeira) return {};
+      return {
+        [primeira.id]: {
+          created_at: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
+          analyzed_until: new Date(Date.now() - 100 * 60 * 1000).toISOString(),
+          messages_count: 18,
+          summary: {
+            temperatura: { a: "morno", p: 0.74 },
+            intencao: { a: "pesquisando", p: 0.81 },
+            objecao_principal: { a: "preco", p: 0.88 },
+            prazo: { a: "nao_falou", p: 0.52 },
+            pergunta_sem_resposta: { a: "sim", p: 0.79 },
+            propos_proximo_passo: { a: "nao", p: 0.9 },
+            promessa_pendente: { a: "sim", p: 0.83 },
+            tom_empresa: { a: "caloroso", p: 0.7 },
+            insatisfeito: { a: "nao", p: 0.95 },
+            pediu_humano: { a: "nao", p: 0.98 },
+            precisa_resposta: { a: "sim", p: 0.77 },
+          },
+        },
+      };
+    },
+
     /** Bancada: o disparo manual sempre entra na fila. */
     "conversas.iniciarFluxo": async () => ({ enfileirado: true }),
 
