@@ -51,8 +51,8 @@ total de US$ 0,0046. Pela confiança das respostas (sem conferência humana):
 |---|---|---|
 | 1 | Plano escrito (este arquivo) | feito |
 | 2 | Banco: migration `20260930100000`, prova em PGlite | aplicada e conferida em 01/10; ligada só para a Major |
-| 3 | Runtime: `coordenador.py` + `jev_framework.py`, patch e roteiro | feito; **falta o deploy** |
-| 4 | Portal: "Leitura automática" na ficha da conversa | feito; **falta o merge** |
+| 3 | Runtime: `coordenador.py` + `jev_framework.py`, patch e roteiro | no ar desde 01/10 (release `coordenador-jev`); **espera a chave de produção** |
+| 4 | Portal: "Leitura automática" na ficha da conversa | no ar (PR #14, `e5a04f6`) |
 | 5 | Botão "Analisar conversa" com o Agente Analista (Claude) e créditos | não começou |
 | 6 | Sinais com ações (suporte, aviso, etiqueta), com os cortes medidos | não começou |
 | 7 | Números gerais (qualidade dos leads e do atendimento, IA × equipe) | não começou |
