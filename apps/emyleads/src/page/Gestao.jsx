@@ -863,8 +863,9 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             <Agenda
               dados={dados}
               aoAbrirContato={abrirFicha}
-              aoAbrirTarefa={abrirTarefa}
               aoRecarregarDados={carregar}
+              aoIrParaTarefas={() => trocarTela("tarefas")}
+              sessao={sessao}
             />
           </Suspense>
         ) : tela === "chatbots" ? (

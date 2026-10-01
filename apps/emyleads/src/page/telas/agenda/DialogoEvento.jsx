@@ -1,30 +1,68 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bell, CalendarDays, ChevronDown, Clock3, Eye, Trash2 } from "lucide-react";
 import { BotaoPrimario } from "../../ui";
-import { eventoParaFormulario, formatarDuracao, isoLocal } from "./agendaUtils";
+import { Folha, SeletorContato } from "./componentes";
+import { eventoParaFormulario, formatarDuracao, horarioDeMinutos, isoLocal, minutosDoHorario } from "./agendaUtils";
 
-const GERENCIAIS = new Set(["owner", "admin"]);
-const OPCOES_DURACAO = [30, 60, 90, 120, 180, 240, 360, 480, 720];
-const OPCOES_LEMBRETE = [0, 5, 10, 30, 60, 1440];
+const OPCOES_LEMBRETE = [0, 10, 30, 60, 1440];
+const ATALHOS_DURACAO = [30, 60, 90, 120];
 
-const campo = "mt-1 min-h-10 w-full rounded-[9px] border border-line bg-bg px-3 text-[13px] text-fg outline-none transition-colors focus:border-accent";
-const rotulo = "text-[11.5px] font-semibold text-sub";
+const TIPOS = [
+  { id: "appointment", rotulo: "Compromisso", dica: "Atendimento, visita, ligação marcada." },
+  { id: "event", rotulo: "Evento", dica: "Reunião interna, treinamento, algo da equipe." },
+  { id: "block", rotulo: "Bloqueio", dica: "Horário indisponível. Os colegas veem só que você está ocupado." },
+];
+
+const campo = "min-h-11 w-full rounded-[10px] border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-accent md:min-h-10 md:text-[13px]";
+const rotulo = "mb-1 block text-[13px] font-semibold text-sub md:text-[12px]";
 
 function textoLembrete(minutos) {
   if (minutos === 0) return "Na hora";
-  if (minutos < 60) return `${minutos} min`;
-  if (minutos === 60) return "1 hora";
-  if (minutos === 1440) return "1 dia";
-  return formatarDuracao(minutos);
+  if (minutos < 60) return `${minutos} min antes`;
+  if (minutos === 60) return "1 h antes";
+  if (minutos === 1440) return "1 dia antes";
+  return `${formatarDuracao(minutos)} antes`;
 }
 
+/** Duração a partir de início e término; término antes do início é o dia seguinte. */
+function duracaoEntre(inicio, fim) {
+  const minutos = minutosDoHorario(fim) - minutosDoHorario(inicio);
+  return minutos > 0 ? minutos : minutos + 24 * 60;
+}
+
+function formularioInicial(evento, abertura, lembretesPadrao) {
+  const base = eventoParaFormulario(evento, { ...abertura, lembretes: abertura?.lembretes || lembretesPadrao });
+  return {
+    ...base,
+    titulo: evento ? base.titulo : (abertura?.titulo || ""),
+    fimHora: horarioDeMinutos((minutosDoHorario(base.inicio) + base.duracao) % (24 * 60)),
+  };
+}
+
+function Secao({ icone: Icone, titulo, children }) {
+  return (
+    <section>
+      <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-sub md:text-[12px]"><Icone size={14} />{titulo}</h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Criar ou editar um compromisso.
+ *
+ * Reorganizado pela ordem em que alguém pensa num horário: o que é, quando
+ * começa e quando termina, com quem, quem vê. Categoria, status, local, tags
+ * e descrição — o que quase ninguém mexe — ficam recolhidos em "Mais
+ * detalhes". Antes eram quatro `<select>` com o mesmo peso logo abaixo do
+ * título, e só havia duração: quem pensa "das 14h às 15h30" fazia a conta.
+ */
 export default function DialogoEvento({
   aberto,
   evento,
   abertura,
   categorias,
   contatos,
-  papel,
   lembretesPadrao,
   salvando,
   erro,
@@ -32,35 +70,34 @@ export default function DialogoEvento({
   aoSalvar,
   aoExcluir,
 }) {
-  const [form, setForm] = useState(() => eventoParaFormulario(evento, { ...abertura, lembretes: lembretesPadrao }));
-  const dialogoRef = useRef(null);
-  const podeEmpresa = GERENCIAIS.has(papel);
+  const [form, setForm] = useState(() => formularioInicial(evento, abertura, lembretesPadrao));
+  const [detalhes, setDetalhes] = useState(false);
   const editando = Boolean(evento?.id);
 
+  // Reinicia só quando abre ou troca o compromisso. Os lembretes padrão
+  // ficam de fora das dependências de propósito: eles chegam num array novo a
+  // cada recarga da agenda, e a recarga apagava o que a pessoa estava
+  // digitando no meio da frase.
+  const lembretesRef = useRef(lembretesPadrao);
+  lembretesRef.current = lembretesPadrao;
   useEffect(() => {
-    if (aberto) setForm(eventoParaFormulario(evento, { ...abertura, lembretes: lembretesPadrao }));
-  }, [aberto, evento, abertura, lembretesPadrao]);
+    if (!aberto) return;
+    setForm(formularioInicial(evento, abertura, lembretesRef.current));
+    setDetalhes(Boolean(evento?.descricao || evento?.local || evento?.tags?.length));
+  }, [aberto, evento, abertura]);
 
-  useEffect(() => {
-    if (!aberto) return undefined;
-    const teclado = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); aoFechar(); return; }
-      if (e.key !== "Tab") return;
-      const focaveis = [...(dialogoRef.current?.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex='-1'])") || [])];
-      if (!focaveis.length) return;
-      const primeiro = focaveis[0];
-      const ultimo = focaveis[focaveis.length - 1];
-      if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus(); }
-      else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus(); }
-    };
-    window.addEventListener("keydown", teclado);
-    return () => window.removeEventListener("keydown", teclado);
-  }, [aberto, aoFechar]);
-
-  const duracoes = useMemo(() => [...new Set([...OPCOES_DURACAO, form.duracao])].sort((a, b) => a - b), [form.duracao]);
   if (!aberto) return null;
 
   const mudar = (chave, valor) => setForm((atual) => ({ ...atual, [chave]: valor }));
+  const duracao = duracaoEntre(form.inicio, form.fimHora);
+  const viraDia = minutosDoHorario(form.fimHora) <= minutosDoHorario(form.inicio);
+  const mudarInicio = (valor) => setForm((atual) => {
+    // Mover o início leva o término junto: é o que a pessoa quer em nove de
+    // cada dez vezes, e manter o término fixo encolhia a reunião em silêncio.
+    const atualDuracao = duracaoEntre(atual.inicio, atual.fimHora);
+    return { ...atual, inicio: valor, fimHora: horarioDeMinutos((minutosDoHorario(valor) + atualDuracao) % (24 * 60)) };
+  });
+  const aplicarDuracao = (minutos) => mudar("fimHora", horarioDeMinutos((minutosDoHorario(form.inicio) + minutos) % (24 * 60)));
   const alternarLembrete = (minutos) => setForm((atual) => ({
     ...atual,
     lembretes: atual.lembretes.includes(minutos)
@@ -71,7 +108,7 @@ export default function DialogoEvento({
   const enviar = (e) => {
     e.preventDefault();
     const inicio = form.diaInteiro ? isoLocal(form.data, "00:00") : isoLocal(form.data, form.inicio);
-    const fim = new Date(new Date(inicio).getTime() + (form.diaInteiro ? 24 * 60 : form.duracao) * 60000).toISOString();
+    const fim = new Date(new Date(inicio).getTime() + (form.diaInteiro ? 24 * 60 : duracao) * 60000).toISOString();
     aoSalvar({
       titulo: form.titulo,
       descricao: form.descricao,
@@ -89,103 +126,218 @@ export default function DialogoEvento({
     });
   };
 
+  const tipoAtual = TIPOS.find((tipo) => tipo.id === form.tipo) || TIPOS[0];
+  const categoriaAtual = categorias.find((categoria) => categoria.id === form.categoryId) || categorias[0];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1424]/55 p-3 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
-      <form ref={dialogoRef} role="dialog" aria-modal="true" aria-labelledby="agenda-evento-titulo" onSubmit={enviar} className="flex max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-[16px] border border-line bg-bg shadow-2xl">
-        <header className="flex items-start gap-3 border-b border-line px-5 py-4">
-          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-[11px] bg-accent-soft text-accent-forte"><CalendarDays size={19} /></div>
-          <div className="min-w-0 flex-1">
-            <h2 id="agenda-evento-titulo" className="text-[16px] font-semibold text-fg">{editando ? "Editar evento" : "Novo evento"}</h2>
-            <p className="mt-0.5 text-[11.5px] text-sub">Compromissos pessoais preservam seus detalhes; eventos da empresa ficam visíveis para a equipe.</p>
+    <Folha
+      titulo={editando ? "Editar compromisso" : "Novo compromisso"}
+      icone={CalendarDays}
+      aoFechar={aoFechar}
+      onSubmit={enviar}
+      largura="md:max-w-xl"
+      rodape={(
+        <>
+          {editando && (
+            <button type="button" onClick={aoExcluir} disabled={salvando} aria-label="Excluir compromisso" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 md:min-h-9 md:text-[13px]">
+              <Trash2 size={16} /><span className="hidden sm:inline">Excluir</span>
+            </button>
+          )}
+          <button type="button" onClick={aoFechar} className="ml-auto hidden min-h-9 cursor-pointer rounded-[10px] px-3 text-[13px] font-medium text-sub hover:text-fg md:block">Cancelar</button>
+          <BotaoPrimario type="submit" disabled={salvando} className="!min-h-11 ml-auto !flex-1 !py-2 md:!min-h-9 md:ml-0 md:!flex-none">
+            {salvando ? "Salvando…" : editando ? "Salvar alterações" : "Criar compromisso"}
+          </BotaoPrimario>
+        </>
+      )}
+    >
+      <div className="space-y-5 px-4 py-4 md:px-5">
+        <div>
+          <label htmlFor="evento-titulo" className="sr-only">Título</label>
+          <input
+            id="evento-titulo"
+            data-autofocus={editando ? undefined : "true"}
+            required
+            maxLength={240}
+            className={`${campo} !min-h-12 text-[17px] font-semibold md:text-[15px]`}
+            value={form.titulo}
+            onChange={(e) => mudar("titulo", e.target.value)}
+            placeholder="Título — ex.: Reunião com a Ana"
+          />
+          <div role="radiogroup" aria-label="Tipo" className="mt-2 flex gap-1.5">
+            {TIPOS.map((tipo) => {
+              const bloqueado = tipo.id === "block" && form.visibilidade === "organization";
+              return (
+                <button
+                  key={tipo.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.tipo === tipo.id}
+                  disabled={bloqueado}
+                  title={bloqueado ? "Bloqueio é sempre pessoal" : tipo.dica}
+                  onClick={() => mudar("tipo", tipo.id)}
+                  className={`min-h-10 flex-1 cursor-pointer rounded-full border px-2 text-[14px] font-medium disabled:cursor-not-allowed disabled:opacity-40 md:min-h-8 md:flex-none md:px-3.5 md:text-[12px] ${form.tipo === tipo.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                >
+                  {tipo.rotulo}
+                </button>
+              );
+            })}
           </div>
-          <button type="button" onClick={aoFechar} aria-label="Fechar" className="cursor-pointer rounded-[8px] p-2 text-sub hover:bg-surface-hover hover:text-fg"><X size={17} /></button>
-        </header>
-
-        <div className="scrollbar-fina min-h-0 overflow-y-auto px-5 py-4">
-          <label className={rotulo}>Título
-            <input autoFocus required maxLength={240} className={`${campo} text-[14px] font-medium`} value={form.titulo} onChange={(e) => mudar("titulo", e.target.value)} placeholder="Ex.: Reunião de alinhamento" />
-          </label>
-
-          <section className="mt-4 rounded-[12px] border border-accent/20 bg-accent-soft/45 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="flex items-center gap-2 text-[12px] font-semibold text-accent-forte"><Clock3 size={14} /> Horário</h3>
-              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-sub"><input type="checkbox" checked={form.diaInteiro} onChange={(e) => mudar("diaInteiro", e.target.checked)} className="accent-accent" />Dia inteiro</label>
-            </div>
-            <div className={`grid gap-3 ${form.diaInteiro ? "sm:grid-cols-1" : "sm:grid-cols-3"}`}>
-              <label className={rotulo}>Data<input required type="date" className={campo} value={form.data} onChange={(e) => mudar("data", e.target.value)} /></label>
-              {!form.diaInteiro && <>
-                <label className={rotulo}>Começa às<input required type="time" step="1800" className={campo} value={form.inicio} onChange={(e) => mudar("inicio", e.target.value)} /></label>
-                <label className={rotulo}>Duração<select className={`${campo} cursor-pointer`} value={form.duracao} onChange={(e) => mudar("duracao", Number(e.target.value))}>{duracoes.map((minutos) => <option key={minutos} value={minutos}>{formatarDuracao(minutos)}</option>)}</select></label>
-              </>}
-            </div>
-          </section>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className={rotulo}>Categoria
-              <select required className={`${campo} cursor-pointer`} value={form.categoryId} onChange={(e) => mudar("categoryId", e.target.value)}>
-                <option value="" disabled>Escolha uma categoria</option>
-                {categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.name}</option>)}
-              </select>
-            </label>
-            <label className={rotulo}>Contato
-              <select className={`${campo} cursor-pointer`} value={form.contactId} onChange={(e) => mudar("contactId", e.target.value)}>
-                <option value="">Sem contato</option>
-                {contatos.map((contato) => <option key={contato.id} value={contato.id}>{contato.nome || contato.name || "Sem nome"}</option>)}
-              </select>
-            </label>
-            <label className={rotulo}>Tipo
-              <select className={`${campo} cursor-pointer`} value={form.tipo} onChange={(e) => mudar("tipo", e.target.value)}>
-                <option value="appointment">Compromisso</option>
-                <option value="block" disabled={form.visibilidade === "organization"}>Bloqueio de horário</option>
-                <option value="event">Evento</option>
-              </select>
-            </label>
-            <label className={rotulo}>Status
-              <select className={`${campo} cursor-pointer`} value={form.status} onChange={(e) => mudar("status", e.target.value)}>
-                <option value="scheduled">Confirmado</option>
-                <option value="tentative">Provisório</option>
-              </select>
-            </label>
-          </div>
-
-          <section className="mt-4 rounded-[12px] border border-line p-4">
-            <h3 className="flex items-center gap-2 text-[12px] font-semibold text-fg"><BriefcaseBusiness size={14} /> Visibilidade</h3>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <button type="button" onClick={() => mudar("visibilidade", "personal")} className={`cursor-pointer rounded-[9px] border p-3 text-left ${form.visibilidade === "personal" ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}>
-                <span className="block text-[12px] font-semibold text-fg">Pessoal</span><span className="mt-0.5 block text-[10.5px] text-sub">Colegas veem apenas “Indisponível”.</span>
-              </button>
-              <button type="button" disabled={!podeEmpresa} onClick={() => setForm((atual) => ({ ...atual, visibilidade: "organization", tipo: atual.tipo === "block" ? "event" : atual.tipo }))} className={`cursor-pointer rounded-[9px] border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45 ${form.visibilidade === "organization" ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}>
-                <span className="block text-[12px] font-semibold text-fg">Empresa</span><span className="mt-0.5 block text-[10.5px] text-sub">Todos leem; donos e administradores editam.</span>
-              </button>
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[12px] border border-line p-4">
-            <h3 className="flex items-center gap-2 text-[12px] font-semibold text-fg"><Bell size={14} /> Lembretes</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {OPCOES_LEMBRETE.map((minutos) => <button key={minutos} type="button" onClick={() => alternarLembrete(minutos)} className={`cursor-pointer rounded-full border px-3 py-1.5 text-[11px] font-medium ${form.lembretes.includes(minutos) ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}>{textoLembrete(minutos)}</button>)}
-              {form.lembretes.length === 0 && <span className="py-1.5 text-[11px] text-faint">Sem lembretes</span>}
-            </div>
-          </section>
-
-          <details className="mt-4 rounded-[12px] border border-line">
-            <summary className="flex min-h-11 cursor-pointer items-center px-4 text-[12px] font-semibold text-sub">Adicionar detalhes</summary>
-            <div className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
-              <label className={rotulo}><span className="flex items-center gap-1"><MapPin size={12} />Local</span><input className={campo} value={form.local} onChange={(e) => mudar("local", e.target.value)} placeholder="Google Meet, escritório…" /></label>
-              <label className={rotulo}><span className="flex items-center gap-1"><Tag size={12} />Tags</span><input className={campo} value={form.tags} onChange={(e) => mudar("tags", e.target.value)} placeholder="cliente, retorno" /></label>
-              <label className={`${rotulo} sm:col-span-2`}>Descrição<textarea className={`${campo} min-h-24 resize-y py-2`} value={form.descricao} onChange={(e) => mudar("descricao", e.target.value)} placeholder="Pauta, observações ou contexto" /></label>
-            </div>
-          </details>
-
-          {erro && <p role="alert" className="mt-4 rounded-[9px] border border-danger/25 bg-danger/10 px-3 py-2 text-[12px] text-danger">{erro}</p>}
+          <p className="mt-1.5 text-[12px] text-faint md:text-[11px]">{tipoAtual.dica}</p>
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-line bg-surface/55 px-5 py-3">
-          {editando && <button type="button" onClick={aoExcluir} disabled={salvando} className="flex cursor-pointer items-center gap-1.5 rounded-[8px] px-2 py-2 text-[12px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40"><Trash2 size={14} />Excluir</button>}
-          <button type="button" onClick={aoFechar} className="ml-auto cursor-pointer rounded-[8px] px-3 py-2 text-[12px] font-medium text-sub hover:text-fg">Cancelar</button>
-          <BotaoPrimario type="submit" disabled={salvando || (form.visibilidade === "organization" && !podeEmpresa)} className="!py-2">{salvando ? "Salvando…" : editando ? "Salvar alterações" : "Criar evento"}</BotaoPrimario>
-        </footer>
-      </form>
-    </div>
+        <Secao icone={Clock3} titulo="Quando">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input required type="date" aria-label="Data" className={campo} value={form.data} onChange={(e) => mudar("data", e.target.value)} />
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-line px-3 text-[15px] text-fg md:min-h-10 md:text-[13px]">
+              Dia inteiro
+              <input type="checkbox" role="switch" checked={form.diaInteiro} onChange={(e) => mudar("diaInteiro", e.target.checked)} className="h-5 w-5 accent-accent" />
+            </label>
+          </div>
+          {!form.diaInteiro && (
+            <>
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <input required type="time" aria-label="Começa às" className={campo} value={form.inicio} onChange={(e) => mudarInicio(e.target.value)} />
+                <span className="text-[14px] text-faint" aria-hidden="true">até</span>
+                <input required type="time" aria-label="Termina às" className={campo} value={form.fimHora} onChange={(e) => mudar("fimHora", e.target.value)} />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {ATALHOS_DURACAO.map((minutos) => (
+                  <button
+                    key={minutos}
+                    type="button"
+                    aria-pressed={duracao === minutos}
+                    onClick={() => aplicarDuracao(minutos)}
+                    className={`min-h-9 cursor-pointer rounded-full border px-3 text-[13px] font-medium md:min-h-7 md:text-[11.5px] ${duracao === minutos ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                  >
+                    {formatarDuracao(minutos)}
+                  </button>
+                ))}
+                <span className={`ml-auto text-[12px] md:text-[11px] ${viraDia ? "font-semibold text-warning" : "text-faint"}`}>
+                  {formatarDuracao(duracao)}{viraDia ? " · termina no dia seguinte" : ""}
+                </span>
+              </div>
+            </>
+          )}
+        </Secao>
+
+        <SeletorContato
+          rotulo="Cliente (opcional)"
+          contatos={contatos}
+          valor={form.contactId}
+          aoMudar={(id) => mudar("contactId", id)}
+        />
+
+        <Secao icone={Eye} titulo="Quem vê">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {/* Liberado para todo membro desde 03/09/2026: o banco já aceitava,
+                e só este botão ainda dizia que era coisa de administrador. */}
+            {[
+              { id: "personal", titulo: "Só eu", texto: "Os colegas veem apenas “Ocupado”." },
+              { id: "organization", titulo: "Toda a equipe", texto: "Todos veem os detalhes. Quem criou e a gestão editam." },
+            ].map((opcao) => (
+              <button
+                key={opcao.id}
+                type="button"
+                role="radio"
+                aria-checked={form.visibilidade === opcao.id}
+                onClick={() => setForm((atual) => ({
+                  ...atual,
+                  visibilidade: opcao.id,
+                  tipo: opcao.id === "organization" && atual.tipo === "block" ? "event" : atual.tipo,
+                }))}
+                className={`min-h-14 cursor-pointer rounded-[11px] border p-3 text-left ${form.visibilidade === opcao.id ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}
+              >
+                <span className="block text-[15px] font-semibold text-fg md:text-[13px]">{opcao.titulo}</span>
+                <span className="mt-0.5 block text-[13px] leading-5 text-sub md:text-[11.5px] md:leading-4">{opcao.texto}</span>
+              </button>
+            ))}
+          </div>
+        </Secao>
+
+        <Secao icone={Bell} titulo="Lembrete">
+          <div className="flex flex-wrap gap-1.5">
+            {OPCOES_LEMBRETE.map((minutos) => (
+              <button
+                key={minutos}
+                type="button"
+                aria-pressed={form.lembretes.includes(minutos)}
+                onClick={() => alternarLembrete(minutos)}
+                className={`min-h-10 cursor-pointer rounded-full border px-3.5 text-[14px] font-medium md:min-h-8 md:px-3 md:text-[12px] ${form.lembretes.includes(minutos) ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+              >
+                {textoLembrete(minutos)}
+              </button>
+            ))}
+          </div>
+          {form.lembretes.length === 0 && <p className="mt-1.5 text-[12px] text-faint md:text-[11px]">Sem lembrete.</p>}
+        </Secao>
+
+        <div className="rounded-[12px] border border-line">
+          <button
+            type="button"
+            aria-expanded={detalhes}
+            onClick={() => setDetalhes((atual) => !atual)}
+            className="flex min-h-12 w-full cursor-pointer items-center gap-2 px-4 text-left text-[14px] font-semibold text-sub md:min-h-11 md:text-[13px]"
+          >
+            Mais detalhes
+            <span className="min-w-0 flex-1 truncate text-[12px] font-normal text-faint md:text-[11px]">
+              {[categoriaAtual?.name, form.status === "tentative" ? "Provisório" : null, form.local].filter(Boolean).join(" · ")}
+            </span>
+            <ChevronDown size={17} className={`flex-none transition-transform ${detalhes ? "rotate-180" : ""}`} />
+          </button>
+          {detalhes && (
+            <div className="space-y-4 border-t border-line p-4">
+              <div>
+                <span className={rotulo}>Categoria</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {categorias.map((categoria) => (
+                    <button
+                      key={categoria.id}
+                      type="button"
+                      aria-pressed={(form.categoryId || categorias[0]?.id) === categoria.id}
+                      onClick={() => mudar("categoryId", categoria.id)}
+                      className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[14px] font-medium md:min-h-8 md:text-[12px] ${(form.categoryId || categorias[0]?.id) === categoria.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: categoria.color }} />{categoria.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className={rotulo}>Situação</span>
+                <div className="flex gap-1.5">
+                  {[{ id: "scheduled", rotulo: "Confirmado" }, { id: "tentative", rotulo: "Provisório" }].map((opcao) => (
+                    <button
+                      key={opcao.id}
+                      type="button"
+                      aria-pressed={form.status === opcao.id}
+                      onClick={() => mudar("status", opcao.id)}
+                      className={`min-h-10 cursor-pointer rounded-full border px-3.5 text-[14px] font-medium md:min-h-8 md:text-[12px] ${form.status === opcao.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                    >
+                      {opcao.rotulo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="evento-local" className={rotulo}>Local ou link</label>
+                  <input id="evento-local" className={campo} value={form.local} onChange={(e) => mudar("local", e.target.value)} placeholder="Google Meet, escritório…" />
+                </div>
+                <div>
+                  <label htmlFor="evento-tags" className={rotulo}>Etiquetas</label>
+                  <input id="evento-tags" className={campo} value={form.tags} onChange={(e) => mudar("tags", e.target.value)} placeholder="retorno, proposta" />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="evento-descricao" className={rotulo}>Descrição</label>
+                <textarea id="evento-descricao" className={`${campo} min-h-24 resize-y py-2`} value={form.descricao} onChange={(e) => mudar("descricao", e.target.value)} placeholder="Pauta, observações ou contexto" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {erro && <p role="alert" className="rounded-[10px] border border-danger/25 bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
+      </div>
+    </Folha>
   );
 }

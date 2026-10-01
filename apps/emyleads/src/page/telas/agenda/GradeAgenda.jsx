@@ -391,7 +391,9 @@ export default function GradeAgenda({
     if (!selecao || selecao.pointerId !== e.pointerId) return;
     const inicio = Math.min(selecao.inicio, selecao.fim - passo);
     const fim = Math.max(selecao.inicio + passo, selecao.fim);
-    aoCriar(selecao.dia, inicio, fim, { ownerId: selecao.pessoaId });
+    // A posição do ponteiro viaja junto: a criação rápida abre ali, ao lado
+    // do horário que a pessoa acabou de marcar, e não no meio da tela.
+    aoCriar(selecao.dia, inicio, fim, { ownerId: selecao.pessoaId, x: e.clientX, y: e.clientY });
     setSelecao(null);
   };
 
@@ -417,7 +419,9 @@ export default function GradeAgenda({
 
   const agora = new Date();
   const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
-  const larguraMinima = agruparPorPessoa ? Math.max(680, colunas.length * 210) : Math.max(680, dias.length * 150);
+  // 112px por dia cabe a semana inteira num notebook de 1366px com a coluna
+  // "Hoje" aberta; com 150 a semana passava a rolar para o lado.
+  const larguraMinima = agruparPorPessoa ? Math.max(680, colunas.length * 210) : Math.max(680, dias.length * 112);
   const gradeColunas = `${LARGURA_REGUA}px repeat(${colunas.length}, minmax(0, 1fr))`;
 
   if (!colunas.length) {
@@ -455,7 +459,7 @@ export default function GradeAgenda({
                   <span className={`block truncate text-[11.5px] font-semibold capitalize ${coluna.hoje && !coluna.pessoaId ? "text-accent-forte" : "text-fg"}`}>
                     {coluna.titulo}
                   </span>
-                  <span className="block text-[9.5px] leading-3 text-faint">
+                  <span className="block text-[10.5px] leading-3 text-faint">
                     {coluna.segmentos.length
                       ? `${coluna.segmentos.length} ${coluna.segmentos.length === 1 ? "item" : "itens"} · ${formatarDuracao(minutos)}`
                       : "Livre"}
@@ -610,7 +614,7 @@ export default function GradeAgenda({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); aoVerDia(coluna.dia); }}
                         title={excedente.map((item) => `${horaLocal(item.evento.inicio)} ${item.evento.titulo}`).join("\n")}
-                        className="absolute inset-x-0.5 z-[8] flex cursor-pointer items-center justify-center gap-1 rounded-[6px] bg-fg px-2 text-[9.5px] font-bold text-bg hover:brightness-110"
+                        className="absolute inset-x-0.5 z-[8] flex cursor-pointer items-center justify-center gap-1 rounded-[6px] bg-fg px-2 text-[10.5px] font-bold text-bg hover:brightness-110"
                         style={{
                           top: (Math.max(mostrados[0].inicioMinutos, inicioMinuto) - inicioMinuto) * alturaPorMinuto
                             + Math.max(18, (mostrados[0].fimMinutos - Math.max(mostrados[0].inicioMinutos, inicioMinuto)) * alturaPorMinuto - 2) + 2,

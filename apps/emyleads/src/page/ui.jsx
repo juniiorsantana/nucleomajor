@@ -260,7 +260,7 @@ export function CampoBusca({ valor, aoMudar, placeholder }) {
         placeholder={placeholder}
         className="w-full rounded-[10px] border border-line bg-bg py-2.5 pl-11 pr-14 text-[14px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent"
       />
-      <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-faint">
+      <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 text-[12px] font-medium text-faint md:block">
         ⌘K
       </kbd>
     </div>

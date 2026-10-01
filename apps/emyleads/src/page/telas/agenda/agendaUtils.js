@@ -161,9 +161,50 @@ export function eventoParaFormulario(evento, abertura = {}) {
   };
 }
 
+/**
+ * Próximo horário livre para sugerir num compromisso novo.
+ *
+ * Criar pelo telefone sugeria sempre 09:00–10:00, mesmo às quatro da tarde ou
+ * com as nove já ocupadas. Hoje começa na próxima meia hora; outro dia começa
+ * no início do expediente. Pula de meia em meia hora até achar a duração
+ * inteira livre; se o dia estiver cheio, devolve a primeira sugestão e deixa a
+ * pessoa decidir.
+ */
+export function proximoHorarioLivre(eventos, dia, { agora = new Date(), inicioExpediente = 8 * 60, fimExpediente = 20 * 60, duracao = 60 } = {}) {
+  const ehHoje = chaveDia(dia) === chaveDia(agora);
+  const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
+  let inicio = ehHoje
+    ? Math.max(inicioExpediente, Math.ceil((minutosAgora + 1) / PASSO_MINUTOS) * PASSO_MINUTOS)
+    : inicioExpediente;
+  const primeiro = inicio;
+  const ocupados = recortarSegmentosDoDia(eventos, dia).map((s) => [s.inicioMinutos, s.fimMinutos]);
+  const limite = Math.max(fimExpediente, primeiro + duracao);
+  while (inicio + duracao <= Math.min(24 * 60, limite)) {
+    const fim = inicio + duracao;
+    if (!ocupados.some(([de, ate]) => de < fim && ate > inicio)) return { inicio, fim };
+    inicio += PASSO_MINUTOS;
+  }
+  const inicioSeguro = Math.min(primeiro, 24 * 60 - duracao);
+  return { inicio: inicioSeguro, fim: inicioSeguro + duracao };
+}
+
+/** Status do aviso, em português. O painel mostrava "sent" e "pending". */
+export const ROTULOS_STATUS_AVISO = {
+  pending: "Agendado",
+  processing: "Enviando",
+  sent: "Enviado",
+  failed: "Falhou",
+  cancelled: "Cancelado",
+  review: "Em revisão",
+};
+
 export function eventoEditavel(evento, usuarioId, papel) {
   if (!evento || evento.sourceType === "task" || evento.titulo === "Indisponível") return false;
-  if (evento.visibilidade === "organization") return papel === "owner" || papel === "admin";
+  // Evento da empresa: a gestão edita, e quem criou também. Desde 03/09/2026
+  // todo membro cria evento da empresa, e a policy `calendar_events_update`
+  // aceita o autor; sem isto a pessoa marcava a reunião e não conseguia
+  // corrigir o próprio horário.
+  if (evento.visibilidade === "organization") return papel === "owner" || papel === "admin" || evento.ownerId === usuarioId;
   return evento.ownerId === usuarioId;
 }
 

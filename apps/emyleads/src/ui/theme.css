@@ -105,9 +105,19 @@
 .ds-icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: var(--el-control-height); min-height: var(--el-control-height); border-radius: var(--el-radius-control); cursor: pointer; }
 .ds-icon-button:hover { background: var(--el-surface-hover); }
 .mobile-dock, .mobile-menu { display: none; }
+/* Agenda e Tarefas: o aviso e o botão "+" moram acima do dock no telefone.
+   Presos à tela, e não à janela, eles ficavam por baixo dele. */
+.aviso-agenda { bottom: 24px; }
+.botao-novo-flutuante { display: none; }
+/* Faixas de chips que rolam para o lado: o dedo já sabe rolar, a barra só
+   ocupava altura embaixo dos filtros. */
+.sem-barra { scrollbar-width: none; }
+.sem-barra::-webkit-scrollbar { display: none; }
 
 @media (max-width: 767px) {
   .portal-main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  .aviso-agenda { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+  .botao-novo-flutuante { display: flex; position: fixed; z-index: 25; right: 16px; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   .portal-shell :where(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: var(--el-control-height); }
   .portal-shell :where(button) { touch-action: manipulation; }
   .mobile-dock { position: fixed; z-index: 20; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 4px; width: min(360px, calc(100% - 32px)); padding: 6px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-panel); background: var(--el-bg); box-shadow: var(--el-shadow-floating); }

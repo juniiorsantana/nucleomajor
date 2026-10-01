@@ -176,7 +176,7 @@ export function SeletorResponsaveis({ membros = [], valores = [], aoMudar, rotul
               type="button"
               title={principal ? "Responsável principal — recebe o lembrete" : undefined}
               onClick={() => aoMudar(marcado ? valores.filter((item) => item !== id) : [...valores, id])}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-1 text-[11.5px] transition-colors ${
+              className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[14px] transition-colors md:min-h-0 md:px-2 md:py-1 md:text-[11.5px] ${
                 marcado ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong hover:text-fg"
               }`}
             >

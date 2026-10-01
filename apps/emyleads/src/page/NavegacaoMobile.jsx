@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { LayoutGrid, X } from "lucide-react";
 
-const PRINCIPAIS = ["conversas", "funil", "agenda", "conhecimento"];
+// Tarefas no lugar de Conhecimento: no telefone a pergunta é "o que eu tenho
+// de fazer?", e Conhecimento é configuração, que quase não se abre por ali.
+const PRINCIPAIS = ["conversas", "funil", "agenda", "tarefas"];
 
 export default function NavegacaoMobile({ telas, ativa, aoTrocar, rodape }) {
   const [aberto, setAberto] = useState(false);
