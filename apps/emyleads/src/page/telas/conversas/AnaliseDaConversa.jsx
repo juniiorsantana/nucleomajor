@@ -313,11 +313,15 @@ function DialogoDaAnalise({
     fase === "escolher"
       ? "Analisar conversa"
       : `Análise ${atual?.tipo === "atendimento" ? "de atendimento" : "comercial"}`;
+  // O relatório v1 é o relatório visual: largo no computador e a tela inteira
+  // no celular. O resto (escolher, andamento, falha, formato antigo) segue no
+  // diálogo estreito.
+  const visual = fase === "ver" && atual?.situacao === "done" && atual.resultado && ehRelatorioV1(atual.resultado);
 
   // No `body`: dentro da ficha, a coluna rolável recortaria o diálogo.
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]"
+      className={`fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 backdrop-blur-[2px] ${visual ? "p-0 sm:p-4" : "p-4"}`}
       onMouseDown={(evento) => {
         if (evento.target === evento.currentTarget) aoFechar();
       }}
@@ -326,24 +330,40 @@ function DialogoDaAnalise({
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}
-        className="flex max-h-[88vh] w-full max-w-[560px] flex-col rounded-[15px] border border-line bg-bg shadow-2xl"
+        className={
+          visual
+            ? "flex h-[100dvh] w-full max-w-[1180px] flex-col border-line bg-bg shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-[18px] sm:border"
+            : "flex max-h-[88vh] w-full max-w-[560px] flex-col rounded-[15px] border border-line bg-bg shadow-2xl"
+        }
       >
-        <header className="flex flex-none items-start gap-3 border-b border-line px-5 py-4">
+        <header className={`flex flex-none items-start gap-3 border-b border-line ${visual ? "px-4 py-3 lg:px-8 lg:py-5" : "px-5 py-4"}`}>
           <div className="min-w-0 flex-1">
-            <h2 id={tituloId} className="text-[15px] font-semibold text-fg">{titulo}</h2>
-            <p className="mt-0.5 truncate text-[12px] text-sub">{conversa.nome}</p>
+            {visual ? (
+              <>
+                <p className="text-[11.5px] font-semibold uppercase tracking-[.06em] text-sub">{titulo}</p>
+                <h2 id={tituloId} className="truncate text-[19px] font-bold text-fg lg:text-[26px]">{conversa.nome}</h2>
+              </>
+            ) : (
+              <>
+                <h2 id={tituloId} className="text-[15px] font-semibold text-fg">{titulo}</h2>
+                <p className="mt-0.5 truncate text-[12px] text-sub">{conversa.nome}</p>
+              </>
+            )}
           </div>
           <button
             type="button"
             onClick={aoFechar}
             title="Fechar"
-            className="flex h-[28px] w-[28px] flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+            aria-label="Fechar"
+            className={`flex flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg ${
+              visual ? "h-11 w-11" : "h-[28px] w-[28px]"
+            }`}
           >
-            <X size={16} strokeWidth={2.2} />
+            <X size={visual ? 20 : 16} strokeWidth={2.2} />
           </button>
         </header>
 
-        <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className={`scrollbar-fina min-h-0 flex-1 overflow-y-auto ${visual ? "bg-surface px-3 py-4 lg:px-8 lg:py-6" : "px-5 py-4"}`}>
           {fase === "escolher" ? (
             <EscolherTipo tipo={tipo} aoEscolher={setTipo} />
           ) : !atual ? null : emAndamento(atual.situacao) ? (
@@ -351,6 +371,7 @@ function DialogoDaAnalise({
           ) : atual.situacao === "done" && atual.resultado && ehRelatorioV1(atual.resultado) ? (
             <RelatorioDaAnalise
               analise={atual}
+              nome={conversa.nome}
               podeAgir={podePedir}
               contato={contexto.contato}
               negocio={contexto.negocio}
@@ -367,7 +388,7 @@ function DialogoDaAnalise({
           {erro && <p role="alert" className="mt-3 text-[12px] text-danger">{erro}</p>}
         </div>
 
-        <footer className="flex flex-none flex-wrap items-center gap-2 border-t border-line px-5 py-3">
+        <footer className={`flex flex-none flex-wrap items-center gap-2 border-t border-line ${visual ? "px-4 py-3 lg:px-8" : "px-5 py-3"}`}>
           {fase === "escolher" ? (
             <>
               <span className="min-w-0 flex-1 text-[11px] text-faint">{creditosEmTexto(creditos)}</span>
