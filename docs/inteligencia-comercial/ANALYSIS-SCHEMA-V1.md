@@ -75,7 +75,7 @@ Confirmadas pelo dono em 02/10/2026: 1 (responsividade não avaliada na v1), 5 (
 5. **Follow-up vencido = `ruim` (0,2).** A especificação diz "negativo" sem
    dizer o grau; `crítico` ficou reservado para o que ela chama de falha forte
    (próximo passo no limbo). Combinado e não vencido, ou sem follow-up = não
-   avaliado; feito = bom. **Confirmado pelo dono em 03/10.**
+   avaliado; feito = bom. **Confirmado pelo dono em 02/10.**
 6. **Descrições dos níveis.** As perguntas trazem o que é `bom`, `atencao`,
    `ruim` e `critico` em cada critério, escritas a partir dos sinais positivos
    e negativos da especificação. Precisam de calibração com conversas reais.
