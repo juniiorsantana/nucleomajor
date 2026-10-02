@@ -239,6 +239,13 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261002100000_analisar_conversa.sql` aplicada em 02/10/2026 pelo SQL
+  Editor (ensaio com `raise` antes) e conferida pelo catálogo: tabela
+  `conversation_analyses` com RLS e 1 política; créditos base 30,
+  atendimento 100, completo 200, full 200; 5 RPCs; `anon` não pede análise;
+  a fila de comandos com os 11 tipos antigos e `conversation_analyze`. Saldo
+  da Major: 200, ciclo de 23/09 a 23/10. Runtime `analisar-conversa` no ar na
+  VPS e a segunda conta do Claude logada em `~/.config/claude/analise`.
 - `20261001100000_equipe_de_ia_playbook_e_jev.sql` aplicada em 02/10/2026 e
   conferida pelo catálogo (10 verificações `true`). Runtime `equipe-de-ia` no
   ar desde 02/10 00:52 UTC.

@@ -1,0 +1,763 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+new file mode 100644
+index 0000000..4a41ef6
+--- /dev/null
++++ b/whatsapp-assistant/analista.py
+@@ -0,0 +1,317 @@
++"""O Agente Analista: a análise completa de uma conversa, pedida pelo botão.
++
++O portal pede (`conversation_analysis_request`, migration 20261002100000), a
++fila de comandos entrega `conversation_analyze` a este runtime, e o executor
++de comandos passa a carga para cá. Aqui a análise roda numa fila PRÓPRIA, uma
++de cada vez, para nunca segurar a fila de comandos (envio de mensagem pelo
++portal) nem o atendimento ao cliente.
++
++O Claude roda na SEGUNDA conta da Major (`NUCLEO_ANALYSIS_CLAUDE_CONFIG_DIR`),
++separada da conta do atendimento por decisão do dono (02/10/2026): cada uma
++com o próprio limite. Sem essa conta logada, a análise FALHA com motivo
++(`analysis_account_missing`) e o crédito volta — ela nunca cai, escondida, na
++conta do atendimento.
++
++O Claude não recebe ferramenta nenhuma, nem pasta, nem sessão: lê o texto que
++vai por stdin e devolve JSON. O texto da conversa não vai para log.
++"""
++
++from __future__ import annotations
++
++import json
++import queue
++import re
++import threading
++import time
++from pathlib import Path
++from typing import Any, Callable, Optional
++from zoneinfo import ZoneInfo
++
++import audit
++from operator_verification import OperatorVerificationError
++
++FUSO = ZoneInfo("America/Sao_Paulo")
++TIMEOUT = 240
++
++SISTEMA = (
++    "Você é o Agente Analista do Núcleo Major. Você lê uma conversa de WhatsApp "
++    "entre uma empresa e um contato e escreve uma análise para o dono da empresa. "
++    "Seja direto, em português do Brasil, sem floreio. Use só o que está na "
++    "conversa: não invente fatos, valores, nomes ou datas. Cite trechos curtos das "
++    "mensagens como evidência. Responda SOMENTE com um objeto JSON válido, sem "
++    "texto antes ou depois e sem bloco de código."
++)
++
++FOCO = {
++    "comercial": (
++        "Análise COMERCIAL: avalie o lead (interesse, temperatura, objeções, prazo, "
++        "quem decide) e a condução da venda pela empresa (perguntou antes do preço? "
++        "mostrou valor? tratou a objeção? propôs próximo passo? cumpriu o que "
++        "prometeu?). Se a venda foi perdida ou esfriou, diga o motivo provável."
++    ),
++    "atendimento": (
++        "Análise de ATENDIMENTO: avalie a satisfação do contato, se o que ele pediu "
++        "foi resolvido, o tempo e o tom das respostas da empresa, e o que ainda está "
++        "pendente."
++    ),
++}
++
++FORMATO = """Formato da resposta (JSON):
++{
++  "resumo": "duas ou três frases sobre o que aconteceu e em que pé está",
++  "indicadores": {"rotulo": "valor curto", "...": "..."},
++  "porque": [{"texto": "o que você concluiu", "evidencia": "trecho curto da mensagem", "quando": "DD/MM HH:MM"}],
++  "oQueFaltou": ["o que a empresa deixou de fazer, comparando com o playbook quando houver"],
++  "proximoPasso": "a ação mais importante agora, concreta",
++  "sugestoes": [{"tipo": "etapa|etiqueta|tarefa|compromisso", "valor": "nome exato da etapa ou etiqueta da lista, ou título da tarefa/compromisso", "motivo": "por quê", "prazoDias": 0}]
++}
++Regras: até 6 indicadores; até 5 itens em "porque" e em "oQueFaltou"; até 4 sugestões.
++Sugestão de "etapa" e de "etiqueta" só com um nome que esteja nas listas da empresa.
++Sugestão de "tarefa" e "compromisso" só se o contato estiver no CRM (indicado abaixo).
++Se não houver nada a sugerir, devolva "sugestoes": []."""
++
++ROTULO_AUTOR = {"ia": "Empresa (agente de IA)", "bot": "Empresa (mensagem automática)"}
++ROTULO_MIDIA = {"audio": "[áudio]", "ptt": "[áudio]", "image": "[imagem]", "video": "[vídeo]", "document": "[documento]", "sticker": "[figurinha]"}
++TIPOS = ("etapa", "etiqueta", "tarefa", "compromisso")
++
++
++class AnaliseInvalida(ValueError):
++    pass
++
++
++def _quando(valor: Any) -> str:
++    try:
++        from datetime import datetime
++
++        return datetime.fromisoformat(str(valor).replace("Z", "+00:00")).astimezone(FUSO).strftime("%d/%m %H:%M")
++    except ValueError:
++        return "--/-- --:--"
++
++
++def _texto(valor: Any, teto: int) -> str:
++    return " ".join(str(valor or "").split())[:teto]
++
++
++def montar_prompt(carga: dict) -> str:
++    """A conversa e o contexto da empresa, para ir por stdin."""
++    tipo = carga.get("kind") if carga.get("kind") in FOCO else "comercial"
++    linhas = []
++    for m in carga.get("messages") or []:
++        if not isinstance(m, dict):
++            continue
++        autor = "Contato" if not m.get("fromMe") else ROTULO_AUTOR.get(m.get("authorKind"), "Empresa (equipe)")
++        texto = str(m.get("content") or "").strip()
++        midia = str(m.get("mediaType") or "").strip().lower()
++        if midia:
++            texto = (ROTULO_MIDIA.get(midia) or f"[{midia}]") + (f" {texto}" if texto else "")
++        if texto:
++            linhas.append(f"[{_quando(m.get('sentAt'))}] {autor}: {texto}")
++    partes = [FOCO[tipo], ""]
++    agente = carga.get("agent") if isinstance(carga.get("agent"), dict) else None
++    if agente:
++        partes.append(f"Agente que atende esta conversa: {_texto(agente.get('name'), 80)}. Jeito esperado: {_texto(agente.get('tone'), 300)}")
++    leitura = carga.get("reading") if isinstance(carga.get("reading"), dict) else {}
++    if leitura:
++        resumo = ", ".join(f"{k}={v.get('a')}" for k, v in leitura.items() if isinstance(v, dict) and v.get("a"))
++        partes.append(f"Leitura automática (Jev), para conferir e não para repetir: {resumo[:1500]}")
++    playbook = carga.get("playbook") if isinstance(carga.get("playbook"), dict) else None
++    if playbook:
++        partes.append("Playbook comercial da empresa (o que ela espera da conversa):\n" + json.dumps(playbook, ensure_ascii=False)[:6000])
++    partes.append("Etapas do funil da empresa: " + ", ".join(_texto(s, 80) for s in (carga.get("stages") or [])[:20]))
++    partes.append("Etiquetas da empresa: " + ", ".join(_texto(t, 80) for t in (carga.get("tags") or [])[:40]))
++    partes.append("O contato está no CRM: " + ("sim" if carga.get("hasContact") else "não"))
++    partes.append("")
++    partes.append(FORMATO)
++    partes.append("")
++    partes.append("Conversa:")
++    partes.append("\n".join(linhas)[-60000:])
++    return "\n".join(partes)
++
++
++def _json_do_texto(texto: str) -> Any:
++    bruto = str(texto or "").strip()
++    bruto = re.sub(r"^```(?:json)?\s*|\s*```$", "", bruto)
++    inicio, fim = bruto.find("{"), bruto.rfind("}")
++    if inicio < 0 or fim <= inicio:
++        raise AnaliseInvalida("sem objeto JSON")
++    try:
++        return json.loads(bruto[inicio:fim + 1])
++    except ValueError as exc:
++        raise AnaliseInvalida("JSON inválido") from exc
++
++
++def ler_resultado(texto: str, carga: dict) -> dict:
++    """O JSON do Claude, conferido e aparado, no formato que o banco guarda."""
++    dados = _json_do_texto(texto)
++    if not isinstance(dados, dict):
++        raise AnaliseInvalida("resposta não é objeto")
++    resumo = _texto(dados.get("resumo"), 600)
++    if not resumo:
++        raise AnaliseInvalida("sem resumo")
++    indicadores = {}
++    if isinstance(dados.get("indicadores"), dict):
++        for chave, valor in list(dados["indicadores"].items())[:6]:
++            rotulo, conteudo = _texto(chave, 40), _texto(valor if not isinstance(valor, list) else ", ".join(map(str, valor)), 120)
++            if rotulo and conteudo:
++                indicadores[rotulo] = conteudo
++    porque = []
++    for item in (dados.get("porque") or [])[:5]:
++        if isinstance(item, dict) and _texto(item.get("texto"), 300):
++            porque.append({
++                "texto": _texto(item.get("texto"), 300),
++                "evidencia": _texto(item.get("evidencia"), 240),
++                "quando": _texto(item.get("quando"), 20),
++            })
++    faltou = [_texto(item, 240) for item in (dados.get("oQueFaltou") or [])[:5] if _texto(item, 240)]
++    etapas = {str(s).casefold(): str(s) for s in carga.get("stages") or []}
++    etiquetas = {str(t).casefold(): str(t) for t in carga.get("tags") or []}
++    sugestoes = []
++    for item in (dados.get("sugestoes") or [])[:6]:
++        if not isinstance(item, dict) or item.get("tipo") not in TIPOS:
++            continue
++        valor = _texto(item.get("valor"), 120)
++        if not valor:
++            continue
++        # Etapa e etiqueta só com nome que existe na empresa: é o que deixa o
++        # "Aplicar" do portal encontrar o alvo sem adivinhar.
++        if item["tipo"] == "etapa":
++            if valor.casefold() not in etapas:
++                continue
++            valor = etapas[valor.casefold()]
++        if item["tipo"] == "etiqueta" and valor.casefold() in etiquetas:
++            valor = etiquetas[valor.casefold()]
++        if item["tipo"] in ("tarefa", "compromisso") and not carga.get("hasContact"):
++            continue
++        try:
++            prazo = max(0, min(30, int(item.get("prazoDias") or 0)))
++        except (TypeError, ValueError):
++            prazo = 0
++        sugestoes.append({"tipo": item["tipo"], "valor": valor, "motivo": _texto(item.get("motivo"), 200), "prazoDias": prazo})
++        if len(sugestoes) == 4:
++            break
++    return {
++        "resumo": resumo,
++        "indicadores": indicadores,
++        "porque": porque,
++        "oQueFaltou": faltou,
++        "proximoPasso": _texto(dados.get("proximoPasso"), 400),
++        "sugestoes": sugestoes,
++    }
++
++
++def conta_logada(pasta: Optional[Path]) -> bool:
++    return bool(pasta) and (Path(pasta) / ".credentials.json").is_file()
++
++
++class Analista:
++    def __init__(
++        self,
++        *,
++        verifier,
++        executar: Callable[..., Any],
++        claude_bin: str,
++        vault: Path,
++        config_dir: Optional[Path],
++        modelo: Optional[str] = None,
++        timeout: int = TIMEOUT,
++    ) -> None:
++        self.verifier = verifier
++        self.executar = executar
++        self.claude_bin = claude_bin
++        self.vault = Path(vault)
++        self.config_dir = Path(config_dir) if config_dir else None
++        self.modelo = modelo
++        self.timeout = timeout
++        self.fila: "queue.Queue[Optional[dict]]" = queue.Queue(maxsize=50)
++        self._thread: Optional[threading.Thread] = None
++
++    # ------------------------------------------------------------ a fila
++
++    def submit(self, carga: dict) -> bool:
++        try:
++            self.fila.put_nowait(carga)
++            return True
++        except queue.Full:
++            self._gravar(carga.get("analysisId"), "failed", erro="analysis_queue_full")
++            return False
++
++    def start(self) -> None:
++        if self._thread and self._thread.is_alive():
++            return
++        self._thread = threading.Thread(target=self._run, name="analista", daemon=True)
++        self._thread.start()
++
++    def stop(self) -> None:
++        self.fila.put(None)
++        if self._thread:
++            self._thread.join(timeout=5)
++
++    def _run(self) -> None:
++        while True:
++            carga = self.fila.get()
++            if carga is None:
++                return
++            try:
++                self.analisar(carga)
++            except Exception as exc:  # pragma: no cover - última barreira de um daemon
++                audit.log("analysis.failed", error_code="unexpected", error=type(exc).__name__)
++                self._gravar(carga.get("analysisId"), "failed", erro="unexpected")
++
++    # ------------------------------------------------------------ uma análise
++
++    def analisar(self, carga: dict) -> str:
++        import runner
++
++        analise = str(carga.get("analysisId") or "")
++        if not analise:
++            return "failed"
++        if not conta_logada(self.config_dir):
++            self._gravar(analise, "failed", erro="analysis_account_missing")
++            audit.log("analysis.failed", analysis_id=analise, error_code="analysis_account_missing")
++            return "failed"
++        self._gravar(analise, "running")
++        inicio = time.monotonic()
++        try:
++            resposta = self.executar(
++                montar_prompt(carga),
++                self.claude_bin,
++                self.vault,
++                self.timeout,
++                model=self.modelo,
++                tools=[],
++                include_vault=False,
++                no_session_persistence=True,
++                system_prompt=SISTEMA,
++                claude_config_dir=self.config_dir,
++            )
++            resultado = ler_resultado(getattr(resposta, "reply", ""), carga)
++        except runner.RunnerError as exc:
++            self._gravar(analise, "failed", erro=exc.code)
++            audit.log("analysis.failed", analysis_id=analise, error_code=exc.code)
++            return "failed"
++        except AnaliseInvalida:
++            self._gravar(analise, "failed", erro="analysis_invalid_response")
++            audit.log("analysis.failed", analysis_id=analise, error_code="analysis_invalid_response")
++            return "failed"
++        ms = int((time.monotonic() - inicio) * 1000)
++        self._gravar(analise, "done", resultado=resultado, ms=ms)
++        audit.log("analysis.done", analysis_id=analise, kind=carga.get("kind"), latency_ms=ms,
++                  suggestions=len(resultado["sugestoes"]))
++        return "done"
++
++    def _gravar(self, analise: Any, situacao: str, *, erro: str = "", resultado: Optional[dict] = None, ms: int = 0) -> None:
++        if not analise:
++            return
++        payload = {"analysisId": str(analise), "status": situacao}
++        if erro:
++            payload["errorCode"] = erro
++        if resultado is not None:
++            payload["result"] = resultado
++        if self.modelo:
++            payload["model"] = str(self.modelo)[:80]
++        if ms:
++            payload["latencyMs"] = ms
++        try:
++            self.verifier.analysis_record(payload)
++        except OperatorVerificationError as exc:
++            audit.log("analysis.record_failed", analysis_id=str(analise), status=situacao, error=str(exc))
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 7be062e..873da46 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -186,6 +186,13 @@ class Config:
+     insights_poll_seconds: float = 300.0
+     insights_quiet_minutes: int = 60
+     insights_batch: int = 5
++    # O Agente Analista (desde 02/10/2026): a análise do botão "Analisar
++    # conversa", com o Claude na SEGUNDA conta da Major. Desligado por padrão.
++    # `analysis_claude_config_dir` é a pasta de login dessa conta; sem ela, a
++    # análise falha com motivo e o crédito volta. Ver analista.py.
++    analysis_enabled: bool = False
++    analysis_claude_config_dir: Optional[Path] = None
++    analysis_model: str = "sonnet"
+ 
+     @classmethod
+     def from_env(cls) -> "Config":
+@@ -330,6 +337,13 @@ class Config:
+             insights_poll_seconds=max(60.0, _env_float("NUCLEO_INSIGHTS_POLL_SECONDS", 300.0)),
+             insights_quiet_minutes=max(5, min(1440, _env_int("NUCLEO_INSIGHTS_QUIET_MINUTES", 60))),
+             insights_batch=max(1, min(10, _env_int("NUCLEO_INSIGHTS_BATCH", 5))),
++            analysis_enabled=_env_str("NUCLEO_ANALYSIS", "0") == "1",
++            analysis_claude_config_dir=(
++                Path(_env_str("NUCLEO_ANALYSIS_CLAUDE_CONFIG_DIR")).expanduser()
++                if _env_str("NUCLEO_ANALYSIS_CLAUDE_CONFIG_DIR")
++                else None
++            ),
++            analysis_model=_env_str("NUCLEO_ANALYSIS_MODEL", "sonnet") or "sonnet",
+         )
+ 
+ 
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index e62474c..d2c90e3 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -152,6 +152,21 @@ def main() -> int:
+         import coordenador
+ 
+         jev_client = coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path))
++    # O Agente Analista: a análise do botão, numa fila própria. Ver analista.py.
++    analista = None
++    if cfg.analysis_enabled and verifier is not None:
++        import analista as analista_mod
++        import runner
++
++        analista = analista_mod.Analista(
++            verifier=verifier,
++            executar=runner.run,
++            claude_bin=cfg.claude_bin,
++            vault=cfg.vault,
++            config_dir=cfg.analysis_claude_config_dir,
++            modelo=cfg.analysis_model,
++        )
++        analista.start()
+     command_poller = None
+     if cfg.runtime_commands_enabled and verifier is not None:
+         command_poller = runtime_commands.RuntimeCommandPoller(
+@@ -179,6 +194,7 @@ def main() -> int:
+             ffmpeg_bin=cfg.ffmpeg_bin,
+             flow_runtime_enabled=flow_executor is not None,
+             jev=jev_client,
++            analista=analista,
+         )
+         command_poller.start()
+     conversation_syncer = None
+@@ -314,6 +330,7 @@ def main() -> int:
+         conversation_syncer,
+         flow_executor,
+         coordenador_de_leituras,
++        analista,
+     )
+ 
+ 
+@@ -328,6 +345,7 @@ def _wait_forever(
+     conversation_syncer=None,
+     flow_executor=None,
+     coordenador_de_leituras=None,
++    analista=None,
+ ) -> int:
+     done = threading.Event()
+ 
+@@ -341,6 +359,8 @@ def _wait_forever(
+     done.wait()
+ 
+     httpd.shutdown()
++    if analista is not None:
++        analista.stop()
+     if coordenador_de_leituras is not None:
+         coordenador_de_leituras.stop()
+     if flow_executor is not None:
+diff --git a/whatsapp-assistant/operator_verification.py b/whatsapp-assistant/operator_verification.py
+index 3238c68..a8e305f 100644
+--- a/whatsapp-assistant/operator_verification.py
++++ b/whatsapp-assistant/operator_verification.py
+@@ -541,6 +541,16 @@ class OperatorVerifier:
+             "gravação da leitura do coordenador",
+         )
+ 
++    def analysis_record(self, payload: dict[str, Any]) -> dict[str, Any]:
++        """Grava o andamento ou o resultado de uma análise. Ver analista.py."""
++        if not isinstance(payload, dict):
++            raise OperatorVerificationError("análise possui formato inválido")
++        return self._rpc(
++            "nucleo_analysis_record",
++            {"record_payload": payload},
++            "gravação da análise",
++        )
++
+     def _rpc(self, name: str, body: dict[str, Any], label: str) -> dict[str, Any]:
+         response = self._chamar(
+             "POST", f"/rest/v1/rpc/{name}", label, json=body,
+diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
+index 5881e9c..32985cf 100644
+--- a/whatsapp-assistant/runtime_commands.py
++++ b/whatsapp-assistant/runtime_commands.py
+@@ -94,6 +94,9 @@ COMANDOS = frozenset(
+         # A aba Testar do agente no portal: o Jev avalia uma conversa de teste
+         # (desde 01/10/2026, ver coordenador.avaliar_teste).
+         "insights_evaluate",
++        # O botão "Analisar conversa": a carga vai para a fila do Agente
++        # Analista (analista.py), que roda fora desta thread.
++        "conversation_analyze",
+     }
+ )
+ 
+@@ -195,12 +198,16 @@ class RuntimeCommandPoller:
+         ffmpeg_bin: str = "ffmpeg",
+         flow_runtime_enabled: bool = False,
+         jev=None,
++        analista=None,
+     ) -> None:
+         self.verifier = verifier
+         # O cliente do Jev, o mesmo do coordenador. Sem ele (coordenador
+         # desligado nesta conexão), a avaliação de teste falha com motivo
+         # próprio em vez de ficar pendurada.
+         self.jev = jev
++        # O Agente Analista. Sem ele (análise desligada nesta conexão), o pedido
++        # falha com motivo e o crédito volta.
++        self.analista = analista
+         # Só com o executor de fluxo ligado nesta conexão alguém processa a
+         # execução que o `flow_trigger` cria; sem ele o comando é recusado.
+         self.flow_runtime_enabled = bool(flow_runtime_enabled)
+@@ -305,6 +312,10 @@ class RuntimeCommandPoller:
+             self._avaliar_teste(command_id, payload)
+             return
+ 
++        if command_type == "conversation_analyze":
++            self._analisar_conversa(command_id, payload)
++            return
++
+         if command_type == "conversation_send":
+             self._conversa_enviar(command_id, connection, payload)
+             return
+@@ -648,6 +659,29 @@ class RuntimeCommandPoller:
+             on_whatsapp=bool(resposta.get("onWhatsApp")),
+         )
+ 
++    # ------------------------------------------------- análise do botão
++
++    def _analisar_conversa(self, command_id: str, payload: dict) -> None:
++        """Entrega a análise à fila do Agente Analista e libera o comando.
++
++        A análise leva até alguns minutos; esperar aqui seguraria o envio de
++        mensagens pelo portal. O comando conclui na hora ("na fila"), e o
++        andamento da análise fica na própria `conversation_analyses`.
++        """
++        analise = str(payload.get("analysisId") or "")
++        if self.analista is None:
++            try:
++                self.verifier.analysis_record({"analysisId": analise, "status": "failed", "errorCode": "analysis_disabled"})
++            except OperatorVerificationError:
++                pass
++            self._complete(command_id, "failed", "analysis_disabled")
++            return
++        if self.analista.submit(dict(payload)):
++            self._complete(command_id, "completed", "", {"queued": True})
++            audit.log("runtime.command_completed", command_id=command_id, command_type="conversation_analyze", analysis_id=analise)
++        else:
++            self._complete(command_id, "failed", "analysis_queue_full")
++
+     # ------------------------------------------------- avaliação de teste
+ 
+     def _avaliar_teste(self, command_id: str, payload: dict) -> None:
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+new file mode 100644
+index 0000000..1bb0db4
+--- /dev/null
++++ b/whatsapp-assistant/test_analista.py
+@@ -0,0 +1,198 @@
++"""O Agente Analista: a análise do botão "Analisar conversa".
++
++O que estes testes prendem:
++  * o prompt leva a conversa, o foco do tipo, o jeito do agente, a leitura do
++    Jev, o playbook, o funil e as etiquetas — e a resposta volta conferida:
++    etapa só se existir na empresa, tarefa só com contato no CRM, tetos;
++  * sem a conta de análise logada, falha com motivo e não chama o Claude;
++  * erro do Claude e resposta torta viram falha (o banco devolve o crédito);
++  * o executor de comandos entrega à fila e libera o comando na hora.
++"""
++
++import inspect
++import json
++import os
++import tempfile
++import unittest
++from pathlib import Path
++from unittest.mock import patch
++
++import analista
++import runner
++from config import Config
++
++CARGA = {
++    "analysisId": "8d0f6f6e-3c8b-4c86-8c3b-0d8c2a7f0001",
++    "kind": "comercial",
++    "messages": [
++        {"sentAt": "2026-10-01T12:00:00Z", "fromMe": False, "authorKind": "", "content": "Quanto custa o site?"},
++        {"sentAt": "2026-10-01T12:05:00Z", "fromMe": True, "authorKind": "ia", "content": "Depende do escopo. Para qual negócio é?"},
++        {"sentAt": "2026-10-01T12:06:00Z", "fromMe": False, "mediaType": "audio", "content": ""},
++    ],
++    "reading": {"temperatura": {"a": "morno", "p": 0.7}, "objecao_principal": {"a": "preco", "p": 0.8}},
++    "playbook": {"objecoes": [{"chave": "preco", "nome": "Preço", "resposta": "fazer o recorte"}]},
++    "agent": {"name": "Assistente Major", "tone": "direto e consultivo"},
++    "stages": ["Lead", "Em contato", "Negociação"],
++    "tags": ["Lead quente", "Cliente"],
++    "hasContact": True,
++}
++
++
++def resposta(**sobrepor):
++    dados = {
++        "resumo": "Lead morno, perguntou preço de site e foi ao áudio.",
++        "indicadores": {"Temperatura": "Morna", "Objeção": ["Preço"]},
++        "porque": [{"texto": "Perguntou preço antes de contar o negócio", "evidencia": "Quanto custa o site?", "quando": "01/10 09:00"}],
++        "oQueFaltou": ["Não ofereceu a conversa de diagnóstico"],
++        "proximoPasso": "Ouvir o áudio e propor a conversa de diagnóstico com dois horários.",
++        "sugestoes": [
++            {"tipo": "etapa", "valor": "em contato", "motivo": "já conversou", "prazoDias": 0},
++            {"tipo": "etapa", "valor": "Etapa que não existe", "motivo": "x"},
++            {"tipo": "etiqueta", "valor": "lead quente", "motivo": "interesse"},
++            {"tipo": "tarefa", "valor": "Ouvir o áudio", "motivo": "pendente", "prazoDias": 99},
++            {"tipo": "compromisso", "valor": "Diagnóstico", "motivo": "próximo passo", "prazoDias": 2},
++        ],
++    }
++    dados.update(sobrepor)
++    return dados
++
++
++class PromptTests(unittest.TestCase):
++    def test_leva_conversa_e_contexto_da_empresa(self):
++        prompt = analista.montar_prompt(CARGA)
++        self.assertIn("Análise COMERCIAL", prompt)
++        self.assertIn("[01/10 09:00] Contato: Quanto custa o site?", prompt)
++        self.assertIn("Empresa (agente de IA): Depende do escopo", prompt)
++        self.assertIn("Contato: [áudio]", prompt)
++        self.assertIn("direto e consultivo", prompt)
++        self.assertIn("temperatura=morno", prompt)
++        self.assertIn('"chave": "preco"', prompt)
++        self.assertIn("Etapas do funil da empresa: Lead, Em contato, Negociação", prompt)
++        self.assertIn("O contato está no CRM: sim", prompt)
++
++    def test_tipo_atendimento_e_tipo_desconhecido(self):
++        self.assertIn("Análise de ATENDIMENTO", analista.montar_prompt({**CARGA, "kind": "atendimento"}))
++        self.assertIn("Análise COMERCIAL", analista.montar_prompt({**CARGA, "kind": "outro"}))
++
++
++class ResultadoTests(unittest.TestCase):
++    def test_confere_e_apara(self):
++        r = analista.ler_resultado("```json\n" + json.dumps(resposta()) + "\n```", CARGA)
++        self.assertTrue(r["resumo"].startswith("Lead morno"))
++        self.assertEqual(r["indicadores"], {"Temperatura": "Morna", "Objeção": "Preço"})
++        self.assertEqual(r["porque"][0]["evidencia"], "Quanto custa o site?")
++        tipos = [(s["tipo"], s["valor"]) for s in r["sugestoes"]]
++        # Etapa inexistente sai; nomes voltam com a grafia da empresa; teto de 4.
++        self.assertEqual(tipos, [("etapa", "Em contato"), ("etiqueta", "Lead quente"), ("tarefa", "Ouvir o áudio"), ("compromisso", "Diagnóstico")])
++        self.assertEqual(r["sugestoes"][2]["prazoDias"], 30)
++
++    def test_sem_contato_tarefa_e_compromisso_saem(self):
++        r = analista.ler_resultado(json.dumps(resposta()), {**CARGA, "hasContact": False})
++        self.assertEqual([s["tipo"] for s in r["sugestoes"]], ["etapa", "etiqueta"])
++
++    def test_resposta_torta_e_recusada(self):
++        for texto in ("não é json", "[]", json.dumps({"resumo": ""}), "{quebrado"):
++            with self.assertRaises(analista.AnaliseInvalida):
++                analista.ler_resultado(texto, CARGA)
++
++    def test_cabe_no_banco(self):
++        grande = resposta(resumo="x" * 5000, porque=[{"texto": "y" * 900, "evidencia": "z" * 900}] * 9, oQueFaltou=["w" * 900] * 9)
++        r = analista.ler_resultado(json.dumps(grande), CARGA)
++        self.assertLessEqual(len(json.dumps(r, ensure_ascii=False).encode("utf-8")), 32768)
++        self.assertEqual(len(r["porque"]), 5)
++
++
++class FakeVerifier:
++    def __init__(self):
++        self.gravadas = []
++
++    def analysis_record(self, payload):
++        self.gravadas.append(payload)
++        return {"recorded": True}
++
++
++class AnalistaTests(unittest.TestCase):
++    def setUp(self):
++        self.pasta = tempfile.TemporaryDirectory()
++        self.addCleanup(self.pasta.cleanup)
++        self.conta = Path(self.pasta.name) / "analise"
++        self.conta.mkdir()
++        (self.conta / ".credentials.json").write_text("{}", encoding="utf-8")
++        patcher = patch.object(analista.audit, "log")
++        self.log = patcher.start()
++        self.addCleanup(patcher.stop)
++
++    def novo(self, executar, conta=None):
++        self.verifier = FakeVerifier()
++        return analista.Analista(
++            verifier=self.verifier, executar=executar, claude_bin="claude",
++            vault=Path(self.pasta.name), config_dir=conta if conta is not None else self.conta, modelo="sonnet",
++        )
++
++    def test_sem_conta_logada_falha_sem_chamar_o_claude(self):
++        chamadas = []
++        a = self.novo(lambda *a, **k: chamadas.append(1), conta=Path(self.pasta.name) / "nao-existe")
++        self.assertEqual(a.analisar(CARGA), "failed")
++        self.assertEqual(chamadas, [])
++        self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "analysis_account_missing")
++
++    def test_analisa_com_a_conta_de_analise_sem_ferramentas(self):
++        recebido = {}
++
++        def executar(prompt, claude_bin, vault, timeout, **kwargs):
++            recebido.update(kwargs, prompt=prompt)
++            return runner.RunResult(reply=json.dumps(resposta()), session_id=None, exit_code=0, duration_ms=10, tools_used=[])
++
++        a = self.novo(executar)
++        self.assertEqual(a.analisar(CARGA), "done")
++        self.assertEqual(recebido["claude_config_dir"], self.conta)
++        self.assertEqual(recebido["tools"], [])
++        self.assertFalse(recebido["include_vault"])
++        self.assertTrue(recebido["no_session_persistence"])
++        self.assertEqual(recebido["system_prompt"], analista.SISTEMA)
++        self.assertEqual([g["status"] for g in self.verifier.gravadas], ["running", "done"])
++        self.assertEqual(self.verifier.gravadas[-1]["result"]["sugestoes"][0]["valor"], "Em contato")
++        bruto = json.dumps([c.kwargs for c in self.log.call_args_list], ensure_ascii=False, default=str)
++        self.assertNotIn("Quanto custa", bruto)
++
++    def test_erro_do_claude_e_resposta_torta_viram_falha(self):
++        def limite(*a, **k):
++            raise runner.RunnerError("limite", code="model_quota_exhausted")
++
++        a = self.novo(limite)
++        self.assertEqual(a.analisar(CARGA), "failed")
++        self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "model_quota_exhausted")
++        a = self.novo(lambda *x, **k: runner.RunResult(reply="desculpe", session_id=None, exit_code=0, duration_ms=1, tools_used=[]))
++        a.analisar(CARGA)
++        self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "analysis_invalid_response")
++
++    def test_fila_cheia_falha_na_hora(self):
++        a = self.novo(lambda *x, **k: None)
++        for _ in range(50):
++            self.assertTrue(a.submit(dict(CARGA)))
++        self.assertFalse(a.submit(dict(CARGA)))
++        self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "analysis_queue_full")
++
++
++class ConfigEMainTests(unittest.TestCase):
++    def test_config(self):
++        base = {"ASSISTANT_VAULT": "/tmp/v", "ASSISTANT_OWNER": "556500000000", "ASSISTANT_STATE_DB": "/tmp/a.db"}
++        with patch.dict(os.environ, base, clear=False):
++            for nome in ("NUCLEO_ANALYSIS", "NUCLEO_ANALYSIS_CLAUDE_CONFIG_DIR", "NUCLEO_ANALYSIS_MODEL"):
++                os.environ.pop(nome, None)
++            cfg = Config.from_env()
++        self.assertFalse(cfg.analysis_enabled)
++        self.assertIsNone(cfg.analysis_claude_config_dir)
++        with patch.dict(os.environ, {**base, "NUCLEO_ANALYSIS": "1", "NUCLEO_ANALYSIS_CLAUDE_CONFIG_DIR": "/tmp/analise"}, clear=False):
++            cfg = Config.from_env()
++        self.assertTrue(cfg.analysis_enabled)
++        self.assertEqual(cfg.analysis_claude_config_dir, Path("/tmp/analise"))
++
++    def test_desligamento_conhece_o_analista(self):
++        import main
++
++        self.assertIn("analista", inspect.signature(main._wait_forever).parameters)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
+index d07b15e..a368c05 100644
+--- a/whatsapp-assistant/test_runtime_commands.py
++++ b/whatsapp-assistant/test_runtime_commands.py
+@@ -1262,3 +1262,47 @@ class AvaliacaoDeTesteTests(Bancada, unittest.TestCase):
+         poller.jev = JevFora()
+         poller.poll_once()
+         self.assertEqual(verifier.completed[0][1:3], ("failed", "jev_http_402"))
++
++
++class AnaliseDaConversaTests(Bancada, unittest.TestCase):
++    """O botão "Analisar conversa": o comando entrega à fila e libera na hora."""
++
++    ANALISE = "8d0f6f6e-3c8b-4c86-8c3b-0d8c2a7f0001"
++
++    def _montar(self):
++        directory, poller, verifier, _control, arbitro = self._runtime(
++            self._comando_de_conversa("conversation_analyze", {"analysisId": self.ANALISE, "kind": "comercial"})
++        )
++        self.addCleanup(directory.cleanup)
++        self.addCleanup(arbitro.close)
++        verifier.analises = []
++        verifier.analysis_record = lambda payload: verifier.analises.append(payload) or {"recorded": True}
++        return poller, verifier
++
++    def test_sem_analista_falha_e_devolve_o_credito(self):
++        poller, verifier = self._montar()
++        poller.poll_once()
++        self.assertEqual(verifier.completed[0][1:3], ("failed", "analysis_disabled"))
++        self.assertEqual(verifier.analises, [{"analysisId": self.ANALISE, "status": "failed", "errorCode": "analysis_disabled"}])
++
++    def test_entrega_a_fila_e_libera_o_comando(self):
++        class Analista:
++            def __init__(self, aceita):
++                self.aceita = aceita
++                self.cargas = []
++
++            def submit(self, carga):
++                self.cargas.append(carga)
++                return self.aceita
++
++        poller, verifier = self._montar()
++        poller.analista = Analista(True)
++        with mock.patch("runtime_commands.audit.log"):
++            poller.poll_once()
++        self.assertEqual(verifier.completed[0][1:4], ("completed", "", {"queued": True}))
++        self.assertEqual(poller.analista.cargas[0]["analysisId"], self.ANALISE)
++
++        poller, verifier = self._montar()
++        poller.analista = Analista(False)
++        poller.poll_once()
++        self.assertEqual(verifier.completed[0][1:3], ("failed", "analysis_queue_full"))
