@@ -105,17 +105,20 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
           <span className={`block h-[14px] w-[14px] rounded-[1px] ${atende ? "bg-bg" : "border border-line-strong bg-bg"}`} />
         </button>
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
-        {salvando
-          ? "Salvando…"
-          : !conhecido
-            ? erro
-              ? "Não deu para conferir agora. Recarregue a conversa para tentar de novo."
-              : "Conferindo no servidor…"
-            : atende
-            ? "A IA responde este número. Desligue para contatos pessoais — nada é enviado a quem está desligado."
-            : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
-      </p>
+      {/* Ligado não ganha frase: o interruptor violeta já diz que a IA atende.
+          O texto fica para o que precisa ser explicado: salvando, conferindo,
+          falhou ou desligado. */}
+      {(salvando || !conhecido || !atende) && (
+        <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
+          {salvando
+            ? "Salvando…"
+            : !conhecido
+              ? erro
+                ? "Não deu para conferir agora. Recarregue a conversa para tentar de novo."
+                : "Conferindo no servidor…"
+              : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
+        </p>
+      )}
       {erro && <p className="mt-1 text-[11px] text-danger">{erro}</p>}
     </div>
   );
