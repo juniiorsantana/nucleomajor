@@ -232,7 +232,7 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar, sessao }
   return (
     <>
       <CabecalhoTela
-        titulo="Chatbots"
+        titulo="Fluxos"
         busca={view === "flows" ? <CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar chatbot" /> : <span />}
         acao={view === "flows" ? <BotaoPrimario onClick={() => aoEditar(null)}><Plus size={17} />Novo chatbot</BotaoPrimario> : <span />}
       />
@@ -242,7 +242,7 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar, sessao }
         <AvisoAutomacao />
         {erro && <div className="mb-4 rounded-ctl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">{erro}</div>}
         {filtrados.length === 0 ? (
-          <EstadoVazio titulo={busca ? "Nenhum chatbot encontrado" : "Nenhum chatbot criado"} descricao={busca ? "Tente outro termo de busca." : "Crie o primeiro fluxo de resposta automática."} />
+          <EstadoVazio titulo={busca ? "Nenhum fluxo encontrado" : "Nenhum fluxo criado"} descricao={busca ? "Tente outro termo de busca." : "Crie o primeiro fluxo de resposta automática."} />
         ) : (
           <div className="overflow-hidden rounded-none border border-line bg-bg">
             <div className="grid grid-cols-[minmax(240px,1.8fr)_150px_110px_130px_170px_150px] gap-4 border-b border-line px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-faint">
