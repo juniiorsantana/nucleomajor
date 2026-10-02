@@ -258,6 +258,29 @@ confere("fatos não são chamados de fora", /permission denied/i.test(erro), err
 // 9. Reaplicar aborta.
 const reaplicar = await erroDe(() => db.exec(ler(`supabase/migrations/${MIGRATION}`)));
 confere("reaplicar aborta", reaplicar.includes("ja foi aplicada"), reaplicar);
+// A guarda abortou dentro do `begin` da migration: fecha a transação.
+await db.exec("rollback");
+
+// 10. O rollback desfaz tudo, o pedido volta ao corpo antigo, e dá para reaplicar.
+const antesDoRollback = (await db.query("select count(*)::int as n from public.conversation_analyses")).rows[0].n;
+await db.exec(ler("scripts/sql/rollback-20261003100000-camada-de-inteligencia.sql"));
+const sobra = (await db.query(`select
+  to_regclass('public.analysis_schemas') as esquemas, to_regclass('public.conversation_intelligence') as visao,
+  (select count(*)::int from information_schema.columns where table_name in ('conversation_insight_runs', 'conversation_analyses')
+     and column_name in ('facts', 'scores', 'lead_score', 'classification')) as colunas,
+  (select count(*)::int from pg_trigger where tgname = 'conversation_insight_runs_fatos') as gatilho`)).rows[0];
+confere("rollback: esquemas, visão, colunas e gatilho somem", sobra.esquemas === null && sobra.visao === null && sobra.colunas === 0 && sobra.gatilho === 0, JSON.stringify(sobra));
+const depoisDoRollback = (await db.query("select count(*)::int as n from public.conversation_analyses")).rows[0].n;
+confere("rollback: as análises ficam", depoisDoRollback === antesDoRollback, `${antesDoRollback} → ${depoisDoRollback}`);
+await db.query("update public.conversation_analyses set status = 'failed' where status in ('pending', 'running')");
+const pedidoAntigo = (await como(MAJOR.dono, "select public.conversation_analysis_request($1, $2, $3, 'comercial') as r", [MAJOR.id, CONEXAO, T])).rows[0].r;
+const cargaAntiga = (await db.query("select private_payload from public.connection_runtime_commands where command_type = 'conversation_analyze' order by created_at desc limit 1")).rows[0].private_payload;
+confere("rollback: o pedido volta a funcionar com a carga antiga", pedidoAntigo.status === "pending" && !("facts" in cargaAntiga) && !("id" in cargaAntiga.messages[0]));
+const leituraDepois = await erroDe(() => db.query(`insert into public.conversation_insight_runs (organization_id, connection_id, contact_phone, analyzed_until, status, summary)
+  values ($1, $2, $3, now(), 'ok', '{}')`, [MAJOR.id, CONEXAO, T]));
+confere("rollback: a leitura do Jev grava como antes", leituraDepois === "", leituraDepois);
+const reaplicada = await erroDe(() => db.exec(ler(`supabase/migrations/${MIGRATION}`)));
+confere("depois do rollback, a migration aplica de novo", reaplicada === "", reaplicada);
 
 for (const l of passou) console.log(`PASS ${l}`);
 for (const l of falhas) console.log(`FAIL ${l}`);
