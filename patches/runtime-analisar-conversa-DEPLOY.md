@@ -136,3 +136,7 @@ minutos (o banco marca `failed` / `expired` e o crédito volta).
   feita**: fica para o dono rodar no SQL Editor.
 - A conta de análise continua **sem login**: até lá, cada análise falha com
   `analysis_account_missing` e o crédito volta.
+- 02/10/2026: o dono logou a segunda conta em `~/.config/claude/analise`
+  (dono `nucleo`, 700/600). Conferido sem ler a credencial: credencial e conta
+  diferentes das do atendimento; chamada de teste com essa pasta (sem
+  ferramentas, sem sessão) respondeu "ok".
