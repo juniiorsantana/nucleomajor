@@ -93,3 +93,15 @@ systemctl --user restart whatsapp-assistant@$UUID
   `formatVersion` 2, as 4 evidências com `messageIds` que existem na
   conversa, fatos e leitura do Jev guardados, notas nulas (sem esquema).
   Conversas sincronizando normalmente depois do reinício.
+- 02/10/2026 14:45 UTC: primeira leitura do Jev depois do deploy gravada com
+  fatos (`facts_version` 1), `schema_version` 0 e notas nulas; ciclo `ok 1,
+  failed 0`. 84 mensagens sincronizadas desde o reinício, 4 comandos
+  `conversation_analyze` concluídos, 0 erros no log em 1h45.
+- Das 4 análises pelo botão depois do deploy, 2 deram certo e 2 falharam com
+  `analysis_invalid_response` — as duas na MESMA conversa (atendimento, 72
+  mensagens), pedidas em seguida, ~15 s cada; o crédito voltou. A conta de
+  análise responde normalmente e a leitura nova da resposta não gera esse
+  erro (só as 4 recusas antigas: sem JSON, JSON inválido, não objeto, sem
+  resumo). Causa não confirmada: o runtime não grava o texto da resposta, de
+  propósito. Próximo passo sugerido: registrar o motivo e o tamanho da
+  resposta (sem conteúdo) nas falhas.
