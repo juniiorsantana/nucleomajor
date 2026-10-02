@@ -287,33 +287,31 @@ export function BotaoPrimario({ children, className = "", ...props }) {
  * anterior exigiria histórico, que não guardamos; e número inventado na tela é
  * pior do que número a menos.
  */
-export function CartaoIndicador({ icone: Icone, rotulo, valor, nota, tomNota = "success" }) {
+export function FaixaDeNumeros({ itens }) {
   const tons = {
     success: "text-success",
     danger: "text-danger",
     neutro: "text-faint",
   };
+  // Uma faixa só, com régua entre os números (Sistema Grafite): são leituras
+  // do mesmo conjunto, e caixas soltas com ícone pareciam assuntos diferentes.
   return (
-    <div className="flex-1 rounded-none border border-line bg-bg p-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-forte">
-          <Icone size={19} strokeWidth={1.75} />
-        </div>
-        <span className="text-[14px] font-medium text-sub">{rotulo}</span>
-      </div>
-      <div className="mt-3 text-[30px] font-semibold leading-none tracking-tight text-fg">
-        {valor}
-      </div>
-      {nota && (
-        <div className={`mt-3 flex items-center gap-1 text-[13px] font-medium ${tons[tomNota]}`}>
-          {tomNota === "success" && (
-            <svg viewBox="0 0 24 24" className="h-4 w-4 stroke-current" fill="none" strokeWidth="2.2">
-              <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+    <div className="grid border border-line bg-bg sm:grid-cols-2 xl:grid-cols-4">
+      {itens.map(({ rotulo, valor, nota, tomNota = "success" }, i) => (
+        <div
+          key={rotulo}
+          className={`min-w-0 px-4 py-3 ${i > 0 ? "border-t border-line sm:border-t-0" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-line" : ""} ${i > 1 ? "sm:border-t sm:border-line xl:border-t-0" : ""} ${i > 0 ? "xl:border-l xl:border-line" : ""}`}
+        >
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">{rotulo}</span>
+          <strong className="mt-1.5 block truncate text-[22px] font-semibold leading-none tracking-tight tabular-nums text-fg">{valor}</strong>
+          {nota && (
+            <span className={`mt-1 flex items-center gap-1 text-[11.5px] font-medium ${tons[tomNota] || "text-faint"}`}>
+              {tomNota === "success" && <span aria-hidden="true">↑</span>}
+              {nota}
+            </span>
           )}
-          {nota}
         </div>
-      )}
+      ))}
     </div>
   );
 }
