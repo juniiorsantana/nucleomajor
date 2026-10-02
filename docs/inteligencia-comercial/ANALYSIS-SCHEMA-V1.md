@@ -49,7 +49,9 @@ pode ser de antes das perguntas da v1 (e aí a nota sairia nula). O custo é uma
 chamada do Jev por análise (cerca de US$ 0,0002). Se o Jev falhar, a análise
 segue com a leitura e a nota do pedido.
 
-## Adaptações e decisões (para o dono conferir)
+## Adaptações e decisões
+
+Confirmadas pelo dono em 03/10/2026: 1 (responsividade não avaliada na v1), 5 (follow-up vencido = ruim) e a classificação do Jev na hora da análise.
 
 1. **Responsividade sempre `nao_avaliado` na v1.** O relógio humano é medido
    (do pedido de handoff até a primeira resposta de uma pessoa; IA e bot não
@@ -73,7 +75,7 @@ segue com a leitura e a nota do pedido.
 5. **Follow-up vencido = `ruim` (0,2).** A especificação diz "negativo" sem
    dizer o grau; `crítico` ficou reservado para o que ela chama de falha forte
    (próximo passo no limbo). Combinado e não vencido, ou sem follow-up = não
-   avaliado; feito = bom. **Confirmar.**
+   avaliado; feito = bom. **Confirmado pelo dono em 03/10.**
 6. **Descrições dos níveis.** As perguntas trazem o que é `bom`, `atencao`,
    `ruim` e `critico` em cada critério, escritas a partir dos sinais positivos
    e negativos da especificação. Precisam de calibração com conversas reais.
