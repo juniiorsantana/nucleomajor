@@ -8,6 +8,7 @@ import {
   TIPOS_DE_ANALISE,
   analiseDoBanco,
   creditosEmTexto,
+  ehRelatorioV1,
   emAndamento,
   etapaPeloNome,
   etiquetaPeloNome,
@@ -17,6 +18,7 @@ import {
   semCreditos,
 } from "../../../domain/analiseDaConversa";
 import { fmtRelativo } from "../../../lib/formato";
+import { RelatorioDaAnalise } from "./RelatorioDaAnalise";
 
 // De quanto em quanto a tela pergunta pelo andamento. A análise leva de um a
 // três minutos; perguntar mais rápido só gastaria requisição.
@@ -53,6 +55,8 @@ export function AnaliseDaConversa({
   aoAtualizarEtiquetas,
   aoCriarEtiqueta,
   aoAplicado,
+  aoUsarMensagem,
+  aoVerMensagem,
 }) {
   const [creditos, setCreditos] = useState(null);
   const [lista, setLista] = useState([]);
@@ -125,6 +129,19 @@ export function AnaliseDaConversa({
     }
   };
 
+  // A lista vem da tabela, sem o relatório agregado: ao abrir, a análise é
+  // buscada pela consulta de andamento, que traz o relatório v1 pronto.
+  const abrir = async (analise) => {
+    setAtual(analise);
+    setFase("ver");
+    try {
+      const completa = analiseDoBanco(await api.conversas.analise({ analiseId: analise.id }));
+      if (completa) setAtual((anterior) => (anterior?.id === completa.id ? completa : anterior));
+    } catch {
+      // Sem a consulta, fica o que a lista trouxe.
+    }
+  };
+
   const salvar = async () => {
     if (!atual) return;
     await api.conversas.salvarAnalise({ analiseId: atual.id });
@@ -161,15 +178,15 @@ export function AnaliseDaConversa({
             <button
               key={analise.id}
               type="button"
-              onClick={() => {
-                setAtual(analise);
-                setFase("ver");
-              }}
+              onClick={() => abrir(analise)}
               className="flex w-full cursor-pointer items-center gap-2 rounded-[8px] px-1.5 py-1.5 text-left text-[11.5px] transition-colors hover:bg-surface-hover"
             >
               <span className="min-w-0 flex-1 truncate text-fg">
                 {NOME_DO_TIPO[analise.tipo] || "Análise"} · {dataCurta(analise.concluidaEm)}
               </span>
+              {analise.notaDoAtendimento != null && (
+                <span className="text-[10.5px] font-semibold tabular-nums text-sub">{analise.notaDoAtendimento}/100</span>
+              )}
               <span className={`text-[10.5px] font-semibold ${analise.salvaEm ? "text-success" : "text-faint"}`}>
                 {analise.salvaEm ? "Salva" : "Rascunho"}
               </span>
@@ -215,6 +232,9 @@ export function AnaliseDaConversa({
             await aplicarSugestao(sugestao, { contato, negocio, estagios, etiquetas, aoAtualizarEtiquetas, aoCriarEtiqueta });
             await aoAplicado?.();
           }}
+          aoUsarMensagem={aoUsarMensagem}
+          aoVerMensagem={aoVerMensagem}
+          aoCriado={aoAplicado}
           aoFechar={() => setFase(null)}
         />
       )}
@@ -268,6 +288,9 @@ function DialogoDaAnalise({
   aoRefazer,
   aoSalvar,
   aoAplicar,
+  aoUsarMensagem,
+  aoVerMensagem,
+  aoCriado,
   aoFechar,
 }) {
   const tituloId = useId();
@@ -320,6 +343,17 @@ function DialogoDaAnalise({
             <EscolherTipo tipo={tipo} aoEscolher={setTipo} />
           ) : !atual ? null : emAndamento(atual.situacao) ? (
             <Andamento />
+          ) : atual.situacao === "done" && atual.resultado && ehRelatorioV1(atual.resultado) ? (
+            <RelatorioDaAnalise
+              analise={atual}
+              podeAgir={podePedir}
+              contato={contexto.contato}
+              negocio={contexto.negocio}
+              aoUsarMensagem={aoUsarMensagem}
+              aoVerMensagem={aoVerMensagem}
+              aoCriado={aoCriado}
+              aoFechar={aoFechar}
+            />
           ) : atual.situacao === "done" && atual.resultado ? (
             <Resultado resultado={atual.resultado} podeAplicar={podePedir} contexto={contexto} aoAplicar={aoAplicar} chave={atual.id} />
           ) : (

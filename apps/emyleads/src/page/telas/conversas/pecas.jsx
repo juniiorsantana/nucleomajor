@@ -350,7 +350,7 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
     mensagem.autor ||
     (saiu && provisoria && mensagem.tom === "humano" ? nomeProprio : null);
   return (
-    <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`}>
+    <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`} data-message-id={mensagem.messageId || undefined}>
       <div
         className={`relative max-w-[78%] rounded-[12px] px-2.5 py-[7px] text-[13px] leading-[19px] ${
           saiu
