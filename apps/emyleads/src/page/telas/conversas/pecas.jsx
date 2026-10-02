@@ -222,7 +222,7 @@ function AvisoDeFalha({ motivo, aoReenviar }) {
           // Ancorado à direita e acima: a bolha que falhou é nossa, e portanto
           // encostada na borda direita da conversa — abrir para a esquerda é o
           // único lado com espaço.
-          className="absolute bottom-full right-0 z-20 mb-1.5 w-[228px] rounded-[10px] border border-line bg-bg p-2.5 text-left shadow-lg"
+          className="absolute bottom-full right-0 z-20 mb-1.5 w-[228px] rounded-ctl border border-line bg-bg p-2.5 text-left "
         >
           <span className="block text-[11.5px] leading-[17px] text-fg">{texto}</span>
           {aoReenviar && (
@@ -235,7 +235,7 @@ function AvisoDeFalha({ motivo, aoReenviar }) {
                 setAberto(false);
                 aoReenviar();
               }}
-              className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-line py-1.5 text-[11.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
+              className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line py-1.5 text-[11.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
             >
               <RotateCw size={12} strokeWidth={2.2} />
               Tentar novamente
@@ -279,7 +279,7 @@ function MidiaDaBolha({ midia, aoAbrir }) {
         type="button"
         onClick={() => aoAbrir?.(midia)}
         title="Abrir imagem"
-        className="my-0.5 block cursor-zoom-in overflow-hidden rounded-[8px]"
+        className="my-0.5 block cursor-zoom-in overflow-hidden rounded-ctl"
       >
         <img
           src={midia.url}
@@ -332,7 +332,7 @@ export function Lightbox({ midia, aoFechar }) {
         src={midia.url}
         alt={midia.nome || "Imagem"}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-full max-w-full rounded-[6px] object-contain"
+        className="max-h-full max-w-full rounded-ctl object-contain"
       />
     </div>
   );
@@ -352,10 +352,10 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
   return (
     <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`} data-message-id={mensagem.messageId || undefined}>
       <div
-        className={`relative max-w-[78%] rounded-[12px] px-2.5 py-[7px] text-[13px] leading-[19px] ${
+        className={`relative max-w-[78%] rounded-none px-2.5 py-[7px] text-[13px] leading-[19px] ${
           saiu
-            ? "rounded-tr-[4px] border border-accent/25 bg-accent-soft"
-            : "rounded-tl-[4px] border border-line bg-bg"
+            ? "rounded-tr-ctl border border-accent/25 bg-accent-soft"
+            : "rounded-tl-ctl border border-line bg-bg"
         } text-fg`}
       >
         {autor && (
@@ -364,7 +364,7 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
           </span>
         )}
         {mensagem.cita && (
-          <span className="mb-1 block rounded-[5px] border-l-[3px] border-accent bg-accent/[0.07] px-2 py-1">
+          <span className="mb-1 block rounded-ctl border-l-[3px] border-accent bg-accent/[0.07] px-2 py-1">
             <span className="block text-[10.5px] font-semibold text-accent-forte">
               {mensagem.cita.quem}
             </span>
@@ -464,7 +464,7 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
     <div className="flex flex-none items-center gap-2.5 border-t border-line bg-bg px-3.5 py-2">
       <Headset size={14} strokeWidth={1.8} className="flex-none text-faint" />
       <span className="hidden flex-none text-[11.5px] text-faint lg:block">Atendimento</span>
-      <span className="flex flex-none gap-0.5 rounded-[9px] border border-line bg-surface p-0.5">
+      <span className="flex flex-none gap-0.5 rounded-ctl border border-line bg-surface p-0.5">
         {OPCOES_DE_DONO.map((opcao) => {
           const Icone = ICONE_DO_DONO[opcao.id];
           const ativo = opcao.id === dono;
@@ -475,9 +475,9 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
               <button
                 onClick={() => (humano ? setMenu((v) => !v) : escolher(opcao.id))}
                 title={EXPLICACAO_DO_DONO[opcao.id]}
-                className={`flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-[11px] transition-colors ${
+                className={`flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-ctl px-2.5 py-1 text-[11px] transition-colors ${
                   ativo
-                    ? "bg-bg font-semibold text-fg shadow-[0_1px_2px_rgba(18,23,48,.12)]"
+                    ? "bg-bg font-semibold text-fg "
                     : "font-medium text-sub hover:text-fg"
                 }`}
               >
@@ -487,7 +487,7 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
               </button>
 
               {humano && menu && (
-                <span className="absolute bottom-full left-0 z-20 mb-1.5 flex w-56 flex-col overflow-hidden rounded-[10px] border border-line bg-bg py-1 shadow-[0_10px_30px_rgba(18,23,48,.16)]">
+                <span className="absolute bottom-full left-0 z-20 mb-1.5 flex w-56 flex-col overflow-hidden rounded-ctl border border-line bg-bg py-1 ">
                   <span className="px-3 pb-1 pt-1.5 text-[9.5px] font-bold uppercase tracking-[.08em] text-faint">
                     Quem assume
                   </span>
@@ -733,7 +733,7 @@ export function Composer({
     <button
       onClick={() => aoAlternarAba(nome)}
       title={titulo}
-      className={`flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[9px] transition-colors ${
+      className={`flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-ctl transition-colors ${
         aba === nome ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface-hover hover:text-fg"
       }`}
     >
@@ -749,13 +749,13 @@ export function Composer({
       {anexo && (
         <div
           data-testid="anexo"
-          className="mb-1.5 flex items-center gap-2.5 rounded-[12px] border border-line bg-surface px-2.5 py-2"
+          className="mb-1.5 flex items-center gap-2.5 rounded-none border border-line bg-surface px-2.5 py-2"
         >
           {anexo.tipo === "imagem" ? (
             <img
               src={anexo.url || undefined}
               alt={anexo.nome}
-              className="h-14 w-14 flex-none rounded-[8px] object-cover"
+              className="h-14 w-14 flex-none rounded-ctl object-cover"
             />
           ) : (
             <audio
@@ -772,13 +772,13 @@ export function Composer({
             type="button"
             onClick={largarAnexo}
             title="Remover anexo"
-            className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub hover:bg-surface-hover hover:text-fg"
+            className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg"
           >
             <X size={17} strokeWidth={2} />
           </button>
         </div>
       )}
-      <div className="flex items-end gap-1.5 rounded-[14px] border border-line bg-bg px-1.5 py-1 shadow-[0_6px_22px_rgba(18,23,48,.06)]">
+      <div className="flex items-end gap-1.5 rounded-none border border-line bg-bg px-1.5 py-1 ">
         <input
           ref={entradaDeArquivo}
           type="file"
@@ -792,7 +792,7 @@ export function Composer({
           title={podeAnexar ? "Anexar imagem" : "Anexar — indisponível aqui"}
           disabled={!podeAnexar || Boolean(gravacao)}
           onClick={() => entradaDeArquivo.current?.click()}
-          className={`flex h-8 w-8 flex-none items-center justify-center rounded-[9px] text-sub ${
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-ctl text-sub ${
             podeAnexar ? "cursor-pointer hover:bg-surface-hover hover:text-fg" : "opacity-40"
           }`}
         >
@@ -822,7 +822,7 @@ export function Composer({
         <button
           title="Emoji — ainda sem seletor"
           disabled
-          className="flex h-8 w-8 flex-none items-center justify-center rounded-[9px] text-sub opacity-40"
+          className="flex h-8 w-8 flex-none items-center justify-center rounded-ctl text-sub opacity-40"
         >
           <Smile size={18} strokeWidth={1.8} />
         </button>
@@ -832,7 +832,7 @@ export function Composer({
               type="button"
               onClick={() => pararGravacao(true)}
               title="Descartar gravação"
-              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] text-sub hover:bg-surface-hover hover:text-danger"
+              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-danger"
             >
               <Trash2 size={18} strokeWidth={1.9} />
             </button>
@@ -840,7 +840,7 @@ export function Composer({
               type="button"
               onClick={() => pararGravacao(false)}
               title="Parar gravação"
-              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] bg-danger text-white transition-all hover:brightness-110"
+              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-danger text-white transition-all hover:brightness-110"
             >
               <Square size={16} strokeWidth={2.2} />
             </button>
@@ -850,7 +850,7 @@ export function Composer({
             onClick={mandar}
             disabled={enviando}
             title="Enviar"
-            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-[11px] bg-accent text-white transition-all hover:brightness-110 disabled:opacity-60"
+            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-white transition-all hover:brightness-110 disabled:opacity-60"
           >
             <SendHorizontal size={17} strokeWidth={2} />
           </button>
@@ -860,7 +860,7 @@ export function Composer({
             title={podeGravar ? "Gravar áudio" : "Gravar áudio — indisponível neste navegador"}
             disabled={!podeGravar}
             onClick={comecarGravacao}
-            className={`flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] text-sub ${
+            className={`flex h-[38px] w-[38px] flex-none items-center justify-center rounded-ctl text-sub ${
               podeGravar ? "cursor-pointer hover:bg-surface-hover hover:text-fg" : "opacity-40"
             }`}
           >

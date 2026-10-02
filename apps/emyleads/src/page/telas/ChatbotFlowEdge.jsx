@@ -28,7 +28,7 @@ export function Fio({
     targetY,
     sourcePosition,
     targetPosition,
-    borderRadius: 14,
+    borderRadius: 0,
   });
   const barra = (selected || data.emFoco) && (data.aoInserir || data.aoRemover);
 

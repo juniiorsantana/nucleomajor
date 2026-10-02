@@ -66,7 +66,7 @@ export default function ListaConhecimento({
         })}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-[12px] border border-line bg-bg">
+      <div className="mt-3 overflow-hidden rounded-none border border-line bg-bg">
         {documentos.length === 0 ? (
           <div className="p-10 text-center">
             <BookOpen size={26} className="mx-auto text-faint" />

@@ -73,7 +73,7 @@ Os tokens de execução vivem em `apps/emyleads/src/ui/theme.css` (variáveis `-
 
 ## Typography
 
-Geist para tudo, com Geist Mono para valores, horários e telefones; números tabulares em colunas. Seis tamanhos: 28 (título de tela), 20 (seção), 15 (destaque), 13 (corpo), 12 (apoio), 11 (metadado). Campos no celular usam 16 px. *Em adoção: o portal ainda usa a fonte do sistema até a etapa 2.*
+Geist para tudo, com Geist Mono para valores, horários e telefones; números tabulares em colunas. Seis tamanhos: 28 (título de tela), 20 (seção), 15 (destaque), 13 (corpo), 12 (apoio), 11 (metadado). Campos no celular usam 16 px.
 
 ## Layout
 
@@ -83,11 +83,11 @@ Geist para tudo, com Geist Mono para valores, horários e telefones; números ta
 
 ## Elevation & Depth
 
-Sem sombra. Camada aparece por borda mais forte; modal, por fundo escurecido atrás. *Em adoção: as sombras atuais saem na etapa 2.*
+Sem sombra. Camada aparece por borda mais forte; modal, por fundo escurecido atrás.
 
 ## Shapes
 
-Raio 0 em painéis, listas, menus e modais; 2px em botões, campos e etiquetas; círculo só em avatar, contador e ponto de status. *Em adoção: os raios atuais saem na etapa 2.*
+Raio 0 em painéis, listas, menus e modais (`rounded-none`); 2px em botões, campos e etiquetas (`rounded-ctl`); círculo só em avatar, contador e ponto de status (`rounded-full`). Não usar `rounded-[Npx]`.
 
 ## Components
 

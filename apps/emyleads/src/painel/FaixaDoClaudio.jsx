@@ -47,7 +47,7 @@ export default function FaixaDoClaudio({ aoAbrirEmpresa = () => {} }) {
         const texto = descreverAlertaDoModelo(alerta);
         return (
           <div key={alerta.conexaoId} role="alert"
-            className={`mx-auto flex w-full max-w-6xl items-start gap-3 rounded-[12px] border px-4 py-3 text-[12.5px] text-fg ${TONS[texto.tom] || TONS.aviso}`}>
+            className={`mx-auto flex w-full max-w-6xl items-start gap-3 rounded-none border px-4 py-3 text-[12.5px] text-fg ${TONS[texto.tom] || TONS.aviso}`}>
             <span className="flex-none text-[20px] leading-none" aria-hidden="true">{texto.emoji}</span>
             <div className="min-w-0 flex-1">
               <p className="font-semibold">

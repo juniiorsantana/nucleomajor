@@ -50,10 +50,11 @@
   --el-flow: #0a7489;
   --el-flow-soft: #e6f3f5;
   --el-control-height: 44px;
-  --el-radius-control: 10px;
-  --el-radius-panel: 20px;
+  --el-radius-control: 2px;
+  --el-radius-panel: 0px;
   --el-space-page: 24px;
-  --el-shadow-floating: 0 8px 32px #12173024;
+  /* Sem sombra: camada aparece por borda forte (e fundo escurecido no modal). */
+  --el-shadow-floating: none;
   --el-success: #2f7a4e;
   --el-success-soft: #eaf3ed;
   --el-warning: #8f5e00;
@@ -124,10 +125,15 @@
   --color-danger: var(--el-danger);
   --color-danger-soft: var(--el-danger-soft);
 
-  --font-sans: "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Geist Variable", -apple-system, "SF Pro Text", "Segoe UI Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-  --radius-el: 6px;
-  --radius-el-lg: 8px;
+  /* Dois raios só: 0 na estrutura (painel, lista, modal, menu) e 2px no
+     controle (botão, campo, etiqueta). Círculo fica para avatar, contador e
+     ponto de status (`rounded-full`). */
+  --radius-ctl: 2px;
+  --radius-el: 2px;
+  --radius-el-lg: 2px;
 }
 
 /* Shared product controls and mobile navigation. */
@@ -151,16 +157,16 @@
   .portal-shell :where(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: var(--el-control-height); }
   .portal-shell :where(button) { touch-action: manipulation; }
   .mobile-dock { position: fixed; z-index: 20; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 4px; width: min(360px, calc(100% - 32px)); padding: 6px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-panel); background: var(--el-bg); box-shadow: var(--el-shadow-floating); }
-  .mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 44px; height: 52px; border-radius: 14px; color: var(--el-sub); cursor: pointer; transition: background-color 150ms, color 150ms; }
+  .mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 44px; height: 52px; border-radius: var(--el-radius-control); color: var(--el-sub); cursor: pointer; transition: background-color 150ms, color 150ms; }
   .mobile-dock-item[aria-current=page], .mobile-dock-item[data-active] { color: var(--el-accent-forte); background: var(--el-accent-soft); }
   .mobile-dock-item[aria-current=page]::after { content: ''; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
   .mobile-dock-item:active { background: var(--el-surface-hover); }
   .mobile-menu[open] { display: block; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 85dvh; border: 0; padding: 0; background: transparent; color: var(--el-fg); overflow-y: auto; }
   .mobile-menu::backdrop { background: rgba(17, 17, 19, .44); }
-  .mobile-menu-surface { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--el-bg); border-radius: 24px 24px 0 0; }
+  .mobile-menu-surface { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--el-bg); border-radius: 0; border-top: 1px solid var(--el-line-strong); }
   .mobile-menu-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 18px; font-weight: 600; }
   .mobile-menu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .mobile-menu-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 88px; padding: 8px; border-radius: 14px; background: var(--el-surface); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+  .mobile-menu-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 88px; padding: 8px; border-radius: var(--el-radius-control); background: var(--el-surface); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
   .mobile-menu-grid button[aria-current=page] { background: var(--el-accent-soft); color: var(--el-accent-forte); }
   .mobile-menu-account { border-top: 1px solid var(--el-line); padding-top: 16px; margin-top: 16px; }
 }
@@ -177,7 +183,7 @@
   }
   .scrollbar-fina::-webkit-scrollbar-thumb {
     background: var(--el-line-strong);
-    border-radius: 999px;
+    border-radius: 0;
   }
   .scrollbar-fina::-webkit-scrollbar-track {
     background: transparent;

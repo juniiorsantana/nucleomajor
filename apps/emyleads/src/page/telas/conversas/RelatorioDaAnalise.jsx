@@ -56,7 +56,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
 
   return (
     <div>
-      <section aria-label="Atendimento Score" className="rounded-[12px] border border-line px-3.5 py-3">
+      <section aria-label="Atendimento Score" className="rounded-none border border-line px-3.5 py-3">
         <span className="text-[10.5px] font-bold uppercase tracking-[.08em] text-faint">Atendimento Score</span>
         <p className={`mt-0.5 font-semibold tabular-nums ${cobertura && !cobertura.conclusiva ? "text-[16px] text-sub" : "text-[20px] text-fg"}`}>
           {cobertura ? `${atendimento.score}/100` : notaEmTexto(atendimento)}
@@ -92,7 +92,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
             {diagnostico.why_this_score.map((motivo, indice) => (
               <li key={indice} className="text-[12px] leading-[17px] text-fg">
                 {motivo.criterion && (
-                  <span className="mr-1.5 rounded-[5px] bg-surface-hover px-1.5 py-[1px] text-[10.5px] font-semibold text-sub">
+                  <span className="mr-1.5 rounded-ctl bg-surface-hover px-1.5 py-[1px] text-[10.5px] font-semibold text-sub">
                     {NOME_DO_CRITERIO[motivo.criterion] || motivo.criterion}
                   </span>
                 )}
@@ -110,7 +110,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
             {acoes.map((acao, indice) => (
               <div
                 key={indice}
-                className={`rounded-[10px] px-3 py-2 ${indice === 0 ? "bg-accent-soft" : "border border-line"}`}
+                className={`rounded-ctl px-3 py-2 ${indice === 0 ? "bg-accent-soft" : "border border-line"}`}
               >
                 <div className="flex items-baseline gap-2">
                   <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-fg">{limpo(acao.title || acao.instruction)}</span>
@@ -130,12 +130,12 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
 
       {sugerida && (
         <Bloco titulo="Mensagem sugerida">
-          <p className="whitespace-pre-wrap rounded-[10px] border border-line px-3 py-2 text-[12.5px] leading-[18px] text-fg">{sugerida}</p>
+          <p className="whitespace-pre-wrap rounded-ctl border border-line px-3 py-2 text-[12.5px] leading-[18px] text-fg">{sugerida}</p>
           {podeAgir && usarMensagem && (
             <button
               type="button"
               onClick={() => usarMensagem(sugerida)}
-              className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
+              className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
             >
               <MessageSquareText size={13} strokeWidth={2} />
               Usar mensagem sugerida
@@ -248,7 +248,7 @@ function AcaoSugerida({ acao, sugerida, contato, negocio, aoUsarMensagem, aoCria
       <button
         type="button"
         onClick={() => aoUsarMensagem(sugerida)}
-        className="mt-1.5 cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
+        className="mt-1.5 cursor-pointer rounded-ctl border border-line bg-bg px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
       >
         {rotulo}
       </button>
@@ -270,7 +270,7 @@ function AcaoSugerida({ acao, sugerida, contato, negocio, aoUsarMensagem, aoCria
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="mt-1.5 cursor-pointer rounded-[8px] border border-line bg-bg px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
+        className="mt-1.5 cursor-pointer rounded-ctl border border-line bg-bg px-2.5 py-1 text-[11.5px] font-semibold text-accent-forte hover:border-accent"
       >
         {rotulo}
       </button>
@@ -305,12 +305,12 @@ function AcaoSugerida({ acao, sugerida, contato, negocio, aoUsarMensagem, aoCria
   };
 
   return (
-    <form onSubmit={criar} className="mt-2 flex flex-col gap-1.5 rounded-[9px] border border-line bg-bg p-2">
+    <form onSubmit={criar} className="mt-2 flex flex-col gap-1.5 rounded-ctl border border-line bg-bg p-2">
       <input
         aria-label="Título"
         value={titulo}
         onChange={(evento) => setTitulo(evento.target.value)}
-        className="rounded-[7px] border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
+        className="rounded-ctl border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
       />
       <div className="flex gap-1.5">
         <input
@@ -318,14 +318,14 @@ function AcaoSugerida({ acao, sugerida, contato, negocio, aoUsarMensagem, aoCria
           aria-label="Data"
           value={data}
           onChange={(evento) => setData(evento.target.value)}
-          className="min-w-0 flex-1 rounded-[7px] border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
+          className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
         />
         <input
           type="time"
           aria-label="Hora"
           value={hora}
           onChange={(evento) => setHora(evento.target.value)}
-          className="w-[96px] rounded-[7px] border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
+          className="w-[96px] rounded-ctl border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent"
         />
       </div>
       {!prazo.hora && prazo.data && <span className="text-[10.5px] text-faint">A conversa não diz o horário: escolha antes de criar.</span>}
@@ -337,7 +337,7 @@ function AcaoSugerida({ acao, sugerida, contato, negocio, aoUsarMensagem, aoCria
         <button
           type="submit"
           disabled={estado === "salvando"}
-          className="cursor-pointer rounded-[7px] bg-accent px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
+          className="cursor-pointer rounded-ctl bg-accent px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-50"
         >
           {estado === "salvando" ? "Criando…" : "Criar"}
         </button>

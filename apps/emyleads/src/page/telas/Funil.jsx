@@ -135,7 +135,7 @@ function ResumoFunilCompacto({ dados, negocios, abertos, aoVerRelatorios }) {
     { rotulo: "Taxa de ganho", valor: atual.taxaDeGanho == null ? "—" : `${Math.round(atual.taxaDeGanho * 100)}%`, detalhe: `${atual.ganhos} ${atual.ganhos === 1 ? "ganho" : "ganhos"} · ${atual.perdidos} ${atual.perdidos === 1 ? "perdido" : "perdidos"}`, Icone: Filter, tom: "accent" },
   ];
 
-  const chip = (ativo) => `cursor-pointer whitespace-nowrap rounded-[6px] px-2 py-1 text-[11.5px] font-medium transition-colors ${ativo ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface hover:text-fg"}`;
+  const chip = (ativo) => `cursor-pointer whitespace-nowrap rounded-ctl px-2 py-1 text-[11.5px] font-medium transition-colors ${ativo ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface hover:text-fg"}`;
 
   return (
     <div className="flex flex-col gap-2">
@@ -151,9 +151,9 @@ function ResumoFunilCompacto({ dados, negocios, abertos, aoVerRelatorios }) {
         ))}
         {presetId === "personalizado" && (
           <span className="flex items-center gap-1 text-[11.5px] text-sub">
-            <input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De" className="rounded-[6px] border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
+            <input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De" className="rounded-ctl border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
             até
-            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até" className="rounded-[6px] border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
+            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até" className="rounded-ctl border border-line bg-bg px-1.5 py-0.5 text-[11.5px] text-fg outline-none focus:border-accent" />
           </span>
         )}
         {aoVerRelatorios && (
@@ -165,7 +165,7 @@ function ResumoFunilCompacto({ dados, negocios, abertos, aoVerRelatorios }) {
       </div>
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       {itens.map(({ rotulo, valor, detalhe, Icone, tom, atual: a, anterior: b }) => (
-        <div key={rotulo} className="flex min-w-0 items-center justify-between rounded-[10px] border border-line bg-bg px-3.5 py-2.5 shadow-[0_1px_2px_rgba(18,23,48,0.03)]">
+        <div key={rotulo} className="flex min-w-0 items-center justify-between rounded-ctl border border-line bg-bg px-3.5 py-2.5 ">
           <div className="min-w-0">
             <span className="block text-[9px] font-bold uppercase tracking-[0.1em] text-faint">{rotulo}</span>
             <div className="mt-1 flex min-w-0 items-baseline gap-2">
@@ -174,7 +174,7 @@ function ResumoFunilCompacto({ dados, negocios, abertos, aoVerRelatorios }) {
               <VariacaoCurta atual={a} anterior={b} />
             </div>
           </div>
-          <span className={`ml-2 flex h-7 w-7 flex-none items-center justify-center rounded-[7px] ${tom === "success" ? "bg-success-soft text-success" : tom === "neutral" ? "bg-surface text-sub" : "bg-accent-soft text-accent-forte"}`}>
+          <span className={`ml-2 flex h-7 w-7 flex-none items-center justify-center rounded-ctl ${tom === "success" ? "bg-success-soft text-success" : tom === "neutral" ? "bg-surface text-sub" : "bg-accent-soft text-accent-forte"}`}>
             <Icone size={14} strokeWidth={1.9} />
           </span>
         </div>
@@ -207,7 +207,7 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
   if (escolhido && !aberto) {
     return (
       <div>
-      <div className="flex items-center gap-2 rounded-[8px] border border-line bg-bg px-2.5 py-1.5">
+      <div className="flex items-center gap-2 rounded-ctl border border-line bg-bg px-2.5 py-1.5">
         <Iniciais nome={escolhido.nome} tamanho={24} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-medium text-fg">{escolhido.nome || "Sem nome"}</div>
@@ -218,13 +218,13 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
         <button
           type="button"
           onClick={() => setAberto(true)}
-          className="cursor-pointer rounded-[6px] px-2 py-1 text-[12px] font-medium text-accent-forte hover:bg-accent-soft"
+          className="cursor-pointer rounded-ctl px-2 py-1 text-[12px] font-medium text-accent-forte hover:bg-accent-soft"
         >
           Trocar
         </button>
       </div>
       {!ehLead(escolhido) && (
-        <p className="mt-1.5 flex items-start gap-1.5 rounded-[8px] bg-warning/10 px-2.5 py-2 text-[12px] leading-[17px] text-fg">
+        <p className="mt-1.5 flex items-start gap-1.5 rounded-ctl bg-warning/10 px-2.5 py-2 text-[12px] leading-[17px] text-fg">
           <UserPlus size={14} className="mt-[1px] flex-none text-warning" />
           <span>
             <strong className="font-semibold">{escolhido.nome || "Este contato"}</strong> ainda não é lead.
@@ -237,7 +237,7 @@ function SeletorDeLead({ contatos, valor, aoMudar }) {
   }
 
   return (
-    <div className="rounded-[8px] border border-line bg-bg focus-within:border-accent">
+    <div className="rounded-ctl border border-line bg-bg focus-within:border-accent">
       <div className="flex items-center gap-2 px-3">
         <Search size={14} className="flex-none text-faint" />
         <input
@@ -379,7 +379,7 @@ function FormularioNegocio({ negocio, contatos, negocios = [], estagios, idFecha
             <SeletorDeLead contatos={contatos} valor={form.contactId} aoMudar={(id) => alterar("contactId", id)} />
           </CampoFormulario>
           {existente && (
-            <div className="col-span-2 rounded-[8px] border border-accent/30 bg-accent-soft/50 px-3 py-2.5 text-[12.5px] text-sub">
+            <div className="col-span-2 rounded-ctl border border-accent/30 bg-accent-soft/50 px-3 py-2.5 text-[12.5px] text-sub">
               Este lead já está no Funil
               {existente.titulo ? <> com <strong className="font-semibold text-fg">{existente.titulo}</strong></> : ""}.
               {aoEditarExistente && (
@@ -478,7 +478,7 @@ function FormularioNegocio({ negocio, contatos, negocios = [], estagios, idFecha
             <button
               type="button"
               onClick={aoFechar}
-              className="cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg"
+              className="cursor-pointer rounded-ctl px-3 py-2 text-[13px] font-medium text-sub hover:text-fg"
             >
               Cancelar
             </button>
@@ -517,7 +517,7 @@ function ModalPerda({ negocio, aoConfirmar, aoFechar }) {
           </CampoFormulario>
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-ctl px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
             Cancelar
           </button>
           <BotaoPrimario type="submit" className="!py-2">Marcar perdido</BotaoPrimario>
@@ -547,7 +547,7 @@ function ModalMover({ negocio, colunas, idFechado, aoMover, aoEditar, aoFechar }
                   type="button"
                   disabled={aqui}
                   onClick={() => aoMover(coluna.id)}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-[8px] px-2 py-2 text-left text-[13px] text-fg hover:bg-surface-hover disabled:cursor-default disabled:bg-accent-soft disabled:text-accent-forte"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-ctl px-2 py-2 text-left text-[13px] text-fg hover:bg-surface-hover disabled:cursor-default disabled:bg-accent-soft disabled:text-accent-forte"
                 >
                   <coluna.Icone size={14} className={coluna.cor} />
                   <span className="flex-1">{coluna.nome}</span>
@@ -579,7 +579,7 @@ function CardNegocio({ negocio, contato, arrastando, aoArrastar, aoSoltarCard, a
       }}
       onDragEnd={aoSoltarCard}
       onClick={() => aoEditar(negocio)}
-      className={`group cursor-grab rounded-[9px] border border-line bg-bg p-2.5 shadow-[0_1px_2px_rgba(18,23,48,0.03)] transition-all hover:border-line-strong hover:shadow-md active:cursor-grabbing ${arrastando ? "opacity-40" : ""}`}
+      className={`group cursor-grab rounded-ctl border border-line bg-bg p-2.5  transition-all hover:border-line-strong  active:cursor-grabbing ${arrastando ? "opacity-40" : ""}`}
     >
       <div className="flex items-start gap-2">
         <Iniciais nome={contato?.nome} tamanho={27} />
@@ -614,14 +614,14 @@ function CardNegocio({ negocio, contato, arrastando, aoArrastar, aoSoltarCard, a
           }}
           title="Mover ou editar"
           aria-label={`Mover ou editar ${negocio.titulo || "negócio"}`}
-          className="-mr-1 -mt-0.5 flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-[6px] text-faint hover:bg-surface-hover hover:text-fg"
+          className="-mr-1 -mt-0.5 flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-ctl text-faint hover:bg-surface-hover hover:text-fg"
         >
           <MoreHorizontal size={15} />
         </button>
       </div>
 
       {negocio.status === "perdido" && negocio.motivoPerda && (
-        <p className="mt-2 truncate rounded-[6px] bg-danger/5 px-2 py-1 text-[10.5px] text-danger" title={negocio.motivoPerda}>
+        <p className="mt-2 truncate rounded-ctl bg-danger/5 px-2 py-1 text-[10.5px] text-danger" title={negocio.motivoPerda}>
           {negocio.motivoPerda}
         </p>
       )}
@@ -721,7 +721,7 @@ function Coluna({ coluna, negocios, total, destacada, aoEntrar, aoSair, aoSoltar
         e.preventDefault();
         aoSoltar(e.dataTransfer.getData("text/plain"), coluna.id);
       }}
-      className={`flex min-h-[390px] min-w-[224px] flex-1 flex-col rounded-[10px] border p-2.5 transition-colors ${
+      className={`flex min-h-[390px] min-w-[224px] flex-1 flex-col rounded-ctl border p-2.5 transition-colors ${
         destacada ? "border-accent bg-accent-soft/40" : `border-line ${coluna.fundo || "bg-bg"}`
       }`}
     >
@@ -734,7 +734,7 @@ function Coluna({ coluna, negocios, total, destacada, aoEntrar, aoSair, aoSoltar
       <div className="flex flex-1 flex-col gap-2">
         {children}
         {negocios.length === 0 && (
-          <p className={`rounded-[8px] px-2 py-8 text-center text-[12px] ${destacada ? "text-accent-forte" : "text-faint"}`}>
+          <p className={`rounded-ctl px-2 py-8 text-center text-[12px] ${destacada ? "text-accent-forte" : "text-faint"}`}>
             {destacada ? "Solte aqui" : coluna.vazio || "Nenhum negócio"}
           </p>
         )}
@@ -868,7 +868,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
         <div className="flex flex-col gap-3">
           <ResumoFunilCompacto dados={dados} negocios={visiveis} abertos={abertos} aoVerRelatorios={aoVerRelatorios} />
 
-          <div className="flex flex-wrap items-center gap-1.5 rounded-[9px] border border-line bg-bg px-2 py-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-ctl border border-line bg-bg px-2 py-1.5">
             <span className="mr-1 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">
               <Filter size={12} strokeWidth={1.8} />
               Filtros
@@ -891,7 +891,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
           </div>
 
           {erro && (
-            <p className="flex items-center gap-2 rounded-[10px] bg-danger/10 px-4 py-3 text-[13px] text-danger">
+            <p className="flex items-center gap-2 rounded-ctl bg-danger/10 px-4 py-3 text-[13px] text-danger">
               <span className="flex-1">Não deu para mover: {erro}</span>
               <button type="button" onClick={() => setErro(null)} className="cursor-pointer" aria-label="Fechar aviso"><X size={14} /></button>
             </p>
@@ -927,7 +927,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
                         <button
                           type="button"
                           onClick={() => setVerTodosFechados((v) => !v)}
-                          className="mt-2 cursor-pointer rounded-[7px] py-1.5 text-[11px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
+                          className="mt-2 cursor-pointer rounded-ctl py-1.5 text-[11px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
                         >
                           {verTodosFechados ? "Mostrar só os últimos 30 dias" : `Ver mais ${escondidos} antigo${escondidos === 1 ? "" : "s"}`}
                         </button>

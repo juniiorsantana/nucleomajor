@@ -79,17 +79,17 @@ export default function DetalheEvento({
       rodape={temAcoes ? (
         <>
           {!tarefa && podeEditar && (
-            <button type="button" onClick={aoExcluir} aria-label="Excluir compromisso" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 md:min-h-9 md:text-[13px]">
+            <button type="button" onClick={aoExcluir} aria-label="Excluir compromisso" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-ctl px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 md:min-h-9 md:text-[13px]">
               <Trash2 size={16} /><span className="hidden sm:inline">Excluir</span>
             </button>
           )}
           {tarefa && podeConcluir && (
-            <button type="button" onClick={aoConcluir} className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-success px-3 text-[14px] font-semibold text-white hover:brightness-105 md:min-h-9 md:flex-none md:text-[13px]">
+            <button type="button" onClick={aoConcluir} className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-success px-3 text-[14px] font-semibold text-white hover:brightness-105 md:min-h-9 md:flex-none md:text-[13px]">
               <CheckCircle2 size={16} />Concluir
             </button>
           )}
           {podeEditar && (
-            <button type="button" onClick={aoEditar} className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-4 text-[14px] font-semibold md:min-h-9 md:text-[13px] ${tarefa ? "flex-1 border border-line text-fg hover:border-line-strong md:flex-none" : "ml-auto flex-1 bg-accent text-white hover:brightness-110 md:flex-none"}`}>
+            <button type="button" onClick={aoEditar} className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-ctl px-4 text-[14px] font-semibold md:min-h-9 md:text-[13px] ${tarefa ? "flex-1 border border-line text-fg hover:border-line-strong md:flex-none" : "ml-auto flex-1 bg-accent text-white hover:brightness-110 md:flex-none"}`}>
               <Pencil size={15} />{tarefa ? "Abrir tarefa" : "Editar"}
             </button>
           )}
@@ -98,7 +98,7 @@ export default function DetalheEvento({
     >
       <div className="px-4 pb-4 pt-2 md:px-5 md:pt-5">
         <div className="flex items-start gap-3">
-          <span className="mt-1.5 h-3.5 w-3.5 flex-none rounded-[4px]" style={{ backgroundColor: cor }} aria-hidden="true" />
+          <span className="mt-1.5 h-3.5 w-3.5 flex-none rounded-ctl" style={{ backgroundColor: cor }} aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <h2 className="text-[19px] font-semibold leading-6 text-fg md:text-[17px]">{evento.titulo || "Sem título"}</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -116,7 +116,7 @@ export default function DetalheEvento({
               )}
             </div>
           </div>
-          <button type="button" onClick={aoFechar} aria-label="Fechar" className="-mr-2 -mt-1 flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
+          <button type="button" onClick={aoFechar} aria-label="Fechar" className="-mr-2 -mt-1 flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
             <span aria-hidden="true" className="text-[22px] leading-none">×</span>
           </button>
         </div>
@@ -159,7 +159,7 @@ export default function DetalheEvento({
         </dl>
 
         {podeMover && !evento.diaInteiro && (
-          <section className="mt-2 rounded-[12px] border border-line p-3">
+          <section className="mt-2 rounded-none border border-line p-3">
             <h3 className="text-[13px] font-semibold text-sub md:text-[12px]">{tarefa ? "Adiar o prazo" : "Mudar o horário"}</h3>
             <div className="mt-2 grid grid-cols-4 gap-1.5">
               {REAGENDAR.map((opcao) => (
@@ -167,7 +167,7 @@ export default function DetalheEvento({
                   key={opcao.id}
                   type="button"
                   onClick={() => aoReagendar(opcao.delta, opcao.rotulo)}
-                  className="min-h-11 cursor-pointer rounded-[9px] border border-line px-1 text-[13px] font-semibold text-fg hover:border-accent hover:bg-accent-soft hover:text-accent-forte md:min-h-9 md:text-[12px]"
+                  className="min-h-11 cursor-pointer rounded-ctl border border-line px-1 text-[13px] font-semibold text-fg hover:border-accent hover:bg-accent-soft hover:text-accent-forte md:min-h-9 md:text-[12px]"
                 >
                   {opcao.rotulo}
                 </button>

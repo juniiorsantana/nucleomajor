@@ -62,7 +62,7 @@ export function PedirConexao({ organizationId, podeGerenciar, aoPedir, limite = 
           value={telefone}
           onChange={(e) => setTelefone(e.target.value)}
           placeholder="(65) 99999-9999"
-          className="h-10 w-full rounded-[9px] border border-line bg-bg px-3 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+          className="h-10 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
         />
       </label>
       {erro && <span role="alert" className="text-[12px] text-danger">{erro}</span>}
@@ -165,9 +165,9 @@ export function EstadoVazioConversas({ resumo, carregado, podeGerenciar, aoConec
 }
 
 const BOTAO_PRIMARIO =
-  "mt-1.5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-semibold text-white transition-colors hover:bg-accent-forte";
+  "mt-1.5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-ctl bg-accent px-4 text-[13px] font-semibold text-white transition-colors hover:bg-accent-forte";
 const BOTAO_SECUNDARIO =
-  "mt-1.5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-[10px] border border-line-strong bg-bg px-4 text-[13px] font-semibold text-fg transition-colors hover:border-accent hover:text-accent-forte";
+  "mt-1.5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-ctl border border-line-strong bg-bg px-4 text-[13px] font-semibold text-fg transition-colors hover:border-accent hover:text-accent-forte";
 
 function Vazio({ icone, tom, titulo, children }) {
   const tons = {
@@ -178,7 +178,7 @@ function Vazio({ icone, tom, titulo, children }) {
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-8">
       <div className="flex max-w-[340px] flex-col items-center gap-2.5 text-center">
-        <div className={`flex h-14 w-14 items-center justify-center rounded-[18px] ${tons[tom]}`}>{icone}</div>
+        <div className={`flex h-14 w-14 items-center justify-center rounded-none ${tons[tom]}`}>{icone}</div>
         <h2 className="mt-1 text-[15px] font-semibold text-fg [text-wrap:balance]">{titulo}</h2>
         <p className="flex flex-col items-center gap-2.5 text-[13px] leading-relaxed text-sub">{children}</p>
       </div>
@@ -244,7 +244,7 @@ export function ModalConectarWhatsApp({ aberto, resumo, qr, pedindo, aoGerar, ao
         role="dialog"
         aria-modal="true"
         aria-labelledby="conectar-whatsapp-titulo"
-        className="w-full max-w-[440px] rounded-[14px] border border-line bg-bg p-5 shadow-[0_8px_24px_rgba(18,23,48,.12)]"
+        className="w-full max-w-[440px] rounded-none border border-line bg-bg p-5 "
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -261,14 +261,14 @@ export function ModalConectarWhatsApp({ aberto, resumo, qr, pedindo, aoGerar, ao
             type="button"
             onClick={aoFechar}
             aria-label="Fechar"
-            className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+            className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={16} aria-hidden="true" />
           </button>
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
-          <div className="mx-auto flex h-[188px] w-[188px] items-center justify-center rounded-[10px] border border-line bg-white">
+          <div className="mx-auto flex h-[188px] w-[188px] items-center justify-center rounded-ctl border border-line bg-white">
             {conectado ? (
               <CheckCircle2 size={44} className="text-success" strokeWidth={1.5} aria-hidden="true" />
             ) : temCodigo ? (
@@ -308,7 +308,7 @@ export function ModalConectarWhatsApp({ aberto, resumo, qr, pedindo, aoGerar, ao
             <button type="button" onClick={aoFechar} className={BOTAO_PRIMARIO}>Pronto</button>
           ) : (
             <>
-              <button type="button" onClick={aoFechar} className="inline-flex min-h-10 cursor-pointer items-center rounded-[10px] px-3 text-[13px] font-semibold text-accent-forte hover:bg-accent-soft">
+              <button type="button" onClick={aoFechar} className="inline-flex min-h-10 cursor-pointer items-center rounded-ctl px-3 text-[13px] font-semibold text-accent-forte hover:bg-accent-soft">
                 Fechar
               </button>
               <button type="button" onClick={aoGerar} disabled={pedindo} className={`${BOTAO_SECUNDARIO} disabled:opacity-40`}>

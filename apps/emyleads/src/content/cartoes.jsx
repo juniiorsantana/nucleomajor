@@ -162,7 +162,7 @@ export function CartaoPerfil({
               className="fixed inset-0 z-10"
               onClick={() => setEscolhendoTag(false)}
             />
-            <div className="absolute left-3 top-full z-20 mt-1 w-44 overflow-hidden rounded-el border border-line bg-bg shadow-lg">
+            <div className="absolute left-3 top-full z-20 mt-1 w-44 overflow-hidden rounded-ctl border border-line bg-bg ">
               {tags.map((t) => {
                 const on = marcadas.includes(t.id);
                 return (
@@ -244,7 +244,7 @@ export function CartaoPerfil({
           <ChevronDown size={12} className={`transition-transform ${tecnicos ? "rotate-180" : ""}`} />
         </button>
         {tecnicos && (
-          <div className="mx-3 mb-2 rounded-el bg-surface px-2">
+          <div className="mx-3 mb-2 rounded-ctl bg-surface px-2">
             {camposTecnicos.map(([chave, valor]) => (
               <div key={chave} className="flex min-w-0 items-center gap-2 border-b border-line/70 py-1 last:border-b-0">
                 <code className="w-16 flex-none text-[9px] text-faint">{chave}</code>
@@ -290,7 +290,7 @@ export function FaixaFunil({ negocios, estagios, contactId, recarregar }) {
   };
 
   const Moldura = ({ children }) => (
-    <section className="overflow-hidden rounded-el-lg border border-line bg-bg">
+    <section className="overflow-hidden rounded-ctl border border-line bg-bg">
       <div className="px-3 pb-1 pt-2.5 text-[9.5px] font-bold uppercase tracking-[0.07em] text-sub">
         Funil de vendas
       </div>
@@ -305,7 +305,7 @@ export function FaixaFunil({ negocios, estagios, contactId, recarregar }) {
         <span className="flex-1 text-[11px] text-faint">Nenhum negócio registrado</span>
         <button
           onClick={criar}
-          className="flex cursor-pointer items-center gap-1 rounded-el border border-line px-2 py-1 text-[11px] font-medium text-accent-forte transition-colors hover:border-accent"
+          className="flex cursor-pointer items-center gap-1 rounded-ctl border border-line px-2 py-1 text-[11px] font-medium text-accent-forte transition-colors hover:border-accent"
         >
           <Plus size={12} /> Negócio
         </button>

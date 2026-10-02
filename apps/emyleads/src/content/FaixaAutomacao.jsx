@@ -51,7 +51,7 @@ function LinhaAtendimento({ contato }) {
             if (membro) definirDono("ia", { id: membro.user_id, nome: nomeDoMembro(membro) });
           }}
           disabled={salvando}
-          className="max-w-[130px] cursor-pointer rounded-el border border-line bg-bg px-1.5 py-0.5 text-[10.5px] text-sub disabled:opacity-40"
+          className="max-w-[130px] cursor-pointer rounded-ctl border border-line bg-bg px-1.5 py-0.5 text-[10.5px] text-sub disabled:opacity-40"
         >
           {membros.map((membro) => (
             <option key={membro.user_id} value={membro.user_id}>
@@ -72,7 +72,7 @@ function LinhaAtendimento({ contato }) {
           return definirDono("humano");
         }}
         disabled={salvando}
-        className="flex-none cursor-pointer rounded-el px-1.5 py-0.5 text-[10.5px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+        className="flex-none cursor-pointer rounded-ctl px-1.5 py-0.5 text-[10.5px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-40"
       >
         {assumido ? "Devolver ao robô" : agenteSelecionado ? "Enviar à IA" : "Assumir"}
       </button>
@@ -167,7 +167,7 @@ export function FaixaAutomacao({ sugestoes, ultimaDoContato, recarregarSugestoes
             title={`Desativar “${armado.nome}” em todas as conversas`}
             onClick={pararEsteBot}
             disabled={parando}
-            className="flex-none cursor-pointer rounded-el px-1.5 py-1 text-[11px] text-sub transition-colors hover:bg-surface-hover hover:text-danger disabled:opacity-40"
+            className="flex-none cursor-pointer rounded-ctl px-1.5 py-1 text-[11px] text-sub transition-colors hover:bg-surface-hover hover:text-danger disabled:opacity-40"
           >
             Parar este bot
           </button>
@@ -176,7 +176,7 @@ export function FaixaAutomacao({ sugestoes, ultimaDoContato, recarregarSugestoes
           title="Pausar todas as respostas automáticas nesta máquina"
           onClick={() => definirPausa(true)}
           disabled={salvando}
-          className="flex flex-none cursor-pointer items-center gap-1 rounded-el border border-line px-1.5 py-1 text-[11px] font-medium text-sub transition-colors hover:border-danger/50 hover:text-danger disabled:opacity-40"
+          className="flex flex-none cursor-pointer items-center gap-1 rounded-ctl border border-line px-1.5 py-1 text-[11px] font-medium text-sub transition-colors hover:border-danger/50 hover:text-danger disabled:opacity-40"
         >
           <Pause size={11} strokeWidth={2.25} />
           Pausar

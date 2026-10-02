@@ -13,7 +13,7 @@ export default function PrimeiroAcesso({ onCriar, podeEscrever }) {
   return (
     <div className="mx-auto max-w-3xl py-6">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[11px] bg-accent-soft text-accent-forte">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-ctl bg-accent-soft text-accent-forte">
           <Sparkles size={19} />
         </span>
         <div>
@@ -36,7 +36,7 @@ export default function PrimeiroAcesso({ onCriar, podeEscrever }) {
               type="button"
               disabled={!podeEscrever}
               onClick={() => onCriar(id)}
-              className="flex items-center gap-4 rounded-[12px] border border-line bg-bg p-4 text-left hover:border-accent hover:bg-surface-hover disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-bg"
+              className="flex items-center gap-4 rounded-none border border-line bg-bg p-4 text-left hover:border-accent hover:bg-surface-hover disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-bg"
             >
               <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-surface text-[12px] font-bold text-sub">
                 {indice + 1}

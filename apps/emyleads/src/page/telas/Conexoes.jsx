@@ -137,21 +137,21 @@ function InterruptorAtendimento({ resumo, conectado, ocupado, somenteLeitura = f
   // mentir exatamente no momento em que alguém confere se ligou.
   if (resumo === undefined) {
     return (
-      <div className="mx-5 mb-4 flex items-center gap-2 rounded-[11px] bg-surface px-4 py-3 text-[12.5px] text-sub">
+      <div className="mx-5 mb-4 flex items-center gap-2 rounded-ctl bg-surface px-4 py-3 text-[12.5px] text-sub">
         <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> Consultando o atendimento…
       </div>
     );
   }
   if (resumo === null) {
     return (
-      <div className="mx-5 mb-4 rounded-[11px] bg-surface px-4 py-3 text-[12.5px] text-sub">
+      <div className="mx-5 mb-4 rounded-ctl bg-surface px-4 py-3 text-[12.5px] text-sub">
         Atendimento automático: não foi possível consultar.
       </div>
     );
   }
   const ativa = !!resumo.iaAtiva;
   return (
-    <div className="mx-5 mb-4 flex items-center gap-3 rounded-[11px] bg-surface px-4 py-3">
+    <div className="mx-5 mb-4 flex items-center gap-3 rounded-ctl bg-surface px-4 py-3">
       {ativa ? (
         <Bot size={16} className="flex-none text-success" aria-hidden="true" />
       ) : (
@@ -279,7 +279,7 @@ function DetalhesAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefini
                     type="button"
                     onClick={() => aoDefinirDono(sessao.contact, opcao.id)}
                     disabled={!!ocupado}
-                    className="flex-none cursor-pointer rounded-[7px] border border-line px-2 py-1 text-[11.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:opacity-40"
+                    className="flex-none cursor-pointer rounded-ctl border border-line px-2 py-1 text-[11.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:opacity-40"
                   >
                     {opcao.rotulo}
                   </button>
@@ -289,7 +289,7 @@ function DetalhesAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefini
                   onClick={() => aoEncerrar(sessao.contact)}
                   disabled={!!ocupado}
                   title="Finalizar não abandona: a próxima mensagem abre um atendimento novo"
-                  className="flex-none cursor-pointer rounded-[7px] px-2 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-danger disabled:opacity-40"
+                  className="flex-none cursor-pointer rounded-ctl px-2 py-1 text-[11.5px] font-medium text-sub transition-colors hover:text-danger disabled:opacity-40"
                 >
                   Finalizar
                 </button>}
@@ -312,11 +312,11 @@ function DetalhesAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefini
 function PainelQr({ qr, final4, aguardando }) {
   if (qr?.status === "awaiting_qr" && qr?.imageData) {
     return (
-      <div className="mx-5 mb-4 grid gap-4 rounded-[12px] border border-dashed border-line-strong p-4 sm:grid-cols-[auto_1fr] sm:items-center">
+      <div className="mx-5 mb-4 grid gap-4 rounded-none border border-dashed border-line-strong p-4 sm:grid-cols-[auto_1fr] sm:items-center">
         <img
           src={qr.imageData}
           alt="QR Code para conectar o WhatsApp"
-          className="mx-auto h-[148px] w-[148px] rounded-[8px] border border-line bg-white p-1.5"
+          className="mx-auto h-[148px] w-[148px] rounded-ctl border border-line bg-white p-1.5"
         />
         <div className="text-[12.5px] leading-relaxed text-sub">
           <ol className="list-decimal space-y-1 pl-4">
@@ -331,7 +331,7 @@ function PainelQr({ qr, final4, aguardando }) {
   }
   if (qr?.erro) {
     return (
-      <div className="mx-5 mb-4 flex items-start gap-3 rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] text-danger">
+      <div className="mx-5 mb-4 flex items-start gap-3 rounded-none border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] text-danger">
         <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
         <div>
           <p className="font-semibold">O código não veio</p>
@@ -343,7 +343,7 @@ function PainelQr({ qr, final4, aguardando }) {
   }
   if (aguardando) {
     return (
-      <div className="mx-5 mb-4 flex items-center gap-3 rounded-[12px] border border-dashed border-line-strong px-4 py-3 text-[12.5px] text-sub">
+      <div className="mx-5 mb-4 flex items-center gap-3 rounded-none border border-dashed border-line-strong px-4 py-3 text-[12.5px] text-sub">
         <LoaderCircle size={18} className="flex-none animate-spin" aria-hidden="true" />
         Pedindo o código à VPS. Leva alguns segundos — deixe esta tela aberta.
       </div>
@@ -454,10 +454,10 @@ function CartaoConexao({
   const somenteLeitura = !!conexao.remoteManaged;
 
   return (
-    <section className="rounded-[14px] border border-line bg-bg">
+    <section className="rounded-none border border-line bg-bg">
       <div className="flex items-start gap-3 px-5 py-4">
         <div
-          className={`flex h-11 w-11 flex-none items-center justify-center rounded-[13px] ${
+          className={`flex h-11 w-11 flex-none items-center justify-center rounded-none ${
             leitura.fase === FASES.CONECTADO ? "bg-success-soft text-success" : "bg-surface-hover text-faint"
           }`}
         >
@@ -479,7 +479,7 @@ function CartaoConexao({
       </div>
 
       {divergente && (
-        <div className="mx-5 mb-4 flex items-start gap-3 rounded-[12px] border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] leading-relaxed text-danger">
+        <div className="mx-5 mb-4 flex items-start gap-3 rounded-none border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] leading-relaxed text-danger">
           <ShieldAlert size={17} className="mt-0.5 flex-none" aria-hidden="true" />
           <p>
             O aparelho pareado é {estado.phoneMasked || "outro número"}, mas esta
@@ -531,7 +531,7 @@ function CartaoConexao({
               type="button"
               onClick={aoReconectar}
               disabled={!!ocupado}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[9px] border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-ctl border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
             >
               <RefreshCw size={15} className={ocupado === "reconectar" ? "animate-spin" : ""} aria-hidden="true" />
               Reconectar
@@ -648,7 +648,7 @@ function CartaoConexao({
                   }
                 }}
                 disabled={!!ocupado}
-                className="cursor-pointer rounded-[7px] px-2 py-1 text-[11.5px] font-semibold text-danger hover:bg-danger/10 disabled:opacity-40"
+                className="cursor-pointer rounded-ctl px-2 py-1 text-[11.5px] font-semibold text-danger hover:bg-danger/10 disabled:opacity-40"
               >
                 Revogar
               </button>
@@ -693,7 +693,7 @@ function CartaoConexao({
                 type="button"
                 onClick={aoRevogar}
                 disabled={!!ocupado}
-                className="ml-auto flex min-h-10 cursor-pointer items-center gap-2 rounded-[9px] px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
+                className="ml-auto flex min-h-10 cursor-pointer items-center gap-2 rounded-ctl px-3 text-[13px] font-medium text-sub hover:text-danger disabled:opacity-40"
               >
                 <Unplug size={15} aria-hidden="true" /> Revogar acesso local
               </button>
@@ -985,7 +985,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
             type="button"
             onClick={() => executar("atualizar", () => carregar())}
             disabled={ocupado === "atualizar"}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-line px-4 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
+            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
           >
             <RefreshCw size={16} className={ocupado === "atualizar" ? "animate-spin" : ""} aria-hidden="true" />
             Atualizar
@@ -1000,13 +1000,13 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
           </div>
 
           {erro && (
-            <div className="flex items-start gap-3 rounded-[10px] border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">
+            <div className="flex items-start gap-3 rounded-ctl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">
               <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
               <span>{erro}</span>
             </div>
           )}
 
-          <section className="rounded-[14px] border border-line bg-bg">
+          <section className="rounded-none border border-line bg-bg">
             <div className="flex flex-wrap items-start gap-3 px-5 py-4">
               <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-success-soft text-success">
                 <Cloud size={19} strokeWidth={1.75} aria-hidden="true" />
@@ -1025,7 +1025,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
             </div>
           </section>
 
-          <section className="rounded-[14px] border border-line bg-bg">
+          <section className="rounded-none border border-line bg-bg">
             <div className="flex items-start gap-3 border-b border-line px-5 py-4">
               <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-forte">
                 <Globe size={19} strokeWidth={1.75} aria-hidden="true" />
@@ -1045,14 +1045,14 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
           </section>
 
           {!estado ? (
-            <div className="flex items-center gap-3 rounded-[14px] border border-line bg-bg px-5 py-6 text-[13.5px] text-sub">
+            <div className="flex items-center gap-3 rounded-none border border-line bg-bg px-5 py-6 text-[13.5px] text-sub">
               <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> Consultando o serviço local…
             </div>
           ) : !estado.vinculado && PLATAFORMA_WEB ? (
             // No portal, o WhatsApp roda na VPS. O "vincular esta máquina"
             // abaixo é da extensão: na web ele mandava abrir 127.0.0.1:8090,
             // que é o computador de quem está olhando.
-            <section className="rounded-[14px] border border-line bg-bg px-5 py-5">
+            <section className="rounded-none border border-line bg-bg px-5 py-5">
               <h2 className="text-[15px] font-semibold text-fg">Conectar o WhatsApp da empresa</h2>
               <p className="mt-1 max-w-[520px] text-[12.5px] leading-relaxed text-sub">
                 Informe o número. A equipe do Núcleo Major prepara a conexão e, quando estiver pronta,
@@ -1068,7 +1068,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
               </div>
             </section>
           ) : !estado.vinculado ? (
-            <section className="rounded-[14px] border border-line bg-bg">
+            <section className="rounded-none border border-line bg-bg">
               <div className="flex items-start gap-3 border-b border-line px-5 py-4">
                 <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-forte">
                   <Link2 size={19} strokeWidth={1.75} aria-hidden="true" />
@@ -1093,7 +1093,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                     href="http://127.0.0.1:8090/setup"
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-[9px] border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
+                    className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-ctl border border-line px-3.5 text-[13px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
                   >
                     <ExternalLink size={15} aria-hidden="true" /> Abrir configuração local
                   </a>
@@ -1108,7 +1108,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                     onChange={(e) => setCodigo(e.target.value.toUpperCase())}
                     placeholder="ABCD-1234"
                     autoComplete="one-time-code"
-                    className="h-11 w-full rounded-[9px] border border-line bg-bg px-3 text-[14px] font-medium tracking-[0.08em] text-fg outline-none transition-colors placeholder:tracking-normal placeholder:text-faint focus:border-accent"
+                    className="h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] font-medium tracking-[0.08em] text-fg outline-none transition-colors placeholder:tracking-normal placeholder:text-faint focus:border-accent"
                   />
                   <BotaoPrimario
                     type="submit"
@@ -1128,7 +1128,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
           ) : (
             <>
               {!gatewayOnline && !conexoes.every((c) => resumirConexao(c).fase === FASES.PREPARANDO) && (
-                <div className="flex items-start gap-3 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[13px] text-warning">
+                <div className="flex items-start gap-3 rounded-ctl border border-warning/30 bg-warning/10 px-4 py-3 text-[13px] text-warning">
                   <AlertTriangle size={17} className="mt-0.5 flex-none" aria-hidden="true" />
                   <span>
                     Nenhum runtime enviou um sinal recente. A última sessão conhecida
@@ -1221,7 +1221,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                 />
               ))}
 
-              <section className="rounded-[14px] border border-dashed border-line bg-bg px-5 py-5">
+              <section className="rounded-none border border-dashed border-line bg-bg px-5 py-5">
                 <h2 className="text-[15px] font-semibold text-fg">Adicionar WhatsApp</h2>
                 <p className="mt-0.5 text-[12.5px] leading-relaxed text-sub">
                   Cada conexão ganha store, credencial e runtime próprios. O número é
@@ -1238,7 +1238,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="Comercial, Suporte, Cobrança…"
-                      className="h-11 w-full rounded-[9px] border border-line bg-bg px-3 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+                      className="h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
                     />
                   </div>
                   <BotaoPrimario type="submit" disabled={!nome.trim() || ocupado === "criar"} className="min-h-11 !py-2.5">

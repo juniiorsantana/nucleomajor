@@ -138,7 +138,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
         <button
           onClick={aoVoltar}
           title="Voltar para a ficha"
-          className="cursor-pointer rounded-el p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+          className="cursor-pointer rounded-ctl p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <ArrowLeft size={15} />
         </button>
@@ -156,7 +156,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
                 setEscopo(e.id);
                 setResultado(null);
               }}
-              className={`flex-1 cursor-pointer rounded-el py-1 text-[11.5px] font-medium transition-colors ${
+              className={`flex-1 cursor-pointer rounded-ctl py-1 text-[11.5px] font-medium transition-colors ${
                 escopo === e.id
                   ? "bg-accent-soft text-accent-forte"
                   : "text-sub hover:bg-surface-hover hover:text-fg"
@@ -204,7 +204,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome ou número"
-            className="w-full rounded-el border border-line bg-bg py-1.5 pl-7 pr-2 text-[12px] text-fg placeholder:text-faint outline-none focus:border-accent"
+            className="w-full rounded-ctl border border-line bg-bg py-1.5 pl-7 pr-2 text-[12px] text-fg placeholder:text-faint outline-none focus:border-accent"
           />
         </div>
       </div>
@@ -242,7 +242,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
                 className="flex w-full cursor-pointer items-center gap-2 border-b border-line px-3 py-1.5 text-[11.5px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg"
               >
                 <span
-                  className={`flex h-3.5 w-3.5 flex-none items-center justify-center rounded-[3px] border ${
+                  className={`flex h-3.5 w-3.5 flex-none items-center justify-center rounded-ctl border ${
                     todosMarcados ? "border-accent bg-accent text-white" : "border-line-strong"
                   }`}
                 >
@@ -266,7 +266,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
                   }`}
                 >
                   <span
-                    className={`flex h-3.5 w-3.5 flex-none items-center justify-center rounded-[3px] border ${
+                    className={`flex h-3.5 w-3.5 flex-none items-center justify-center rounded-ctl border ${
                       marcado
                         ? "border-accent bg-accent text-white"
                         : "border-line-strong"
@@ -298,7 +298,7 @@ export default function ImportarWhatsApp({ aoVoltar, recarregar }) {
         <button
           disabled={marcados.size === 0 || importando}
           onClick={importar}
-          className="w-full cursor-pointer rounded-el bg-accent py-1.5 text-[12.5px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40"
+          className="w-full cursor-pointer rounded-ctl bg-accent py-1.5 text-[12.5px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40"
         >
           {importando
             ? "Importando…"

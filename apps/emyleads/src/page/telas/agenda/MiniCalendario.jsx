@@ -31,8 +31,8 @@ export default function MiniCalendario({ mes, selecionado, marcas = new Map(), a
     <div>
       <div className="mb-1 flex items-center gap-1">
         <span className={`flex-1 font-semibold first-letter:uppercase text-fg ${grande ? "text-[16px]" : "text-[13px]"}`}>{titulo}</span>
-        <button type="button" aria-label="Mês anterior" onClick={() => aoMudarMes(-1)} className={`flex cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-surface-hover hover:text-fg ${grande ? "h-11 w-11" : "h-8 w-8"}`}><ChevronLeft size={grande ? 20 : 16} /></button>
-        <button type="button" aria-label="Próximo mês" onClick={() => aoMudarMes(1)} className={`flex cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-surface-hover hover:text-fg ${grande ? "h-11 w-11" : "h-8 w-8"}`}><ChevronRight size={grande ? 20 : 16} /></button>
+        <button type="button" aria-label="Mês anterior" onClick={() => aoMudarMes(-1)} className={`flex cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg ${grande ? "h-11 w-11" : "h-8 w-8"}`}><ChevronLeft size={grande ? 20 : 16} /></button>
+        <button type="button" aria-label="Próximo mês" onClick={() => aoMudarMes(1)} className={`flex cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg ${grande ? "h-11 w-11" : "h-8 w-8"}`}><ChevronRight size={grande ? 20 : 16} /></button>
       </div>
       <div className="grid grid-cols-7 text-center">
         {INICIAIS.map((letra, i) => (

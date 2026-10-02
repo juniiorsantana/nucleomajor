@@ -143,7 +143,7 @@ export default function EditorDocumento({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b border-line pb-3">
-        <button type="button" onClick={aoVoltar} className="inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[12px] text-sub hover:bg-surface-hover hover:text-fg">
+        <button type="button" onClick={aoVoltar} className="inline-flex items-center gap-1.5 rounded-ctl px-2 py-1.5 text-[12px] text-sub hover:bg-surface-hover hover:text-fg">
           <ArrowLeft size={15} /> Base de conhecimento
         </button>
         <span
@@ -157,7 +157,7 @@ export default function EditorDocumento({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
-          <div className="flex rounded-[9px] border border-line p-0.5" role="tablist" aria-label="Modo do editor">
+          <div className="flex rounded-ctl border border-line p-0.5" role="tablist" aria-label="Modo do editor">
             {[["simples", "Editor simples"], ["markdown", "Markdown"]].map(([id, rotulo]) => (
               <button
                 key={id}
@@ -165,7 +165,7 @@ export default function EditorDocumento({
                 role="tab"
                 aria-selected={modo === id}
                 onClick={() => setModo(id)}
-                className={`rounded-[7px] px-2.5 py-1.5 text-[11.5px] font-semibold ${
+                className={`rounded-ctl px-2.5 py-1.5 text-[11.5px] font-semibold ${
                   modo === id ? "bg-accent text-white" : "text-sub hover:text-fg"
                 }`}
               >
@@ -194,7 +194,7 @@ export default function EditorDocumento({
                     key={documento.id}
                     type="button"
                     onClick={() => aoAbrir?.(documento)}
-                    className={`truncate rounded-[7px] px-2 py-1.5 text-left text-[11.5px] ${
+                    className={`truncate rounded-ctl px-2 py-1.5 text-left text-[11.5px] ${
                       documento.id === rascunho.id ? "bg-accent-soft font-semibold text-accent-forte" : "text-sub hover:bg-surface-hover hover:text-fg"
                     }`}
                   >
@@ -236,7 +236,7 @@ export default function EditorDocumento({
                   readOnly={!podeEscrever}
                   onChange={(e) => aoMudar({ ...rascunho, caminho: e.target.value })}
                   placeholder="processos/comercial.md"
-                  className="mt-1 w-full rounded-[8px] border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
+                  className="mt-1 w-full rounded-ctl border border-line bg-bg px-3 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent"
                 />
                 <span className="mt-1 block text-[10px] leading-4 text-faint">
                   Não pode começar com “/”, precisa terminar em .md e não pode conter “..”.
@@ -246,7 +246,7 @@ export default function EditorDocumento({
           </div>
 
           {simplesBloqueado && (
-            <div className="mt-4 rounded-[10px] border border-warning/40 bg-warning/10 p-3">
+            <div className="mt-4 rounded-ctl border border-warning/40 bg-warning/10 p-3">
               <p className="flex items-start gap-2 text-[12px] font-semibold text-warning">
                 <AlertTriangle size={15} className="mt-px flex-none" />
                 Este documento tem formatação que o editor simples não representa.
@@ -256,10 +256,10 @@ export default function EditorDocumento({
                 títulos e parágrafos, e essa formatação se perde. No modo Markdown nada muda.
               </p>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                <button type="button" onClick={() => setModo("markdown")} className="rounded-[8px] bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white">
+                <button type="button" onClick={() => setModo("markdown")} className="rounded-ctl bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white">
                   Editar em Markdown
                 </button>
-                <button type="button" onClick={() => setReescritaAceita(true)} className="rounded-[8px] px-3 py-1.5 text-[11.5px] font-semibold text-sub hover:bg-surface-hover">
+                <button type="button" onClick={() => setReescritaAceita(true)} className="rounded-ctl px-3 py-1.5 text-[11.5px] font-semibold text-sub hover:bg-surface-hover">
                   Reescrever mesmo assim
                 </button>
               </div>
@@ -274,7 +274,7 @@ export default function EditorDocumento({
               </p>
               <div className="mt-3 grid gap-3">
                 {blocos.map((bloco, indice) => (
-                  <div key={indice} className="rounded-[10px] border border-line p-3">
+                  <div key={indice} className="rounded-ctl border border-line p-3">
                     <div className="flex items-center gap-2">
                       <input
                         value={bloco.rotulo}
@@ -288,7 +288,7 @@ export default function EditorDocumento({
                           type="button"
                           aria-label="Remover bloco"
                           onClick={() => escreverBlocos(blocos.filter((_, i) => i !== indice))}
-                          className="rounded-[7px] p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
+                          className="rounded-ctl p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -308,7 +308,7 @@ export default function EditorDocumento({
                   <button
                     type="button"
                     onClick={() => escreverBlocos([...blocos, { rotulo: "", texto: "" }])}
-                    className="inline-flex items-center gap-1.5 self-start rounded-[9px] border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
+                    className="inline-flex items-center gap-1.5 self-start rounded-ctl border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
                   >
                     <Plus size={14} /> Adicionar outro bloco
                   </button>
@@ -326,12 +326,12 @@ export default function EditorDocumento({
                   readOnly={!podeEscrever}
                   onChange={(e) => aoMudar({ ...rascunho, conteudo: e.target.value })}
                   placeholder="# Comece a documentar aqui…"
-                  className="min-h-[420px] w-full resize-y rounded-[10px] border border-line bg-bg p-3 font-mono text-[12px] leading-6 text-fg outline-none focus:border-accent"
+                  className="min-h-[420px] w-full resize-y rounded-ctl border border-line bg-bg p-3 font-mono text-[12px] leading-6 text-fg outline-none focus:border-accent"
                 />
               </div>
               <div>
                 <p className="mb-1.5 text-[9.5px] font-bold uppercase tracking-[.07em] text-faint">Pré-visualização · como fica lido</p>
-                <div className="scrollbar-fina min-h-[420px] overflow-y-auto rounded-[10px] border border-line bg-bg p-3.5">
+                <div className="scrollbar-fina min-h-[420px] overflow-y-auto rounded-ctl border border-line bg-bg p-3.5">
                   <PreviaMarkdown markdown={rascunho.conteudo} />
                 </div>
               </div>
@@ -349,7 +349,7 @@ export default function EditorDocumento({
               {publicosDisponiveis.map(({ id, rotulo, consequencia }) => (
                 <label
                   key={id}
-                  className={`flex cursor-pointer items-start gap-2 rounded-[9px] border p-2 ${
+                  className={`flex cursor-pointer items-start gap-2 rounded-ctl border p-2 ${
                     publico === id ? "border-accent bg-accent-soft" : "border-line hover:bg-surface-hover"
                   } ${podeEscrever ? "" : "pointer-events-none opacity-60"}`}
                 >
@@ -362,16 +362,16 @@ export default function EditorDocumento({
               ))}
             </div>
             {confirmandoExterno && (
-              <div role="alertdialog" className="mt-2 rounded-[9px] border border-warning/40 bg-warning/10 p-2.5">
+              <div role="alertdialog" className="mt-2 rounded-ctl border border-warning/40 bg-warning/10 p-2.5">
                 <p className="text-[11px] font-semibold text-warning">Este documento foi escrito para uso interno.</p>
                 <p className="mt-1 text-[10.5px] leading-4 text-sub">
                   Confira se não há preço de custo, margem, nome de cliente ou combinado interno no texto.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <button type="button" onClick={() => aplicarPublico("clientes")} className="rounded-[7px] bg-warning px-2.5 py-1 text-[10.5px] font-semibold text-white">
+                  <button type="button" onClick={() => aplicarPublico("clientes")} className="rounded-ctl bg-warning px-2.5 py-1 text-[10.5px] font-semibold text-white">
                     Li, pode abrir
                   </button>
-                  <button type="button" onClick={() => setConfirmandoExterno(false)} className="rounded-[7px] px-2.5 py-1 text-[10.5px] font-semibold text-sub hover:bg-surface-hover">
+                  <button type="button" onClick={() => setConfirmandoExterno(false)} className="rounded-ctl px-2.5 py-1 text-[10.5px] font-semibold text-sub hover:bg-surface-hover">
                     Cancelar
                   </button>
                 </div>
@@ -452,20 +452,20 @@ export default function EditorDocumento({
                         onChange={(e) => setPergunta(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && testar()}
                         placeholder="Testar uma pergunta…"
-                        className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
+                        className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
                       />
                       <button
                         type="button"
                         onClick={testar}
                         disabled={testando || !pergunta.trim()}
                         aria-label="Testar"
-                        className="rounded-[8px] border border-line px-2.5 text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+                        className="rounded-ctl border border-line px-2.5 text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
                       >
                         {testando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
                       </button>
                     </div>
                     {previa && (
-                      <div className="mt-2 rounded-[8px] bg-surface p-2.5">
+                      <div className="mt-2 rounded-ctl bg-surface p-2.5">
                         {previa.erro
                           ? <p className="text-[10.5px] text-danger">{previa.erro}</p>
                           : previa.casou
@@ -500,11 +500,11 @@ export default function EditorDocumento({
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <input ref={arquivoRef} type="file" accept=".md,.markdown,.txt" className="hidden" onChange={(e) => importar(e.target.files?.[0])} />
                     {podeEscrever && (
-                      <button type="button" onClick={() => arquivoRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
+                      <button type="button" onClick={() => arquivoRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-ctl border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
                         <FileUp size={13} /> Importar .md
                       </button>
                     )}
-                    <button type="button" onClick={exportar} className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
+                    <button type="button" onClick={exportar} className="inline-flex items-center gap-1.5 rounded-ctl border border-line px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
                       <Download size={13} /> Exportar .md
                     </button>
                   </div>
@@ -512,7 +512,7 @@ export default function EditorDocumento({
 
                 {rascunho.id && podeEscrever && (
                   <div className="border-t border-line pt-3.5">
-                    <button type="button" onClick={aoArquivar} className="inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-danger/10 hover:text-danger">
+                    <button type="button" onClick={aoArquivar} className="inline-flex items-center gap-1.5 rounded-ctl px-2.5 py-1.5 text-[10.5px] font-semibold text-sub hover:bg-danger/10 hover:text-danger">
                       <Archive size={13} /> Arquivar documento
                     </button>
                   </div>
@@ -535,7 +535,7 @@ export default function EditorDocumento({
               type="button"
               onClick={() => aoSalvar(false)}
               disabled={salvando}
-              className="inline-flex items-center gap-2 rounded-[9px] border border-line px-4 py-2.5 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-ctl border border-line px-4 py-2.5 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
             >
               <Save size={15} /> Salvar como rascunho
             </button>
@@ -544,7 +544,7 @@ export default function EditorDocumento({
               onClick={() => aoSalvar(true)}
               disabled={salvando || Boolean(impedimento)}
               title={impedimento || undefined}
-              className="inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12.5px] font-semibold text-white disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-ctl bg-accent px-4 py-2.5 text-[12.5px] font-semibold text-white disabled:opacity-40"
             >
               <Send size={15} /> {salvando ? "Salvando…" : situacao === "publicado" ? "Salvar publicado" : "Publicar"}
             </button>

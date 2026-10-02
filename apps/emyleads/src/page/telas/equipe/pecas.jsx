@@ -67,12 +67,12 @@ export function MenuLinha({ itens, rotulo }) {
         aria-label={rotulo}
         aria-expanded={aberto}
         onClick={() => setAberto((v) => !v)}
-        className="cursor-pointer rounded-[8px] p-1.5 text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+        className="cursor-pointer rounded-ctl p-1.5 text-faint transition-colors hover:bg-surface-hover hover:text-fg"
       >
         <MoreVertical size={16} strokeWidth={2} />
       </button>
       {aberto && (
-        <div className="absolute right-0 top-full z-30 mt-1 min-w-[210px] overflow-hidden rounded-[10px] border border-line bg-bg py-1 shadow-xl">
+        <div className="absolute right-0 top-full z-30 mt-1 min-w-[210px] overflow-hidden rounded-ctl border border-line bg-bg py-1 ">
           {itens.map((item) => (
             <button
               key={item.id}
@@ -188,7 +188,7 @@ export function CelulaResponsabilidade({ membro, nome, editavel, ocupado, aoSalv
           if (e.key === "Escape") { e.preventDefault(); encerrar(false); }
         }}
         placeholder="Ex.: cuida das vendas, propostas e retorno dos leads"
-        className="w-full rounded-[7px] border border-accent bg-bg px-2 py-1 text-[12.5px] text-fg outline-none"
+        className="w-full rounded-ctl border border-accent bg-bg px-2 py-1 text-[12.5px] text-fg outline-none"
       />
     );
   }
@@ -206,7 +206,7 @@ export function CelulaResponsabilidade({ membro, nome, editavel, ocupado, aoSalv
       type="button"
       title={texto || "Definir o que essa pessoa faz"}
       onClick={() => setEditando(true)}
-      className={`flex w-full min-w-0 cursor-text items-center gap-1.5 rounded-[7px] px-2 py-1 text-left text-[12.5px] transition-colors hover:bg-surface-hover ${
+      className={`flex w-full min-w-0 cursor-text items-center gap-1.5 rounded-ctl px-2 py-1 text-left text-[12.5px] transition-colors hover:bg-surface-hover ${
         texto ? "text-sub" : "text-faint"
       }`}
     >
@@ -355,7 +355,7 @@ export function LinhaConvite({ convite, colunas, situacao, ocupado, aoReenviar, 
           type="button"
           disabled={ocupado}
           onClick={() => aoReenviar(convite)}
-          className="cursor-pointer rounded-[7px] border border-line px-2 py-1 text-[11px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:opacity-40"
+          className="cursor-pointer rounded-ctl border border-line px-2 py-1 text-[11px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:opacity-40"
         >
           Reenviar
         </button>
@@ -364,7 +364,7 @@ export function LinhaConvite({ convite, colunas, situacao, ocupado, aoReenviar, 
           disabled={ocupado}
           aria-label={`Cancelar o convite de ${convite.invited_email}`}
           onClick={() => aoCancelar(convite)}
-          className="cursor-pointer rounded-[7px] p-1 text-faint transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-40"
+          className="cursor-pointer rounded-ctl p-1 text-faint transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-40"
         >
           <X size={13} />
         </button>

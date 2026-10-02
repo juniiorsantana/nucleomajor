@@ -32,7 +32,7 @@ function Folha({ icone: Icone, titulo, nota, aoFechar, children }) {
         <button
           onClick={aoFechar}
           title="Fechar"
-          className="ml-auto flex h-[26px] w-[26px] flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+          className="ml-auto flex h-[26px] w-[26px] flex-none cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <X size={15} strokeWidth={2.2} />
         </button>
@@ -127,17 +127,17 @@ export function PainelModelos({
             <button
               key={m.id}
               onClick={() => escolher(m)}
-              className={`flex w-full cursor-pointer items-start gap-2.5 rounded-[10px] border bg-bg px-3 py-2.5 text-left transition-colors ${
+              className={`flex w-full cursor-pointer items-start gap-2.5 rounded-ctl border bg-bg px-3 py-2.5 text-left transition-colors ${
                 m.id === escolhido ? "border-accent" : "border-line hover:border-accent"
               }`}
             >
-              <span className="mt-px flex h-[26px] w-[26px] flex-none items-center justify-center rounded-[7px] bg-surface text-sub">
+              <span className="mt-px flex h-[26px] w-[26px] flex-none items-center justify-center rounded-ctl bg-surface text-sub">
                 <Zap size={14} strokeWidth={1.9} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="text-[12px] font-semibold text-fg">{m.titulo}</span>
-                  <span className="rounded-[4px] bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent-forte">
+                  <span className="rounded-ctl bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent-forte">
                     {m.variaveis}
                   </span>
                   {m.variacoes.length > 1 && (
@@ -155,7 +155,7 @@ export function PainelModelos({
       </div>
 
       {modelo && (
-        <div className="mt-2 flex items-center gap-2 rounded-[10px] border border-line bg-bg px-3 py-2">
+        <div className="mt-2 flex items-center gap-2 rounded-ctl border border-line bg-bg px-3 py-2">
           <span className="min-w-0 flex-1 truncate text-[11.5px] text-sub">
             Vai chegar assim: <span className="text-fg">{textoAtual}</span>
           </span>
@@ -163,7 +163,7 @@ export function PainelModelos({
             <button
               onClick={sortear}
               title="Sortear outra variação"
-              className="flex flex-none cursor-pointer items-center gap-1 rounded-[8px] border border-line px-2 py-1 text-[11px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
+              className="flex flex-none cursor-pointer items-center gap-1 rounded-ctl border border-line px-2 py-1 text-[11px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
             >
               <Shuffle size={12} strokeWidth={2} />
               Sortear
@@ -171,13 +171,13 @@ export function PainelModelos({
           )}
           <button
             onClick={() => aoInserir(textoAtual)}
-            className="flex-none cursor-pointer rounded-[8px] border border-line px-2.5 py-1 text-[11px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte"
+            className="flex-none cursor-pointer rounded-ctl border border-line px-2.5 py-1 text-[11px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte"
           >
             Inserir na caixa
           </button>
           <button
             onClick={() => aoEnviar(textoAtual)}
-            className="flex flex-none cursor-pointer items-center gap-1 rounded-[8px] bg-accent px-2.5 py-1 text-[11px] font-semibold text-white transition-all hover:brightness-110"
+            className="flex flex-none cursor-pointer items-center gap-1 rounded-ctl bg-accent px-2.5 py-1 text-[11px] font-semibold text-white transition-all hover:brightness-110"
           >
             <SendHorizontal size={12} strokeWidth={2} />
             Enviar agora
@@ -237,13 +237,13 @@ export function PainelAtalhos({
           <button
             key={a.id}
             onClick={() => aoAbrir(a.id)}
-            className={`flex cursor-pointer items-center gap-2.5 rounded-[10px] border bg-bg px-3 py-2.5 text-left text-[12px] font-medium transition-colors ${
+            className={`flex cursor-pointer items-center gap-2.5 rounded-ctl border bg-bg px-3 py-2.5 text-left text-[12px] font-medium transition-colors ${
               aberto === a.id
                 ? "border-accent text-accent-forte"
                 : "border-line text-fg hover:border-accent hover:text-accent-forte"
             }`}
           >
-            <span className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-[7px] bg-surface text-sub">
+            <span className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-ctl bg-surface text-sub">
               <a.icone size={14} strokeWidth={1.9} />
             </span>
             {a.rotulo}
@@ -252,7 +252,7 @@ export function PainelAtalhos({
       </div>
 
       {comFormulario && (
-        <div className="mt-2 overflow-hidden rounded-[10px] border border-line">
+        <div className="mt-2 overflow-hidden rounded-ctl border border-line">
           <Formularios
             qual={aberto}
             contactId={contactId}
@@ -265,7 +265,7 @@ export function PainelAtalhos({
       )}
 
       {pendente && (
-        <div className="mt-2 rounded-[10px] border border-dashed border-line bg-bg px-3 py-2.5 text-[11.5px] text-sub">
+        <div className="mt-2 rounded-ctl border border-dashed border-line bg-bg px-3 py-2.5 text-[11.5px] text-sub">
           {pendente}
         </div>
       )}
