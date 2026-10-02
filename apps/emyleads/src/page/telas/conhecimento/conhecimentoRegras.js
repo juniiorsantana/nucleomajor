@@ -50,7 +50,7 @@ export function motivoParaNaoPublicar(rascunho, colecoes = []) {
   if ((rascunho.colecoesIds || []).length) return null;
   return colecoesExternasDisponiveis(colecoes).length
     ? "Escolha ao menos uma coleção externa — sem ela o atendimento não encontra este documento."
-    : "Não há nenhuma coleção externa nesta empresa. Crie uma na Central de Inteligência antes de publicar para clientes.";
+    : "Não há nenhuma coleção externa nesta empresa. Crie uma na Equipe de IA antes de publicar para clientes.";
 }
 
 /**

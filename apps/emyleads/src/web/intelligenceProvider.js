@@ -205,5 +205,84 @@ export function criarOperacoesInteligencia({ supabase = obterSupabaseWeb(), area
       if (error) throw error;
       return data;
     },
+
+    /**
+     * O playbook comercial da empresa (20261001100000): o rascunho que se
+     * edita e a versão publicada que o Jev usa. Sem linha ainda, volta vazio.
+     */
+    "playbook.carregar": async () => {
+      const ctx = await contexto();
+      const { data, error } = await supabase
+        .from("organization_playbooks")
+        .select("draft,published,published_version,published_at,updated_at")
+        .eq("organization_id", ctx.organizationId)
+        .maybeSingle();
+      if (error) throw error;
+      return {
+        rascunho: data?.draft || {},
+        publicado: data?.published || {},
+        versao: Number(data?.published_version) || 0,
+        publicadoEm: data?.published_at || null,
+        atualizadoEm: data?.updated_at || null,
+      };
+    },
+
+    "playbook.salvar": async ({ conteudo, publicar = false }) => {
+      const ctx = await contexto();
+      const { data, error } = await supabase.rpc("playbook_save", {
+        target_organization: ctx.organizationId,
+        playbook: conteudo || {},
+        publish: Boolean(publicar),
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * As leituras em vigor do Jev nos últimos dias, com o agente e quem falou.
+     * Base do Desempenho de cada agente e dos sinais para o playbook. Banco
+     * sem as tabelas (antes de 20260930100000) devolve lista vazia.
+     */
+    "inteligencia.leituras": async ({ dias = 30 } = {}) => {
+      const ctx = await contexto();
+      const desde = new Date(Date.now() - Number(dias) * 86400000).toISOString();
+      const { data, error } = await supabase
+        .from("conversation_insight_runs")
+        .select("assistant_profile_id,contact_phone,created_at,summary,ai_messages,team_messages,contact_messages,playbook_version")
+        .eq("organization_id", ctx.organizationId)
+        .eq("status", "ok")
+        .eq("is_latest", true)
+        .gte("created_at", desde)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      if (error) return [];
+      return data || [];
+    },
+
+    /** Pede ao Jev a avaliação de uma conversa de teste (aba Testar). */
+    "inteligencia.avaliarTeste": async ({ agentId, transcricao }) => {
+      const ctx = await contexto();
+      const { data, error } = await supabase.rpc("nucleo_insights_evaluate_request", {
+        target_organization: ctx.organizationId,
+        target_profile: agentId,
+        transcript: String(transcricao || ""),
+      });
+      if (error) throw error;
+      return { comandoId: data?.commandId || null };
+    },
+
+    "inteligencia.statusAvaliacao": async ({ comandoId }) => {
+      const ctx = await contexto();
+      const { data, error } = await supabase.rpc("nucleo_insights_evaluate_status", {
+        target_organization: ctx.organizationId,
+        target_command: comandoId,
+      });
+      if (error) throw error;
+      return {
+        situacao: data?.status || "pending",
+        motivo: data?.errorCode || "",
+        resultado: data?.result || null,
+      };
+    },
   };
 }

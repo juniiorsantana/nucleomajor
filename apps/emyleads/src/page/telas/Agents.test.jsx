@@ -87,7 +87,7 @@ describe("home dos agentes", () => {
   });
 
   it("aponta onde ficou o que esta tela ainda não cobre, com o nome novo da aba", () => {
-    expect(render()).toMatch(/Liberação e marca/);
+    expect(render()).toMatch(/Quem atende/);
   });
 });
 
@@ -190,11 +190,14 @@ describe("detalhe do agente, renderizado", () => {
       catalogoSkills={skills} canWrite aoVoltar={() => {}} acoes={acoes} />,
   );
 
-  it("as três abas são Geral, Personalidade e 'O que sabe fazer'", () => {
+  it("a página do agente tem as sete abas, na ordem de configurar", () => {
     const html = detalhe();
-    for (const rotulo of ["Geral", "Personalidade", "O que sabe fazer"]) {
-      expect(html).toContain(rotulo);
-    }
+    const abas = ["Jeito", "Playbook", "Habilidades", "Conhecimento", "Quem atende", "Testar", "Desempenho"];
+    const posicoes = abas.map((rotulo) => html.indexOf(`>${rotulo}</button>`));
+    expect(posicoes.every((p) => p >= 0)).toBe(true);
+    expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
+    // A personalidade (soul) mora na aba Jeito, junto do nome e do tom.
+    expect(html).toContain("Personalidade");
     expect(html).not.toMatch(/>Soul</);
     expect(html).not.toMatch(/>Skills</);
   });
@@ -225,11 +228,11 @@ describe("detalhe do agente, renderizado", () => {
     expect(detalhe({ status: "inactive" })).toContain("Ativar");
   });
 
-  it("C: no principal mostra 'Agente principal de <audiência>', sem oferecer promovê-lo de novo", () => {
+  it("C: no principal mostra 'Porta de entrada de <audiência>', sem oferecer promovê-lo de novo", () => {
     const principal = detalhe({ isDefault: true });
-    expect(principal).toMatch(/Agente principal de clientes/i);
-    expect(principal).not.toContain("Tornar principal");
-    expect(detalhe({ isDefault: false })).toContain("Tornar principal");
+    expect(principal).toMatch(/Porta de entrada de clientes/i);
+    expect(principal).not.toContain("Tornar porta de entrada");
+    expect(detalhe({ isDefault: false })).toContain("Tornar porta de entrada");
   });
 
   it("cabeçalho mostra o avatar do agente", () => {
@@ -241,7 +244,7 @@ describe("detalhe do agente, renderizado", () => {
       <DetalheAgent agent={agent()} catalogoSkills={skills} canWrite={false}
         aoVoltar={() => {}} acoes={acoes} />,
     );
-    expect(html).not.toContain("Tornar principal");
+    expect(html).not.toContain("Tornar porta de entrada");
     expect(html).not.toContain("Salvar");
   });
 });

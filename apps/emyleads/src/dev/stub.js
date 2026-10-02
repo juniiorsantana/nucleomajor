@@ -174,6 +174,33 @@ let intelligenceDev = {
     { id: "dev-handoff-3", status: "completed", reason_code: "skill_limit", summary: "Atendimento concluído pela equipe.", requested_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), contact: { name: "Carla Souza", phone: "556596661111" } },
   ],
 };
+// O playbook da bancada começa vazio, como o de uma empresa nova.
+const playbookDev = {
+  rascunho: {},
+  publicado: {},
+  versao: 0,
+  publicadoEm: null,
+  atualizadoEm: null,
+};
+// Leituras de exemplo do Jev, todas da porta de entrada de clientes.
+function leiturasDev(profiles) {
+  const porta = profiles.find((p) => p.audience === "customer")?.id || null;
+  const exemplo = (dias, resumo, ia, equipe) => ({
+    assistant_profile_id: porta,
+    contact_phone: `55659900000${dias}`,
+    created_at: new Date(Date.now() - dias * 86400000).toISOString(),
+    summary: resumo,
+    ai_messages: ia,
+    team_messages: equipe,
+    contact_messages: 4,
+    playbook_version: 0,
+  });
+  return [
+    exemplo(1, { temperatura: { a: "quente", p: 0.82 }, pergunta_sem_resposta: { a: "nao", p: 0.9 }, propos_proximo_passo: { a: "sim", p: 0.88 }, objecao_principal: { a: "preco", p: 0.86 }, segue_o_jeito: { a: "sim", p: 0.8 } }, 5, 0),
+    exemplo(2, { temperatura: { a: "morno", p: 0.71 }, pergunta_sem_resposta: { a: "sim", p: 0.79 }, propos_proximo_passo: { a: "nao", p: 0.9 }, objecao_principal: { a: "outra", p: 0.74 }, insatisfeito: { a: "sim", p: 0.91 } }, 2, 3),
+    exemplo(3, { temperatura: { a: "frio", p: 0.66 }, pergunta_sem_resposta: { a: "nao", p: 0.84 }, propos_proximo_passo: { a: "sim", p: 0.7 }, objecao_principal: { a: "preco", p: 0.81 } }, 0, 4),
+  ];
+}
 const intelligenceBindings = intelligenceDev.skills.map((skill, index) => ({ organization_id: "dev-org", profile_id: customerProfileId, skill_id: skill.id, enabled: true, priority: index * 10 + 10 }));
 
 const agendaDev = [
@@ -451,6 +478,25 @@ const operacoesBancada = {
     return { status, requestId };
   },
   "inteligencia.simular": async () => ({ assistente: { nome: "Assistente Major" }, skillAtivo: { nome: "Recepção" }, campanha: { nome: "Piloto Atendimento Major" }, colecoesPermitidas: [], skillsPermitidos: [] }),
+  // Bancada da Equipe de IA: o playbook vive em memória e as leituras são de
+  // exemplo, para as abas Desempenho e Testar poderem ser desenhadas sem banco.
+  "playbook.carregar": async () => ({ ...playbookDev }),
+  "playbook.salvar": async ({ conteudo, publicar }) => {
+    playbookDev.rascunho = conteudo;
+    if (publicar) {
+      playbookDev.publicado = conteudo;
+      playbookDev.versao += 1;
+      playbookDev.publicadoEm = new Date().toISOString();
+    }
+    return { saved: true, published: Boolean(publicar), version: playbookDev.versao };
+  },
+  "inteligencia.leituras": async () => leiturasDev(intelligenceDev.profiles),
+  "inteligencia.avaliarTeste": async () => ({ comandoId: "dev-avaliacao" }),
+  "inteligencia.statusAvaliacao": async () => ({
+    situacao: "completed",
+    motivo: "",
+    resultado: { r: { segue_o_jeito: ["sim", 0.82], pergunta_sem_resposta: ["sim", 0.77], propos_proximo_passo: ["nao", 0.9], temperatura: ["morno", 0.71], objecao_principal: ["preco", 0.88] }, pb: playbookDev.versao, ms: 512 },
+  }),
   "conhecimento.listar": async () => conhecimentoDev.filter((item) => item.status !== "archived"),
   "conhecimento.salvar": async ({ id = null, escopo, caminho, titulo, conteudo = "", audiencia = "internal", colecoesIds = [], publicado = false }) => {
     const agora = new Date().toISOString();

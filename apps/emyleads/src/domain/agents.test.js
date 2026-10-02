@@ -86,7 +86,7 @@ describe("I: desativar", () => {
   it("desligar o agente PRINCIPAL e ativo pede confirmação e explica a consequência", () => {
     const aviso = avisoAoDesativar(agent({ name: "Emilia", isDefault: true }));
     expect(aviso).not.toBeNull();
-    expect(aviso.titulo).toMatch(/agente principal/i);
+    expect(aviso.titulo).toMatch(/porta de entrada/i);
     expect(aviso.descricao).toMatch(/sem atendimento/i);
     expect(aviso.descricao).toMatch(/Nenhum outro agente é promovido/i);
     expect(aviso.rotulo).toBe("Desativar mesmo assim");
@@ -104,11 +104,11 @@ describe("I: desativar", () => {
 describe("J/K: tornar principal", () => {
   it("nomeia o principal que sai e diz que ele continua existindo", () => {
     const aviso = avisoAoTornarPadrao(agent({ name: "Closer" }), agent({ id: "emilia", name: "Emilia" }));
-    expect(aviso.titulo).toMatch(/agente principal/i);
+    expect(aviso.titulo).toMatch(/porta de entrada/i);
     expect(aviso.descricao).toContain("Closer");
     expect(aviso.descricao).toContain("Emilia");
     expect(aviso.descricao).toMatch(/continua existindo/i);
-    expect(aviso.rotulo).toBe("Tornar principal");
+    expect(aviso.rotulo).toBe("Tornar porta de entrada");
   });
 
   it("avisa quando o agente promovido está inativo", () => {
@@ -176,7 +176,7 @@ describe("E/N: erros viram frase de tela", () => {
 
   it("principal já existente manda usar Tornar principal, em vez de criar outro", () => {
     expect(mensagemDeErro(new AgentError(AGENT_ERRORS.DEFAULT_ALREADY_EXISTS)))
-      .toMatch(/Tornar principal/i);
+      .toMatch(/Tornar porta de entrada/i);
   });
 
   it("sem permissão diz isso, sem falar de RLS", () => {

@@ -1,0 +1,600 @@
+diff --git a/whatsapp-assistant/coordenador.py b/whatsapp-assistant/coordenador.py
+index 1127a37..ed02bde 100644
+--- a/whatsapp-assistant/coordenador.py
++++ b/whatsapp-assistant/coordenador.py
+@@ -24,6 +24,7 @@ desligada o banco responde `enabled = false` e o coordenador só espera.
+ 
+ from __future__ import annotations
+ 
++import json
+ import threading
+ import time
+ from datetime import datetime
+@@ -103,11 +104,11 @@ class JevClient:
+         self.key_loader = key_loader
+         self.session = session or requests.Session()
+ 
+-    def decidir(self, conversa_em_texto: str) -> dict[str, Any]:
++    def decidir(self, conversa_em_texto: str, perguntas=jev_framework.PERGUNTAS) -> dict[str, Any]:
+         corpo = {
+             "model": JEV_MODEL,
+             "state": {"contexto": CONTEXTO, "conversa": conversa_em_texto},
+-            "questions": jev_framework.perguntas_para_api(),
++            "questions": jev_framework.perguntas_para_api(perguntas),
+         }
+         inicio = time.monotonic()
+         try:
+@@ -203,40 +204,41 @@ class Coordenador:
+         pendentes = self.verifier.insights_pending(self.batch, self.quiet_minutes)
+         if not pendentes.get("enabled"):
+             return {"enabled": False, "ok": 0, "failed": 0}
++        playbook = pendentes.get("playbook") if isinstance(pendentes.get("playbook"), dict) else None
+         resumo = {"enabled": True, "ok": 0, "failed": 0, "cost_usd": 0.0}
+         for conversa in pendentes.get("conversations") or []:
+             if self._stop.is_set():
+                 break
+-            situacao = self._ler(conversa)
++            situacao = self._ler(conversa, playbook)
+             resumo[situacao["status"]] += 1
+             resumo["cost_usd"] += situacao.get("cost_usd", 0.0)
+         resumo["cost_usd"] = round(resumo["cost_usd"], 8)
+         return resumo
+ 
+-    def _ler(self, conversa: dict) -> dict:
++    def _ler(self, conversa: dict, playbook: Optional[dict] = None) -> dict:
+         telefone = str(conversa.get("phone") or "")
+         mensagens = conversa.get("messages") if isinstance(conversa.get("messages"), list) else []
++        agente = conversa.get("agent") if isinstance(conversa.get("agent"), dict) else {}
+         base = {
+             "phone": telefone,
+             "analyzedUntil": conversa.get("lastMessageAt"),
+             "messagesCount": len(mensagens),
+             "frameworkVersion": jev_framework.FRAMEWORK_VERSION,
++            "assistantProfileId": str(agente.get("id") or ""),
++            "playbookVersion": _inteiro((playbook or {}).get("version")),
++            **contar_autores(mensagens),
+         }
+         texto = conversa_em_texto(mensagens, self.fuso)
+         if not texto:
+             return self._falha(base, "conversation_empty")
++        perguntas = jev_framework.montar_perguntas(playbook, agente.get("tone"))
+         try:
+-            dados = self.jev.decidir(texto)
++            dados = self.jev.decidir(texto, perguntas)
+         except JevRecusa as recusa:
+             return self._falha(base, recusa.codigo)
+         # JevPausa sobe: o ciclo inteiro para, e nada é gravado.
+ 
+-        respostas = []
+-        brutas = dados.get("answers") or {}
+-        for pergunta in jev_framework.PERGUNTAS:
+-            normalizada = jev_framework.normalizar(pergunta.chave, brutas.get(pergunta.chave))
+-            if normalizada is not None:
+-                respostas.append(normalizada)
++        respostas = normalizar_respostas(perguntas, dados.get("answers") or {})
+         if not respostas:
+             return self._falha(base, "jev_answers_unusable")
+ 
+@@ -257,7 +259,7 @@ class Coordenador:
+             phone=telefone or None,
+             messages=len(mensagens),
+             answers=len(respostas),
+-            missing=len(jev_framework.PERGUNTAS) - len(respostas),
++            missing=len(perguntas) - len(respostas),
+             input_tokens=payload["inputTokens"],
+             cost_usd=custo,
+             latency_ms=payload["latencyMs"],
+@@ -324,6 +326,70 @@ class Coordenador:
+             self._stop.wait(delay)
+ 
+ 
++def contar_autores(mensagens: list) -> dict:
++    """Quantas mensagens foram da IA, da equipe e do contato.
++
++    É o que separa o Desempenho da IA do da equipe. Mensagem da empresa sem
++    autoria é o celular, e o celular é gente.
++    """
++    ia = equipe = contato = 0
++    for mensagem in mensagens:
++        if not isinstance(mensagem, dict):
++            continue
++        if not mensagem.get("fromMe"):
++            contato += 1
++        elif mensagem.get("authorKind") == "ia":
++            ia += 1
++        elif mensagem.get("authorKind") != "bot":
++            equipe += 1
++    return {"aiMessages": min(ia, 500), "teamMessages": min(equipe, 500), "contactMessages": min(contato, 500)}
++
++
++def normalizar_respostas(perguntas, brutas: dict) -> list:
++    respostas = []
++    for pergunta in perguntas:
++        normalizada = jev_framework.normalizar(pergunta, brutas.get(pergunta.chave))
++        if normalizada is not None:
++            respostas.append(normalizada)
++    return respostas
++
++
++# O resultado de um comando cabe em 2048 bytes (20260910130000). A avaliação
++# volta compacta: pergunta -> [resposta, chance com duas casas].
++TETO_DO_RESULTADO = 2000
++
++
++def avaliar_teste(jev: "JevClient", transcricao: str, agente: Any = None, playbook: Any = None) -> dict:
++    """Avalia uma conversa de teste escrita no portal (aba Testar do agente).
++
++    Sobe `JevPausa` e `JevRecusa` para quem chamou decidir o desfecho do
++    comando. O texto da conversa não vai para log nenhum.
++    """
++    agente = agente if isinstance(agente, dict) else {}
++    playbook = playbook if isinstance(playbook, dict) else None
++    texto = str(transcricao or "").strip()[-TEXTO_MAXIMO:]
++    if not texto:
++        raise JevRecusa("conversation_empty")
++    perguntas = jev_framework.montar_perguntas(playbook, agente.get("tone"))
++    dados = jev.decidir(texto, perguntas)
++    respostas = normalizar_respostas(perguntas, dados.get("answers") or {})
++    if not respostas:
++        raise JevRecusa("jev_answers_unusable")
++    resultado = {
++        "r": {
++            r["question"]: [r["answer"], None if r["probability"] is None else round(r["probability"], 2)]
++            for r in respostas
++        },
++        "pb": _inteiro((playbook or {}).get("version")),
++        "ms": _inteiro(dados.get("_latency_ms")),
++    }
++    # Se passar do teto, saem do fim: as perguntas do playbook e o jeito, que
++    # entram por último. O que sobra continua útil.
++    while len(json.dumps(resultado, ensure_ascii=False).encode("utf-8")) > TETO_DO_RESULTADO and resultado["r"]:
++        resultado["r"].pop(next(reversed(resultado["r"])))
++    return resultado
++
++
+ def _inteiro(valor: Any) -> int:
+     try:
+         return max(0, int(valor))
+diff --git a/whatsapp-assistant/jev_framework.py b/whatsapp-assistant/jev_framework.py
+index ca997d0..dad728d 100644
+--- a/whatsapp-assistant/jev_framework.py
++++ b/whatsapp-assistant/jev_framework.py
+@@ -22,6 +22,7 @@ Cada pergunta tem um tipo do Jev:
+ 
+ from __future__ import annotations
+ 
++import re
+ from dataclasses import dataclass
+ from typing import Any
+ 
+@@ -160,9 +161,90 @@ PERGUNTAS: tuple[Pergunta, ...] = (
+ 
+ POR_CHAVE = {pergunta.chave: pergunta for pergunta in PERGUNTAS}
+ 
++# A régua da empresa por cima da base (desde 01/10/2026, ver 20261001100000):
++# o playbook publicado acrescenta objeções, próximos passos e critérios
++# próprios; o jeito do agente (`assistant_profiles.tone`) vira uma pergunta.
++CHAVE_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}$")
++LIMITE_DE_PERGUNTAS = 40  # o teto do banco por leitura
+ 
+-def perguntas_para_api() -> dict[str, Any]:
+-    return {pergunta.chave: pergunta.para_api() for pergunta in PERGUNTAS}
++
++def _texto(valor: Any, teto: int) -> str:
++    return " ".join(str(valor or "").split())[:teto]
++
++
++def montar_perguntas(playbook: Any = None, jeito: Any = None) -> tuple[Pergunta, ...]:
++    """As perguntas desta conversa: a base da Major, o playbook e o jeito.
++
++    Sem playbook e sem jeito, é exatamente `PERGUNTAS`. Item do playbook com
++    chave fora do formato é ignorado, e não derruba a leitura: o banco já
++    confere o formato ao publicar, e isto é só a segunda trava.
++    """
++    perguntas = list(PERGUNTAS)
++    playbook = playbook if isinstance(playbook, dict) else {}
++
++    objecoes = [
++        item for item in (playbook.get("objecoes") or [])
++        if isinstance(item, dict) and CHAVE_RE.fullmatch(str(item.get("chave") or ""))
++    ]
++    if objecoes:
++        base = dict(POR_CHAVE["objecao_principal"].criterios)
++        da_empresa = {
++            item["chave"]: f"{_texto(item.get('nome'), 120)} (objeção que esta empresa costuma ouvir)."
++            for item in objecoes
++        }
++        # A da empresa vence a da base quando a chave é a mesma; "nenhuma" e
++        # "outra" ficam sempre, nas pontas.
++        criterios = {"nenhuma": base.pop("nenhuma")}
++        criterios.update({**base, **da_empresa})
++        criterios.pop("outra", None)
++        criterios["outra"] = "Outra objeção que não se encaixa acima."
++        indice = next(i for i, p in enumerate(perguntas) if p.chave == "objecao_principal")
++        perguntas[indice] = Pergunta(
++            "objecao_principal", "lead", "choice", POR_CHAVE["objecao_principal"].instrucao, criterios
++        )
++
++    passos = [
++        item for item in (playbook.get("proximosPassos") or [])
++        if isinstance(item, dict) and CHAVE_RE.fullmatch(str(item.get("chave") or ""))
++    ]
++    if passos:
++        criterios = {
++            item["chave"]: f"Ofereceu: {_texto(item.get('nome'), 120)}." for item in passos
++        }
++        criterios["nenhum"] = "Não ofereceu nenhum destes passos."
++        perguntas.append(Pergunta(
++            "proximo_passo_oferecido", "atendimento", "choice",
++            "Qual destes próximos passos a empresa ofereceu ao contato?", criterios,
++        ))
++
++    for item in playbook.get("criterios") or []:
++        if not isinstance(item, dict) or not CHAVE_RE.fullmatch(str(item.get("chave") or "")):
++            continue
++        pergunta = _texto(item.get("pergunta"), 300)
++        if len(pergunta) < 5:
++            continue
++        perguntas.append(Pergunta(
++            f"pb_{item['chave']}", "playbook", "noul", pergunta, {
++                "true": _texto(item.get("sim"), 300) or "Sim, aconteceu na conversa.",
++                "false": "Não aconteceu na conversa.",
++            },
++        ))
++
++    jeito = _texto(jeito, 500)
++    if jeito:
++        perguntas.append(Pergunta(
++            "segue_o_jeito", "atendimento", "noul",
++            f"As mensagens da empresa seguem este jeito de falar: \"{jeito}\"?", {
++                "true": "Sim: o tom, o tamanho e a forma das mensagens da empresa combinam com o jeito descrito.",
++                "false": "Não: as mensagens da empresa fogem do jeito descrito, ou a empresa quase não escreveu.",
++            },
++        ))
++
++    return tuple(perguntas[:LIMITE_DE_PERGUNTAS])
++
++
++def perguntas_para_api(perguntas: tuple[Pergunta, ...] = PERGUNTAS) -> dict[str, Any]:
++    return {pergunta.chave: pergunta.para_api() for pergunta in perguntas}
+ 
+ 
+ def _numero(valor: Any) -> float | None:
+@@ -175,7 +257,7 @@ def _numero(valor: Any) -> float | None:
+     return round(numero, 4)
+ 
+ 
+-def normalizar(chave: str, bruta: Any) -> dict[str, Any] | None:
++def normalizar(chave: "str | Pergunta", bruta: Any) -> dict[str, Any] | None:
+     """Uma resposta do Jev no formato que o banco guarda.
+ 
+     Devolve `{"question", "answer", "probability", "distribution"}` ou `None`
+@@ -183,9 +265,10 @@ def normalizar(chave: str, bruta: Any) -> dict[str, Any] | None:
+     existe, nível fora da escala. Resposta que não se entende não é gravada:
+     um "talvez" inventado aqui contaminaria os números gerais.
+     """
+-    pergunta = POR_CHAVE.get(chave)
++    pergunta = chave if isinstance(chave, Pergunta) else POR_CHAVE.get(chave)
+     if pergunta is None or not isinstance(bruta, dict) or bruta.get("type") != pergunta.tipo:
+         return None
++    chave = pergunta.chave
+ 
+     if pergunta.tipo == "noul":
+         sim = _numero(bruta.get("noul"))
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index a116f31..e62474c 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -145,6 +145,13 @@ def main() -> int:
+             chatbot_enabled=cfg.chatbot_runtime_enabled,
+         )
+         heartbeat.start()
++    # O cliente do Jev, um só para o coordenador e para a avaliação de teste
++    # que chega pela fila de comandos. Ver coordenador.py.
++    jev_client = None
++    if cfg.insights_enabled and verifier is not None:
++        import coordenador
++
++        jev_client = coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path))
+     command_poller = None
+     if cfg.runtime_commands_enabled and verifier is not None:
+         command_poller = runtime_commands.RuntimeCommandPoller(
+@@ -171,6 +178,7 @@ def main() -> int:
+             outbox_dir=cfg.outbox_dir,
+             ffmpeg_bin=cfg.ffmpeg_bin,
+             flow_runtime_enabled=flow_executor is not None,
++            jev=jev_client,
+         )
+         command_poller.start()
+     conversation_syncer = None
+@@ -208,12 +216,12 @@ def main() -> int:
+     # O coordenador: lê as conversas com o Jev (desde 01/10/2026). Thread
+     # própria, fora do caminho da resposta ao cliente. Ver coordenador.py.
+     coordenador_de_leituras = None
+-    if cfg.insights_enabled and verifier is not None:
++    if jev_client is not None:
+         import coordenador
+ 
+         coordenador_de_leituras = coordenador.Coordenador(
+             verifier=verifier,
+-            jev=coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path)),
++            jev=jev_client,
+             interval=cfg.insights_poll_seconds,
+             quiet_minutes=cfg.insights_quiet_minutes,
+             batch=cfg.insights_batch,
+diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
+index f6a3884..5881e9c 100644
+--- a/whatsapp-assistant/runtime_commands.py
++++ b/whatsapp-assistant/runtime_commands.py
+@@ -91,6 +91,9 @@ COMANDOS = frozenset(
+         "connection_pair_qr",
+         "site_lead_welcome",
+         "flow_trigger",
++        # A aba Testar do agente no portal: o Jev avalia uma conversa de teste
++        # (desde 01/10/2026, ver coordenador.avaliar_teste).
++        "insights_evaluate",
+     }
+ )
+ 
+@@ -191,8 +194,13 @@ class RuntimeCommandPoller:
+         outbox_dir: Optional[Path] = None,
+         ffmpeg_bin: str = "ffmpeg",
+         flow_runtime_enabled: bool = False,
++        jev=None,
+     ) -> None:
+         self.verifier = verifier
++        # O cliente do Jev, o mesmo do coordenador. Sem ele (coordenador
++        # desligado nesta conexão), a avaliação de teste falha com motivo
++        # próprio em vez de ficar pendurada.
++        self.jev = jev
+         # Só com o executor de fluxo ligado nesta conexão alguém processa a
+         # execução que o `flow_trigger` cria; sem ele o comando é recusado.
+         self.flow_runtime_enabled = bool(flow_runtime_enabled)
+@@ -293,6 +301,10 @@ class RuntimeCommandPoller:
+             self._complete(command_id, "failed", "connection_not_registered")
+             return
+ 
++        if command_type == "insights_evaluate":
++            self._avaliar_teste(command_id, payload)
++            return
++
+         if command_type == "conversation_send":
+             self._conversa_enviar(command_id, connection, payload)
+             return
+@@ -636,6 +648,44 @@ class RuntimeCommandPoller:
+             on_whatsapp=bool(resposta.get("onWhatsApp")),
+         )
+ 
++    # ------------------------------------------------- avaliação de teste
++
++    def _avaliar_teste(self, command_id: str, payload: dict) -> None:
++        """O Jev avalia uma conversa de teste escrita na aba Testar do agente.
++
++        Nada sai para o WhatsApp. O texto do teste não vai para log; a
++        conclusão do comando apaga o payload no banco.
++        """
++        if self.jev is None:
++            self._complete(command_id, "failed", "insights_disabled")
++            return
++        import coordenador
++
++        try:
++            resultado = coordenador.avaliar_teste(
++                self.jev,
++                payload.get("transcript"),
++                payload.get("agent"),
++                payload.get("playbook"),
++            )
++        except (coordenador.JevPausa, coordenador.JevRecusa) as falha:
++            self._complete(command_id, "failed", falha.codigo)
++            audit.log(
++                "runtime.command_failed",
++                command_id=command_id,
++                command_type="insights_evaluate",
++                error_code=falha.codigo,
++            )
++            return
++        self._complete(command_id, "completed", "", resultado)
++        audit.log(
++            "runtime.command_completed",
++            command_id=command_id,
++            command_type="insights_evaluate",
++            answers=len(resultado.get("r") or {}),
++            latency_ms=resultado.get("ms"),
++        )
++
+     # --------------------------------------------------------- lead do site
+ 
+     def _disparar_fluxo(self, command_id: str, connection_id: str, payload: dict) -> None:
+diff --git a/whatsapp-assistant/test_coordenador.py b/whatsapp-assistant/test_coordenador.py
+index eef453f..894475a 100644
+--- a/whatsapp-assistant/test_coordenador.py
++++ b/whatsapp-assistant/test_coordenador.py
+@@ -103,9 +103,11 @@ class FakeJev:
+     def __init__(self, resultados):
+         self.resultados = list(resultados)
+         self.textos = []
++        self.perguntas = []
+ 
+-    def decidir(self, texto):
++    def decidir(self, texto, perguntas=jev_framework.PERGUNTAS):
+         self.textos.append(texto)
++        self.perguntas.append(perguntas)
+         resultado = self.resultados.pop(0)
+         if isinstance(resultado, Exception):
+             raise resultado
+@@ -477,3 +479,107 @@ class VerifierTests(unittest.TestCase):
+ 
+ if __name__ == "__main__":
+     unittest.main()
++
++
++PLAYBOOK = {
++    "version": 3,
++    "objecoes": [{"chave": "preco", "nome": "Preço alto"}, {"chave": "Ruim!", "nome": "chave inválida"}],
++    "proximosPassos": [{"chave": "aula_experimental", "nome": "Aula experimental"}],
++    "criterios": [{"chave": "ofereceu_aula", "pergunta": "A empresa ofereceu a aula experimental?", "sim": "Ofereceu com data."}],
++}
++
++
++class PlaybookEJeitoTests(unittest.TestCase):
++    def test_sem_playbook_e_sem_jeito_e_a_base(self):
++        self.assertEqual(jev_framework.montar_perguntas(None, None), jev_framework.PERGUNTAS)
++        self.assertEqual(jev_framework.montar_perguntas({}, "   "), jev_framework.PERGUNTAS)
++
++    def test_playbook_acrescenta_opcoes_e_perguntas(self):
++        perguntas = jev_framework.montar_perguntas(PLAYBOOK, "direto e consultivo")
++        por_chave = {p.chave: p for p in perguntas}
++        objecao = por_chave["objecao_principal"].criterios
++        self.assertEqual(list(objecao)[0], "nenhuma")
++        self.assertEqual(list(objecao)[-1], "outra")
++        self.assertIn("Preço alto", objecao["preco"])
++        self.assertNotIn("Ruim!", objecao)
++        self.assertEqual(set(por_chave["proximo_passo_oferecido"].criterios), {"aula_experimental", "nenhum"})
++        self.assertEqual(por_chave["pb_ofereceu_aula"].tipo, "noul")
++        self.assertIn("direto e consultivo", por_chave["segue_o_jeito"].instrucao)
++        for chave in por_chave:
++            self.assertRegex(chave, r"^[a-z][a-z0-9_]{1,40}$")
++        self.assertLessEqual(len(perguntas), 40)
++
++    def test_normaliza_pergunta_montada(self):
++        perguntas = jev_framework.montar_perguntas(PLAYBOOK, None)
++        passo = next(p for p in perguntas if p.chave == "proximo_passo_oferecido")
++        r = jev_framework.normalizar(passo, {"type": "choice", "choice": "aula_experimental",
++                                             "probabilities": {"aula_experimental": 0.83, "nenhum": 0.17}})
++        self.assertEqual((r["question"], r["answer"], r["probability"]), ("proximo_passo_oferecido", "aula_experimental", 0.83))
++
++    def test_contar_autores(self):
++        contagem = coordenador.contar_autores([
++            {"fromMe": False}, {"fromMe": True, "authorKind": "ia"}, {"fromMe": True, "authorKind": "humano"},
++            {"fromMe": True, "authorKind": ""}, {"fromMe": True, "authorKind": "bot"}, "lixo",
++        ])
++        self.assertEqual(contagem, {"aiMessages": 1, "teamMessages": 2, "contactMessages": 1})
++
++
++class CoordenadorComAgenteTests(unittest.TestCase):
++    def setUp(self):
++        patcher = patch.object(coordenador.audit, "log")
++        patcher.start()
++        self.addCleanup(patcher.stop)
++
++    def test_leitura_leva_agente_autores_playbook_e_jeito(self):
++        com_agente = conversa()
++        com_agente["agent"] = {"id": "9533be85-6681-4128-b4f9-bbe177edd32b", "name": "SDR", "tone": "direto e consultivo"}
++        verifier = FakeVerifier({"enabled": True, "conversations": [com_agente], "playbook": PLAYBOOK})
++        jev = FakeJev([resposta_do_jev(
++            segue_o_jeito={"type": "noul", "noul": 0.81},
++            pb_ofereceu_aula={"type": "noul", "noul": 0.1},
++        )])
++        coordenador.Coordenador(verifier=verifier, jev=jev).poll_once()
++        gravada = verifier.gravadas[0]
++        self.assertEqual(gravada["assistantProfileId"], "9533be85-6681-4128-b4f9-bbe177edd32b")
++        self.assertEqual(gravada["playbookVersion"], 3)
++        self.assertEqual((gravada["aiMessages"], gravada["teamMessages"], gravada["contactMessages"]), (1, 0, 1))
++        chaves = {r["question"]: r for r in gravada["answers"]}
++        self.assertEqual(chaves["segue_o_jeito"]["answer"], "sim")
++        self.assertEqual(chaves["pb_ofereceu_aula"]["answer"], "nao")
++        self.assertIn("segue_o_jeito", {p.chave for p in jev.perguntas[0]})
++
++    def test_sem_agente_grava_vazio(self):
++        verifier = FakeVerifier({"enabled": True, "conversations": [conversa()]})
++        coordenador.Coordenador(verifier=verifier, jev=FakeJev([resposta_do_jev()])).poll_once()
++        self.assertEqual(verifier.gravadas[0]["assistantProfileId"], "")
++        self.assertEqual(verifier.gravadas[0]["playbookVersion"], 0)
++
++
++class AvaliarTesteTests(unittest.TestCase):
++    def test_resultado_compacto_e_dentro_do_teto(self):
++        jev = FakeJev([resposta_do_jev(segue_o_jeito={"type": "noul", "noul": 0.9})])
++        r = coordenador.avaliar_teste(jev, "Cliente: quanto custa?\nEmpresa: R$ 289.", {"tone": "direto"}, PLAYBOOK)
++        self.assertEqual(r["pb"], 3)
++        self.assertEqual(r["r"]["segue_o_jeito"], ["sim", 0.9])
++        self.assertEqual(r["r"]["insatisfeito"], ["nao", 0.8])
++        self.assertLessEqual(len(json.dumps(r, ensure_ascii=False).encode("utf-8")), coordenador.TETO_DO_RESULTADO)
++        self.assertEqual(jev.textos[0], "Cliente: quanto custa?\nEmpresa: R$ 289.")
++
++    def test_teste_vazio_e_resposta_inutil_sao_recusa(self):
++        with self.assertRaises(coordenador.JevRecusa) as vazio:
++            coordenador.avaliar_teste(FakeJev([]), "   ")
++        self.assertEqual(vazio.exception.codigo, "conversation_empty")
++        with self.assertRaises(coordenador.JevRecusa) as inutil:
++            coordenador.avaliar_teste(FakeJev([{"answers": {}}]), "Cliente: oi")
++        self.assertEqual(inutil.exception.codigo, "jev_answers_unusable")
++
++    def test_corta_do_fim_quando_passa_do_teto(self):
++        playbook = {
++            "version": 1,
++            "criterios": [{"chave": f"criterio_numero_longo_{i}", "pergunta": "Pergunta longa o bastante?"} for i in range(8)],
++        }
++        brutas = resposta_do_jev(**{f"pb_criterio_numero_longo_{i}": {"type": "noul", "noul": 0.123456} for i in range(8)})
++        with patch.object(coordenador, "TETO_DO_RESULTADO", 900):
++            r = coordenador.avaliar_teste(FakeJev([brutas]), "Cliente: oi", None, playbook)
++            self.assertLessEqual(len(json.dumps(r, ensure_ascii=False).encode("utf-8")), 900)
++        self.assertIn("intencao", r["r"])
+diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
+index dd93efd..d07b15e 100644
+--- a/whatsapp-assistant/test_runtime_commands.py
++++ b/whatsapp-assistant/test_runtime_commands.py
+@@ -1203,3 +1203,62 @@ class AnexoPeloPortalTests(Bancada, unittest.TestCase):
+         finally:
+             arbitro.close()
+             directory.cleanup()
++
++
++class AvaliacaoDeTesteTests(Bancada, unittest.TestCase):
++    """A aba Testar do agente: o Jev avalia uma conversa escrita no portal."""
++
++    def _comando(self, payload):
++        return self._comando_de_conversa("insights_evaluate", payload)
++
++    def test_sem_jev_falha_com_motivo_proprio(self):
++        directory, poller, verifier, _control, arbitro = self._runtime(self._comando({"transcript": "Cliente: oi"}))
++        self.addCleanup(directory.cleanup)
++        self.addCleanup(arbitro.close)
++        poller.poll_once()
++        self.assertEqual(verifier.completed[0][1:3], ("failed", "insights_disabled"))
++
++    def test_avalia_e_devolve_resultado_compacto(self):
++        import coordenador
++        import jev_framework
++
++        class Jev:
++            def __init__(self):
++                self.textos = []
++
++            def decidir(self, texto, perguntas=jev_framework.PERGUNTAS):
++                self.textos.append(texto)
++                return {"answers": {"insatisfeito": {"type": "noul", "noul": 0.9},
++                                    "segue_o_jeito": {"type": "noul", "noul": 0.2}},
++                        "_latency_ms": 400}
++
++        directory, poller, verifier, _control, arbitro = self._runtime(self._comando({
++            "transcript": "Cliente: quero cancelar\nEmpresa: ok",
++            "agent": {"tone": "acolhedor"},
++            "playbook": {"version": 2},
++        }))
++        self.addCleanup(directory.cleanup)
++        self.addCleanup(arbitro.close)
++        poller.jev = Jev()
++        with mock.patch.object(coordenador.audit, "log"):
++            poller.poll_once()
++        _id, status, erro, resultado, _instancia = verifier.completed[0]
++        self.assertEqual((status, erro), ("completed", ""))
++        self.assertEqual(resultado["r"]["insatisfeito"], ["sim", 0.9])
++        self.assertEqual(resultado["r"]["segue_o_jeito"], ["nao", 0.8])
++        self.assertEqual((resultado["pb"], resultado["ms"]), (2, 400))
++        self.assertEqual(poller.jev.textos, ["Cliente: quero cancelar\nEmpresa: ok"])
++
++    def test_falha_do_jev_vira_desfecho(self):
++        import coordenador
++
++        class JevFora:
++            def decidir(self, texto, perguntas=None):
++                raise coordenador.JevPausa("jev_http_402")
++
++        directory, poller, verifier, _control, arbitro = self._runtime(self._comando({"transcript": "Cliente: oi tudo bem"}))
++        self.addCleanup(directory.cleanup)
++        self.addCleanup(arbitro.close)
++        poller.jev = JevFora()
++        poller.poll_once()
++        self.assertEqual(verifier.completed[0][1:3], ("failed", "jev_http_402"))
