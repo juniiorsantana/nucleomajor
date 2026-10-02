@@ -36,19 +36,29 @@ import { Iniciais } from "../../ui";
  * depois do avatar, hora e ticks dentro da bolha, canto sem raio só na
  * primeira ponta, divisor de data, faixa de não lidas.
  *
- * O que NÃO veio é o verde. Aqui verde é sucesso e roxo é a marca — o contador
- * de não lidas é roxo, e é isso que impede o produto de virar extensão visual
- * do WhatsApp. Está escrito no `theme.css` e vale aqui.
- *
- * A bolha de saída usa `accent-soft`, e não o roxo cheio: numa conversa de
- * trinta mensagens uma parede de accent não se lê.
+ * O que NÃO veio é o verde. No Sistema Grafite (02/10/2026) a cor tem dono:
+ *   - azul de SINAL para o que é novo, não lido, selecionado e lido;
+ *   - a cor do ATOR em tudo que diz quem responde: violeta é a IA, ciano é o
+ *     fluxo, grafite é a pessoa. A mesma cor no selo do avatar, na bolha, no
+ *     nome de quem escreveu, na pílula de acontecimento e na faixa de
+ *     atendimento.
+ * Está escrito no `theme.css` e vale aqui.
  */
 
 /** O dono aparece como selo no canto do avatar — é o dado que decide se você precisa abrir. */
 export const ICONE_DO_DONO = { bot: Bot, ia: Sparkles, humano: Headset };
-const FUNDO_DO_DONO = { bot: "bg-sub", ia: "bg-accent", humano: "bg-success" };
-const TEXTO_DO_DONO = { bot: "text-sub", ia: "text-accent", humano: "text-success" };
-const TOM_DO_AUTOR = { bot: "text-sub", ia: "text-accent-forte", humano: "text-accent" };
+// Fundo cheio com `text-bg` em cima: branco no claro, grafite no escuro, e
+// passa de 4,5:1 nas duas pontas (o ator escuro no claro, o claro no escuro).
+const FUNDO_DO_DONO = { bot: "bg-flow", ia: "bg-ia", humano: "bg-fg" };
+const TEXTO_DO_DONO = { bot: "text-flow", ia: "text-ia", humano: "text-fg" };
+const TOM_DO_AUTOR = { bot: "text-flow", ia: "text-ia", humano: "text-bg/75" };
+// A bolha que SAI tem a cor de quem escreveu: pessoa é grafite cheio, IA e
+// fluxo são o fundo suave do ator. Sem `tom` (mensagem antiga), é pessoa.
+const BOLHA_DO_AUTOR = {
+  bot: "bg-flow-soft text-fg",
+  ia: "bg-ia-soft text-fg",
+  humano: "bg-fg text-bg",
+};
 
 export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho = 46 }) {
   const [fotoCarregavel, setFotoCarregavel] = useState(Boolean(foto));
@@ -74,7 +84,7 @@ export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho 
       {Icone && (
         <span
           title={grupo ? "Grupo" : textoDoDono(dono)}
-          className={`absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full border-2 border-bg text-white ${
+          className={`absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full border-2 border-bg text-bg ${
             grupo ? "bg-faint" : FUNDO_DO_DONO[dono]
           }`}
           style={{ width: selo, height: selo }}
@@ -86,15 +96,14 @@ export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho 
   );
 }
 
-/** Roxo quando lido, e não azul: a cor de "chegou" aqui é a da marca. */
-export function Ticks({ lido }) {
-  return (
-    <CheckCheck
-      size={15}
-      strokeWidth={2}
-      className={`flex-none ${lido ? "text-accent" : "text-faint"}`}
-    />
-  );
+/**
+ * Lido é azul de sinal: é exatamente o "aqui tem algo" do sistema.
+ * `sobreGrafite`: dentro da bolha cheia da pessoa o azul some no fundo, e o
+ * sinal claro (`signal-soft`) é o que contrasta nos dois temas.
+ */
+export function Ticks({ lido, sobreGrafite = false }) {
+  const tom = sobreGrafite ? (lido ? "text-signal-soft" : "text-bg/55") : lido ? "text-signal" : "text-faint";
+  return <CheckCheck size={15} strokeWidth={2} className={`flex-none ${tom}`} />;
 }
 
 export function LinhaConversa({ conversa, ativa, aoAbrir }) {
@@ -102,8 +111,8 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
   return (
     <button
       onClick={aoAbrir}
-      className={`flex w-full cursor-pointer items-stretch gap-[11px] px-3 text-left transition-colors ${
-        ativa ? "bg-accent-soft" : "hover:bg-surface"
+      className={`relative flex w-full cursor-pointer items-stretch gap-[11px] px-3 text-left transition-colors ${
+        ativa ? "bg-surface-hover shadow-[inset_2px_0_0_var(--el-signal)]" : "hover:bg-surface"
       }`}
     >
       <AvatarComDono
@@ -120,14 +129,14 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
           {/* O nome de quem assumiu, na própria linha: é o dado que decide se
               esta conversa é sua ou da colega, e ele não pode exigir abrir. */}
           {conversa.atendenteNome && (
-            <span className="flex-none rounded-full bg-success/12 px-1.5 py-px text-[10px] font-semibold text-success">
+            <span className="flex-none rounded-ctl border border-line-strong px-1.5 py-px text-[10px] font-semibold text-fg">
               {conversa.atendenteNome}
             </span>
           )}
           {conversa.fixado && <Pin size={12} strokeWidth={2} className="flex-none text-faint" />}
           <span
             className={`ml-auto flex-none text-[11px] tabular-nums ${
-              naoLidas ? "font-semibold text-accent-forte" : "text-faint"
+              naoLidas ? "font-semibold text-signal" : "text-faint"
             }`}
           >
             {conversa.hora}
@@ -135,9 +144,9 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
           {conversa.saiu && <Ticks lido={conversa.lido} />}
-          <span className="truncate text-[12.5px] text-sub">{conversa.previa}</span>
+          <span className={`truncate text-[12.5px] ${naoLidas ? "font-medium text-fg" : "text-sub"}`}>{conversa.previa}</span>
           {naoLidas && (
-            <span className="ml-auto flex h-[18px] min-w-[18px] flex-none items-center justify-center rounded-full bg-accent px-1.5 text-[10.5px] font-bold tabular-nums text-white">
+            <span className="ml-auto flex h-[18px] min-w-[18px] flex-none items-center justify-center rounded-full bg-signal px-1.5 text-[10.5px] font-bold tabular-nums text-on-signal">
               {conversa.naoLidas}
             </span>
           )}
@@ -149,10 +158,8 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
 
 export function DivisorData({ texto }) {
   return (
-    <div className="mb-1 mt-3 flex justify-center">
-      <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[10.5px] font-bold tracking-[.07em] text-faint">
-        {texto}
-      </span>
+    <div className="mb-1 mt-4 flex justify-center">
+      <span className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-faint">{texto}</span>
     </div>
   );
 }
@@ -160,11 +167,11 @@ export function DivisorData({ texto }) {
 export function FaixaNaoLidas({ texto }) {
   return (
     <div className="mx-1 mb-1 mt-4 flex items-center gap-2.5">
-      <span className="h-px flex-1 bg-accent/30" />
-      <span className="text-[9.5px] font-bold uppercase tracking-[.09em] text-accent-forte">
+      <span className="h-px flex-1 bg-signal/40" />
+      <span className="text-[9.5px] font-bold uppercase tracking-[.09em] text-signal">
         {texto}
       </span>
-      <span className="h-px flex-1 bg-accent/30" />
+      <span className="h-px flex-1 bg-signal/40" />
     </div>
   );
 }
@@ -172,8 +179,9 @@ export function FaixaNaoLidas({ texto }) {
 export function PilulaSistema({ dono, texto, hora }) {
   const Icone = ICONE_DO_DONO[dono] || Bot;
   return (
-    <div className="mb-1 mt-3 flex justify-center">
-      <span className="inline-flex max-w-[80%] items-center gap-1.5 rounded-full border border-line bg-bg px-2.5 py-1 text-[10.5px] text-sub">
+    <div className="mb-1 mt-3 flex items-center gap-2.5">
+      <span className="h-px min-w-3 flex-1 bg-line" />
+      <span className="inline-flex max-w-[80%] items-center gap-1.5 text-[11px] text-sub">
         <Icone size={12} strokeWidth={2} className={`flex-none ${TEXTO_DO_DONO[dono] || "text-sub"}`} />
         {texto}
         {/* A hora fica ao lado, e não em linha própria: a pílula existe para
@@ -181,6 +189,7 @@ export function PilulaSistema({ dono, texto, hora }) {
             transformariam num aviso. */}
         {hora && <span className="flex-none tabular-nums text-faint">· {hora}</span>}
       </span>
+      <span className="h-px min-w-3 flex-1 bg-line" />
     </div>
   );
 }
@@ -349,33 +358,33 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
   const autor =
     mensagem.autor ||
     (saiu && provisoria && mensagem.tom === "humano" ? nomeProprio : null);
+  const tom = BOLHA_DO_AUTOR[mensagem.tom] ? mensagem.tom : "humano";
+  const sobreGrafite = saiu && tom === "humano";
   return (
     <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`} data-message-id={mensagem.messageId || undefined}>
       <div
         className={`relative max-w-[78%] rounded-none px-2.5 py-[7px] text-[13px] leading-[19px] ${
-          saiu
-            ? "rounded-tr-ctl border border-accent/25 bg-accent-soft"
-            : "rounded-tl-ctl border border-line bg-bg"
-        } text-fg`}
+          saiu ? BOLHA_DO_AUTOR[tom] : "bg-surface text-fg"
+        }`}
       >
         {autor && (
-          <span className={`block text-[10.5px] font-semibold ${TOM_DO_AUTOR[mensagem.tom] || "text-accent"}`}>
+          <span className={`block text-[10.5px] font-semibold ${saiu ? TOM_DO_AUTOR[tom] : "text-sub"}`}>
             {autor}
           </span>
         )}
         {mensagem.cita && (
-          <span className="mb-1 block rounded-ctl border-l-[3px] border-accent bg-accent/[0.07] px-2 py-1">
-            <span className="block text-[10.5px] font-semibold text-accent-forte">
+          <span className={`mb-1 block rounded-none border-l-2 border-signal px-2 py-1 ${sobreGrafite ? "bg-bg/10" : "bg-bg/60"}`}>
+            <span className={`block text-[10.5px] font-semibold ${sobreGrafite ? "text-signal-soft" : "text-signal"}`}>
               {mensagem.cita.quem}
             </span>
-            <span className="block truncate text-[11.5px] text-sub">{mensagem.cita.texto}</span>
+            <span className={`block truncate text-[11.5px] ${sobreGrafite ? "text-bg/70" : "text-sub"}`}>{mensagem.cita.texto}</span>
           </span>
         )}
         <MidiaDaBolha midia={mensagem.midia} aoAbrir={aoAbrirMidia} />
         {mensagem.texto && <span className="whitespace-pre-wrap">{mensagem.texto}</span>}
         {/* Espaço reservado para a hora não sentar em cima da última palavra. */}
         <span className={`inline-block h-px ${saiu ? "w-[58px]" : "w-10"}`} />
-        <span className="absolute bottom-1.5 right-2.5 flex items-center gap-[3px] text-[10.5px] tabular-nums text-faint">
+        <span className={`absolute bottom-1.5 right-2.5 flex items-center gap-[3px] text-[10.5px] tabular-nums ${sobreGrafite ? "text-bg/60" : "text-faint"}`}>
           {mensagem.hora}
           {/* Três estados, e não dois. Entre "escrevi" e "chegou" existe a fila
               do runtime, e ela dura segundos: sem o relógio, quem escreveu não
@@ -390,9 +399,9 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
             />
           )}
           {saiu && mensagem.enviando && (
-            <Clock3 size={13} strokeWidth={2.2} className="flex-none text-faint" />
+            <Clock3 size={13} strokeWidth={2.2} className={`flex-none ${sobreGrafite ? "text-bg/60" : "text-faint"}`} />
           )}
-          {saiu && !mensagem.enviando && !mensagem.falhou && <Ticks lido={mensagem.lido} />}
+          {saiu && !mensagem.enviando && !mensagem.falhou && <Ticks lido={mensagem.lido} sobreGrafite={sobreGrafite} />}
         </span>
       </div>
     </div>
@@ -440,6 +449,9 @@ function useFechaFora(aberto, fechar) {
  * pergunta "quem assumiu este grupo?" não existe no modelo dele. Oferecer o
  * botão e recusar depois seria pior que não oferecer.
  */
+// O ator escolhido aparece cheio da cor dele; a pessoa é o grafite cheio.
+const ATIVO_DO_DONO = { bot: "bg-flow-soft text-flow", ia: "bg-ia-soft text-ia", humano: "bg-fg text-bg" };
+
 export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = false, aoTrocar }) {
   const [menu, setMenu] = useState(false);
   const caixa = useFechaFora(menu, () => setMenu(false));
@@ -475,15 +487,16 @@ export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = fal
               <button
                 onClick={() => (humano ? setMenu((v) => !v) : escolher(opcao.id))}
                 title={EXPLICACAO_DO_DONO[opcao.id]}
+                aria-pressed={ativo}
                 className={`flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-ctl px-2.5 py-1 text-[11px] transition-colors ${
                   ativo
-                    ? "bg-bg font-semibold text-fg "
-                    : "font-medium text-sub hover:text-fg"
+                    ? `font-semibold ${ATIVO_DO_DONO[opcao.id]}`
+                    : "font-medium text-sub hover:bg-bg hover:text-fg"
                 }`}
               >
-                <Icone size={12} strokeWidth={2} />
+                <Icone size={12} strokeWidth={2} className={ativo ? "" : TEXTO_DO_DONO[opcao.id]} />
                 {rotulo}
-                {humano && <ChevronDown size={11} strokeWidth={2.4} className="text-faint" />}
+                {humano && <ChevronDown size={11} strokeWidth={2.4} className={ativo ? "opacity-60" : "text-faint"} />}
               </button>
 
               {humano && menu && (
@@ -850,7 +863,7 @@ export function Composer({
             onClick={mandar}
             disabled={enviando}
             title="Enviar"
-            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-white transition-all hover:brightness-110 disabled:opacity-60"
+            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-on-accent transition-all hover:brightness-110 disabled:opacity-60"
           >
             <SendHorizontal size={17} strokeWidth={2} />
           </button>
