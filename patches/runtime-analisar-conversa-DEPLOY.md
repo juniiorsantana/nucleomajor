@@ -140,3 +140,5 @@ minutos (o banco marca `failed` / `expired` e o crédito volta).
   (dono `nucleo`, 700/600). Conferido sem ler a credencial: credencial e conta
   diferentes das do atendimento; chamada de teste com essa pasta (sem
   ferramentas, sem sessão) respondeu "ok".
+- 02/10/2026: migration `20261002100000` APLICADA pelo SQL Editor ("Success.
+  No rows returned") e conferida pelo catálogo (ver `docs/STATUS.md`).
