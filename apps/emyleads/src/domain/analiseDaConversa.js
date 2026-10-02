@@ -82,6 +82,12 @@ export function analiseDoBanco(dados) {
     // vem pela consulta de andamento.
     relatorio: dados.report || null,
     notaDoAtendimento: dados.serviceScore ?? dados.service_score ?? null,
+    // Na lista, a cobertura vem das notas gravadas (scores.atendimento).
+    coberturaDoAtendimento: coberturaDaNota(dados.scores?.atendimento && {
+      score: dados.scores.atendimento.score,
+      evaluated_weight: dados.scores.atendimento.evaluatedWeight,
+      max_weight: dados.scores.atendimento.maxWeight,
+    })?.porcento ?? null,
   };
 }
 
@@ -229,4 +235,28 @@ export function instanteDoPrazo({ data, hora }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data || "") || !/^\d{2}:\d{2}$/.test(hora || "")) return null;
   const instante = new Date(`${data}T${hora}:00`);
   return Number.isNaN(instante.getTime()) ? null : instante;
+}
+
+// Abaixo disto, a nota aparece esmaecida e com o aviso de que ainda não é
+// conclusiva. Na v1 a responsividade nunca entra (máximo de 90% de peso), por
+// isso o corte não pode ser 100%.
+export const COBERTURA_CONCLUSIVA = 50;
+
+/**
+ * Quanto do peso da nota já foi avaliado: "10% dos critérios avaliados". A
+ * nota continua normalizada; a cobertura diz o quanto ela é conclusiva.
+ */
+export function coberturaDaNota(atendimento) {
+  if (!atendimento || atendimento.score == null || !atendimento.max_weight) return null;
+  const porcento = Math.round((100 * (Number(atendimento.evaluated_weight) || 0)) / Number(atendimento.max_weight));
+  return { porcento, conclusiva: porcento >= COBERTURA_CONCLUSIVA };
+}
+
+// "#43", "(#46,#48)", "(#73 e #75)": o número interno da mensagem não aparece
+// no texto. Ele só existe para virar o link "Ver evidência". Vale também para
+// as análises gravadas antes do runtime limpar isso sozinho.
+const NUMERO_INTERNO = /\s*\(\s*#\d+(?:\s*(?:,|e|\/|-)\s*#?\d+)*\s*\)|\s*#\d+\b/g;
+
+export function semNumerosInternos(texto) {
+  return String(texto || "").replace(NUMERO_INTERNO, "").replace(/\s{2,}/g, " ").trim();
 }

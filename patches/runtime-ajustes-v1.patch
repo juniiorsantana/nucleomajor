@@ -1,0 +1,305 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index d5df1ef..06d47f2 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -105,7 +105,9 @@ Regras:
+ - due_at: só se a conversa der a data. Data sem horário claro (ex.: "me chama quarta"): só AAAA-MM-DD, sem inventar hora. Sem data: null.
+ - suggested_message: respeite a estratégia da empresa e o estilo do lead (formato, tamanho, tom). Se não couber mensagem agora: applicable false e text null.
+ - red_flags: só quando tiver utilidade clara. Códigos: conversation_left_open, playbook_violation, overdue_follow_up, repeated_communication_mismatch, premature_solution, critical_information_ignored.
+-- evidence: os números (#N) das mensagens que comprovam, no máximo 3. Não invente números."""
++- Os estados da nota são a verdade: não contradiga. Alerta só quando o estado do critério confirma (overdue_follow_up só com follow-up overdue; conversation_left_open só com próximo passo ficou_em_aberto; os demais só com o critério avaliado e abaixo de "bom"). Critério não avaliado não entra em why_this_score.
++- evidence: os números (#N) das mensagens que comprovam, no máximo 3. Não invente números.
++- Não escreva os números (#N) no texto (summary, title, explanation, instruction, reason): eles vão só em evidence."""
+ 
+ ROTULO_AUTOR = {"ia": "Empresa (agente de IA)", "bot": "Empresa (mensagem automática)"}
+ ROTULO_MIDIA = {"audio": "[áudio]", "ptt": "[áudio]", "image": "[imagem]", "video": "[vídeo]", "document": "[documento]", "sticker": "[figurinha]"}
+@@ -116,6 +118,26 @@ NOMES_DOS_CRITERIOS = {
+ }
+ FATORES_PADRAO = {"bom": 1.0, "atencao": 0.6, "ruim": 0.2, "critico": 0.0}
+ 
++# A mesma confiança mínima do portal (CONFIANCA_MINIMA) e do atendimento.v1
++# (minConfidence): resposta do Jev abaixo dela é incerta e não serve de base
++# para conclusão nenhuma do Analista.
++CONFIANCA_MINIMA = 0.6
++
++# Alerta só quando o estado estruturado do critério confirma. Fatos + Jev +
++# motor são a fonte da verdade; o Claude explica e recomenda, não sobrescreve.
++ALERTA_PRECISA = {
++    "conversation_left_open": ("next_step", lambda estado: estado["valor"] == "ficou_em_aberto"),
++    "overdue_follow_up": ("follow_up", lambda estado: estado["valor"] == "overdue"),
++    "playbook_violation": ("playbook_adherence", lambda estado: estado["fator"] < 1),
++    "repeated_communication_mismatch": ("communication_adaptation", lambda estado: estado["fator"] < 1),
++    "premature_solution": (("conversation_coherence", "discovery"), lambda estado: estado["fator"] < 1),
++    "critical_information_ignored": (("discovery", "conversation_coherence"), lambda estado: estado["fator"] < 1),
++}
++
++# "#43", "(#46, #48)", "(#73 e #75)": o número interno da mensagem não vai
++# para o texto que a pessoa lê. Ele só existe para virar o link de evidência.
++NUMERO_INTERNO = re.compile(r"\s*\(\s*#\d+(?:\s*(?:,|e|/|-)\s*#?\d+)*\s*\)|\s*#\d+\b")
++
+ 
+ class AnaliseInvalida(ValueError):
+     """Resposta fora do formato. `etapa` diz onde a leitura parou, para o log:
+@@ -137,6 +159,24 @@ def _texto(valor: Any, teto: int) -> str:
+     return " ".join(str(valor or "").split())[:teto]
+ 
+ 
++def _sem_numeros(valor: Any, teto: int) -> str:
++    """O texto sem os números internos das mensagens (#N)."""
++    return _texto(NUMERO_INTERNO.sub("", str(valor or "")), teto)
++
++
++def estados_dos_criterios(notas: Any) -> dict:
++    """O estado estruturado de cada critério, como o motor gravou:
++    {"next_step": {"fator": 0.0, "valor": "ficou_em_aberto"}, ...}. Critério
++    não avaliado (sem dado ou com confiança baixa) fica de fora."""
++    estados = {}
++    for dimensao in _dict(_dict(notas).get("atendimento")).get("dimensions") or []:
++        if not isinstance(dimensao, dict) or dimensao.get("factor") is None:
++            continue
++        criterio = _dict((dimensao.get("criteria") or [{}])[0])
++        estados[str(dimensao.get("key"))] = {"fator": float(dimensao["factor"]), "valor": criterio.get("value")}
++    return estados
++
++
+ def _duracao(segundos: Any) -> str:
+     if not isinstance(segundos, (int, float)) or isinstance(segundos, bool):
+         return "sem dado"
+@@ -210,10 +250,15 @@ def resumo_da_nota(notas: Any) -> str:
+         return "Atendimento Score: ainda não avaliável (nenhum critério com dado suficiente)."
+     fatores = _dict(atendimento.get("stateFactors")) or FATORES_PADRAO
+     parcial = (atendimento.get("evaluatedWeight") or 0) < (atendimento.get("maxWeight") or 0)
++    avaliado, maximo = atendimento.get("evaluatedWeight") or 0, atendimento.get("maxWeight") or 0
++    cobertura = round(100 * avaliado / maximo) if maximo else 0
+     linhas = [
+         f"Atendimento Score: {atendimento['score']}/100{' até aqui' if parcial else ''} "
+-        f"({atendimento.get('evaluatedWeight')} de {atendimento.get('maxWeight')} de peso avaliado). Lead Score: não calculado."
++        f"({avaliado} de {maximo} de peso avaliado, cobertura de {cobertura}%). Lead Score: não calculado.",
++        "Critério \"não avaliado\" não tem estado: não o descreva como bom nem como ruim.",
+     ]
++    if cobertura < 50:
++        linhas.append("Cobertura baixa: não trate a nota como conclusiva.")
+     for dimensao in atendimento.get("dimensions") or []:
+         if not isinstance(dimensao, dict):
+             continue
+@@ -263,8 +308,22 @@ def montar_prompt(carga: dict, hoje: Optional[date] = None) -> str:
+         partes.append("Fatos medidos pelo sistema (exatos):\n" + fatos)
+     leitura = carga.get("reading") if isinstance(carga.get("reading"), dict) else {}
+     if leitura:
+-        resumo = ", ".join(f"{k}={v.get('a')}" for k, v in leitura.items() if isinstance(v, dict) and v.get("a"))
+-        partes.append(f"Classificação da conversa (Jev): {resumo[:2000]}")
++        confiaveis, incertas = [], []
++        for chave, resposta in leitura.items():
++            if not isinstance(resposta, dict) or not resposta.get("a"):
++                continue
++            chance = resposta.get("p")
++            if isinstance(chance, (int, float)) and chance >= CONFIANCA_MINIMA:
++                confiaveis.append(f"{chave}={resposta.get('a')}")
++            else:
++                incertas.append(chave)
++        if confiaveis:
++            partes.append(f"Classificação da conversa (Jev, só respostas confiáveis): {', '.join(confiaveis)[:2000]}")
++        if incertas:
++            partes.append(
++                "O Jev ficou incerto (abaixo de 60% de confiança) nestes pontos; NÃO os use para concluir nada: "
++                + ", ".join(incertas)[:800]
++            )
+     partes.append(jev_framework.contexto_do_playbook(carga.get("playbook")))
+     partes.append("Etapas do funil da empresa: " + ", ".join(_texto(s, 80) for s in (carga.get("stages") or [])[:20]))
+     partes.append("O contato está no CRM: " + ("sim" if carga.get("hasContact") else "não"))
+@@ -313,7 +372,7 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+     dados = _json_do_texto(texto)
+     if not isinstance(dados, dict):
+         raise AnaliseInvalida("schema_nao_objeto")
+-    resumo = _texto(dados.get("summary"), 400)
++    resumo = _sem_numeros(dados.get("summary"), 400)
+     if not resumo:
+         raise AnaliseInvalida("schema_sem_resumo")
+ 
+@@ -341,15 +400,15 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+     if _texto(bruto.get("title"), 120) or _texto(bruto.get("explanation"), 400):
+         gargalo = {
+             "criterion": criterio(bruto.get("criterion")),
+-            "title": _texto(bruto.get("title"), 120),
+-            "explanation": _texto(bruto.get("explanation"), 400),
++            "title": _sem_numeros(bruto.get("title"), 120),
++            "explanation": _sem_numeros(bruto.get("explanation"), 400),
+             "evidence_message_ids": evidencias(bruto),
+         }
+ 
+     motivos = [
+         {
+             "criterion": criterio(item.get("criterion")),
+-            "explanation": _texto(item.get("explanation"), 300),
++            "explanation": _sem_numeros(item.get("explanation"), 300),
+             "evidence_message_ids": evidencias(item),
+         }
+         for item in (dados.get("why_this_score") or [])[:4]
+@@ -363,9 +422,9 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+         acoes.append({
+             "priority": item.get("priority") if item.get("priority") in PRIORIDADES else None,
+             "action_type": item["action_type"],
+-            "title": _texto(item.get("title"), 120),
+-            "instruction": _texto(item.get("instruction"), 400),
+-            "reason": _texto(item.get("reason"), 240),
++            "title": _sem_numeros(item.get("title"), 120),
++            "instruction": _sem_numeros(item.get("instruction"), 400),
++            "reason": _sem_numeros(item.get("reason"), 240),
+             "due_at": _data(item.get("due_at")),
+             "evidence_message_ids": evidencias(item),
+         })
+@@ -386,7 +445,7 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+             "code": item["code"],
+             "severity": item.get("severity") if item.get("severity") in SEVERIDADES else None,
+             "criterion": criterio(item.get("criterion")),
+-            "reason": _texto(item.get("reason"), 240),
++            "reason": _sem_numeros(item.get("reason"), 240),
+             "evidence_message_ids": evidencias(item),
+         })
+         if len(alertas) == 4:
+@@ -404,6 +463,37 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+     }
+ 
+ 
++def conferir_com_os_estados(resultado: dict, notas: Any) -> tuple[dict, dict]:
++    """Tira do diagnóstico o que contradiz o estado estruturado dos critérios.
++
++    Alerta cujo critério não confirma sai; "por que essa nota" de critério não
++    avaliado sai; o gargalo perde a referência a critério não avaliado (o texto
++    fica). Sem nota nenhuma (banco antes do esquema), nada é conferido.
++    Devolve o resultado e quantos itens saíram, para o log.
++    """
++    if not _dict(_dict(notas).get("atendimento")).get("dimensions"):
++        return resultado, {}
++    estados = estados_dos_criterios(notas)
++
++    def confirma(codigo: str) -> bool:
++        criterios, regra = ALERTA_PRECISA[codigo]
++        for criterio in (criterios if isinstance(criterios, tuple) else (criterios,)):
++            if criterio in estados and regra(estados[criterio]):
++                return True
++        return False
++
++    alertas = [a for a in resultado["red_flags"] if confirma(a["code"])]
++    motivos = [m for m in resultado["why_this_score"] if m["criterion"] is None or m["criterion"] in estados]
++    gargalo = resultado["main_bottleneck"]
++    if gargalo and gargalo["criterion"] and gargalo["criterion"] not in estados:
++        gargalo = {**gargalo, "criterion": None}
++    descartes = {
++        "red_flags": len(resultado["red_flags"]) - len(alertas),
++        "why_this_score": len(resultado["why_this_score"]) - len(motivos),
++    }
++    return {**resultado, "red_flags": alertas, "why_this_score": motivos, "main_bottleneck": gargalo}, descartes
++
++
+ def conta_logada(pasta: Optional[Path]) -> bool:
+     return bool(pasta) and (Path(pasta) / ".credentials.json").is_file()
+ 
+@@ -496,6 +586,10 @@ class Analista:
+                 claude_config_dir=self.config_dir,
+             )
+             resultado = ler_resultado(getattr(resposta, "reply", ""), carga)
++            resultado, descartes = conferir_com_os_estados(resultado, carga.get("scores"))
++            if any(descartes.values()):
++                audit.log("analysis.reconciled", analysis_id=analise,
++                          dropped_red_flags=descartes["red_flags"], dropped_reasons=descartes["why_this_score"])
+         except runner.RunnerError as exc:
+             self._gravar(analise, "failed", erro=exc.code)
+             audit.log("analysis.failed", analysis_id=analise, error_code=exc.code,
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+index c901940..6cd125c 100644
+--- a/whatsapp-assistant/test_analista.py
++++ b/whatsapp-assistant/test_analista.py
+@@ -110,7 +110,9 @@ class PromptTests(unittest.TestCase):
+         self.assertIn("#3 [01/10 09:06] Contato: [áudio]", self.prompt)
+ 
+     def test_nota_pronta_criterio_por_criterio(self):
+-        self.assertIn("Atendimento Score: 47/100 até aqui (55 de 100 de peso avaliado). Lead Score: não calculado.", self.prompt)
++        self.assertIn("Atendimento Score: 47/100 até aqui (55 de 100 de peso avaliado, cobertura de 55%). Lead Score: não calculado.", self.prompt)
++        self.assertIn("não o descreva como bom nem como ruim", self.prompt)
++        self.assertNotIn("Cobertura baixa", self.prompt)
+         self.assertIn("- Próximo passo (next_step, peso 15): critico, 0 de 15 [estado: ficou_em_aberto]", self.prompt)
+         self.assertIn("- Coerência (conversation_coherence, peso 15): atencao, 9 de 15", self.prompt)
+         self.assertIn("- Responsividade (responsiveness, peso 10): não avaliado", self.prompt)
+@@ -206,6 +208,81 @@ class ResultadoTests(unittest.TestCase):
+         self.assertEqual(len(r["why_this_score"]), 4)
+ 
+ 
++class AjustesDaV1Tests(unittest.TestCase):
++    """Os ajustes pedidos pelo dono antes de fechar a v1 (03/10/2026)."""
++
++    def test_cobertura_baixa_avisada(self):
++        notas = {"atendimento": {**NOTAS["atendimento"], "score": 100, "evaluatedWeight": 10}}
++        prompt = analista.montar_prompt({**CARGA, "scores": notas}, hoje=date(2026, 10, 2))
++        self.assertIn("cobertura de 10%", prompt)
++        self.assertIn("Cobertura baixa: não trate a nota como conclusiva.", prompt)
++
++    def test_jev_incerto_nao_vai_como_conclusao(self):
++        leitura = {
++            "att_discovery": {"a": "bom", "p": 0.47},
++            "att_conversation_coherence": {"a": "atencao", "p": 0.45},
++            "att_communication_adaptation": {"a": "bom", "p": 0.77},
++            "temperatura": {"a": "morno", "p": None},
++        }
++        prompt = analista.montar_prompt({**CARGA, "reading": leitura}, hoje=date(2026, 10, 2))
++        self.assertIn("(Jev, só respostas confiáveis): att_communication_adaptation=bom", prompt)
++        self.assertNotIn("att_discovery=bom", prompt)
++        self.assertNotIn("att_conversation_coherence=atencao", prompt)
++        self.assertIn("NÃO os use para concluir nada: att_discovery, att_conversation_coherence, temperatura", prompt)
++
++    def test_alerta_e_porque_que_contradizem_os_estados_saem(self):
++        # Os estados de NOTAS: next_step ficou_em_aberto, follow_up overdue,
++        # coerência atencao, descoberta bom; adaptação e playbook não avaliados.
++        bruto = relatorio(
++            main_bottleneck={"criterion": "communication_adaptation", "title": "T", "explanation": "E"},
++            why_this_score=[
++                {"criterion": "next_step", "explanation": "Ficou no limbo."},
++                {"criterion": "communication_adaptation", "explanation": "Marcado como atenção."},
++                {"criterion": None, "explanation": "Observação geral."},
++            ],
++            red_flags=[
++                {"code": "conversation_left_open", "reason": "limbo"},
++                {"code": "overdue_follow_up", "reason": "venceu"},
++                {"code": "playbook_violation", "reason": "não avaliado"},
++                {"code": "premature_solution", "reason": "coerência atencao confirma"},
++                {"code": "repeated_communication_mismatch", "reason": "não avaliado"},
++            ],
++        )
++        r, descartes = analista.conferir_com_os_estados(analista.ler_resultado(json.dumps(bruto), CARGA), NOTAS)
++        self.assertEqual([f["code"] for f in r["red_flags"]], ["conversation_left_open", "overdue_follow_up", "premature_solution"])
++        self.assertEqual([m["criterion"] for m in r["why_this_score"]], ["next_step", None])
++        self.assertIsNone(r["main_bottleneck"]["criterion"])
++        self.assertEqual(descartes, {"red_flags": 1, "why_this_score": 1})
++
++    def test_follow_up_nao_aplicavel_nao_vira_alerta(self):
++        notas = {"atendimento": {**NOTAS["atendimento"], "dimensions": [
++            {"key": "follow_up", "weight": 10, "factor": None, "criteria": [{"key": "follow_up", "value": "not_applicable"}]},
++            {"key": "communication_adaptation", "weight": 10, "factor": 1.0, "criteria": [{"key": "communication_adaptation", "value": "bom"}]},
++        ]}}
++        bruto = relatorio(red_flags=[{"code": "overdue_follow_up", "reason": "x"}, {"code": "repeated_communication_mismatch", "reason": "y"}])
++        r, descartes = analista.conferir_com_os_estados(analista.ler_resultado(json.dumps(bruto), CARGA), notas)
++        self.assertEqual(r["red_flags"], [])
++        self.assertEqual(descartes["red_flags"], 2)
++
++    def test_sem_nota_nada_e_conferido(self):
++        r = analista.ler_resultado(json.dumps(relatorio()), CARGA)
++        self.assertEqual(analista.conferir_com_os_estados(r, {}), (r, {}))
++
++    def test_numeros_internos_saem_do_texto(self):
++        bruto = relatorio(
++            summary="Pediu agendar às 15h (#43) e mandou os dados (#46,#48).",
++            main_bottleneck={"criterion": "next_step", "title": "Sem fechamento #49", "explanation": "Duas falhas (#73 e #75) seguidas.", "evidence": [2]},
++            what_to_do_now=[{"action_type": "reply", "title": "Responder", "instruction": "Retome o pedido da mensagem #74.", "reason": "ver (#12)"}],
++        )
++        r = analista.ler_resultado(json.dumps(bruto), CARGA)
++        self.assertEqual(r["summary"], "Pediu agendar às 15h e mandou os dados.")
++        self.assertEqual(r["main_bottleneck"]["title"], "Sem fechamento")
++        self.assertEqual(r["main_bottleneck"]["explanation"], "Duas falhas seguidas.")
++        self.assertEqual(r["main_bottleneck"]["evidence_message_ids"], ["3EB02"])
++        self.assertEqual(r["what_to_do_now"][0]["instruction"], "Retome o pedido da mensagem.")
++        self.assertNotIn("#", json.dumps(r, ensure_ascii=False).replace("message_ids", ""))
++
++
+ class FakeVerifier:
+     def __init__(self, classificacao=None):
+         self.gravadas = []

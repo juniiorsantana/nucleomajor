@@ -13,6 +13,8 @@ import {
   criteriosComPerda,
   prazoDaAcao,
   instanteDoPrazo,
+  coberturaDaNota,
+  semNumerosInternos,
 } from "./analiseDaConversa";
 
 describe("créditos de análise", () => {
@@ -135,5 +137,27 @@ describe("relatório v1 (Analysis Schema v1)", () => {
     expect([a.notaDoAtendimento, a.relatorio.schema_version]).toEqual([47, "analysis.v1"]);
     expect(analiseDoBanco({ id: "a2", status: "done", service_score: 80 }).notaDoAtendimento).toBe(80);
     expect(analiseDoBanco({ id: "a3", status: "done" }).notaDoAtendimento).toBeNull();
+  });
+});
+
+describe("ajustes da v1: cobertura e números internos", () => {
+  it("a cobertura é o peso avaliado sobre o total, e diz se a nota é conclusiva", () => {
+    expect(coberturaDaNota({ score: 100, evaluated_weight: 10, max_weight: 100 })).toEqual({ porcento: 10, conclusiva: false });
+    expect(coberturaDaNota({ score: 47, evaluated_weight: 55, max_weight: 100 })).toEqual({ porcento: 55, conclusiva: true });
+    expect(coberturaDaNota({ score: null, evaluated_weight: 0, max_weight: 100 })).toBeNull();
+    expect(coberturaDaNota(null)).toBeNull();
+  });
+
+  it("na lista, a cobertura vem das notas gravadas", () => {
+    const a = analiseDoBanco({ id: "a", status: "done", service_score: 100, scores: { atendimento: { score: 100, evaluatedWeight: 10, maxWeight: 100 } } });
+    expect(a.coberturaDoAtendimento).toBe(10);
+    expect(analiseDoBanco({ id: "b", status: "done" }).coberturaDoAtendimento).toBeNull();
+  });
+
+  it("tira os números internos do texto e deixa o resto", () => {
+    expect(semNumerosInternos("Pediu às 15h (#43) e mandou (#46,#48).")).toBe("Pediu às 15h e mandou.");
+    expect(semNumerosInternos("Duas falhas (#73 e #75) seguidas, ver #74")).toBe("Duas falhas seguidas, ver");
+    expect(semNumerosInternos("Pedido nº 43 e 50% de desconto")).toBe("Pedido nº 43 e 50% de desconto");
+    expect(semNumerosInternos(null)).toBe("");
   });
 });

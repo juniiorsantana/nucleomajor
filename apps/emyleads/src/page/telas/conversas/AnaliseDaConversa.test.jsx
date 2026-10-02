@@ -185,22 +185,23 @@ describe("Analysis Schema v1 no diálogo", () => {
     await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
     await act(async () => {});
     expect(document.body.textContent).toContain("Atendimento Score");
-    expect(document.body.textContent).toContain("62/100 até aqui");
+    expect(document.body.textContent).toContain("62/100 — 55% dos critérios avaliados");
     expect(document.body.textContent).toContain("Conduziu bem, falta o próximo passo.");
     expect(document.body.textContent).not.toContain("Sugestões");
   });
 
   it("da lista: mostra a nota e busca o relatório completo ao abrir", async () => {
     api.conversas.analises.mockResolvedValue([
-      { id: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, completed_at: "2026-10-03T12:00:00Z", saved_at: "2026-10-03T12:05:00Z", service_score: 62 },
+      { id: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, completed_at: "2026-10-03T12:00:00Z", saved_at: "2026-10-03T12:05:00Z", service_score: 62,
+        scores: { atendimento: { score: 62, evaluatedWeight: 55, maxWeight: 100 } } },
     ]);
     api.conversas.analise.mockResolvedValue({ analysisId: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, report: RELATORIO_V1, savedAt: "2026-10-03T12:05:00Z" });
     await render(<AnaliseDaConversa {...props()} />);
-    expect(container.textContent).toContain("62/100");
+    expect(container.textContent).toContain("62/100 · 55%");
     await clicar([...container.querySelectorAll("button")].find((b) => b.textContent.includes("Comercial · 03/10")));
     await act(async () => {});
     expect(api.conversas.analise).toHaveBeenCalledWith({ analiseId: "v1" });
-    expect(document.body.textContent).toContain("62/100 até aqui");
+    expect(document.body.textContent).toContain("62/100 — 55% dos critérios avaliados");
   });
 
   it("análise antiga (formato anterior) continua com a tela de antes", async () => {
