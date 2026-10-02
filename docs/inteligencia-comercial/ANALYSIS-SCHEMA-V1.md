@@ -51,7 +51,7 @@ segue com a leitura e a nota do pedido.
 
 ## Adaptações e decisões
 
-Confirmadas pelo dono em 03/10/2026: 1 (responsividade não avaliada na v1), 5 (follow-up vencido = ruim) e a classificação do Jev na hora da análise.
+Confirmadas pelo dono em 02/10/2026: 1 (responsividade não avaliada na v1), 5 (follow-up vencido = ruim) e a classificação do Jev na hora da análise.
 
 1. **Responsividade sempre `nao_avaliado` na v1.** O relógio humano é medido
    (do pedido de handoff até a primeira resposta de uma pessoa; IA e bot não
