@@ -648,9 +648,8 @@ function CardNegocio({ negocio, contato, arrastando, aoArrastar, aoSoltarCard, a
 const COM_GESTO_PROPRIO = "article, button, a, input, select, textarea, label";
 
 // Mouse sem rodinha lateral não alcançava as colunas da direita. O fundo do
-// quadro — tudo que não é card nem botão — vira alça: clicar e puxar move o
-// quadro nos dois eixos, e a rodinha sobre ele anda para os lados até a
-// ponta, onde devolve a rolagem para cima e para baixo.
+// quadro — tudo que não é card nem botão — vira alça: clicar e puxar anda só
+// para os lados. Subir e descer fica com a rodinha, como no resto do portal.
 function useQuadroArrastavel(ativo) {
   const quadro = useRef(null);
   const [puxando, setPuxando] = useState(false);
@@ -658,28 +657,17 @@ function useQuadroArrastavel(ativo) {
   useEffect(() => {
     const el = quadro.current;
     if (!ativo || !el) return;
-    const rolagemVertical = el.closest(".overflow-y-auto");
-    const noFundo = (alvo) => !alvo.closest(COM_GESTO_PROPRIO);
     let inicio = null;
 
-    const aoRodar = (e) => {
-      if (e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY) || !noFundo(e.target)) return;
-      const fim = el.scrollWidth - el.clientWidth;
-      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= fim - 1)) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
-    };
     const aoApertar = (e) => {
-      if (e.button !== 0 || e.pointerType !== "mouse" || !noFundo(e.target)) return;
+      if (e.button !== 0 || e.pointerType !== "mouse" || e.target.closest(COM_GESTO_PROPRIO)) return;
       e.preventDefault();
-      inicio = { x: e.clientX, y: e.clientY, esquerda: el.scrollLeft, topo: rolagemVertical?.scrollTop ?? 0 };
+      inicio = { x: e.clientX, esquerda: el.scrollLeft };
       el.setPointerCapture(e.pointerId);
       setPuxando(true);
     };
     const aoMover = (e) => {
-      if (!inicio) return;
-      el.scrollLeft = inicio.esquerda - (e.clientX - inicio.x);
-      if (rolagemVertical) rolagemVertical.scrollTop = inicio.topo - (e.clientY - inicio.y);
+      if (inicio) el.scrollLeft = inicio.esquerda - (e.clientX - inicio.x);
     };
     const aoLargar = (e) => {
       if (!inicio) return;
@@ -688,13 +676,11 @@ function useQuadroArrastavel(ativo) {
       setPuxando(false);
     };
 
-    el.addEventListener("wheel", aoRodar, { passive: false });
     el.addEventListener("pointerdown", aoApertar);
     el.addEventListener("pointermove", aoMover);
     el.addEventListener("pointerup", aoLargar);
     el.addEventListener("pointercancel", aoLargar);
     return () => {
-      el.removeEventListener("wheel", aoRodar);
       el.removeEventListener("pointerdown", aoApertar);
       el.removeEventListener("pointermove", aoMover);
       el.removeEventListener("pointerup", aoLargar);
@@ -887,7 +873,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
               rotuloVazio="Todos os responsáveis"
               opcoes={responsaveis.map((r) => ({ id: r, rotulo: r }))}
             />
-            <span className="ml-auto hidden text-[11px] text-faint sm:inline">Arraste os cards entre as colunas · puxe o fundo ou use a rodinha para ver as outras</span>
+            <span className="ml-auto hidden text-[11px] text-faint sm:inline">Arraste os cards entre as colunas · puxe o fundo para ver as outras</span>
           </div>
 
           {erro && (
