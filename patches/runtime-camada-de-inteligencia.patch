@@ -1,0 +1,261 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index 4a41ef6..f380ab1 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -14,6 +14,12 @@ conta do atendimento.
+ 
+ O Claude não recebe ferramenta nenhuma, nem pasta, nem sessão: lê o texto que
+ vai por stdin e devolve JSON. O texto da conversa não vai para log.
++
++Desde a camada de inteligência (migration 20261003100000), a carga traz os
++FATOS da conversa (calculados no banco, sem IA) e as NOTAS (calculadas pelas
++regras do esquema da empresa). O Claude recebe os dois prontos e não recalcula
++nem dá outra nota. Cada mensagem vai numerada (#N), e a evidência volta pelos
++números, que viram o `message_id` de verdade (`messageIds`).
+ """
+ 
+ from __future__ import annotations
+@@ -38,10 +44,15 @@ SISTEMA = (
+     "entre uma empresa e um contato e escreve uma análise para o dono da empresa. "
+     "Seja direto, em português do Brasil, sem floreio. Use só o que está na "
+     "conversa: não invente fatos, valores, nomes ou datas. Cite trechos curtos das "
+-    "mensagens como evidência. Responda SOMENTE com um objeto JSON válido, sem "
+-    "texto antes ou depois e sem bloco de código."
++    "mensagens como evidência, com o número (#N) de cada uma. Os fatos medidos e "
++    "as notas que vierem prontos são exatos: use-os, não recalcule nem dê outra "
++    "nota. Responda SOMENTE com um objeto JSON válido, sem texto antes ou depois "
++    "e sem bloco de código."
+ )
+ 
++# A versão do formato do resultado. 2 = a evidência traz `messageIds`.
++VERSAO_DO_FORMATO = 2
++
+ FOCO = {
+     "comercial": (
+         "Análise COMERCIAL: avalie o lead (interesse, temperatura, objeções, prazo, "
+@@ -60,12 +71,13 @@ FORMATO = """Formato da resposta (JSON):
+ {
+   "resumo": "duas ou três frases sobre o que aconteceu e em que pé está",
+   "indicadores": {"rotulo": "valor curto", "...": "..."},
+-  "porque": [{"texto": "o que você concluiu", "evidencia": "trecho curto da mensagem", "quando": "DD/MM HH:MM"}],
++  "porque": [{"texto": "o que você concluiu", "evidencia": "trecho curto da mensagem", "quando": "DD/MM HH:MM", "mensagens": [12]}],
+   "oQueFaltou": ["o que a empresa deixou de fazer, comparando com o playbook quando houver"],
+   "proximoPasso": "a ação mais importante agora, concreta",
+   "sugestoes": [{"tipo": "etapa|etiqueta|tarefa|compromisso", "valor": "nome exato da etapa ou etiqueta da lista, ou título da tarefa/compromisso", "motivo": "por quê", "prazoDias": 0}]
+ }
+ Regras: até 6 indicadores; até 5 itens em "porque" e em "oQueFaltou"; até 4 sugestões.
++Em "mensagens", os números (#N) das mensagens que comprovam o item, no máximo 3.
+ Sugestão de "etapa" e de "etiqueta" só com um nome que esteja nas listas da empresa.
+ Sugestão de "tarefa" e "compromisso" só se o contato estiver no CRM (indicado abaixo).
+ Se não houver nada a sugerir, devolva "sugestoes": []."""
+@@ -92,11 +104,76 @@ def _texto(valor: Any, teto: int) -> str:
+     return " ".join(str(valor or "").split())[:teto]
+ 
+ 
++def _duracao(segundos: Any) -> str:
++    if not isinstance(segundos, (int, float)) or isinstance(segundos, bool):
++        return "sem dado"
++    if segundos < 60:
++        return f"{int(segundos)} s"
++    if segundos < 3600:
++        return f"{round(segundos / 60)} min"
++    return f"{round(segundos / 3600, 1)} h"
++
++
++def _dict(valor: Any) -> dict:
++    return valor if isinstance(valor, dict) else {}
++
++
++def resumo_dos_fatos(fatos: Any) -> str:
++    """Os fatos medidos pelo banco, em linhas curtas para o Claude ler."""
++    if not isinstance(fatos, dict) or not fatos:
++        return ""
++    msgs, respostas, passagem = _dict(fatos.get("messages")), _dict(fatos.get("responses")), _dict(fatos.get("handoff"))
++    lado = {"contact": "o contato", "ai": "a IA", "team": "a equipe", "bot": "mensagem automática"}
++    ultimo = f"- Quem falou por último: {lado.get(fatos.get('lastSpeaker'), 'sem dado')}"
++    if fatos.get("waitingReply"):
++        ultimo += f"; o contato espera resposta há {fatos.get('hoursWaiting')} h"
++    linhas = [
++        f"- Mensagens: {msgs.get('total', 0)} (contato {msgs.get('contact', 0)}, IA {msgs.get('ai', 0)}, "
++        f"equipe {msgs.get('team', 0)}, automáticas {msgs.get('bot', 0)})",
++        f"- Primeira resposta da empresa: {_duracao(fatos.get('firstResponseSeconds'))}; "
++        f"tempo típico de resposta: {_duracao(respostas.get('medianSeconds'))}; "
++        f"o mais lento: {_duracao(respostas.get('maxSeconds'))}",
++        ultimo,
++        f"- Retomadas da empresa depois de 24 h sem resposta: {fatos.get('followUps', 0)}",
++        f"- Passagens da IA para a equipe: {passagem.get('aiToTeam', 0)}; da equipe para a IA: {passagem.get('teamToAi', 0)}",
++    ]
++    if fatos.get("contactId"):
++        negocio, tarefas, agenda = _dict(fatos.get("deal")), _dict(fatos.get("tasks")), _dict(fatos.get("meetings"))
++        crm = "é lead" if fatos.get("isLead") else "não é lead"
++        crm += f"; negócio {negocio.get('status')} na etapa {negocio.get('stage')}" if negocio else "; sem negócio"
++        crm += f"; tarefas abertas {tarefas.get('open', 0)} (atrasadas {tarefas.get('overdue', 0)})"
++        crm += f"; compromissos marcados {agenda.get('scheduled', 0)}"
++        linhas.append(f"- CRM: {crm}")
++    return "\n".join(linhas)
++
++
++def resumo_das_notas(notas: Any) -> str:
++    """As notas do esquema da empresa, com o que ficou faltando em cada uma."""
++    linhas = []
++    for familia, corpo in _dict(notas).items():
++        if not isinstance(corpo, dict) or corpo.get("score") is None:
++            continue
++        faltou = [
++            str(c.get("key"))
++            for d in corpo.get("dimensions") or [] if isinstance(d, dict)
++            for c in d.get("criteria") or [] if isinstance(c, dict) and c.get("result") == "missed"
++        ]
++        linha = f"- {familia}: {corpo['score']}/100"
++        if faltou:
++            linha += f"; não atendeu: {', '.join(faltou[:12])}"
++        linhas.append(linha)
++    return "\n".join(linhas)
++
++
+ def montar_prompt(carga: dict) -> str:
+-    """A conversa e o contexto da empresa, para ir por stdin."""
++    """A conversa e o contexto da empresa, para ir por stdin.
++
++    Cada mensagem vai com o número da posição dela na carga (#1, #2...): é por
++    esse número que a evidência volta e vira `message_id`.
++    """
+     tipo = carga.get("kind") if carga.get("kind") in FOCO else "comercial"
+     linhas = []
+-    for m in carga.get("messages") or []:
++    for numero, m in enumerate(carga.get("messages") or [], start=1):
+         if not isinstance(m, dict):
+             continue
+         autor = "Contato" if not m.get("fromMe") else ROTULO_AUTOR.get(m.get("authorKind"), "Empresa (equipe)")
+@@ -105,7 +182,7 @@ def montar_prompt(carga: dict) -> str:
+         if midia:
+             texto = (ROTULO_MIDIA.get(midia) or f"[{midia}]") + (f" {texto}" if texto else "")
+         if texto:
+-            linhas.append(f"[{_quando(m.get('sentAt'))}] {autor}: {texto}")
++            linhas.append(f"#{numero} [{_quando(m.get('sentAt'))}] {autor}: {texto}")
+     partes = [FOCO[tipo], ""]
+     agente = carga.get("agent") if isinstance(carga.get("agent"), dict) else None
+     if agente:
+@@ -120,6 +197,12 @@ def montar_prompt(carga: dict) -> str:
+     partes.append("Etapas do funil da empresa: " + ", ".join(_texto(s, 80) for s in (carga.get("stages") or [])[:20]))
+     partes.append("Etiquetas da empresa: " + ", ".join(_texto(t, 80) for t in (carga.get("tags") or [])[:40]))
+     partes.append("O contato está no CRM: " + ("sim" if carga.get("hasContact") else "não"))
++    fatos = resumo_dos_fatos(carga.get("facts"))
++    if fatos:
++        partes.append("Fatos medidos pelo sistema (exatos, não recalcule):\n" + fatos)
++    notas = resumo_das_notas(carga.get("scores"))
++    if notas:
++        partes.append("Notas calculadas pelas regras da empresa (não dê outra nota):\n" + notas)
+     partes.append("")
+     partes.append(FORMATO)
+     partes.append("")
+@@ -154,13 +237,26 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+             rotulo, conteudo = _texto(chave, 40), _texto(valor if not isinstance(valor, list) else ", ".join(map(str, valor)), 120)
+             if rotulo and conteudo:
+                 indicadores[rotulo] = conteudo
++    # O número #N vira o message_id da carga. Número que não existe é
++    # descartado: a evidência só aponta mensagem que o analista recebeu.
++    ids = [str(m.get("id") or "") if isinstance(m, dict) else "" for m in carga.get("messages") or []]
+     porque = []
+     for item in (dados.get("porque") or [])[:5]:
+         if isinstance(item, dict) and _texto(item.get("texto"), 300):
++            mensagens = []
++            for numero in item.get("mensagens") or []:
++                try:
++                    posicao = int(numero)
++                except (TypeError, ValueError):
++                    continue
++                alvo = ids[posicao - 1][:128] if 1 <= posicao <= len(ids) else ""
++                if alvo and alvo not in mensagens:
++                    mensagens.append(alvo)
+             porque.append({
+                 "texto": _texto(item.get("texto"), 300),
+                 "evidencia": _texto(item.get("evidencia"), 240),
+                 "quando": _texto(item.get("quando"), 20),
++                "messageIds": mensagens[:3],
+             })
+     faltou = [_texto(item, 240) for item in (dados.get("oQueFaltou") or [])[:5] if _texto(item, 240)]
+     etapas = {str(s).casefold(): str(s) for s in carga.get("stages") or []}
+@@ -190,6 +286,7 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+         if len(sugestoes) == 4:
+             break
+     return {
++        "formatVersion": VERSAO_DO_FORMATO,
+         "resumo": resumo,
+         "indicadores": indicadores,
+         "porque": porque,
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+index 1bb0db4..639296e 100644
+--- a/whatsapp-assistant/test_analista.py
++++ b/whatsapp-assistant/test_analista.py
+@@ -174,6 +174,70 @@ class AnalistaTests(unittest.TestCase):
+         self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "analysis_queue_full")
+ 
+ 
++CARGA_COM_FATOS = {
++    **CARGA,
++    "messages": [{**m, "id": f"3EB0{i}"} for i, m in enumerate(CARGA["messages"], start=1)],
++    "facts": {
++        "version": 1,
++        "messages": {"total": 3, "contact": 2, "ai": 1, "team": 0, "bot": 0},
++        "firstResponseSeconds": 300,
++        "responses": {"count": 1, "medianSeconds": 300, "maxSeconds": 300},
++        "lastSpeaker": "contact",
++        "waitingReply": True,
++        "hoursWaiting": 26.5,
++        "followUps": 0,
++        "handoff": {"aiToTeam": 0, "teamToAi": 0},
++        "contactId": "c1",
++        "isLead": True,
++        "deal": {"status": "aberto", "stage": "Em contato"},
++        "tasks": {"open": 1, "overdue": 1},
++        "meetings": {"scheduled": 0},
++    },
++    "scores": {
++        "lead": {"score": 70, "dimensions": [{"key": "interesse", "score": 70, "criteria": [
++            {"key": "disse_necessidade", "result": "met"}, {"key": "prazo_definido", "result": "missed"}]}]},
++        "atendimento": {"score": None, "dimensions": []},
++    },
++}
++
++
++class CamadaDeInteligenciaTests(unittest.TestCase):
++    """Fatos e notas prontos no prompt; evidência que aponta o message_id."""
++
++    def test_mensagens_numeradas(self):
++        prompt = analista.montar_prompt(CARGA_COM_FATOS)
++        self.assertIn("#1 [01/10 09:00] Contato: Quanto custa o site?", prompt)
++        self.assertIn("#3 [01/10 09:06] Contato: [áudio]", prompt)
++
++    def test_fatos_e_notas_entram_prontos(self):
++        prompt = analista.montar_prompt(CARGA_COM_FATOS)
++        self.assertIn("Primeira resposta da empresa: 5 min", prompt)
++        self.assertIn("o contato espera resposta há 26.5 h", prompt)
++        self.assertIn("negócio aberto na etapa Em contato", prompt)
++        self.assertIn("tarefas abertas 1 (atrasadas 1)", prompt)
++        self.assertIn("- lead: 70/100; não atendeu: prazo_definido", prompt)
++        # Família sem nota não aparece; sem fatos nem notas, nenhuma das seções.
++        self.assertNotIn("- atendimento:", prompt)
++        vazio = analista.montar_prompt(CARGA)
++        self.assertNotIn("Fatos medidos", vazio)
++        self.assertNotIn("Notas calculadas", vazio)
++
++    def test_evidencia_vira_message_id(self):
++        bruto = resposta(porque=[
++            {"texto": "Perguntou preço primeiro", "evidencia": "Quanto custa", "mensagens": [1, "3", 1, 99, 0, "x"]},
++            {"texto": "Sem número", "evidencia": "..."},
++        ])
++        r = analista.ler_resultado(json.dumps(bruto), CARGA_COM_FATOS)
++        self.assertEqual(r["formatVersion"], 2)
++        self.assertEqual(r["porque"][0]["messageIds"], ["3EB01", "3EB03"])
++        self.assertEqual(r["porque"][1]["messageIds"], [])
++
++    def test_carga_antiga_sem_id_nao_inventa(self):
++        bruto = resposta(porque=[{"texto": "x", "evidencia": "y", "mensagens": [1, 2]}])
++        r = analista.ler_resultado(json.dumps(bruto), CARGA)
++        self.assertEqual(r["porque"][0]["messageIds"], [])
++
++
+ class ConfigEMainTests(unittest.TestCase):
+     def test_config(self):
+         base = {"ASSISTANT_VAULT": "/tmp/v", "ASSISTANT_OWNER": "556500000000", "ASSISTANT_STATE_DB": "/tmp/a.db"}
