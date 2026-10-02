@@ -95,10 +95,10 @@ export function padraoDaAudiencia(agents, audience) {
 export function avisoAoDesativar(agent) {
   if (!agent?.isDefault || agent.status !== "active") return null;
   return {
-    titulo: "Desativar o agente principal?",
-    descricao: `${agent.name} é o agente principal de ${rotuloDeAudiencia(agent.audience).toLowerCase()}. `
+    titulo: "Desativar a porta de entrada?",
+    descricao: `${agent.name} é a porta de entrada de ${rotuloDeAudiencia(agent.audience).toLowerCase()}. `
       + "Ao desativá-lo, novas conversas dessa audiência ficam sem atendimento até ele ser "
-      + "reativado ou outro agente ser definido como principal. Nenhum outro agente é promovido "
+      + "reativado ou outro agente virar a porta de entrada. Nenhum outro agente é promovido "
       + "automaticamente.",
     rotulo: "Desativar mesmo assim",
   };
@@ -107,7 +107,7 @@ export function avisoAoDesativar(agent) {
 /** Promover pede confirmação, porque muda quem atende primeiro. */
 export function avisoAoTornarPadrao(agent, principalAtual) {
   return {
-    titulo: "Tornar este o agente principal?",
+    titulo: "Tornar este agente a porta de entrada?",
     descricao: `${agent.name} passa a ser o agente inicial de `
       + `${rotuloDeAudiencia(agent.audience).toLowerCase()}`
       + (principalAtual && principalAtual.id !== agent.id
@@ -116,7 +116,7 @@ export function avisoAoTornarPadrao(agent, principalAtual) {
       + (agent.status === "inactive"
         ? " Ele está inativo: enquanto continuar assim, essa audiência segue sem atendimento."
         : ""),
-    rotulo: "Tornar principal",
+    rotulo: "Tornar porta de entrada",
   };
 }
 
@@ -159,7 +159,7 @@ export function mensagemDeErro(erro) {
     return "Já existe um agente com esse identificador. Troque o nome ou o identificador.";
   }
   if (codigo === AGENT_ERRORS.DEFAULT_ALREADY_EXISTS) {
-    return "Esta audiência já tem um agente principal. Use “Tornar principal” no agente desejado.";
+    return "Este público já tem uma porta de entrada. Use “Tornar porta de entrada” no agente desejado.";
   }
   if (codigo === AGENT_ERRORS.FORBIDDEN) {
     return "Você não tem permissão para gerenciar agentes desta organização.";

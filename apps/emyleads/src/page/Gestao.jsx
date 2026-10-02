@@ -82,7 +82,7 @@ const TELAS = [
   ...(PLATAFORMA_WEB ? [{ id: "relatorios", rotulo: "Relatórios", icone: ChartColumn, grupo: "Gestão" }] : []),
   { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão" },
   { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão" },
-  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Inteligência", icone: LibraryBig, grupo: "Automação" }] : []),
+  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Equipe de IA", icone: LibraryBig, grupo: "Automação" }] : []),
   { id: "chatbots", rotulo: "Chatbots", icone: Bot, grupo: "Automação" },
   { id: "conexoes", rotulo: "Conexões", icone: Cable, grupo: "Ambiente" },
   { id: "equipe", rotulo: "Equipe", icone: UsersRound, grupo: "Ambiente" },

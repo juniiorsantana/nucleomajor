@@ -63,7 +63,7 @@ describe("o que impede publicar", () => {
     // Texto diferente de propósito: aqui não existe botão para clicar nesta
     // tela, e pedir "escolha uma" faria a pessoa procurar o que não existe.
     const motivo = motivoParaNaoPublicar(rascunho({ audiencia: "external" }), [COLECOES[2]]);
-    expect(motivo).toMatch(/Central de Inteligência/);
+    expect(motivo).toMatch(/Equipe de IA/);
   });
 });
 

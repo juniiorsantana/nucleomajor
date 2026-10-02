@@ -495,7 +495,7 @@ export default function AssistenteConhecimento({
                     <p className="mt-3 flex items-start gap-2 rounded-[9px] bg-warning-soft p-3 text-[11.5px] leading-4 text-warning">
                       <AlertTriangle size={15} className="mt-px flex-none" />
                       Não há nenhuma coleção externa nesta empresa. Dá para salvar como rascunho, mas não para publicar
-                      até alguém criar uma na Central de Inteligência.
+                      até alguém criar uma na Equipe de IA.
                     </p>
                   )}
                 </div>

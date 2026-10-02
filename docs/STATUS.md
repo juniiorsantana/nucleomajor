@@ -5,6 +5,15 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Equipe de IA: playbook e Jev por agente (01/10/2026)
+
+A Central de Inteligência virou "Equipe de IA" (agente no centro, Playbook
+comercial, Biblioteca) e o Jev ganhou quatro usos: avaliação no Testar,
+Desempenho por agente, "seguiu o jeito do agente?" e sinais para o playbook.
+Migration `20261001100000` (prova PGlite 32 PASS), patch do runtime
+`runtime-equipe-de-ia` (979 testes) e portal. Detalhe e o que ainda falta:
+`docs/equipe-de-ia/README.md`.
+
 ## Coordenador Jev: pronto, esperando aplicação (01/10/2026)
 
 Leitura automática das conversas com o Jev (`typesafe/jev-1.13`, pelo

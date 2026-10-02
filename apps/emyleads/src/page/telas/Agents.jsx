@@ -20,9 +20,10 @@
  * atende depois da criação, e nenhum preset do assistente de criação nasce
  * "principal" — isso continua sendo uma ação separada e explícita.
  *
- * Liberação de atendimento, marca e política de sessão continuam na aba
- * "Liberação e marca": elas ainda não têm operação equivalente na FASE F, e
- * migrá-las agora quebraria o piloto de atendimento.
+ * Liberação de atendimento, marca e política de sessão moram na aba "Quem
+ * atende" da porta de entrada (01/10/2026). Continuam gravadas pelas mesmas
+ * operações de antes (`inteligencia.salvarPerfil`, `configurarRollout`): só
+ * mudaram de lugar na tela.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -425,11 +426,28 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
 }
 
 /* ========================================================================== *
- * DETALHE DO AGENTE — Geral, Personalidade, O que sabe fazer.
+ * DETALHE DO AGENTE — a página do agente, com tudo dele (01/10/2026).
+ *
+ * As abas seguem a ordem em que se configura um agente: quem ele é (Jeito),
+ * o que vende (Playbook), o que faz (Habilidades), o que consulta
+ * (Conhecimento), para quem (Quem atende), e depois Testar e Desempenho.
+ * O que era "Liberação e marca" e "Simulador" mora aqui agora. As abas que
+ * dependem da Central chegam prontas por `extras`, para este arquivo não
+ * importar a Central (que importa este).
  * ========================================================================== */
 
-export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes }) {
-  const [aba, setAba] = useState("geral");
+export const ABAS_DO_AGENTE = [
+  ["jeito", "Jeito"],
+  ["playbook", "Playbook"],
+  ["habilidades", "Habilidades"],
+  ["conhecimento", "Conhecimento"],
+  ["atende", "Quem atende"],
+  ["testar", "Testar"],
+  ["desempenho", "Desempenho"],
+];
+
+export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes, extras = {} }) {
+  const [aba, setAba] = useState("jeito");
   const [avancado, setAvancado] = useState(false);
   const [bindings, setBindings] = useState([]);
   const [salvando, setSalvando] = useState(false);
@@ -488,7 +506,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
     }
   };
 
-  const abas = [["geral", "Geral"], ["personalidade", "Personalidade"], ["habilidades", "O que sabe fazer"]];
+  const abas = ABAS_DO_AGENTE;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -513,12 +531,12 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
           <div className="mt-3 flex flex-wrap gap-2">
             {agent.isDefault ? (
               <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-accent-soft px-3 py-1.5 text-[11px] font-semibold text-accent-forte">
-                <ShieldCheck size={13} />Agente principal de {rotuloDeAudiencia(agent.audience).toLowerCase()}
+                <ShieldCheck size={13} />Porta de entrada de {rotuloDeAudiencia(agent.audience).toLowerCase()}
               </span>
             ) : (
               <button onClick={() => acoes.tornarPadrao(agent)}
                 className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-3 py-1.5 text-[11px] font-semibold hover:border-accent">
-                <Star size={13} />Tornar principal
+                <Star size={13} />Tornar porta de entrada
               </button>
             )}
             <button onClick={() => acoes.alternarAtivo(agent)}
@@ -539,8 +557,8 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
       </header>
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
-        {aba === "geral" ? (
-          <div className="grid max-w-xl gap-3.5">
+        {aba === "jeito" ? (
+          <div className="grid max-w-2xl gap-3.5">
             <Campo rotulo="Nome">
               <input disabled={!canWrite} value={rascunho.name}
                 onChange={(e) => campo("name", e.target.value)} className={entrada} />
@@ -549,7 +567,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
               <input disabled={!canWrite} value={rascunho.role}
                 onChange={(e) => campo("role", e.target.value)} className={entrada} />
             </Campo>
-            <Campo rotulo="Como ele conversa">
+            <Campo rotulo="Como ele conversa" ajuda="Uma linha. O Jev usa esta frase para dizer se as conversas seguem o jeito deste agente.">
               <input disabled={!canWrite} value={rascunho.tone}
                 onChange={(e) => campo("tone", e.target.value)} className={entrada} />
             </Campo>
@@ -569,19 +587,27 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
                 </Campo>
               </div>
             </details>
+
+            <div className="grid gap-2 border-t border-line pt-4">
+              <p className="text-[12px] font-semibold">Personalidade</p>
+              <p className="text-[11px] leading-4 text-sub">
+                Explique como esse agente deve conversar, se comportar e representar sua empresa. Aceita Markdown.
+                O que vender e como tratar objeção ficam no Playbook.
+              </p>
+              <textarea aria-label="Personalidade" disabled={!canWrite} value={rascunho.soulMarkdown}
+                onChange={(e) => campo("soulMarkdown", e.target.value)} rows={14}
+                className={`${entrada} font-mono text-[11.5px] leading-5`} />
+            </div>
           </div>
         ) : null}
 
-        {aba === "personalidade" ? (
-          <div className="grid max-w-2xl gap-2">
-            <p className="text-[11px] leading-4 text-sub">
-              Explique como esse agente deve conversar, se comportar e representar sua empresa. Aceita Markdown.
-            </p>
-            <textarea disabled={!canWrite} value={rascunho.soulMarkdown}
-              onChange={(e) => campo("soulMarkdown", e.target.value)} rows={16}
-              className={`${entrada} font-mono text-[11.5px] leading-5`} />
-          </div>
+        {aba === "playbook" ? (extras.playbook ? extras.playbook(agent, extras) : <Indisponivel />) : null}
+        {aba === "conhecimento" ? (extras.conhecimento ? extras.conhecimento(agent, extras) : <Indisponivel />) : null}
+        {aba === "atende" ? (
+          (extras.quemAtende && extras.quemAtende(agent, extras)) || <QuemAtendeResumo agent={agent} />
         ) : null}
+        {aba === "testar" ? (extras.testar ? extras.testar(agent, extras) : <Indisponivel />) : null}
+        {aba === "desempenho" ? (extras.desempenho ? extras.desempenho(agent, extras) : <Indisponivel />) : null}
 
         {aba === "habilidades" ? (
           <div className="grid max-w-2xl gap-5">
@@ -645,7 +671,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
         ) : null}
       </div>
 
-      {canWrite && aba !== "habilidades" ? (
+      {canWrite && aba === "jeito" ? (
         <footer className="flex flex-none items-center gap-3 border-t border-line px-4 py-3 md:px-6">
           {erro ? <p className="text-[11.5px] text-danger" role="alert">{erro}</p> : null}
           {salvo && !sujo ? <p className="text-[11.5px] text-success">Salvo.</p> : null}
@@ -659,11 +685,29 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes 
   );
 }
 
+function Indisponivel() {
+  return <p className="text-[12px] text-sub">Disponível no portal, com a empresa conectada.</p>;
+}
+
+/** Quem atende, quando a Central não entregou o editor de liberação. */
+function QuemAtendeResumo({ agent }) {
+  return (
+    <div className="grid max-w-xl gap-2 text-[11.5px] leading-5 text-sub">
+      <p>
+        {agent.name} atende {rotuloDeAudiencia(agent.audience).toLowerCase()}.
+        {agent.isDefault
+          ? " É a porta de entrada: quem chega sem campanha nem conversa em andamento fala com ele."
+          : " Ele responde quando uma campanha aponta para ele ou quando a conversa já é dele. Quem chega sem isso fala com a porta de entrada."}
+      </p>
+    </div>
+  );
+}
+
 /* ========================================================================== *
  * RAIZ — a lista + o detalhe (ou o assistente de criação por cima dos dois).
  * ========================================================================== */
 
-export default function Agents({ agents, catalogoSkills, bindings = [], aoAtualizarSkills, canWrite, recarregar, carregando, erro }) {
+export default function Agents({ agents, catalogoSkills, bindings = [], aoAtualizarSkills, canWrite, recarregar, carregando, erro, extras }) {
   const painelRef = useRef(null);
   const [selecionadoId, setSelecionadoId] = useState(null);
   const [criando, setCriando] = useState(false);
@@ -764,7 +808,7 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
   const lista = (
     <div className="agents-gallery scrollbar-fina" inert={selecionado ? "" : undefined}>
       <div className="agents-gallery-heading">
-        <div><p className="agents-eyebrow">Central de Inteligência</p><h2>Sua equipe de IA</h2>
+        <div><p className="agents-eyebrow">Equipe de IA</p><h2>Sua equipe de IA</h2>
         <p className="agents-gallery-subtitle">
           Cada agente atende um público certo e possui responsabilidades específicas.
         </p></div>
@@ -793,13 +837,14 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
           </p>
         )}
       </div>
-      <div className="agents-info"><span className="agent-role-icon"><ShieldCheck size={25} /></span><div><h3>Uma equipe, responsabilidades bem definidas</h3><p>Cada agente usa as habilidades que você habilitou. O principal continua sendo a porta de entrada de cada público.</p><p>Liberação de atendimento e marca ficam em “Liberação e marca”.</p></div></div>
+      <div className="agents-info"><span className="agent-role-icon"><ShieldCheck size={25} /></span><div><h3>Uma equipe, responsabilidades bem definidas</h3><p>Cada agente usa as habilidades que você habilitou. A porta de entrada de cada público é quem recebe primeiro quem chega.</p><p>Quem recebe respostas, a marca e a saudação ficam na aba “Quem atende” da porta de entrada.</p></div></div>
     </div>
   );
 
   const detalhe = selecionado ? (
     <DetalheAgent agent={selecionado} catalogoSkills={catalogoSkills} canWrite={canWrite}
-      aoVoltar={() => setSelecionadoId(null)} acoes={acoes} />
+      aoVoltar={() => setSelecionadoId(null)} acoes={acoes}
+      extras={extras ? { ...extras, fechar: () => setSelecionadoId(null) } : undefined} />
   ) : null;
 
   return (

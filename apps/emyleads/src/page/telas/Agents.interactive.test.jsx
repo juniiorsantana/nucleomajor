@@ -376,7 +376,7 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
     await clicar(cartaoCloser);
     await tick();
 
-    await clicar(botaoComTexto("Tornar principal"));
+    await clicar(botaoComTexto("Tornar porta de entrada"));
     expect(container.textContent).toContain("Closer passa a ser o agente inicial");
     expect(container.textContent).toContain("Emilia");
     expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
@@ -388,7 +388,7 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
     ]);
 
     const confirmar = Array.from(container.querySelectorAll('[role="alertdialog"] button'))
-      .find((b) => b.textContent.trim() === "Tornar principal");
+      .find((b) => b.textContent.trim() === "Tornar porta de entrada");
     await clicar(confirmar);
     await tick();
 
@@ -397,7 +397,7 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
     expect(agentsApi.editar).not.toHaveBeenCalled();
     expect(agentsApi.definirAtivo).not.toHaveBeenCalled();
 
-    expect(container.textContent).toContain("Agente principal de clientes");
+    expect(container.textContent).toContain("Porta de entrada de clientes");
   });
 
   it("falha ao trocar o principal preserva o estado anterior na tela", async () => {
@@ -406,17 +406,17 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
     await clicar(cartaoCloser);
     await tick();
 
-    await clicar(botaoComTexto("Tornar principal"));
+    await clicar(botaoComTexto("Tornar porta de entrada"));
     agentsApi.tornarPadrao.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN", message: "sem permissão" });
 
     const confirmar = Array.from(container.querySelectorAll('[role="alertdialog"] button'))
-      .find((b) => b.textContent.trim() === "Tornar principal");
+      .find((b) => b.textContent.trim() === "Tornar porta de entrada");
     await clicar(confirmar);
     await tick();
 
     expect(container.textContent).toContain("Você não tem permissão");
     expect(agentsApi.listar).not.toHaveBeenCalled();
-    expect(existeBotao("Tornar principal")).toBe(true);
+    expect(existeBotao("Tornar porta de entrada")).toBe(true);
   });
 });
 
@@ -445,7 +445,7 @@ describe("DESATIVAR O PRINCIPAL — aviso antes, sem autopromoção", () => {
     expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
 
     // Estado válido e simultâneo: principal E inativo ao mesmo tempo.
-    expect(container.textContent).toContain("Agente principal de clientes");
+    expect(container.textContent).toContain("Porta de entrada de clientes");
     expect(container.textContent).toContain("Ativar");
   });
 });
@@ -463,7 +463,7 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
 
     await clicar(botoes().find((b) => b.textContent.includes("Agente A")));
     await tick();
-    await clicar(botaoComTexto("O que sabe fazer"));
+    await clicar(botaoComTexto("Habilidades"));
     await tick();
 
     expect(container.textContent).toContain("Vendas");
@@ -481,7 +481,7 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
 
     await clicar(botoes().find((b) => b.textContent.includes("Agente B")));
     await tick();
-    await clicar(botaoComTexto("O que sabe fazer"));
+    await clicar(botaoComTexto("Habilidades"));
     await tick();
 
     expect(container.textContent).toContain("Vendas");
@@ -496,7 +496,7 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
     await montar({ inicial: [A], catalogoSkills: [skillY] });
     await clicar(botoes().find((b) => b.textContent.includes("Agente A")));
     await tick();
-    await clicar(botaoComTexto("O que sabe fazer"));
+    await clicar(botaoComTexto("Habilidades"));
     await tick();
 
     expect(container.textContent).toContain("Pode aprender (1)");
@@ -533,7 +533,7 @@ describe("MOBILE — navegação de uma tela por vez", () => {
     await clicar(cartao);
     await tick();
 
-    expect(painelMobile().textContent).toContain("Agente principal de clientes");
+    expect(painelMobile().textContent).toContain("Porta de entrada de clientes");
     expect(painelMobile().textContent).not.toContain("Sua equipe de IA");
 
     const voltar = painelMobile().querySelector('button[aria-label="Voltar"]');
