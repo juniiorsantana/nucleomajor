@@ -91,6 +91,6 @@ systemctl --user restart whatsapp-assistant@$UUID
 - 02/10/2026 00:52 UTC: release `equipe-de-ia` criada com o patch, 99 testes
   do coordenador e dos comandos OK na VPS, symlink virado, só o assistente da
   Major reiniciado (`active`, `NRestarts=0`). Rollback: `coordenador-jev`.
-- A migration `20261001100000` **ainda não foi aplicada**: o modo automático
-  recusou a execução em produção. Até ela entrar, o runtime novo lê como o
-  anterior (sem agente nem playbook) e o comando de avaliação não chega.
+- 02/10/2026: migration `20261001100000` aplicada pelo SQL Editor (a pedido do
+  dono) e conferida pelo catálogo: 10 verificações `true`, inclusive a fila de
+  comandos com todos os tipos antigos e `insights_evaluate`.

@@ -239,6 +239,9 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261001100000_equipe_de_ia_playbook_e_jev.sql` aplicada em 02/10/2026 e
+  conferida pelo catálogo (10 verificações `true`). Runtime `equipe-de-ia` no
+  ar desde 02/10 00:52 UTC.
 - `20260930100000_o_coordenador_le_as_conversas.sql` aplicada em 01/10/2026 e
   conferida pelo catálogo (13 verificações `true`). Ver
   `docs/coordenador-jev/PLANO.md`.
