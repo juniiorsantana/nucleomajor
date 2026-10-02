@@ -125,3 +125,14 @@ minutos (o banco marca `failed` / `expired` e o crédito volta).
 
 - 02/10/2026: base conferida na VPS pelos 5 hashes (release `equipe-de-ia`);
   conta de análise ainda não logada.
+- 02/10/2026 03:19 UTC: patch em `/tmp` (hash conferido), `git apply --check`
+  OK na `equipe-de-ia`; release `analisar-conversa` criada, 85 testes do
+  analista, dos comandos e da config OK na VPS; `.env` da Major com backup em
+  `.env.antes-analise` e as duas variáveis novas; symlink virado; só o
+  assistente da Major reiniciado (`active`, `NRestarts=0`, `service.started`
+  normal). Rollback: `equipe-de-ia` + o backup do `.env`.
+- Migration `20261002100000`: ensaio pelo SQL Editor passou inteiro (guardas,
+  criação e conferência, e o `raise` final desfez). A aplicação real **não foi
+  feita**: fica para o dono rodar no SQL Editor.
+- A conta de análise continua **sem login**: até lá, cada análise falha com
+  `analysis_account_missing` e o crédito volta.
