@@ -84,6 +84,39 @@
   .agent-card-action { min-height: 44px; padding-bottom: 0; }
   .agent-drawer button { min-height: 44px; }
   .agent-drawer footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Equipe de IA no celular (02/10/2026). Só abaixo de 768px; o desktop não
+     muda. */
+
+  /* Campos com 16px: abaixo disso o Safari do iPhone dá zoom ao tocar no
+     campo e a tela fica deslocada. */
+  .equipe-de-ia input:not([type=checkbox]):not([type=radio]),
+  .equipe-de-ia textarea,
+  .equipe-de-ia select { font-size: 16px; }
+
+  /* Texto mínimo legível. As telas foram desenhadas para o desktop com
+     corpo de 9 a 11px, que no celular vira letra miúda. */
+  .equipe-de-ia [class*="text-[8.5px]"],
+  .equipe-de-ia [class*="text-[9px]"],
+  .equipe-de-ia [class*="text-[9.5px]"],
+  .equipe-de-ia [class*="text-[10px]"],
+  .equipe-de-ia [class*="text-[10.5px]"] { font-size: 12px; line-height: 1.45; }
+  .equipe-de-ia [class*="text-[11px]"],
+  .equipe-de-ia [class*="text-[11.5px]"] { font-size: 13px; line-height: 1.45; }
+
+  /* As sete seções do agente num seletor nativo, como o da Central, em vez de
+     abas que rolavam para o lado. */
+  .agent-secao-mobile { display: flex; align-items: center; gap: 12px; margin: 12px 0 14px; font-size: 13px; color: var(--el-sub); }
+  .agent-secao-mobile select { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-control); background: var(--el-surface); color: var(--el-fg); }
+
+  /* Ações do cabeçalho do agente dividem a linha em partes iguais. */
+  .agent-acoes > * { flex: 1 1 0; justify-content: center; }
+
+  /* O painel do agente ocupa a tela inteira: o topo respeita o entalhe. */
+  .agent-drawer > div > header { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+
+  /* O rodapé do playbook encosta nas bordas e fica acima da barra do sistema. */
+  .playbook-rodape { margin: 16px -16px -16px; border-radius: 0; border-left: 0; border-right: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-color-scheme: dark) { .agent-card--principal { --agent-color: #53ddd0; } }
 @media (max-width: 640px) { .agents-gallery { padding: 20px 16px; } .agents-gallery-heading { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 22px; } .agents-gallery-heading h2 { font-size: 25px; } .agents-create { width: 100%; } .agents-info { padding: 18px; align-items: flex-start; gap: 12px; } .agent-drawer-backdrop { position: fixed; } }
