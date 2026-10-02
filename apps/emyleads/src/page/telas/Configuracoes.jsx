@@ -188,7 +188,7 @@ function Estagios({ estagios, recarregar }) {
             <span className="w-6 text-[12.5px] tabular-nums text-faint">
               {i + 1}
             </span>
-            <PilulaEstagio nome={e.nome} cor={corDoEstagio(i)} />
+            <PilulaEstagio nome={e.nome} cor={corDoEstagio({ ...e, ordem: i })} />
             <input
               defaultValue={e.nome}
               onBlur={(ev) => renomear(e, ev.target.value)}

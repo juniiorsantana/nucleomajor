@@ -795,7 +795,7 @@ export default function Funil({ dados, recarregar, aoAbrirContato, comando, aoCo
 
   const colunas = useMemo(
     () => [
-      ...estagiosOrdenados.map((e) => ({ id: colunaDoEstagio(e.id), nome: e.nome, marca: corDoEstagio(e.ordem).marca })),
+      ...estagiosOrdenados.map((e) => ({ id: colunaDoEstagio(e.id), nome: e.nome, marca: corDoEstagio(e).marca })),
       { id: COLUNA_GANHO, nome: "Fechado", marca: "var(--el-success)", vazio: "Arraste para cá o que fechou" },
       { id: COLUNA_PERDIDO, nome: "Perdido", marca: "var(--el-danger)", vazio: "Arraste para cá o que não fechou" },
     ],

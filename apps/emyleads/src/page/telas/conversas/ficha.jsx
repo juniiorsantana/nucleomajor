@@ -534,7 +534,7 @@ export function FichaLateral({
           <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
             <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Negócio</span>
             <div className="mt-2 flex items-center gap-2">
-              <PilulaEstagio nome={estagio?.nome} cor={corDoEstagio(estagio?.ordem)} />
+              <PilulaEstagio nome={estagio?.nome} cor={corDoEstagio(estagio)} />
               {negocio.valor != null && (
                 <span className="ml-auto text-[14px] font-semibold tabular-nums text-fg">
                   {fmtMoeda(negocio.valor)}

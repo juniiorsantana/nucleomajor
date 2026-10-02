@@ -203,8 +203,24 @@ export const ESTAGIOS_PADRAO = [
  */
 export const PALETA_ESTAGIOS = [1, 2, 3, 4, 5, 6].map((n) => ({ marca: `var(--el-st-${n})` }));
 
-export const corDoEstagio = (ordem = 0) =>
-  PALETA_ESTAGIOS[Math.min(Math.max(Number(ordem) || 0, 0), PALETA_ESTAGIOS.length - 1)];
+const semAcento = (texto) =>
+  String(texto || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+/** A etapa de fechamento: a mesma regra do Funil (id "fechado" ou o nome). */
+export const ehEstagioFechado = (estagio) =>
+  Boolean(estagio) && (estagio.id === "fechado" || semAcento(estagio.nome) === "fechado");
+
+/**
+ * Recebe o estágio (ou só a ordem). Fechado é verde, a cor de ganho, como a
+ * coluna Fechado do Funil; os demais seguem a escala azul pela ordem.
+ */
+export const corDoEstagio = (estagioOuOrdem = 0) => {
+  if (typeof estagioOuOrdem === "object" && estagioOuOrdem !== null) {
+    if (ehEstagioFechado(estagioOuOrdem)) return { marca: "var(--el-success)" };
+    estagioOuOrdem = estagioOuOrdem.ordem;
+  }
+  return PALETA_ESTAGIOS[Math.min(Math.max(Number(estagioOuOrdem) || 0, 0), PALETA_ESTAGIOS.length - 1)];
+};
 
 export const TAGS_PADRAO = [
   { id: "cliente", nome: "Cliente", cor: "#147A52" },
