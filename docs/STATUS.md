@@ -239,6 +239,17 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261003100000_camada_de_inteligencia.sql` aplicada em 02/10/2026 pelo SQL
+  Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
+  arquivo) e conferida pelo catálogo: `analysis_schemas` com RLS e **vazia**
+  (nenhum esquema publicado, por decisão do dono: Lead e Atendimento Score
+  ficam nulos até o Analysis Schema v1); gatilho dos fatos; visão
+  `conversation_intelligence`; as 21 leituras em vigor com fatos e 0 com nota;
+  contagens de leituras (28) e análises (2) iguais às de antes; fatos sem
+  acesso de fora; `anon` sem a visão. Backup: a função de pedido substituída
+  era idêntica à do repo (md5 `db915f8d…`); o rollback está em
+  `scripts/sql/rollback-20261003100000-camada-de-inteligencia.sql`, provado no
+  PGlite. Runtime `camada-de-inteligencia` no ar na VPS.
 - `20261002100000_analisar_conversa.sql` aplicada em 02/10/2026 pelo SQL
   Editor (ensaio com `raise` antes) e conferida pelo catálogo: tabela
   `conversation_analyses` com RLS e 1 política; créditos base 30,
