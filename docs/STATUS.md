@@ -239,14 +239,18 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
-- `20261004100000_atendimento_score_v1.sql` aplicada em 03/10/2026 pelo SQL
+- `20261004100000_atendimento_score_v1.sql` aplicada em 02/10/2026 pelo SQL
   Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
   arquivo) e conferida pelo catálogo: `atendimento.v1` publicado (padrão da
   plataforma, pesos somam 100, sem família lead); 6 funções novas; fatos v2;
   a Major com o playbook dela (`origem = empresa`); 29 leituras intactas e
   nenhuma recalculada; `anon` sem `nucleo_analysis_classify`. Backup: as 5
   funções substituídas eram idênticas às do repo (md5 conferido); rollback em
-  `scripts/sql/rollback-20261004100000-atendimento-score-v1.sql`.
+  `scripts/sql/rollback-20261004100000-atendimento-score-v1.sql`. Runtime
+  na VPS: `atendimento-score-v1` (18:49 UTC) e, por cima, `ajustes-v1` (19:13
+  UTC, cobertura no contexto, Jev incerto fora das conclusões, conferência com
+  os estados, sem `#N` no texto). Validado pelo botão; falta ver a primeira
+  leitura automática do Jev com `major-v2`.
 - `20261003100000_camada_de_inteligencia.sql` aplicada em 02/10/2026 pelo SQL
   Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
   arquivo) e conferida pelo catálogo: `analysis_schemas` com RLS e **vazia**

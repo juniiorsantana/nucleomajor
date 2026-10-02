@@ -1,6 +1,6 @@
 # Deploy: Analysis Schema v1 no runtime (Atendimento Score)
 
-> **Estado em 03/10/2026, ao fechar o roteiro:** nada aplicado.
+> **Estado em 02/10/2026, ao fechar o roteiro:** nada aplicado.
 > - Base: a release ativa **`observabilidade-do-analista`**.
 > - Patch `runtime-atendimento-score-v1.patch`: 7 arquivos, 866 linhas a mais
 >   e 308 a menos, sha256 `a6668139941528a3cc1abd0c745f57cb79dcdbc075b5e19a07142485a40f1619`.
@@ -93,4 +93,12 @@ mostra.
 
 ## 5. Registro do que já rodou
 
-- (nada ainda)
+- 02/10/2026: migration `20261004100000` aplicada e conferida (ver
+  `docs/STATUS.md`); portal do PR #23 no ar antes do runtime, como pede a ordem.
+- 02/10/2026, 18:49 UTC: release `atendimento-score-v1` no ar na VPS (rollback:
+  `observabilidade-do-analista`). Serviço ativo, `NRestarts=0`, sem erro no log.
+- Validação pelo botão: análise `228af13f…` classificada na hora
+  (`analysis.classified` → `analysis.done`), relatório `analysis_report.v1` no
+  portal. Achados que viraram os ajustes de `runtime-ajustes-v1`: cobertura
+  baixa (o Jev abaixo de 0,6 em vários critérios), alerta contraditório e `#N`
+  no texto.
