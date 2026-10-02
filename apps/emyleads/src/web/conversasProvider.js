@@ -177,6 +177,14 @@ const RECUSAS = [
     "media type is not allowed",
     "Esse tipo de arquivo não pode ser enviado. Use JPG, PNG, WebP ou o áudio gravado aqui.",
   ],
+  // O botão "Analisar conversa" (20261002100000).
+  ["organization management required", "Só o dono ou um administrador da empresa pode fazer isso."],
+  ["no analysis credits left", "As análises deste ciclo acabaram. Elas renovam no dia da assinatura."],
+  ["analysis kind must be", "Escolha a análise comercial ou a de atendimento."],
+  ["group conversations cannot be analyzed", "Conversas de grupo não são analisadas."],
+  ["conversation has no messages", "Esta conversa ainda não tem mensagens para analisar."],
+  ["only a finished analysis can be saved", "Só dá para salvar uma análise concluída."],
+  ["analysis not found", "Esta análise não existe mais."],
 ];
 
 function traduzir(mensagem) {
@@ -735,6 +743,80 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       return Object.fromEntries(
         (data || []).map((linha) => [idDaConversa(linha.connection_id, linha.contact_phone), linha])
       );
+    },
+
+    /**
+     * O saldo de análises do ciclo: `{ limit, used, left, cycleStart, renewsAt }`.
+     * Falha vira `null`, e a tela esconde o botão: banco antes da migration
+     * 20261002100000 não pode derrubar a ficha.
+     */
+    "conversas.creditosDeAnalise": async () => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("conversation_analysis_credits", {
+        target_organization: organizationId,
+      });
+      return error ? null : data || null;
+    },
+
+    /**
+     * Pede a análise de uma conversa. O banco gasta o crédito, põe o pedido na
+     * fila da VPS e devolve o id para acompanhar. Dois cliques devolvem o
+     * mesmo pedido.
+     */
+    "conversas.pedirAnalise": async ({ id, tipo }) => {
+      const alvo = separarId(id);
+      if (!alvo) throw erroConversas("Conversa inválida.", "analise-conversa-invalida");
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("conversation_analysis_request", {
+        target_organization: organizationId,
+        target_connection: alvo.connectionId,
+        target_chat: alvo.chat,
+        analysis_kind: tipo,
+      });
+      if (error) throw erroConversas(traduzir(error.message), "analise-pedido-falhou");
+      return data;
+    },
+
+    /** O andamento de uma análise, com o resultado quando termina. */
+    "conversas.analise": async ({ analiseId }) => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase.rpc("conversation_analysis_status", {
+        target_organization: organizationId,
+        target_analysis: analiseId,
+      });
+      if (error) throw erroConversas(traduzir(error.message), "analise-andamento-falhou");
+      return data;
+    },
+
+    /** Guarda a análise na ficha: a equipe passa a vê-la, e ela não expira. */
+    "conversas.salvarAnalise": async ({ analiseId }) => {
+      const organizationId = await organizacao();
+      const { error } = await supabase.rpc("conversation_analysis_save", {
+        target_organization: organizationId,
+        target_analysis: analiseId,
+      });
+      if (error) throw erroConversas(traduzir(error.message), "analise-salvar-falhou");
+      return { salva: true };
+    },
+
+    /**
+     * As análises desta conversa, da mais nova para a mais velha. A RLS
+     * decide o que aparece: a equipe vê só as salvas; dono e admin veem
+     * também os rascunhos. Falha vira lista vazia, como as leituras.
+     */
+    "conversas.analises": async ({ id }) => {
+      const alvo = separarId(id);
+      if (!alvo) return [];
+      const organizationId = await organizacao();
+      const { data, error } = await supabase
+        .from("conversation_analyses")
+        .select("id,kind,status,error_code,result,requested_at,completed_at,saved_at")
+        .eq("organization_id", organizationId)
+        .eq("connection_id", alvo.connectionId)
+        .eq("contact_phone", alvo.chat)
+        .order("requested_at", { ascending: false })
+        .limit(10);
+      return error ? [] : data || [];
     },
   };
 }

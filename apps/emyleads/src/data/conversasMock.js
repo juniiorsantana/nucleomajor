@@ -173,6 +173,24 @@ const horaDeAgora = () => {
  * conversa) fica em memória e some ao recarregar. É proposital: gravar
  * conversa falsa no banco de alguém seria pior do que perdê-la.
  */
+/** O que a bancada devolve como análise pronta. Inventado, no formato do analista. */
+const RESULTADO_DE_EXEMPLO = {
+  resumo: "Lead morno que perguntou o preço do site antes de contar o negócio. A IA respondeu, mas não propôs a conversa de diagnóstico.",
+  indicadores: { Temperatura: "Morna", "Objeção": "Preço", Prazo: "Não falou" },
+  porque: [
+    { texto: "Perguntou preço antes de explicar o negócio", evidencia: "Quanto custa um site?", quando: "01/10 09:00" },
+    { texto: "Respondeu rápido e com interesse", evidencia: "Pode ser essa semana sim", quando: "01/10 09:12" },
+  ],
+  oQueFaltou: ["Não ofereceu a conversa de diagnóstico", "Não perguntou quanto ele investe em anúncios"],
+  proximoPasso: "Propor a conversa de diagnóstico com dois horários nesta semana e perguntar o investimento mensal em anúncios.",
+  sugestoes: [
+    { tipo: "etapa", valor: "Em contato", motivo: "Já conversou e respondeu às perguntas", prazoDias: 0 },
+    { tipo: "etiqueta", valor: "Lead quente", motivo: "Pediu horário", prazoDias: 0 },
+    { tipo: "tarefa", valor: "Propor o diagnóstico com dois horários", motivo: "Próximo passo combinado", prazoDias: 1 },
+    { tipo: "compromisso", valor: "Conversa de diagnóstico", motivo: "Ele disse que pode nesta semana", prazoDias: 2 },
+  ],
+};
+
 export function criarOperacoesConversas({ listarContatos }) {
   const extras = new Map();
   const donos = new Map();
@@ -184,6 +202,10 @@ export function criarOperacoesConversas({ listarContatos }) {
   const novas = new Map();
   // Os números em que a IA foi desligada pela ficha nesta sessão da bancada.
   const semIA = new Set();
+  // As análises pedidas nesta sessão da bancada. Cada uma "lê" por dois
+  // segundos e termina com o resultado de exemplo.
+  const analises = new Map();
+  const creditos = { limit: 30, used: 7, left: 23, renewsAt: new Date(Date.now() + 13 * 864e5).toISOString() };
 
   const roteiroDe = (contato, indice) => {
     const base = indice === 0 ? ROTEIRO_LONGO : ROTEIRO_CURTO;
@@ -419,6 +441,53 @@ export function criarOperacoesConversas({ listarContatos }) {
 
     /** Bancada: o disparo manual sempre entra na fila. */
     "conversas.iniciarFluxo": async () => ({ enfileirado: true }),
+
+    "conversas.creditosDeAnalise": async () => ({ ...creditos }),
+
+    "conversas.pedirAnalise": async ({ id, tipo }) => {
+      if (creditos.left <= 0) throw new Error("As análises deste ciclo acabaram. Elas renovam no dia da assinatura.");
+      creditos.used += 1;
+      creditos.left -= 1;
+      const analiseId = `analise-${analises.size + 1}`;
+      analises.set(analiseId, { id: analiseId, conversa: id, kind: tipo, pedidaEm: Date.now(), saved_at: null });
+      return { analysisId: analiseId, status: "pending", reused: false, credits: { ...creditos } };
+    },
+
+    "conversas.analise": async ({ analiseId }) => {
+      const analise = analises.get(analiseId);
+      if (!analise) throw new Error("Esta análise não existe mais.");
+      const pronta = Date.now() - analise.pedidaEm > 2000;
+      return {
+        analysisId: analise.id,
+        kind: analise.kind,
+        status: pronta ? "done" : "running",
+        result: pronta ? RESULTADO_DE_EXEMPLO : null,
+        requestedAt: new Date(analise.pedidaEm).toISOString(),
+        completedAt: pronta ? new Date().toISOString() : null,
+        savedAt: analise.saved_at,
+        credits: { ...creditos },
+      };
+    },
+
+    "conversas.salvarAnalise": async ({ analiseId }) => {
+      const analise = analises.get(analiseId);
+      if (analise) analise.saved_at = new Date().toISOString();
+      return { salva: true };
+    },
+
+    "conversas.analises": async ({ id }) =>
+      [...analises.values()]
+        .filter((analise) => analise.conversa === id && Date.now() - analise.pedidaEm > 2000)
+        .reverse()
+        .map((analise) => ({
+          id: analise.id,
+          kind: analise.kind,
+          status: "done",
+          result: RESULTADO_DE_EXEMPLO,
+          requested_at: new Date(analise.pedidaEm).toISOString(),
+          completed_at: new Date(analise.pedidaEm + 2000).toISOString(),
+          saved_at: analise.saved_at,
+        })),
 
     /** Bancada: quem está sem IA fica num conjunto em memória, como o banco guardaria. */
     "conversas.atendimentoIA": async ({ telefone }) => ({

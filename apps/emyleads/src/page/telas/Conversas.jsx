@@ -609,6 +609,9 @@ export default function Conversas({
           fluxosManuais={fluxosManuais}
           aoIniciarFluxo={aoIniciarFluxo}
           leitura={leituraDaConversa(leituras?.[conversa.id])}
+          estagios={dados.estagios}
+          podeAnalisar={podeGerenciar}
+          aoAplicadoNaAnalise={recarregar}
         />
       )}
 

@@ -974,3 +974,54 @@ describe("conversas.leituras", () => {
     await expect(operacoes["conversas.leituras"]()).resolves.toEqual({});
   });
 });
+
+describe("análise da conversa", () => {
+  const ID = `${CONNECTION_ID}:5565999990001`;
+
+  it("pede pela conexão e pelo número da conversa, na organização da sessão", async () => {
+    const { operacoes, rpcs } = bancada({
+      rpc: async () => ({ data: { analysisId: "a1", status: "pending", reused: false, credits: { limit: 30, left: 22 } }, error: null }),
+    });
+    const pedido = await operacoes["conversas.pedirAnalise"]({ id: ID, tipo: "comercial" });
+    expect(rpcs[0]).toEqual([
+      "conversation_analysis_request",
+      { target_organization: ORGANIZATION_ID, target_connection: CONNECTION_ID, target_chat: "5565999990001", analysis_kind: "comercial" },
+    ]);
+    expect(pedido.analysisId).toBe("a1");
+  });
+
+  it("as recusas do pedido chegam em português", async () => {
+    const { operacoes } = bancada({ rpc: async () => ({ data: null, error: { message: "no analysis credits left" } }) });
+    await expect(operacoes["conversas.pedirAnalise"]({ id: ID, tipo: "comercial" })).rejects.toThrow(/renovam no dia da assinatura/);
+    const { operacoes: outra } = bancada({ rpc: async () => ({ data: null, error: { message: "organization management required" } }) });
+    await expect(outra["conversas.pedirAnalise"]({ id: ID, tipo: "comercial" })).rejects.toThrow(/dono ou um administrador/);
+  });
+
+  it("andamento e salvar falam com as RPCs pelo id da análise", async () => {
+    const { operacoes, rpcs } = bancada({ rpc: async () => ({ data: { analysisId: "a1", status: "done" }, error: null }) });
+    await operacoes["conversas.analise"]({ analiseId: "a1" });
+    await operacoes["conversas.salvarAnalise"]({ analiseId: "a1" });
+    expect(rpcs.map(([nome, args]) => [nome, args.target_analysis])).toEqual([
+      ["conversation_analysis_status", "a1"],
+      ["conversation_analysis_save", "a1"],
+    ]);
+  });
+
+  it("créditos e lista: banco sem a migration vira nulo e vazio, sem derrubar a ficha", async () => {
+    const { operacoes } = bancada({ rpc: async () => ({ data: null, error: { message: "function does not exist" } }) });
+    await expect(operacoes["conversas.creditosDeAnalise"]()).resolves.toBeNull();
+
+    const chamadas = [];
+    const supabase = { from: vi.fn((tabela) => criarConsulta(tabela, { data: null, error: { message: "relation does not exist" } }, chamadas)) };
+    const area = { get: vi.fn(async () => ({ [WORKSPACE_KEY]: ORGANIZATION_ID })) };
+    const web = criarOperacoesConversasWeb({ supabase, area });
+    await expect(web["conversas.analises"]({ id: ID })).resolves.toEqual([]);
+    const consulta = consultaDe(chamadas, "conversation_analyses");
+    expect(consulta.filtros).toEqual([
+      ["organization_id", ORGANIZATION_ID],
+      ["connection_id", CONNECTION_ID],
+      ["contact_phone", "5565999990001"],
+    ]);
+    expect(consulta.limite).toBe(10);
+  });
+});

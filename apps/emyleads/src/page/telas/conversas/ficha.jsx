@@ -14,6 +14,7 @@ import { corDoEstagio } from "../../../domain/types";
 import { TONS, fmtMoeda, fmtRelativo, fmtVencimento } from "../../../lib/formato";
 import { formatPhone } from "../../../lib/phone";
 import { PilulaEstagio, SeloWhatsApp } from "../../ui";
+import { AnaliseDaConversa } from "./AnaliseDaConversa";
 import { contatoMarcadoNaoAtenderIA } from "./conversasUtils";
 import { AvatarComDono } from "./pecas";
 
@@ -449,6 +450,9 @@ export function FichaLateral({
   fluxosManuais = [],
   aoIniciarFluxo,
   leitura = null,
+  estagios = [],
+  podeAnalisar = false,
+  aoAplicadoNaAnalise,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -502,6 +506,18 @@ export function FichaLateral({
         <IniciarFluxo contato={contato} fluxos={fluxosManuais} aoIniciar={aoIniciarFluxo} />
 
         <LeituraAutomatica leitura={leitura} />
+
+        <AnaliseDaConversa
+          conversa={conversa}
+          contato={contato}
+          negocio={negocio}
+          estagios={estagios}
+          etiquetas={todasEtiquetas}
+          podePedir={podeAnalisar}
+          aoAtualizarEtiquetas={aoAtualizarEtiquetas}
+          aoCriarEtiqueta={aoCriarEtiqueta}
+          aoAplicado={aoAplicadoNaAnalise}
+        />
 
         {negocio ? (
           <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
