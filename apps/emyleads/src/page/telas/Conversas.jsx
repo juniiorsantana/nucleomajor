@@ -104,6 +104,24 @@ function ultimaRecebida(mensagens) {
   return ultima?.texto || "";
 }
 
+/**
+ * Leva a conversa até a mensagem que sustenta uma conclusão da análise e a
+ * destaca por alguns segundos. Devolve se achou: a mensagem pode estar fora
+ * das que a tela carregou.
+ */
+export function mostrarMensagem(container, messageId) {
+  if (!container || !messageId) return false;
+  const alvo = [...container.querySelectorAll("[data-message-id]")].find(
+    (elemento) => elemento.getAttribute("data-message-id") === String(messageId)
+  );
+  if (!alvo) return false;
+  alvo.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  const bolha = alvo.firstElementChild || alvo;
+  bolha.classList.add("outline", "outline-2", "outline-accent");
+  setTimeout(() => bolha.classList.remove("outline", "outline-2", "outline-accent"), 2500);
+  return true;
+}
+
 /* ------------------------------------------------------------------ */
 
 export default function Conversas({
@@ -612,6 +630,8 @@ export default function Conversas({
           estagios={dados.estagios}
           podeAnalisar={podeGerenciar}
           aoAplicadoNaAnalise={recarregar}
+          aoUsarMensagemDaAnalise={(texto) => setRascunho(texto)}
+          aoVerMensagemDaAnalise={(messageId) => mostrarMensagem(rolagem.current, messageId)}
         />
       )}
 

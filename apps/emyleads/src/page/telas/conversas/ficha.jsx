@@ -453,6 +453,8 @@ export function FichaLateral({
   estagios = [],
   podeAnalisar = false,
   aoAplicadoNaAnalise,
+  aoUsarMensagemDaAnalise,
+  aoVerMensagemDaAnalise,
 }) {
   const vencimento = tarefa ? fmtVencimento(tarefa.venceEm) : null;
 
@@ -517,6 +519,8 @@ export function FichaLateral({
           aoAtualizarEtiquetas={aoAtualizarEtiquetas}
           aoCriarEtiqueta={aoCriarEtiqueta}
           aoAplicado={aoAplicadoNaAnalise}
+          aoUsarMensagem={aoUsarMensagemDaAnalise}
+          aoVerMensagem={aoVerMensagemDaAnalise}
         />
 
         {negocio ? (

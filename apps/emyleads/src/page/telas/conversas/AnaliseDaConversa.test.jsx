@@ -164,3 +164,54 @@ describe("pedir, acompanhar, aplicar e salvar", () => {
     expect(botao("Analisar conversa").disabled).toBe(true);
   });
 });
+
+describe("Analysis Schema v1 no diálogo", () => {
+  const RELATORIO_V1 = {
+    schema_version: "analysis.v1",
+    lead_score: null,
+    atendimento_score: { score: 62, max_score: 100, evaluated_weight: 55, max_weight: 100, label: "62/100 até aqui", criteria: [] },
+    diagnosis: { summary: "Conduziu bem, falta o próximo passo.", why_this_score: [], what_to_do_now: [], suggested_message: { applicable: false, text: null }, red_flags: [] },
+    red_flags: [],
+  };
+  const RESULTADO_V1 = { schema_version: "analysis_report.v1", formatVersion: 3, summary: "Conduziu bem, falta o próximo passo." };
+
+  it("análise v1 abre o relatório novo, com a nota do banco", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    api.conversas.pedirAnalise.mockResolvedValue({ analysisId: "v1", status: "pending", credits: CREDITOS });
+    api.conversas.analise.mockResolvedValue({ analysisId: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, report: RELATORIO_V1, serviceScore: 62 });
+    await render(<AnaliseDaConversa {...props()} />);
+    await clicar(botao("Analisar conversa"));
+    await clicar(botao("Analisar · usa 1 crédito"));
+    await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
+    await act(async () => {});
+    expect(document.body.textContent).toContain("Atendimento Score");
+    expect(document.body.textContent).toContain("62/100 até aqui");
+    expect(document.body.textContent).toContain("Conduziu bem, falta o próximo passo.");
+    expect(document.body.textContent).not.toContain("Sugestões");
+  });
+
+  it("da lista: mostra a nota e busca o relatório completo ao abrir", async () => {
+    api.conversas.analises.mockResolvedValue([
+      { id: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, completed_at: "2026-10-03T12:00:00Z", saved_at: "2026-10-03T12:05:00Z", service_score: 62 },
+    ]);
+    api.conversas.analise.mockResolvedValue({ analysisId: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, report: RELATORIO_V1, savedAt: "2026-10-03T12:05:00Z" });
+    await render(<AnaliseDaConversa {...props()} />);
+    expect(container.textContent).toContain("62/100");
+    await clicar([...container.querySelectorAll("button")].find((b) => b.textContent.includes("Comercial · 03/10")));
+    await act(async () => {});
+    expect(api.conversas.analise).toHaveBeenCalledWith({ analiseId: "v1" });
+    expect(document.body.textContent).toContain("62/100 até aqui");
+  });
+
+  it("análise antiga (formato anterior) continua com a tela de antes", async () => {
+    api.conversas.analises.mockResolvedValue([
+      { id: "a1", kind: "comercial", status: "done", result: RESULTADO, completed_at: "2026-10-01T12:00:00Z", saved_at: "2026-10-01T12:05:00Z" },
+    ]);
+    api.conversas.analise.mockResolvedValue({ analysisId: "a1", kind: "comercial", status: "done", result: RESULTADO, report: { atendimento_score: null, diagnosis: null } });
+    await render(<AnaliseDaConversa {...props()} />);
+    await clicar([...container.querySelectorAll("button")][0]);
+    await act(async () => {});
+    expect(document.body.textContent).toContain("Propor o diagnóstico com dois horários.");
+    expect(document.body.textContent).not.toContain("Atendimento Score");
+  });
+});
