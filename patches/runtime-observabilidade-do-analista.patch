@@ -1,0 +1,238 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index f380ab1..a260111 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -88,7 +88,12 @@ TIPOS = ("etapa", "etiqueta", "tarefa", "compromisso")
+ 
+ 
+ class AnaliseInvalida(ValueError):
+-    pass
++    """Resposta fora do formato. `etapa` diz onde a leitura parou, para o log:
++    json_ausente, json_invalido, schema_nao_objeto, schema_sem_resumo."""
++
++    def __init__(self, etapa: str) -> None:
++        super().__init__(etapa)
++        self.etapa = etapa
+ 
+ 
+ def _quando(valor: Any) -> str:
+@@ -216,21 +221,21 @@ def _json_do_texto(texto: str) -> Any:
+     bruto = re.sub(r"^```(?:json)?\s*|\s*```$", "", bruto)
+     inicio, fim = bruto.find("{"), bruto.rfind("}")
+     if inicio < 0 or fim <= inicio:
+-        raise AnaliseInvalida("sem objeto JSON")
++        raise AnaliseInvalida("json_ausente")
+     try:
+         return json.loads(bruto[inicio:fim + 1])
+     except ValueError as exc:
+-        raise AnaliseInvalida("JSON inválido") from exc
++        raise AnaliseInvalida("json_invalido") from exc
+ 
+ 
+ def ler_resultado(texto: str, carga: dict) -> dict:
+     """O JSON do Claude, conferido e aparado, no formato que o banco guarda."""
+     dados = _json_do_texto(texto)
+     if not isinstance(dados, dict):
+-        raise AnaliseInvalida("resposta não é objeto")
++        raise AnaliseInvalida("schema_nao_objeto")
+     resumo = _texto(dados.get("resumo"), 600)
+     if not resumo:
+-        raise AnaliseInvalida("sem resumo")
++        raise AnaliseInvalida("schema_sem_resumo")
+     indicadores = {}
+     if isinstance(dados.get("indicadores"), dict):
+         for chave, valor in list(dados["indicadores"].items())[:6]:
+@@ -368,6 +373,7 @@ class Analista:
+             return "failed"
+         self._gravar(analise, "running")
+         inicio = time.monotonic()
++        resposta = None
+         try:
+             resposta = self.executar(
+                 montar_prompt(carga),
+@@ -384,11 +390,13 @@ class Analista:
+             resultado = ler_resultado(getattr(resposta, "reply", ""), carga)
+         except runner.RunnerError as exc:
+             self._gravar(analise, "failed", erro=exc.code)
+-            audit.log("analysis.failed", analysis_id=analise, error_code=exc.code)
++            audit.log("analysis.failed", analysis_id=analise, error_code=exc.code,
++                      **self._diagnostico(inicio, None))
+             return "failed"
+-        except AnaliseInvalida:
++        except AnaliseInvalida as exc:
+             self._gravar(analise, "failed", erro="analysis_invalid_response")
+-            audit.log("analysis.failed", analysis_id=analise, error_code="analysis_invalid_response")
++            audit.log("analysis.failed", analysis_id=analise, error_code="analysis_invalid_response",
++                      stage=exc.etapa, **self._diagnostico(inicio, resposta))
+             return "failed"
+         ms = int((time.monotonic() - inicio) * 1000)
+         self._gravar(analise, "done", resultado=resultado, ms=ms)
+@@ -396,6 +404,23 @@ class Analista:
+                   suggestions=len(resultado["sugestoes"]))
+         return "done"
+ 
++    def _diagnostico(self, inicio: float, resposta: Any) -> dict:
++        """O que dá para saber de uma falha sem guardar conversa nem resposta:
++        modelo, tempo, tamanho, código de saída e os dados técnicos da CLI.
++        Não há nova tentativa: `attempt` é sempre 1, para o dia em que houver."""
++        dados: dict = {
++            "model": str(self.modelo or "")[:80],
++            "latency_ms": int((time.monotonic() - inicio) * 1000),
++            "attempt": 1,
++        }
++        if resposta is not None:
++            dados["reply_chars"] = len(str(getattr(resposta, "reply", "") or ""))
++            dados["exit_code"] = getattr(resposta, "exit_code", None)
++            meta = getattr(resposta, "meta", None)
++            if isinstance(meta, dict):
++                dados.update({f"cli_{chave}": valor for chave, valor in meta.items()})
++        return dados
++
+     def _gravar(self, analise: Any, situacao: str, *, erro: str = "", resultado: Optional[dict] = None, ms: int = 0) -> None:
+         if not analise:
+             return
+diff --git a/whatsapp-assistant/runner.py b/whatsapp-assistant/runner.py
+index 1f3d8e2..1716a7a 100644
+--- a/whatsapp-assistant/runner.py
++++ b/whatsapp-assistant/runner.py
+@@ -247,6 +247,10 @@ class RunResult:
+     tools_used: List[str]
+     flow_relinquished: bool = False
+     flow_binding: Optional[object] = None
++    # Dados técnicos da execução que a CLI devolve no JSON (motivo de parada,
++    # tokens de saída, modelo). Nunca texto: servem para diagnosticar uma
++    # resposta torta sem guardar a resposta. Ver _extract_meta.
++    meta: Optional[dict] = None
+ 
+ 
+ def build_command(
+@@ -540,9 +544,28 @@ def run(
+         exit_code=proc.returncode,
+         duration_ms=duration_ms,
+         tools_used=_extract_tools(payload),
++        meta=_extract_meta(payload),
+     )
+ 
+ 
++def _extract_meta(payload: object) -> dict:
++    """Só campos técnicos e curtos do JSON da CLI, nunca o texto da resposta."""
++    if not isinstance(payload, dict):
++        return {}
++    meta: dict = {}
++    for chave in ("subtype", "stop_reason", "is_error", "num_turns"):
++        valor = payload.get(chave)
++        if isinstance(valor, bool) or isinstance(valor, int) or (isinstance(valor, str) and len(valor) <= 40):
++            meta[chave] = valor
++    uso = payload.get("usage")
++    if isinstance(uso, dict) and isinstance(uso.get("output_tokens"), int):
++        meta["output_tokens"] = uso["output_tokens"]
++    modelos = payload.get("modelUsage")
++    if isinstance(modelos, dict):
++        meta["models"] = [str(nome)[:60] for nome in list(modelos)[:3]]
++    return meta
++
++
+ def _extract_reply(payload: object) -> str:
+     """Pega o texto final do JSON do --output-format json.
+ 
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+index 639296e..b533d8a 100644
+--- a/whatsapp-assistant/test_analista.py
++++ b/whatsapp-assistant/test_analista.py
+@@ -238,6 +238,61 @@ class CamadaDeInteligenciaTests(unittest.TestCase):
+         self.assertEqual(r["porque"][0]["messageIds"], [])
+ 
+ 
++class DiagnosticoDaFalhaTests(AnalistaTests):
++    """A falha de formato vai para o log com o que ajuda a achar a causa:
++    etapa, modelo, tempo, tamanho e dados técnicos da CLI. Nunca o texto."""
++
++    # Só os testes desta classe; os herdados já rodam em AnalistaTests.
++    test_sem_conta_logada_falha_sem_chamar_o_claude = None
++    test_analisa_com_a_conta_de_analise_sem_ferramentas = None
++    test_erro_do_claude_e_resposta_torta_viram_falha = None
++    test_fila_cheia_falha_na_hora = None
++
++    def _falha(self):
++        chamada = [c for c in self.log.call_args_list if c.args and c.args[0] == "analysis.failed"][-1]
++        return chamada.kwargs
++
++    def test_etapa_e_dados_tecnicos_sem_conteudo(self):
++        segredo = "Quanto custa o site? resposta do modelo sem JSON"
++        casos = [
++            (segredo, "json_ausente"),
++            ("{" + segredo + "}", "json_invalido"),
++            ("[1, 2]", "json_ausente"),
++            (json.dumps({"resumo": ""}), "schema_sem_resumo"),
++        ]
++        for reply, etapa in casos:
++            resposta = runner.RunResult(reply=reply, session_id=None, exit_code=0, duration_ms=1, tools_used=[],
++                                        meta={"stop_reason": "max_tokens", "output_tokens": 4096, "models": ["claude-sonnet-5"]})
++            a = self.novo(lambda *x, **k: resposta)
++            self.assertEqual(a.analisar(CARGA), "failed")
++            dados = self._falha()
++            self.assertEqual(dados["error_code"], "analysis_invalid_response")
++            self.assertEqual(dados["stage"], etapa, reply)
++            self.assertEqual((dados["model"], dados["attempt"], dados["exit_code"]), ("sonnet", 1, 0))
++            self.assertEqual(dados["reply_chars"], len(reply))
++            self.assertEqual((dados["cli_stop_reason"], dados["cli_output_tokens"]), ("max_tokens", 4096))
++            self.assertIsInstance(dados["latency_ms"], int)
++            self.assertNotIn("Quanto custa", json.dumps(dados, ensure_ascii=False))
++            # O banco continua recebendo só o código de sempre.
++            self.assertEqual(self.verifier.gravadas[-1], {"analysisId": CARGA["analysisId"], "status": "failed",
++                                                          "errorCode": "analysis_invalid_response", "model": "sonnet"})
++
++    def test_resposta_que_nao_e_objeto(self):
++        resposta = runner.RunResult(reply='"so um texto"', session_id=None, exit_code=0, duration_ms=1, tools_used=[])
++        with patch.object(analista, "_json_do_texto", return_value=["lista"]):
++            self.novo(lambda *x, **k: resposta).analisar(CARGA)
++        self.assertEqual(self._falha()["stage"], "schema_nao_objeto")
++
++    def test_erro_do_claude_tambem_leva_modelo_e_tempo(self):
++        def limite(*a, **k):
++            raise runner.RunnerError("limite", code="model_rate_limited")
++
++        self.novo(limite).analisar(CARGA)
++        dados = self._falha()
++        self.assertEqual((dados["error_code"], dados["model"], dados["attempt"]), ("model_rate_limited", "sonnet", 1))
++        self.assertNotIn("reply_chars", dados)
++
++
+ class ConfigEMainTests(unittest.TestCase):
+     def test_config(self):
+         base = {"ASSISTANT_VAULT": "/tmp/v", "ASSISTANT_OWNER": "556500000000", "ASSISTANT_STATE_DB": "/tmp/a.db"}
+diff --git a/whatsapp-assistant/test_runner.py b/whatsapp-assistant/test_runner.py
+index deb7849..2768775 100644
+--- a/whatsapp-assistant/test_runner.py
++++ b/whatsapp-assistant/test_runner.py
+@@ -362,6 +362,30 @@ class ExtractReplyTest(unittest.TestCase):
+         self.assertEqual(runner._extract_reply(42), "")
+ 
+ 
++class ExtractMetaTest(unittest.TestCase):
++    """Os dados técnicos da execução, para diagnosticar sem guardar texto."""
++
++    def test_campos_tecnicos(self):
++        payload = {
++            "result": "a resposta inteira, que não pode ir para o meta",
++            "subtype": "success", "stop_reason": "max_tokens", "is_error": False, "num_turns": 1,
++            "usage": {"output_tokens": 812, "input_tokens": 9000},
++            "modelUsage": {"claude-sonnet-5": {"outputTokens": 812}},
++            "session_id": "s1",
++        }
++        meta = runner._extract_meta(payload)
++        self.assertEqual(meta, {
++            "subtype": "success", "stop_reason": "max_tokens", "is_error": False, "num_turns": 1,
++            "output_tokens": 812, "models": ["claude-sonnet-5"],
++        })
++        self.assertNotIn("resposta inteira", str(meta))
++
++    def test_texto_longo_e_forma_estranha_ficam_de_fora(self):
++        self.assertEqual(runner._extract_meta({"stop_reason": "x" * 41, "usage": "?"}), {})
++        self.assertEqual(runner._extract_meta("texto cru"), {})
++        self.assertEqual(runner._extract_meta(None), {})
++
++
+ class RunTest(unittest.TestCase):
+     """Roda um binario falso para exercitar o caminho real do subprocess."""
+ 
