@@ -191,6 +191,70 @@ const RESULTADO_DE_EXEMPLO = {
   ],
 };
 
+/**
+ * A análise de atendimento da bancada, no formato v1 (relatório visual):
+ * a conversa fictícia do desenho, com os números da regra real do
+ * atendimento.v1 (45 pontos de 80 avaliados = 56).
+ */
+const crit = (key, name, weight, status, state, points, reason = null) => ({
+  key, name, weight, status, state, score_factor: points == null ? null : points / weight, points_awarded: points, reason, evidence_message_ids: [],
+});
+const DIAGNOSTICO_V1_DE_EXEMPLO = {
+  schema_version: "analysis_report.v1",
+  formatVersion: 3,
+  summary: "Cliente com interesse real pediu o preço, recebeu o valor antes de contar o que precisava e a conversa parou no “vou pensar”, sem nada combinado.",
+  main_bottleneck: { criterion: "next_step", title: "A conversa terminou sem próximo passo", explanation: "Depois do “vou pensar”, ninguém combinou retorno, reunião ou data. É o critério que mais tirou pontos.", evidence_message_ids: ["x9"] },
+  why_this_score: [],
+  what_to_do_now: [
+    { priority: "alta", action_type: "reply", title: "Retomar a conversa e propor dois horários", instruction: "", reason: "Ela mostrou interesse e está sem resposta há 3 dias.", due_at: null, evidence_message_ids: [] },
+    { priority: "media", action_type: "create_follow_up", title: "Cobrar a resposta se ela não voltar", instruction: "", reason: "Sem retorno até amanhã, a conversa esfria de vez.", due_at: null, evidence_message_ids: [] },
+    { priority: "baixa", action_type: "create_task", title: "Confirmar prazo, orçamento e quem decide", instruction: "", reason: "Faltou qualificar antes de falar de valor.", due_at: null, evidence_message_ids: [] },
+  ],
+  suggested_message: { applicable: true, text: "Oi! Fiquei pensando no que você contou sobre a equipe de 5 pessoas. Posso te mostrar em 15 minutos como ficaria para vocês. Amanhã às 10h ou às 15h fica bom?" },
+  red_flags: [
+    { code: "conversation_left_open", severity: null, criterion: "next_step", reason: "parada há 3 dias", evidence_message_ids: ["x10"] },
+    { code: "playbook_violation", severity: null, criterion: "playbook_adherence", reason: "preço antes de entender a necessidade", evidence_message_ids: ["x4"] },
+  ],
+};
+const RELATORIO_V1_DE_EXEMPLO = {
+  schema_version: "analysis.v1",
+  lead_score: null,
+  atendimento_score: {
+    score: 56, max_score: 100, evaluated_weight: 80, max_weight: 100, label: "56/100 até aqui",
+    criteria: [
+      crit("responsiveness", "Responsividade contextual", 10, "nao_avaliado", null, null),
+      crit("discovery", "Descoberta da necessidade", 15, "atencao", "atencao", 9, "Perguntou o tamanho da equipe, mas só depois de mandar o preço."),
+      crit("conversation_coherence", "Coerência da condução", 15, "bom", "bom", 15, "As respostas acompanharam o que ela perguntou."),
+      crit("communication_adaptation", "Adaptação ao estilo de comunicação", 10, "bom", "bom", 10, "Tom e tamanho das mensagens no mesmo ritmo dela."),
+      crit("qualification", "Qualificação", 10, "ruim", "ruim", 2, "Não confirmou prazo, orçamento nem quem decide."),
+      crit("playbook_adherence", "Playbook e objeções", 15, "atencao", "atencao", 9, "O playbook da empresa pede entender a necessidade antes de falar de valor."),
+      crit("next_step", "Próximo passo", 15, "critico", "ficou_em_aberto", 0, "Ela disse que ia pensar e a conversa parou sem data nem combinado."),
+      crit("follow_up", "Follow-up", 10, "nao_avaliado", "not_due", null),
+    ],
+  },
+  diagnosis: DIAGNOSTICO_V1_DE_EXEMPLO,
+  red_flags: DIAGNOSTICO_V1_DE_EXEMPLO.red_flags,
+};
+// [minutos desde o começo, da equipe?, trecho citado]
+const ROTEIRO_DE_EXEMPLO = [
+  [0, false], [3, true], [4, false, "Quanto custa?"], [5, true], [28, false, "Somos 5 na equipe"],
+  [218, true], [223, false], [228, true], [1390, false, "Vou pensar e te falo"], [1393, true],
+];
+function linhaDeExemplo(pedidaEm) {
+  const comeco = pedidaEm - 3 * 864e5 - 1400 * 60 * 1000;
+  return {
+    until: new Date(pedidaEm).toISOString(),
+    messages: ROTEIRO_DE_EXEMPLO.map(([minutos, daEquipe, trecho], i) => ({
+      id: `x${i + 1}`,
+      at: new Date(comeco + minutos * 60 * 1000).toISOString(),
+      fromMe: daEquipe,
+      author: daEquipe ? (i === 1 ? "ia" : "humano") : "contato",
+      media: "",
+      snippet: trecho || (i === 3 || i === 9 ? "Mensagem da equipe citada no alerta" : null),
+    })),
+  };
+}
+
 export function criarOperacoesConversas({ listarContatos }) {
   const extras = new Map();
   const donos = new Map();
@@ -457,11 +521,15 @@ export function criarOperacoesConversas({ listarContatos }) {
       const analise = analises.get(analiseId);
       if (!analise) throw new Error("Esta análise não existe mais.");
       const pronta = Date.now() - analise.pedidaEm > 2000;
+      const v1 = analise.kind === "atendimento";
       return {
         analysisId: analise.id,
         kind: analise.kind,
         status: pronta ? "done" : "running",
-        result: pronta ? RESULTADO_DE_EXEMPLO : null,
+        result: pronta ? (v1 ? DIAGNOSTICO_V1_DE_EXEMPLO : RESULTADO_DE_EXEMPLO) : null,
+        report: pronta && v1 ? RELATORIO_V1_DE_EXEMPLO : null,
+        timeline: pronta && v1 ? linhaDeExemplo(analise.pedidaEm) : null,
+        serviceScore: pronta && v1 ? 56 : null,
         requestedAt: new Date(analise.pedidaEm).toISOString(),
         completedAt: pronta ? new Date().toISOString() : null,
         savedAt: analise.saved_at,
@@ -483,7 +551,8 @@ export function criarOperacoesConversas({ listarContatos }) {
           id: analise.id,
           kind: analise.kind,
           status: "done",
-          result: RESULTADO_DE_EXEMPLO,
+          result: analise.kind === "atendimento" ? DIAGNOSTICO_V1_DE_EXEMPLO : RESULTADO_DE_EXEMPLO,
+          service_score: analise.kind === "atendimento" ? 56 : null,
           requested_at: new Date(analise.pedidaEm).toISOString(),
           completed_at: new Date(analise.pedidaEm + 2000).toISOString(),
           saved_at: analise.saved_at,
