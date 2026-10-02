@@ -49,6 +49,13 @@
   --el-ia-soft: #f1eefc;
   --el-flow: #0a7489;
   --el-flow-soft: #e6f3f5;
+  /* Estágios do funil: escala do azul de sinal, do claro ao intenso. */
+  --el-st-1: #c9d5fb;
+  --el-st-2: #a7bcf7;
+  --el-st-3: #86a2f3;
+  --el-st-4: #6888f0;
+  --el-st-5: #4b71ed;
+  --el-st-6: #2f5bea;
   --el-control-height: 44px;
   --el-radius-control: 2px;
   --el-radius-panel: 0px;
@@ -89,6 +96,12 @@
     --el-ia-soft: #221b3d;
     --el-flow: #4fc3d6;
     --el-flow-soft: #0f2a30;
+    --el-st-1: #2a3657;
+    --el-st-2: #34477a;
+    --el-st-3: #40599e;
+    --el-st-4: #4f6dc4;
+    --el-st-5: #6584e6;
+    --el-st-6: #7c9cff;
     --el-success: #6cc28f;
     --el-success-soft: #16261c;
     --el-warning: #d9a441;

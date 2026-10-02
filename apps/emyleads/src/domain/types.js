@@ -192,19 +192,19 @@ export const ESTAGIOS_PADRAO = [
  * "clique aqui". Só a última é verde, porque fechar é o único estágio que
  * também é um resultado.
  */
-export const PALETA_ESTAGIOS = [
-  { texto: "#1d4ed8", fundo: "#dbeafe" }, // azul
-  { texto: "#0369a1", fundo: "#e0f2fe" }, // azul claro
-  // Violeta, e não índigo: índigo fica a um passo do roxo da marca, e a
-  // pílula passaria a parecer clicável.
-  { texto: "#7c3aed", fundo: "#ede9fe" }, // violeta
-  { texto: "#b45309", fundo: "#fef3c7" }, // âmbar
-  { texto: "#0f766e", fundo: "#ccfbf1" }, // turquesa
-  { texto: "#15803d", fundo: "#dcfce7" }, // verde
-];
+/**
+ * Estágios do funil: uma escala do azul de sinal, do claro ao intenso
+ * (Sistema Grafite, 02/10/2026). Antes eram seis cores soltas com fundo de
+ * tema claro, que no escuro acendiam como etiqueta de outra tela.
+ *
+ * A cor mora na variável (`--el-st-N` em `theme.css`), que muda com o
+ * tema. O estágio passa do último degrau? Fica no mais intenso: a ordem é
+ * avanço, e voltar ao claro no sétimo estágio diria o contrário.
+ */
+export const PALETA_ESTAGIOS = [1, 2, 3, 4, 5, 6].map((n) => ({ marca: `var(--el-st-${n})` }));
 
 export const corDoEstagio = (ordem = 0) =>
-  PALETA_ESTAGIOS[((ordem % PALETA_ESTAGIOS.length) + PALETA_ESTAGIOS.length) % PALETA_ESTAGIOS.length];
+  PALETA_ESTAGIOS[Math.min(Math.max(Number(ordem) || 0, 0), PALETA_ESTAGIOS.length - 1)];
 
 export const TAGS_PADRAO = [
   { id: "cliente", nome: "Cliente", cor: "#147A52" },

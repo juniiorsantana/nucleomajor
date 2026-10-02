@@ -368,13 +368,15 @@ export function Caixa({ marcada, aoMudar, titulo }) {
   );
 }
 
+/**
+ * O estágio como etiqueta neutra com o quadrado da cor do degrau. O nome é
+ * texto comum, e por isso lê nos dois temas; a cor só diz onde no funil.
+ */
 export function PilulaEstagio({ nome, cor }) {
   if (!nome) return <span className="text-[13px] text-faint">—</span>;
   return (
-    <span
-      className="inline-flex items-center rounded-ctl px-2.5 py-1 text-[12.5px] font-medium"
-      style={{ color: cor.texto, background: cor.fundo }}
-    >
+    <span className="inline-flex items-center gap-1.5 rounded-ctl border border-line-strong px-2 py-0.5 text-[12px] font-medium text-fg">
+      <span aria-hidden="true" className="h-2 w-2 flex-none" style={{ background: cor?.marca || "var(--el-st-1)" }} />
       {nome}
     </span>
   );
