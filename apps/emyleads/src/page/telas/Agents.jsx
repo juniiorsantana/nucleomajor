@@ -528,7 +528,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
         </div>
 
         {canWrite ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="agent-acoes mt-3 flex flex-wrap gap-2">
             {agent.isDefault ? (
               <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-accent-soft px-3 py-1.5 text-[11px] font-semibold text-accent-forte">
                 <ShieldCheck size={13} />Porta de entrada de {rotuloDeAudiencia(agent.audience).toLowerCase()}
@@ -546,7 +546,13 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
           </div>
         ) : null}
 
-        <div className="mt-3 flex gap-1 overflow-x-auto">
+        <label className="agent-secao-mobile md:hidden">
+          <span>Seção</span>
+          <select aria-label="Seção do agente" value={aba} onChange={(e) => setAba(e.target.value)}>
+            {abas.map(([id, rotulo]) => <option key={id} value={id}>{rotulo}</option>)}
+          </select>
+        </label>
+        <div className="mt-3 hidden gap-1 overflow-x-auto md:flex">
           {abas.map(([id, rotulo]) => (
             <button key={id} onClick={() => setAba(id)}
               className={`min-w-fit rounded-t-[8px] border-b-2 px-3 py-2 text-[11.5px] font-semibold ${
@@ -672,11 +678,11 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
       </div>
 
       {canWrite && aba === "jeito" ? (
-        <footer className="flex flex-none items-center gap-3 border-t border-line px-4 py-3 md:px-6">
+        <footer className="flex flex-none flex-col-reverse items-stretch gap-2 border-t border-line px-4 py-3 md:flex-row md:items-center md:gap-3 md:px-6">
           {erro ? <p className="text-[11.5px] text-danger" role="alert">{erro}</p> : null}
           {salvo && !sujo ? <p className="text-[11.5px] text-success">Salvo.</p> : null}
           <button onClick={salvar} disabled={!sujo || salvando}
-            className="ml-auto inline-flex items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">
+            className="inline-flex w-full items-center justify-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40 md:ml-auto md:w-auto">
             <Check size={14} />{salvando ? "Salvando…" : "Salvar"}
           </button>
         </footer>

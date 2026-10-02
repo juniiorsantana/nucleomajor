@@ -66,7 +66,7 @@ export function AbaPlaybook({ agent, aoAbrirPlaybook }) {
           <button
             type="button"
             onClick={aoAbrirPlaybook}
-            className="mt-3 rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent"
+            className="mt-3 w-full rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-auto"
           >
             {publicado ? "Editar playbook" : "Criar o playbook"}
           </button>
@@ -118,7 +118,7 @@ export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
         <button
           type="button"
           onClick={aoAbrirBiblioteca}
-          className="w-fit rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent"
+          className="w-full rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-fit"
         >
           Abrir a Biblioteca
         </button>
@@ -212,13 +212,13 @@ export function AvaliacaoDoJev({ agent, canWrite }) {
         disabled={!canWrite || rodando}
         className="mt-3 w-full rounded-[10px] border border-line bg-bg p-3 font-mono text-[11.5px] leading-5 outline-none focus:border-accent disabled:bg-surface"
       />
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex flex-col items-stretch gap-2 md:flex-row md:items-center">
         {!canWrite && <p className="text-[11px] text-faint">Só dono ou admin pode pedir a avaliação.</p>}
         <button
           type="button"
           onClick={avaliar}
           disabled={!canWrite || rodando || texto.trim().length < 10}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40"
+          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:ml-auto md:min-h-0"
         >
           <Sparkles size={14} />
           {rodando ? "Avaliando…" : "Avaliar com o Jev"}

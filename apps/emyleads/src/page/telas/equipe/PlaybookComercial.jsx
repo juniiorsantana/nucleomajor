@@ -61,7 +61,7 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
                   type="button"
                   onClick={() => remover(indice)}
                   aria-label={`Remover de ${titulo}`}
-                  className="mt-1.5 rounded-[7px] p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
+                  className="mt-1 rounded-[7px] p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:mt-1.5 md:p-1.5"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -74,7 +74,7 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
         <button
           type="button"
           onClick={() => aoMudar([...itens, novo()])}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[11.5px] font-semibold text-accent-forte hover:bg-accent-soft"
+          className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-line px-2 py-1.5 text-[11.5px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-auto md:justify-start md:border-0"
         >
           <Plus size={14} />
           Adicionar
@@ -105,7 +105,7 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
                 type="button"
                 aria-label={`Remover de ${titulo}`}
                 onClick={() => aoMudar(frases.filter((_, j) => j !== i))}
-                className="rounded-[7px] p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
+                className="rounded-[7px] p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:p-1.5"
               >
                 <Trash2 size={14} />
               </button>
@@ -116,7 +116,7 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
           <button
             type="button"
             onClick={() => aoMudar([...frases, ""])}
-            className="inline-flex w-fit items-center gap-1.5 rounded-[8px] px-2 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-line px-2 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-fit md:justify-start md:border-0"
           >
             <Plus size={13} />
             Adicionar
@@ -135,10 +135,10 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
 function SinaisDasConversas({ sinais, carregando, podeAcrescentar, aoAcrescentar }) {
   return (
     <section className="rounded-[14px] border border-accent/25 bg-accent-soft/40 p-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <Lightbulb size={16} className="text-accent-forte" />
         <h3 className="text-[13.5px] font-semibold">O que as conversas dizem</h3>
-        <span className="ml-auto text-[10.5px] text-faint">últimos 30 dias · leitura do Jev</span>
+        <span className="w-full text-[10.5px] text-faint md:ml-auto md:w-auto">últimos 30 dias · leitura do Jev</span>
       </div>
       {carregando ? (
         <p className="mt-3 text-[11.5px] text-sub">Carregando leituras…</p>
@@ -161,7 +161,7 @@ function SinaisDasConversas({ sinais, carregando, podeAcrescentar, aoAcrescentar
                     <button
                       type="button"
                       onClick={() => aoAcrescentar(o)}
-                      className="rounded-full border border-accent/40 px-2 py-0.5 text-[10px] font-semibold text-accent-forte hover:bg-bg"
+                      className="min-h-[36px] rounded-full border border-accent/40 px-3 py-0.5 text-[10px] font-semibold text-accent-forte hover:bg-bg md:min-h-0 md:px-2"
                     >
                       Acrescentar
                     </button>
@@ -287,13 +287,13 @@ export default function PlaybookComercial({ canWrite }) {
               </span>
             )}
           </div>
-          <p className="max-w-2xl text-[12px] leading-5 text-sub">
+          <p className="line-clamp-3 max-w-2xl text-[12px] leading-5 text-sub md:line-clamp-none">
             A régua comercial da empresa, escrita uma vez. O Jev usa a versão publicada para ler as conversas: as objeções e os
             próximos passos viram as opções dele, e os critérios próprios viram perguntas. O jeito de falar continua no soul de
             cada agente.
           </p>
           {canWrite && (
-            <label className="flex w-fit items-center gap-2 text-[11.5px] text-sub">
+            <label className="flex w-full flex-col items-stretch gap-1.5 text-[11.5px] text-sub md:w-fit md:flex-row md:items-center md:gap-2">
               Começar de um modelo
               <select
                 value=""
@@ -394,7 +394,7 @@ export default function PlaybookComercial({ canWrite }) {
       </div>
 
       {canWrite && (
-        <footer className="sticky bottom-0 mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-[12px] border border-line bg-bg/95 px-4 py-3 shadow-sm">
+        <footer className="playbook-rodape sticky bottom-0 mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-[12px] border border-line bg-bg/95 px-4 py-3 shadow-sm">
           {erro ? (
             <p role="alert" className="text-[11.5px] text-danger">
               {erro}
@@ -404,12 +404,12 @@ export default function PlaybookComercial({ canWrite }) {
           ) : (
             <p className="text-[11px] text-faint">{sujo ? "Alterações não salvas." : "Tudo salvo."}</p>
           )}
-          <div className="ml-auto flex gap-2">
+          <div className="flex w-full gap-2 md:ml-auto md:w-auto">
             <button
               type="button"
               onClick={() => gravar(false)}
               disabled={disabled || !sujo}
-              className="inline-flex items-center gap-1.5 rounded-[9px] border border-line px-3 py-2 text-[11.5px] font-semibold disabled:opacity-40"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-line px-3 py-2 text-[11.5px] font-semibold disabled:opacity-40 md:min-h-0 md:flex-none"
             >
               <Check size={14} />
               {salvando === "salvando" ? "Salvando…" : "Salvar rascunho"}
@@ -418,7 +418,7 @@ export default function PlaybookComercial({ canWrite }) {
               type="button"
               onClick={() => gravar(true)}
               disabled={disabled}
-              className="inline-flex items-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:min-h-0 md:flex-none"
             >
               <Send size={14} />
               {salvando === "publicando" ? "Publicando…" : "Publicar"}
