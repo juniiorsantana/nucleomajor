@@ -84,3 +84,12 @@ systemctl --user restart whatsapp-assistant@$UUID
 
 - 02/10/2026: base conferida na VPS pelos 2 hashes (release
   `analisar-conversa`). Nada aplicado ainda.
+- 02/10/2026 14:15 UTC: patch em `/tmp` (hash conferido), `git apply --check`
+  OK; release `camada-de-inteligencia` criada, testes do analista e dos
+  comandos OK na VPS; symlink virado; só o assistente da Major reiniciado
+  (`active`, `NRestarts=0`, processo na pasta nova, nenhum erro no log).
+  Rollback: `analisar-conversa`.
+- 02/10/2026 14:18 UTC: análise comercial pelo botão concluída em 57 s:
+  `formatVersion` 2, as 4 evidências com `messageIds` que existem na
+  conversa, fatos e leitura do Jev guardados, notas nulas (sem esquema).
+  Conversas sincronizando normalmente depois do reinício.
