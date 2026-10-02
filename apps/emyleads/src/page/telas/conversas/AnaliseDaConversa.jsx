@@ -185,7 +185,12 @@ export function AnaliseDaConversa({
                 {NOME_DO_TIPO[analise.tipo] || "Análise"} · {dataCurta(analise.concluidaEm)}
               </span>
               {analise.notaDoAtendimento != null && (
-                <span className="text-[10.5px] font-semibold tabular-nums text-sub">{analise.notaDoAtendimento}/100</span>
+                <span className="text-[10.5px] font-semibold tabular-nums text-sub">
+                  {analise.notaDoAtendimento}/100
+                  {analise.coberturaDoAtendimento != null && (
+                    <span className="font-normal text-faint"> · {analise.coberturaDoAtendimento}%</span>
+                  )}
+                </span>
               )}
               <span className={`text-[10.5px] font-semibold ${analise.salvaEm ? "text-success" : "text-faint"}`}>
                 {analise.salvaEm ? "Salva" : "Rascunho"}

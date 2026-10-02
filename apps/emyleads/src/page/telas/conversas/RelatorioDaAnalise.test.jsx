@@ -74,8 +74,9 @@ describe("o relatório v1", () => {
     await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} />);
     const texto = container.textContent;
     expect(texto).toContain("Atendimento Score");
-    expect(texto).toContain("47/100 até aqui");
-    expect(texto).toContain("Nota parcial");
+    expect(texto).toContain("47/100 — 55% dos critérios avaliados");
+    expect(texto).toContain("Nota até aqui");
+    expect(texto).not.toContain("não é conclusiva");
     expect(texto).toContain("Boa descoberta, mas a conversa ficou sem próximo passo.");
     expect(texto).toContain("Principal gargalo");
     expect(texto).toContain("Por que essa nota?");
@@ -103,7 +104,7 @@ describe("o relatório v1", () => {
     const semNota = { ...analise, relatorio: { ...RELATORIO, atendimento_score: { ...RELATORIO.atendimento_score, score: null, label: "Ainda não avaliável" } } };
     await render(<RelatorioDaAnalise analise={semNota} podeAgir contato={contato} />);
     expect(container.textContent).toContain("Ainda não avaliável");
-    expect(container.textContent).not.toContain("Nota parcial");
+    expect(container.textContent).not.toContain("dos critérios avaliados");
   });
 
   it("usar a mensagem sugerida põe o texto na caixa e fecha", async () => {
@@ -167,6 +168,35 @@ describe("o relatório v1", () => {
     await clicar(botao("Ver evidência 2"));
     expect(aoFechar).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="status"]').textContent).toContain("não está entre as carregadas");
+  });
+});
+
+describe("ajustes da v1: cobertura e números internos", () => {
+  it("cobertura baixa: a nota fica esmaecida e avisa que não é conclusiva", async () => {
+    const baixa = { ...analise, relatorio: { ...RELATORIO, atendimento_score: { ...RELATORIO.atendimento_score, score: 100, evaluated_weight: 10 } } };
+    await render(<RelatorioDaAnalise analise={baixa} podeAgir contato={contato} />);
+    expect(container.textContent).toContain("100/100 — 10% dos critérios avaliados");
+    expect(container.textContent).toContain("Poucos critérios avaliados: a nota ainda não é conclusiva.");
+    expect(container.querySelector('[aria-label="Atendimento Score"] p').className).toContain("text-sub");
+  });
+
+  it("os números internos das mensagens não aparecem no texto, só nos links", async () => {
+    const comNumeros = {
+      ...analise,
+      relatorio: {
+        ...RELATORIO,
+        diagnosis: {
+          ...RELATORIO.diagnosis,
+          summary: "Pediu agendar às 15h (#43) e mandou os dados (#46,#48).",
+          main_bottleneck: { criterion: null, title: "Sem fechamento #49", explanation: "Duas falhas (#73 e #75).", evidence_message_ids: ["m6"] },
+        },
+      },
+    };
+    await render(<RelatorioDaAnalise analise={comNumeros} podeAgir contato={contato} aoVerMensagem={() => true} />);
+    expect(container.textContent).toContain("Pediu agendar às 15h e mandou os dados.");
+    expect(container.textContent).toContain("Sem fechamento");
+    expect(container.textContent).not.toMatch(/#\d/);
+    expect(botao("Ver evidência")).toBeTruthy();
   });
 });
 

@@ -8,10 +8,12 @@ import {
   ROTULO_DO_ALERTA,
   ROTULO_DO_ESTADO,
   TOM_DO_ESTADO,
+  coberturaDaNota,
   instanteDoPrazo,
   notaEmTexto,
   pontosDoCriterio,
   prazoDaAcao,
+  semNumerosInternos as limpo,
 } from "../../../domain/analiseDaConversa";
 import { TONS } from "../../../lib/formato";
 
@@ -35,7 +37,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
   const alertas = relatorio?.red_flags || diagnostico.red_flags || [];
   const acoes = diagnostico.what_to_do_now || [];
   const sugerida = diagnostico.suggested_message?.applicable ? diagnostico.suggested_message.text : null;
-  const parcial = atendimento && atendimento.score != null && atendimento.evaluated_weight < atendimento.max_weight;
+  const cobertura = coberturaDaNota(atendimento);
   const [detalhe, setDetalhe] = useState(false);
   const [aviso, setAviso] = useState("");
 
@@ -56,19 +58,29 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
     <div>
       <section aria-label="Atendimento Score" className="rounded-[12px] border border-line px-3.5 py-3">
         <span className="text-[10.5px] font-bold uppercase tracking-[.08em] text-faint">Atendimento Score</span>
-        <p className="mt-0.5 text-[20px] font-semibold tabular-nums text-fg">{notaEmTexto(atendimento)}</p>
-        {parcial && (
-          <p className="mt-0.5 text-[11px] text-sub">Nota parcial: considera só os critérios que já dá para avaliar nesta conversa.</p>
+        <p className={`mt-0.5 font-semibold tabular-nums ${cobertura && !cobertura.conclusiva ? "text-[16px] text-sub" : "text-[20px] text-fg"}`}>
+          {cobertura ? `${atendimento.score}/100` : notaEmTexto(atendimento)}
+          {cobertura && (
+            <span className="text-[12px] font-medium text-sub"> — {cobertura.porcento}% dos critérios avaliados</span>
+          )}
+        </p>
+        {cobertura && !cobertura.conclusiva && (
+          <p className="mt-1 text-[11px] font-medium text-warning">
+            Poucos critérios avaliados: a nota ainda não é conclusiva.
+          </p>
+        )}
+        {cobertura?.conclusiva && cobertura.porcento < 100 && (
+          <p className="mt-0.5 text-[11px] text-sub">Nota até aqui: só os critérios que já dá para avaliar entram na conta.</p>
         )}
       </section>
 
-      {diagnostico.summary && <p className="mt-3 text-[13px] leading-[19px] text-fg">{diagnostico.summary}</p>}
+      {diagnostico.summary && <p className="mt-3 text-[13px] leading-[19px] text-fg">{limpo(diagnostico.summary)}</p>}
 
       {diagnostico.main_bottleneck?.title && (
         <Bloco titulo="Principal gargalo">
-          <p className="text-[12.5px] font-semibold text-fg">{diagnostico.main_bottleneck.title}</p>
+          <p className="text-[12.5px] font-semibold text-fg">{limpo(diagnostico.main_bottleneck.title)}</p>
           {diagnostico.main_bottleneck.explanation && (
-            <p className="mt-0.5 text-[12px] leading-[17px] text-sub">{diagnostico.main_bottleneck.explanation}</p>
+            <p className="mt-0.5 text-[12px] leading-[17px] text-sub">{limpo(diagnostico.main_bottleneck.explanation)}</p>
           )}
           <Evidencias ids={diagnostico.main_bottleneck.evidence_message_ids} aoVer={verEvidencia} />
         </Bloco>
@@ -84,7 +96,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
                     {NOME_DO_CRITERIO[motivo.criterion] || motivo.criterion}
                   </span>
                 )}
-                {motivo.explanation}
+                {limpo(motivo.explanation)}
                 <Evidencias ids={motivo.evidence_message_ids} aoVer={verEvidencia} />
               </li>
             ))}
@@ -101,11 +113,11 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
                 className={`rounded-[10px] px-3 py-2 ${indice === 0 ? "bg-accent-soft" : "border border-line"}`}
               >
                 <div className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-fg">{acao.title || acao.instruction}</span>
+                  <span className="min-w-0 flex-1 text-[12.5px] font-semibold text-fg">{limpo(acao.title || acao.instruction)}</span>
                   {acao.priority && <span className="flex-none text-[10.5px] text-faint">{ROTULO_DA_PRIORIDADE[acao.priority]}</span>}
                 </div>
-                {acao.instruction && acao.title && <p className="mt-0.5 text-[12px] leading-[17px] text-fg">{acao.instruction}</p>}
-                {acao.reason && <p className="mt-0.5 text-[11px] leading-[15px] text-faint">{acao.reason}</p>}
+                {acao.instruction && acao.title && <p className="mt-0.5 text-[12px] leading-[17px] text-fg">{limpo(acao.instruction)}</p>}
+                {acao.reason && <p className="mt-0.5 text-[11px] leading-[15px] text-faint">{limpo(acao.reason)}</p>}
                 <Evidencias ids={acao.evidence_message_ids} aoVer={verEvidencia} />
                 {podeAgir && (
                   <AcaoSugerida acao={acao} sugerida={sugerida} contato={contato} negocio={negocio} aoUsarMensagem={usarMensagem} aoCriado={aoCriado} />
@@ -140,7 +152,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
                 <AlertTriangle size={13} className="mt-[2px] flex-none text-warning" />
                 <span className="min-w-0">
                   <span className="font-semibold text-fg">{ROTULO_DO_ALERTA[alerta.code] || alerta.code}</span>
-                  {alerta.reason && <span className="text-sub"> — {alerta.reason}</span>}
+                  {alerta.reason && <span className="text-sub"> — {limpo(alerta.reason)}</span>}
                   <Evidencias ids={alerta.evidence_message_ids} aoVer={verEvidencia} />
                 </span>
               </li>
@@ -168,7 +180,7 @@ export function RelatorioDaAnalise({ analise, podeAgir, contato, negocio, aoUsar
                   <tr key={criterio.key} className="border-t border-line align-top">
                     <td className="py-1.5 pr-2 text-fg">
                       {criterio.name || NOME_DO_CRITERIO[criterio.key] || criterio.key}
-                      {criterio.reason && <span className="block text-[11px] leading-[15px] text-faint">{criterio.reason}</span>}
+                      {criterio.reason && <span className="block text-[11px] leading-[15px] text-faint">{limpo(criterio.reason)}</span>}
                     </td>
                     <td className={`whitespace-nowrap py-1.5 pr-2 text-[11px] ${TONS[TOM_DO_ESTADO[criterio.status]] || "text-sub"}`}>
                       {ROTULO_DO_ESTADO[criterio.status] || criterio.status}

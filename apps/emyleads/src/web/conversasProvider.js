@@ -810,7 +810,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       const organizationId = await organizacao();
       const { data, error } = await supabase
         .from("conversation_analyses")
-        .select("id,kind,status,error_code,result,requested_at,completed_at,saved_at,service_score")
+        .select("id,kind,status,error_code,result,requested_at,completed_at,saved_at,service_score,scores")
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
         .eq("contact_phone", alvo.chat)
