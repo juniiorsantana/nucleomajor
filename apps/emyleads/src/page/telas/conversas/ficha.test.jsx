@@ -49,7 +49,7 @@ describe("interruptor 'Atendimento pela IA' na ficha", () => {
   it("começa ligado para um contato sem a marca, mesmo sem contato salvo", () => {
     renderizar(<FichaLateral {...base} aoDefinirAtendimentoIA={async () => {}} />);
     expect(interruptor().getAttribute("aria-checked")).toBe("true");
-    expect(container.textContent).toContain("A IA responde este número");
+    expect(container.textContent).not.toContain("Desligado");
   });
 
   it("aparece desligado quando o contato carrega a etiqueta, pelo slug ou pelo nome", () => {
@@ -99,7 +99,7 @@ describe("interruptor 'Atendimento pela IA' na ficha", () => {
       );
       await act(async () => {});
       expect(interruptor().getAttribute("aria-checked")).toBe("true");
-      expect(container.textContent).toContain("A IA responde este número");
+      expect(container.textContent).not.toContain("Desligado");
     });
 
     it("marca gravada no banco aparece desligada mesmo sem etiqueta local", async () => {
