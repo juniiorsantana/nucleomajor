@@ -17,8 +17,10 @@ import {
   prazoDaSugestao,
   semCreditos,
 } from "../../../domain/analiseDaConversa";
+import { ehAnaliseV2, ehRelatorioV2 } from "../../../domain/vendedorV2";
 import { fmtRelativo } from "../../../lib/formato";
 import { RelatorioDaAnalise } from "./RelatorioDaAnalise";
+import { RelatorioDoVendedor } from "./RelatorioDoVendedor";
 
 // De quanto em quanto a tela pergunta pelo andamento. A análise leva de um a
 // três minutos; perguntar mais rápido só gastaria requisição.
@@ -314,10 +316,12 @@ function DialogoDaAnalise({
     fase === "escolher"
       ? "Analisar conversa"
       : `Análise ${atual?.tipo === "atendimento" ? "de atendimento" : "comercial"}`;
-  // O relatório v1 é o relatório visual: largo no computador e a tela inteira
-  // no celular. O resto (escolher, andamento, falha, formato antigo) segue no
-  // diálogo estreito.
-  const visual = fase === "ver" && atual?.situacao === "done" && atual.resultado && ehRelatorioV1(atual.resultado);
+  // O relatório v1 e o do vendedor (v2) são relatórios visuais: largos no
+  // computador e a tela inteira no celular. O resto (escolher, andamento,
+  // falha, formato antigo) segue no diálogo estreito.
+  const pronta = fase === "ver" && atual?.situacao === "done" && atual.resultado;
+  const doVendedor = Boolean(pronta && (ehRelatorioV2(atual.resultado) || ehAnaliseV2(atual.relatorio)));
+  const visual = Boolean(pronta && (doVendedor || ehRelatorioV1(atual.resultado)));
 
   // No `body`: dentro da ficha, a coluna rolável recortaria o diálogo.
   return createPortal(
@@ -369,6 +373,18 @@ function DialogoDaAnalise({
             <EscolherTipo tipo={tipo} aoEscolher={setTipo} />
           ) : !atual ? null : emAndamento(atual.situacao) ? (
             <Andamento />
+          ) : doVendedor ? (
+            <RelatorioDoVendedor
+              analise={atual}
+              nome={conversa.nome}
+              podeAgir={podePedir}
+              contato={contexto.contato}
+              negocio={contexto.negocio}
+              aoUsarMensagem={aoUsarMensagem}
+              aoVerMensagem={aoVerMensagem}
+              aoCriado={aoCriado}
+              aoFechar={aoFechar}
+            />
           ) : atual.situacao === "done" && atual.resultado && ehRelatorioV1(atual.resultado) ? (
             <RelatorioDaAnalise
               analise={atual}
