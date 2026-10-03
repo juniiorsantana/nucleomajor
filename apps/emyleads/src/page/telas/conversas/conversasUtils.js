@@ -188,3 +188,26 @@ export function ehEtiquetaNaoAtenderIA(tag) {
 export function contatoMarcadoNaoAtenderIA(etiquetas) {
   return (etiquetas || []).some(ehEtiquetaNaoAtenderIA);
 }
+
+/** Quanto tempo de silêncio separa dois grupos da mesma pessoa. */
+const INTERVALO_DO_GRUPO_MS = 5 * 60 * 1000;
+
+/**
+ * Esta mensagem começa um grupo novo? (03/10/2026)
+ *
+ * Mensagens seguidas da mesma pessoa andam juntas: o nome aparece só na
+ * primeira e a ponta recortada marca de onde o grupo sai. O grupo quebra
+ * quando muda o lado (cliente ou nós), quando muda quem escreveu do nosso
+ * lado (IA, fluxo, uma pessoa ou outra), quando entra um divisor ou aviso no
+ * meio, e depois de cinco minutos de silêncio.
+ */
+export function inicioDeGrupo(anterior, atual) {
+  if (!anterior || anterior.tipo !== "mensagem" || atual?.tipo !== "mensagem") return true;
+  if (anterior.direcao !== atual.direcao) return true;
+  if (atual.direcao === "sai" && ((anterior.tom || "humano") !== (atual.tom || "humano") || (anterior.autor || "") !== (atual.autor || ""))) {
+    return true;
+  }
+  const a = Number(anterior.enviadaEm);
+  const b = Number(atual.enviadaEm);
+  return Number.isFinite(a) && Number.isFinite(b) && b - a > INTERVALO_DO_GRUPO_MS;
+}

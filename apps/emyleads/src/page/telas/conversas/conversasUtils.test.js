@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conciliarPendentes, mesmaConversa, textoDaTransferencia, contatoMarcadoNaoAtenderIA, ehEtiquetaNaoAtenderIA } from "./conversasUtils";
+import { conciliarPendentes, inicioDeGrupo, mesmaConversa, textoDaTransferencia, contatoMarcadoNaoAtenderIA, ehEtiquetaNaoAtenderIA } from "./conversasUtils";
 
 const msg = (texto, extra = {}) => ({
   tipo: "mensagem",
@@ -162,5 +162,24 @@ describe("a volta de uma bolha provisória com anexo", () => {
       "c1"
     );
     expect(sobra).toEqual([pendente]);
+  });
+});
+
+describe("inicioDeGrupo", () => {
+  const m = (extra) => ({ tipo: "mensagem", direcao: "entra", enviadaEm: 1_000_000, ...extra });
+  it("a primeira, depois de divisor ou aviso, começa grupo", () => {
+    expect(inicioDeGrupo(null, m())).toBe(true);
+    expect(inicioDeGrupo({ tipo: "data" }, m())).toBe(true);
+    expect(inicioDeGrupo({ tipo: "sistema" }, m())).toBe(true);
+  });
+  it("mesma pessoa em seguida continua o grupo", () => {
+    expect(inicioDeGrupo(m(), m({ enviadaEm: 1_060_000 }))).toBe(false);
+    expect(inicioDeGrupo(m({ direcao: "sai", tom: "ia" }), m({ direcao: "sai", tom: "ia", enviadaEm: 1_010_000 }))).toBe(false);
+  });
+  it("muda o lado, quem escreveu do nosso lado, ou passam cinco minutos", () => {
+    expect(inicioDeGrupo(m(), m({ direcao: "sai" }))).toBe(true);
+    expect(inicioDeGrupo(m({ direcao: "sai", tom: "ia" }), m({ direcao: "sai", tom: "humano" }))).toBe(true);
+    expect(inicioDeGrupo(m({ direcao: "sai", autor: "Ana" }), m({ direcao: "sai", autor: "Lucas" }))).toBe(true);
+    expect(inicioDeGrupo(m(), m({ enviadaEm: 1_000_000 + 6 * 60 * 1000 }))).toBe(true);
   });
 });

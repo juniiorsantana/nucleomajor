@@ -119,7 +119,11 @@ describe("a mídia dentro da bolha", () => {
     expect(audio).not.toBeNull();
     expect(audio.getAttribute("src")).toBe("https://storage.test/a.ogg");
     expect(audio.getAttribute("preload")).toBe("none");
-    expect(audio.hasAttribute("controls")).toBe(true);
+    // O player é o da conversa (03/10/2026): play redondo, barra de tempo e
+    // velocidade, em vez dos controles do navegador.
+    expect(container.querySelector('button[aria-label="Tocar áudio"]')).not.toBeNull();
+    expect(container.querySelector('input[type="range"][aria-label="Posição do áudio"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Velocidade 1×"]')).not.toBeNull();
     expect(container.textContent).not.toContain("🎤");
   });
 
@@ -138,6 +142,26 @@ describe("a mídia dentro da bolha", () => {
     expect(container.querySelector("audio")).toBeNull();
     expect(container.textContent).toContain("🎤 Áudio · transcrição automática");
     expect(container.textContent).toContain("me liga amanhã");
+  });
+
+  it("o texto ganha a formatação do WhatsApp", () => {
+    bolha({ direcao: "entra", texto: "qual o *tamanho* da equipe?", hora: "10:30", midia: null });
+    expect(container.querySelector("strong")?.textContent).toBe("tamanho");
+    expect(container.textContent).not.toContain("*");
+  });
+
+  it("a velocidade troca em 1×, 1,5× e 2×", () => {
+    bolha({
+      direcao: "entra", texto: "", hora: "10:30",
+      midia: { tipo: "audio", url: "https://storage.test/a.ogg", nome: "a.ogg", mime: "audio/ogg" },
+    });
+    const botao = () => container.querySelector('button[aria-label^="Velocidade"]');
+    act(() => botao().click());
+    expect(botao().textContent).toBe("1,5×");
+    act(() => botao().click());
+    expect(botao().textContent).toBe("2×");
+    act(() => botao().click());
+    expect(botao().textContent).toBe("1×");
   });
 
   it("legenda digitada não ganha a marca de transcrição", () => {
