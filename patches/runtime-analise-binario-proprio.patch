@@ -1,0 +1,253 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index 66f6715..57e199e 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -597,6 +597,7 @@ class Analista:
+         inicio = time.monotonic()
+         resposta = None
+         prompt = montar_prompt(carga)
++        tentativa = 1
+ 
+         def chamar():
+             return self.executar(
+@@ -619,8 +620,9 @@ class Analista:
+                 if exc.code not in RETENTAVEIS or time.monotonic() - inicio > FALHA_RAPIDA:
+                     raise
+                 audit.log("analysis.retry", analysis_id=analise, error_code=exc.code,
+-                          cli_error=getattr(exc, "detalhe", "") or None)
++                          cli_error=getattr(exc, "detalhe", "") or None, **(getattr(exc, "saida", None) or {}))
+                 self._dormir(ESPERA_PARA_REPETIR)
++                tentativa = 2
+                 resposta = chamar()
+             resultado = ler_resultado(getattr(resposta, "reply", ""), carga)
+             resultado, descartes = conferir_com_os_estados(resultado, carga.get("scores"))
+@@ -631,12 +633,13 @@ class Analista:
+             self._gravar(analise, "failed", erro=exc.code)
+             audit.log("analysis.failed", analysis_id=analise, error_code=exc.code,
+                       cli_error=getattr(exc, "detalhe", "") or None,
+-                      **self._diagnostico(inicio, None))
++                      **(getattr(exc, "saida", None) or {}),
++                      **self._diagnostico(inicio, None, tentativa))
+             return "failed"
+         except AnaliseInvalida as exc:
+             self._gravar(analise, "failed", erro="analysis_invalid_response")
+             audit.log("analysis.failed", analysis_id=analise, error_code="analysis_invalid_response",
+-                      stage=exc.etapa, **self._diagnostico(inicio, resposta))
++                      stage=exc.etapa, **self._diagnostico(inicio, resposta, tentativa))
+             return "failed"
+         ms = int((time.monotonic() - inicio) * 1000)
+         self._gravar(analise, "done", resultado=resultado, ms=ms)
+@@ -684,14 +687,14 @@ class Analista:
+         leitura = {r["question"]: {"a": r["answer"], "p": r["probability"]} for r in respostas}
+         return {**carga, "reading": leitura, "scores": _dict(gravado.get("scores"))}
+ 
+-    def _diagnostico(self, inicio: float, resposta: Any) -> dict:
++    def _diagnostico(self, inicio: float, resposta: Any, tentativa: int = 1) -> dict:
+         """O que dá para saber de uma falha sem guardar conversa nem resposta:
+         modelo, tempo, tamanho, código de saída e os dados técnicos da CLI.
+-        Não há nova tentativa: `attempt` é sempre 1, para o dia em que houver."""
++        `attempt` é 2 quando a falha veio da segunda chamada (RETENTAVEIS)."""
+         dados: dict = {
+             "model": str(self.modelo or "")[:80],
+             "latency_ms": int((time.monotonic() - inicio) * 1000),
+-            "attempt": 1,
++            "attempt": tentativa,
+         }
+         if resposta is not None:
+             dados["reply_chars"] = len(str(getattr(resposta, "reply", "") or ""))
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 8714d27..da27969 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -193,6 +193,11 @@ class Config:
+     analysis_enabled: bool = False
+     analysis_claude_config_dir: Optional[Path] = None
+     analysis_model: str = "sonnet"
++    # O binário do Claude da análise, separado do do atendente (03/10/2026).
++    # Conexão sem IA no atendimento (plano Base) usa `ASSISTANT_CLAUDE_BIN=
++    # /bin/false` como trava — e a análise, que herdava esse valor, falhava em
++    # milissegundos. Vazio: o mesmo do atendente.
++    analysis_claude_bin: str = ""
+     # O transcritor (desde 02/10/2026): todo áudio de conversa direta vira texto
+     # na própria mensagem do espelho, para a análise, o Jev e o portal lerem.
+     # Desligado por padrão. `transcription_model` é o tamanho do faster-whisper
+@@ -350,6 +355,7 @@ class Config:
+                 else None
+             ),
+             analysis_model=_env_str("NUCLEO_ANALYSIS_MODEL", "sonnet") or "sonnet",
++            analysis_claude_bin=_env_str("NUCLEO_ANALYSIS_CLAUDE_BIN"),
+             transcription_enabled=_env_str("NUCLEO_TRANSCRIBE", "0") == "1",
+             transcription_model=_env_str("NUCLEO_TRANSCRIBE_MODEL", "small") or "small",
+         )
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index 6563497..dccb5ef 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -177,7 +177,7 @@ def main() -> int:
+         analista = analista_mod.Analista(
+             verifier=verifier,
+             executar=runner.run,
+-            claude_bin=cfg.claude_bin,
++            claude_bin=cfg.analysis_claude_bin or cfg.claude_bin,
+             vault=cfg.vault,
+             config_dir=cfg.analysis_claude_config_dir,
+             modelo=cfg.analysis_model,
+diff --git a/whatsapp-assistant/runner.py b/whatsapp-assistant/runner.py
+index a3fdf2d..bf1d8cd 100644
+--- a/whatsapp-assistant/runner.py
++++ b/whatsapp-assistant/runner.py
+@@ -7,6 +7,7 @@ dentro do vault, e MCP restrito ao que --mcp-config declara.
+ 
+ import json
+ import os
++import re
+ import subprocess
+ from dataclasses import dataclass
+ from pathlib import Path
+@@ -183,15 +184,40 @@ DENIED_TOOLS = ["Bash", "WebFetch", "Task"]
+ class RunnerError(RuntimeError):
+     """Falha para a qual nao existe resposta a enviar."""
+ 
+-    def __init__(self, message: str, *, code: str = "model_unavailable", detalhe: str = "") -> None:
++    def __init__(self, message: str, *, code: str = "model_unavailable", detalhe: str = "",
++                 saida: Optional[dict] = None) -> None:
+         super().__init__(message)
+         self.code = code
++        # Como o processo terminou: código de saída, tempo, tamanho de stdout e
++        # stderr e a primeira linha do stderr sem trecho da conversa. Ver
++        # `_linha_segura`.
++        self.saida = saida or {}
+         # A mensagem de erro que a CLI devolveu no JSON (`result` com
+         # `is_error`), curta. É o texto da API ("You've hit your session
+         # limit..."), nunca o da conversa — ver `_erro_da_cli`.
+         self.detalhe = detalhe
+ 
+ 
++def _linha_segura(stderr: str, prompt: str) -> str:
++    """A primeira linha do stderr, curta, quando ela não carrega a conversa.
++
++    Em 03/10/2026 a análise da Adriani caiu duas vezes em milissegundos, sem
++    JSON no stdout, e o log não tinha nada além de `model_unavailable`. O
++    stderr é onde a CLI explica falha de partida, mas pode ecoar o prompt:
++    por isso só sai a primeira linha, sem números longos (telefone), e nada
++    se ela contiver um pedaço de qualquer linha do prompt.
++    """
++    linha = next((l.strip() for l in str(stderr or "").splitlines() if l.strip()), "")
++    if not linha:
++        return ""
++    for trecho in str(prompt or "").splitlines():
++        trecho = trecho.strip()
++        if len(trecho) >= 12 and (trecho[:40] in linha or linha[:40] in trecho):
++            return "[omitida: contém trecho da conversa]"
++    linha = re.sub(r"\d{6,}", "#", linha)
++    return linha[:160]
++
++
+ def _erro_da_cli(stdout: str) -> str:
+     """O texto de erro que a CLI põe no JSON quando a chamada falha.
+ 
+@@ -547,6 +573,13 @@ def run(
+             f"claude saiu com {proc.returncode} ({len(proc.stderr or '')} bytes em stderr)",
+             code=_classify_process_error(proc.stderr or "", proc.stdout or ""),
+             detalhe=_erro_da_cli(proc.stdout or ""),
++            saida={
++                "cli_exit": proc.returncode,
++                "cli_ms": duration_ms,
++                "cli_stdout_bytes": len(proc.stdout or ""),
++                "cli_stderr_bytes": len(proc.stderr or ""),
++                "cli_stderr": _linha_segura(proc.stderr or "", prompt) or None,
++            },
+         )
+ 
+     try:
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+index 3707488..1cffcc9 100644
+--- a/whatsapp-assistant/test_analista.py
++++ b/whatsapp-assistant/test_analista.py
+@@ -409,7 +409,8 @@ class AnalistaTests(unittest.TestCase):
+         def executar(*a, **k):
+             chamadas.append(1)
+             if len(chamadas) == 1:
+-                raise runner.RunnerError("saiu com 1", code="model_unavailable", detalhe="OAuth token has expired.")
++                raise runner.RunnerError("saiu com 1", code="model_unavailable", detalhe="OAuth token has expired.",
++                                         saida={"cli_exit": 1, "cli_ms": 7})
+             return resposta_ok()
+ 
+         a = self.novo(executar)
+@@ -419,6 +420,7 @@ class AnalistaTests(unittest.TestCase):
+         self.assertEqual(esperas, [analista.ESPERA_PARA_REPETIR])
+         tentativa = self.eventos("analysis.retry")[0]
+         self.assertEqual((tentativa["error_code"], tentativa["cli_error"]), ("model_unavailable", "OAuth token has expired."))
++        self.assertEqual((tentativa["cli_exit"], tentativa["cli_ms"]), (1, 7))
+ 
+     def test_so_uma_tentativa_a_mais_e_o_erro_vai_para_o_log(self):
+         chamadas = []
+@@ -432,7 +434,8 @@ class AnalistaTests(unittest.TestCase):
+         self.assertEqual(a.analisar(CARGA), "failed")
+         self.assertEqual(len(chamadas), 2)
+         self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "model_auth_unavailable")
+-        self.assertEqual(self.eventos("analysis.failed")[-1]["cli_error"], "Please run /login")
++        falha = self.eventos("analysis.failed")[-1]
++        self.assertEqual((falha["cli_error"], falha["attempt"]), ("Please run /login", 2))
+ 
+     def test_limite_de_uso_nao_tenta_de_novo(self):
+         chamadas = []
+@@ -508,6 +511,21 @@ class ConfigEMainTests(unittest.TestCase):
+         self.assertTrue(cfg.analysis_enabled)
+         self.assertEqual(cfg.analysis_claude_config_dir, Path("/tmp/analise"))
+ 
++    def test_a_analise_tem_o_proprio_binario(self):
++        # 03/10/2026: a Adriani (plano Base) trava o atendente com /bin/false,
++        # e a análise herdava a trava.
++        base = {"ASSISTANT_VAULT": "/tmp/v", "ASSISTANT_OWNER": "556500000000", "ASSISTANT_STATE_DB": "/tmp/a.db",
++                "ASSISTANT_CLAUDE_BIN": "/bin/false"}
++        with patch.dict(os.environ, base, clear=False):
++            os.environ.pop("NUCLEO_ANALYSIS_CLAUDE_BIN", None)
++            self.assertEqual(Config.from_env().analysis_claude_bin, "")
++        with patch.dict(os.environ, {**base, "NUCLEO_ANALYSIS_CLAUDE_BIN": "/home/nucleo/.local/bin/claude"}, clear=False):
++            cfg = Config.from_env()
++        self.assertEqual((cfg.claude_bin, cfg.analysis_claude_bin), ("/bin/false", "/home/nucleo/.local/bin/claude"))
++        import main
++
++        self.assertIn("cfg.analysis_claude_bin or cfg.claude_bin", inspect.getsource(main.main))
++
+     def test_desligamento_conhece_o_analista(self):
+         import main
+ 
+diff --git a/whatsapp-assistant/test_runner.py b/whatsapp-assistant/test_runner.py
+index 72e0ca0..02c03c6 100644
+--- a/whatsapp-assistant/test_runner.py
++++ b/whatsapp-assistant/test_runner.py
+@@ -571,6 +571,32 @@ class RunTest(unittest.TestCase):
+         self.assertEqual(ctx.exception.detalhe, "You have hit your session limit")
+         self.assertNotIn("session", str(ctx.exception))
+ 
++    def test_a_saida_do_processo_vai_sem_a_conversa(self):
++        self.assertEqual(runner._linha_segura("", "x"), "")
++        self.assertEqual(
++            runner._linha_segura("error: unknown option --foo\nmais", "Análise de ATENDIMENTO"),
++            "error: unknown option --foo",
++        )
++        prompt = "Análise de ATENDIMENTO\n#3 [01/10 09:06] Contato: quero o consórcio de imóvel"
++        self.assertEqual(
++            runner._linha_segura("falhou em: #3 [01/10 09:06] Contato: quero o consórcio de imóvel", prompt),
++            "[omitida: contém trecho da conversa]",
++        )
++        self.assertEqual(runner._linha_segura("ligar para 5565999990000", "x"), "ligar para #")
++
++    def test_o_processo_que_falha_conta_como_terminou(self):
++        import tempfile
++
++        with tempfile.TemporaryDirectory() as tmp:
++            tmpdir = Path(tmp)
++            binario = self._fake_claude(tmpdir, "nada", exit_code=3)
++            with self.assertRaises(runner.RunnerError) as ctx:
++                runner.run("oi", binario, tmpdir, timeout=10)
++        saida = ctx.exception.saida
++        self.assertEqual(saida["cli_exit"], 3)
++        self.assertEqual(saida["cli_stdout_bytes"], 4)
++        self.assertIn("cli_ms", saida)
++
+     def test_falha_desconhecida_continua_generica(self):
+         self.assertEqual(
+             runner._classify_process_error("", '{"is_error":true,"result":"algo novo"}'),

@@ -20,6 +20,12 @@ describe("mesmaConversa", () => {
     expect(mesmaConversa(antes, depois)).toBe(true);
   });
 
+  it("vê a transcrição que chegou num áudio do meio", () => {
+    const antes = [msg("", { messageId: "a1" }), msg("oi")];
+    const depois = [msg("quero fechar", { messageId: "a1", transcricao: true }), msg("oi")];
+    expect(mesmaConversa(antes, depois)).toBe(false);
+  });
+
   it("vê a mensagem nova que chegou no fim", () => {
     const antes = [msg("oi")];
     expect(mesmaConversa(antes, [msg("oi"), msg("ainda está aí?")])).toBe(false);

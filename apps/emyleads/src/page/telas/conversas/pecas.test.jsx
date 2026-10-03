@@ -123,6 +123,28 @@ describe("a mídia dentro da bolha", () => {
     expect(container.textContent).not.toContain("🎤");
   });
 
+  it("áudio transcrito mostra o player e o texto marcado como transcrição", () => {
+    bolha({
+      direcao: "entra", texto: "queria saber do consórcio", hora: "10:30", transcricao: true,
+      midia: { tipo: "audio", url: "https://storage.test/a.ogg", nome: "a.ogg", mime: "audio/ogg" },
+    });
+    expect(container.querySelector("audio")).not.toBeNull();
+    expect(container.textContent).toContain("Transcrição automática");
+    expect(container.querySelector(".italic").textContent).toBe("queria saber do consórcio");
+  });
+
+  it("áudio transcrito sem arquivo diz que era áudio", () => {
+    bolha({ direcao: "entra", texto: "me liga amanhã", hora: "10:30", transcricao: true, midia: null });
+    expect(container.querySelector("audio")).toBeNull();
+    expect(container.textContent).toContain("🎤 Áudio · transcrição automática");
+    expect(container.textContent).toContain("me liga amanhã");
+  });
+
+  it("legenda digitada não ganha a marca de transcrição", () => {
+    bolha({ direcao: "entra", texto: "olha isso", hora: "10:30", midia: null });
+    expect(container.textContent).not.toContain("transcrição");
+  });
+
   it("imagem com arquivo vira miniatura, e o clique pede a tela cheia", () => {
     const abertas = [];
     const midia = { tipo: "imagem", url: "https://storage.test/f.jpg", nome: "f.jpg", mime: "image/jpeg" };

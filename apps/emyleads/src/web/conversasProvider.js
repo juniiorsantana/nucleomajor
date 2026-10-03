@@ -39,6 +39,21 @@ const CAMPOS_MENSAGEM =
   "media_path,media_mime,author_kind,author_name";
 
 /**
+ * A marca da transcrição automática do áudio, da migration 20261007100000.
+ *
+ * Até a migration ser aplicada, pedir a coluna falha com "coluna não existe" —
+ * e a conversa não pode parar de abrir por isso. A primeira consulta pede; se o
+ * banco disser que a coluna não existe, refaz sem ela e as próximas já vão sem.
+ */
+const CAMPO_TRANSCRICAO = "transcribed_at";
+
+export function faltaColunaDeTranscricao(error) {
+  if (!error) return false;
+  const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+  return (error.code === "42703" || error.code === "PGRST204") && /transcribed_at/.test(texto);
+}
+
+/**
  * O tom da bolha para cada tipo de autor.
  *
  * `Bolha` já sabe pintar `bot`, `ia` e `humano` desde a Leva 2 — o que faltava
@@ -291,7 +306,17 @@ function semAssinatura(linha) {
   return conteudo.replace(ASSINATURA_RE, "");
 }
 
+/**
+ * O áudio que a VPS transcreveu (desde 02/10/2026): o `content` dele é a
+ * transcrição, e não uma legenda digitada. A bolha mostra o texto com a marca
+ * "transcrição automática", para ninguém achar que foi escrito.
+ */
+function transcrito(linha) {
+  return Boolean(linha.transcribed_at) && Boolean(String(linha.content || "").trim());
+}
+
 function textoDaMensagem(linha) {
+  if (transcrito(linha)) return String(linha.content).trim();
   const conteudo = semAssinatura(linha).trim();
   const rotulo = ROTULO_DE_MIDIA[linha.media_type] || (linha.media_type ? "📎 Anexo" : "");
   if (conteudo && rotulo) return `${rotulo}\n${conteudo}`;
@@ -334,6 +359,9 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     if (error) throw erroConversas(error.message, codigo);
     return data || [];
   };
+
+  // Sabe-se só depois da primeira consulta; ver `faltaColunaDeTranscricao`.
+  let temColunaDeTranscricao = true;
 
   const listar = async () => {
     const organizationId = await organizacao();
@@ -403,10 +431,10 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     const alvo = separarId(id);
     if (!alvo) return [];
     const organizationId = await organizacao();
-    const linhas = await executar(
+    const consultar = (campos) =>
       supabase
         .from("whatsapp_messages")
-        .select(CAMPOS_MENSAGEM)
+        .select(campos)
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
         .eq("contact_phone", alvo.chat)
@@ -423,9 +451,15 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         .order("sent_at", { ascending: false })
         // Teto por conversa: a tela rola até o fim, e trazer anos de histórico
         // de uma vez travaria o navegador em quem conversa todo dia.
-        .limit(300),
-      "conversas-mensagens-falharam"
+        .limit(300);
+    let resposta = await consultar(
+      temColunaDeTranscricao ? `${CAMPOS_MENSAGEM},${CAMPO_TRANSCRICAO}` : CAMPOS_MENSAGEM
     );
+    if (temColunaDeTranscricao && faltaColunaDeTranscricao(resposta.error)) {
+      temColunaDeTranscricao = false;
+      resposta = await consultar(CAMPOS_MENSAGEM);
+    }
+    const linhas = await executar(Promise.resolve(resposta), "conversas-mensagens-falharam");
 
     // As URLs dos arquivos, assinadas de uma vez para a conversa inteira: uma
     // chamada, e não uma por bolha.
@@ -459,8 +493,9 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         }),
         // Com arquivo, o texto é só a legenda: o rótulo "🎤 Áudio" em cima de
         // um player seria dizer duas vezes a mesma coisa.
-        texto: midia ? semAssinatura(linha).trim() : textoDaMensagem(linha),
+        texto: midia && !transcrito(linha) ? semAssinatura(linha).trim() : textoDaMensagem(linha),
         midia,
+        transcricao: transcrito(linha),
         // Quem escreveu do nosso lado. O Bridge não registra isso — para ele
         // toda saída da conta é `is_from_me = 1` — então quem responde é o
         // runtime, que anota o que ele próprio manda e cruza na sincronia.

@@ -255,6 +255,23 @@ const ROTULO_DA_MIDIA = { audio: "🎤 Áudio", imagem: "📎 Imagem", outro: "�
  * para o resto. Sem URL — a provisória fora do navegador, ou a assinatura que
  * falhou — volta ao rótulo, que é o que a bolha sempre mostrou.
  */
+/**
+ * O texto que a VPS tirou do áudio. Vem marcado, em itálico, para ninguém
+ * tomar a transcrição por algo que a pessoa escreveu — e pode ter erro de
+ * reconhecimento. Sem o player (arquivo que não subiu), a marca diz também que
+ * era um áudio.
+ */
+function TranscricaoDoAudio({ mensagem }) {
+  return (
+    <span className={`block ${mensagem.midia ? "mt-1" : ""}`}>
+      <span className="block text-[10.5px] font-semibold opacity-70">
+        {mensagem.midia ? "Transcrição automática" : "🎤 Áudio · transcrição automática"}
+      </span>
+      <span className="whitespace-pre-wrap italic">{mensagem.texto}</span>
+    </span>
+  );
+}
+
 function MidiaDaBolha({ midia, aoAbrir }) {
   if (!midia) return null;
   if (!midia.url) {
@@ -372,7 +389,8 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
           </span>
         )}
         <MidiaDaBolha midia={mensagem.midia} aoAbrir={aoAbrirMidia} />
-        {mensagem.texto && <span className="whitespace-pre-wrap">{mensagem.texto}</span>}
+        {mensagem.texto && mensagem.transcricao && <TranscricaoDoAudio mensagem={mensagem} />}
+        {mensagem.texto && !mensagem.transcricao && <span className="whitespace-pre-wrap">{mensagem.texto}</span>}
         {/* Espaço reservado para a hora não sentar em cima da última palavra. */}
         <span className={`inline-block h-px ${saiu ? "w-[58px]" : "w-10"}`} />
         <span className="absolute bottom-1.5 right-2.5 flex items-center gap-[3px] text-[10.5px] tabular-nums text-faint">
