@@ -31,17 +31,17 @@ import { MapaDaConversa } from "./MapaDaConversa";
 const DURACAO_DO_COMPROMISSO_MS = 30 * 60 * 1000;
 
 // As cores dos estados. Ficam escritas por inteiro para o Tailwind achar.
-const CHIP = {
+export const CHIP = {
   success: "bg-success-soft text-success",
   warning: "bg-warning-soft text-warning",
   danger: "bg-danger-soft text-danger",
   faint: "bg-surface-hover text-sub",
 };
-const CHEIO = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" };
-const CLARO = { success: "bg-success-soft", warning: "bg-warning-soft", danger: "bg-danger-soft" };
+export const CHEIO = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" };
+export const CLARO = { success: "bg-success-soft", warning: "bg-warning-soft", danger: "bg-danger-soft" };
 const ARO = { accent: "border-signal", warning: "border-warning", danger: "border-danger" };
 const LEGENDA = { accent: "text-sub", warning: "text-warning", danger: "text-danger" };
-const LISTRADO = { background: "repeating-linear-gradient(135deg, var(--el-line) 0 5px, var(--el-surface) 5px 10px)" };
+export const LISTRADO = { background: "repeating-linear-gradient(135deg, var(--el-line) 0 5px, var(--el-surface) 5px 10px)" };
 
 const ROTULO_DO_TIPO = {
   reply: "Responder",
@@ -53,9 +53,9 @@ const ROTULO_DO_TIPO = {
 
 const PRIORIDADE_CURTA = { alta: "Alta", media: "Média", baixa: "Baixa" };
 
-const CARTAO = "rounded-none border border-line bg-bg p-4 lg:p-6";
-const ROTULO = "text-[12px] font-semibold text-sub";
-const BOTAO =
+export const CARTAO = "rounded-none border border-line bg-bg p-4 lg:p-6";
+export const ROTULO = "text-[12px] font-semibold text-sub";
+export const BOTAO =
   "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line-strong bg-bg px-4 text-[13px] font-semibold text-fg transition-colors hover:border-accent hover:text-accent-forte";
 const BOTAO_FORTE =
   "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 text-[13px] font-semibold text-on-accent transition-opacity hover:opacity-90";
@@ -249,7 +249,7 @@ function CartaoDaNota({ atendimento, leadScore }) {
 
 // Dois anéis: o de dentro é a nota; o de fora, quanto do peso foi avaliado.
 // Cobertura baixa: a nota não tem arco, só o trilho tracejado.
-function Anel({ nota, cobertura, baixa }) {
+export function Anel({ nota, cobertura, baixa }) {
   const fora = 2 * Math.PI * 80;
   const dentro = 2 * Math.PI * 62;
   return (
@@ -350,7 +350,7 @@ const COLUNAS_DAS_ACOES = {
   2: "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]",
 };
 
-function OQueFazer({ acoes, sugerida, podeAgir, contato, negocio, aoUsarMensagem, aoCopiar, aoVer, aoCriado }) {
+export function OQueFazer({ acoes, sugerida, podeAgir, contato, negocio, aoUsarMensagem, aoCopiar, aoVer, aoCriado }) {
   // A mensagem sugerida vai na ação de responder; sem ela, na primeira.
   const comMensagem = Math.max(0, acoes.findIndex((acao) => acao.action_type === "reply"));
   return (
@@ -537,7 +537,7 @@ function fileiras(mensagens) {
   );
 }
 
-function OndeAconteceu({ linha, aoVer }) {
+export function OndeAconteceu({ linha, aoVer }) {
   const momentos = momentosDaConversa(linha);
   const fileira = fileiras(linha.mensagens);
   const ultima = linha.mensagens[linha.mensagens.length - 1];
@@ -682,7 +682,7 @@ function OndeAconteceu({ linha, aoVer }) {
 
 // ---------------------------------------------------------------- peças
 
-function Evidencias({ ids, aoVer, claro = false }) {
+export function Evidencias({ ids, aoVer, claro = false }) {
   if (!aoVer || !ids?.length) return null;
   return (
     <span className="mt-0.5 flex flex-wrap gap-3">

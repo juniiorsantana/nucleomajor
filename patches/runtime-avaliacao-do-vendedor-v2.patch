@@ -1,0 +1,807 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index 57e199e..6bf805d 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -145,6 +145,100 @@ ALERTA_PRECISA = {
+     "critical_information_ignored": (("discovery", "conversation_coherence"), lambda estado: estado["fator"] < 1),
+ }
+ 
++# ------------------------------------------------ Avaliação do vendedor v2
++# Plano aprovado pelo dono em 03/10/2026 (migration 20261008100000). Quando a
++# régua em vigor é a v2, o Claude critica o TRABALHO DO VENDEDOR: veredito
++# cru, o que fez bem, o que custou a venda e, por ponto, a crítica e o que um
++# vendedor top teria feito. Tom combinado com o dono: cru, sem ofensa, sempre
++# com a mensagem que prova; quando foi bem, diz que foi bem.
++REGUA_V2 = "atendimento.v2"
++VERSAO_DO_FORMATO_V2 = 4
++SCHEMA_DO_RELATORIO_V2 = "analysis_report.v2"
++
++SISTEMA_V2 = (
++    "Você é o Agente Analista do Núcleo Major. Você avalia o TRABALHO DO VENDEDOR numa conversa de "
++    "WhatsApp entre uma empresa e um cliente, para o dono da empresa, em português do Brasil. Seu tom é o de "
++    "um gestor comercial exigente: cru, direto e sem eufemismo. Critique o trabalho, nunca a pessoa: nada de "
++    "ofensa, ironia ou adjetivo sobre o caráter de ninguém. Quando algo foi bem feito, diga que foi bem feito. "
++    "Toda crítica aponta a mensagem que a prova. Você NÃO dá nota: a nota do vendedor já foi calculada pelo "
++    "sistema a partir dos fatos e do classificador, e vem pronta. Seu papel é explicar a nota ponto por ponto, "
++    "dizer o que um vendedor top teria feito, o que fazer agora e sugerir a próxima mensagem. Use só o que está "
++    "na conversa e nos dados: não invente fatos, valores, nomes ou datas. Aponte as mensagens pelo número (#N). "
++    "O texto depois de [áudio] é a transcrição automática do áudio e pode ter pequenos erros de reconhecimento; "
++    "[áudio] sozinho é um áudio sem transcrição. Responda SOMENTE com um objeto JSON válido, sem texto antes ou "
++    "depois e sem bloco de código."
++)
++
++CRITERIOS_V2 = ("advance", "diagnosis", "objection", "leads", "close", "follow_up", "speed", "empathy", "promises")
++ALERTAS_V2 = (
++    "conversation_left_open", "broken_promise", "overdue_follow_up", "playbook_violation",
++    "premature_solution", "critical_information_ignored",
++)
++NOMES_DOS_CRITERIOS_V2 = {
++    "advance": "Avanço com data", "diagnosis": "Diagnóstico", "objection": "Trata objeção",
++    "leads": "Ensina e conduz", "close": "Pede o fechamento", "follow_up": "Follow-up",
++    "speed": "Velocidade", "empathy": "Escuta e empatia", "promises": "Cumpre o que promete",
++}
++ALERTA_PRECISA_V2 = {
++    "conversation_left_open": ("advance", lambda estado: estado["valor"] == "continuacao"),
++    "broken_promise": ("promises", lambda estado: estado["valor"] == "vencida_sem_entrega"),
++    "overdue_follow_up": ("follow_up", lambda estado: estado["fator"] <= 0.2),
++    "playbook_violation": (("objection", "diagnosis"), lambda estado: estado["fator"] < 1),
++    "premature_solution": ("diagnosis", lambda estado: estado["fator"] < 1),
++    "critical_information_ignored": (("diagnosis", "empathy"), lambda estado: estado["fator"] < 1),
++}
++FAIXAS_V2 = ((75, "Vendeu bem"), (50, "Atende, mas não fecha"), (0, "Atrapalhou a venda"))
++
++FOCO_V2 = {
++    "comercial": "Olhe para a venda: o que o vendedor fez que fez a venda andar ou parar.",
++    "atendimento": "Olhe para o trabalho do vendedor: o que ele fez, o que deixou de fazer e o que custou a venda.",
++}
++
++FORMATO_V2 = """Responda com este JSON (analysis_report.v2):
++{
++  "summary": "uma frase sobre o estado da venda",
++  "verdict": "o veredito cru, em até 3 frases: o que o vendedor fez e por que a venda andou ou parou",
++  "did_well": [{"title": "o que o vendedor fez bem, curto", "evidence": [3]}],
++  "cost_the_sale": [{"title": "o que custou a venda, curto", "evidence": [7]}],
++  "main_bottleneck": {"criterion": "chave do ponto ou null", "title": "curto", "explanation": "por que é o que mais custou", "evidence": [7]},
++  "why_this_score": [{"criterion": "chave do ponto", "explanation": "a crítica: o que aconteceu, citando o que foi dito", "better": "o que um vendedor top teria feito ou escrito aqui, ou null quando foi bem", "evidence": [7]}],
++  "what_to_do_now": [{"priority": "alta|media|baixa", "action_type": "reply|create_follow_up|schedule_meeting|create_task|review|none", "title": "curto", "instruction": "o que fazer", "reason": "por quê", "due_at": "AAAA-MM-DD, AAAA-MM-DDTHH:MM ou null", "evidence": [12]}],
++  "suggested_message": {"applicable": true, "text": "a mensagem pronta para enviar ao cliente, ou null"},
++  "red_flags": [{"code": "código", "severity": "alta|media|baixa", "criterion": "chave ou null", "reason": "por quê", "evidence": [7]}]
++}
++Regras:
++- Chaves dos pontos: advance, diagnosis, objection, leads, close, follow_up, speed, empathy, promises.
++- Não dê nota e não mude a nota recebida. Ponto "não avaliado" não é perda e não entra em why_this_score.
++- why_this_score: UM item para CADA ponto avaliado, do que mais custou ao que foi melhor. Ponto "bom": diga o que foi bem feito e deixe better null.
++- better: o que o melhor vendedor teria feito naquele momento. Quando couber, escreva a mensagem pronta, no estilo do cliente e dentro da estratégia da empresa. Nada genérico como "poderia ter sido mais claro".
++- verdict: sem eufemismo nem "poderia melhorar um pouco". Diga o que aconteceu e o efeito na venda. Exemplo de tom: "Atendeu rápido e com educação, mas não vendeu: mandou a simulação, ouviu 'vou ver com minha esposa', respondeu 'fico à disposição' e deixou o cliente sem caminho."
++- did_well: até 3 itens, só o que foi bem de verdade (vazio se nada foi). cost_the_sale: até 3 itens, o que mais custou (vazio se nada custou).
++- Critique o trabalho, nunca a pessoa. Sem ofensa, sem ironia, sem adjetivo sobre caráter.
++- what_to_do_now: até 3 ações, a mais importante primeiro. Sem ação necessária: uma só, com action_type "none".
++- due_at: só se a conversa der a data. Data sem horário claro: só AAAA-MM-DD. Sem data: null.
++- suggested_message: respeite a estratégia da empresa e o estilo do cliente. Se não couber mensagem agora: applicable false e text null.
++- red_flags: só quando tiver utilidade clara e o estado do ponto confirmar. Códigos: conversation_left_open (só com advance em continuacao), broken_promise (só com promises vencida_sem_entrega), overdue_follow_up (só com follow_up ruim ou crítico), playbook_violation, premature_solution e critical_information_ignored (só com o ponto avaliado e abaixo de "bom").
++- evidence: os números (#N) das mensagens que comprovam, no máximo 3. Não invente números.
++- Não escreva os números (#N) no texto: eles vão só em evidence."""
++
++
++def usa_regua_v2(carga: Any) -> bool:
++    """A análise é da v2 quando a régua viaja no playbook ou a nota já é v2."""
++    carga = _dict(carga)
++    if _dict(carga.get("playbook")).get("regua") == REGUA_V2:
++        return True
++    return any(
++        isinstance(d, dict) and d.get("key") == "advance"
++        for d in _dict(_dict(carga.get("scores")).get("atendimento")).get("dimensions") or []
++    )
++
++
++def faixa_v2(nota: Any) -> str:
++    if not isinstance(nota, (int, float)) or isinstance(nota, bool):
++        return ""
++    return next(rotulo for minimo, rotulo in FAIXAS_V2 if nota >= minimo)
++
++
+ # "#43", "(#46, #48)", "(#73 e #75)": o número interno da mensagem não vai
+ # para o texto que a pessoa lê. Ele só existe para virar o link de evidência.
+ NUMERO_INTERNO = re.compile(r"\s*\(\s*#\d+(?:\s*(?:,|e|/|-)\s*#?\d+)*\s*\)|\s*#\d+\b")
+@@ -226,6 +320,18 @@ def resumo_dos_fatos(fatos: Any) -> str:
+         humano = (f"primeira resposta humana em {_duracao(relogio.get('firstHumanResponseSeconds'))}"
+                   if relogio.get("firstHumanResponseSeconds") is not None else "ainda sem resposta humana")
+         linhas.append(f"- Passou para uma pessoa em {_quando(relogio.get('startedAt'))}; {humano}")
++    vendedor = _dict(fatos.get("seller"))
++    if vendedor.get("label"):
++        quem = {"ia": "o agente de IA", "equipe": "a equipe pelo celular (sem dizer quem escreveu)"}.get(
++            vendedor.get("kind"), _texto(vendedor.get("label"), 60))
++        linhas.append(f"- Quem atendeu (o vendedor avaliado): {quem}")
++    velocidade = _dict(fatos.get("speed"))
++    if velocidade.get("firstResponseBusinessMinutes") is not None:
++        linhas.append(f"- Primeira resposta ao cliente: {velocidade['firstResponseBusinessMinutes']} min de horário "
++                      "comercial (seg a sáb, 8h às 20h)")
++    elif velocidade.get("waitingBusinessMinutes") is not None:
++        linhas.append(f"- O cliente espera a primeira resposta há {velocidade['waitingBusinessMinutes']} min de "
++                      "horário comercial")
+     estilo = _dict(fatos.get("communication"))
+     if estilo:
+         linhas.append(
+@@ -257,24 +363,34 @@ def resumo_da_nota(notas: Any) -> str:
+     atendimento = _dict(_dict(notas).get("atendimento"))
+     if not atendimento:
+         return ""
++    v2 = any(isinstance(d, dict) and d.get("key") == "advance" for d in atendimento.get("dimensions") or [])
++    titulo = "Nota do vendedor" if v2 else "Atendimento Score"
+     if atendimento.get("score") is None:
+-        return "Atendimento Score: ainda não avaliável (nenhum critério com dado suficiente)."
++        return f"{titulo}: ainda não avaliável (nenhum critério com dado suficiente)."
+     fatores = _dict(atendimento.get("stateFactors")) or FATORES_PADRAO
+     parcial = (atendimento.get("evaluatedWeight") or 0) < (atendimento.get("maxWeight") or 0)
+     avaliado, maximo = atendimento.get("evaluatedWeight") or 0, atendimento.get("maxWeight") or 0
+     cobertura = round(100 * avaliado / maximo) if maximo else 0
+-    linhas = [
+-        f"Atendimento Score: {atendimento['score']}/100{' até aqui' if parcial else ''} "
+-        f"({avaliado} de {maximo} de peso avaliado, cobertura de {cobertura}%). Lead Score: não calculado.",
+-        "Critério \"não avaliado\" não tem estado: não o descreva como bom nem como ruim.",
+-    ]
++    if v2:
++        linhas = [
++            f"{titulo}: {atendimento['score']}/100, faixa \"{faixa_v2(atendimento['score'])}\" "
++            f"({avaliado} de {maximo} de peso avaliado, cobertura de {cobertura}%).",
++            "Ponto \"não avaliado\" não tem estado: não o descreva como bom nem como ruim.",
++        ]
++    else:
++        linhas = [
++            f"{titulo}: {atendimento['score']}/100{' até aqui' if parcial else ''} "
++            f"({avaliado} de {maximo} de peso avaliado, cobertura de {cobertura}%). Lead Score: não calculado.",
++            "Critério \"não avaliado\" não tem estado: não o descreva como bom nem como ruim.",
++        ]
+     if cobertura < 50:
+         linhas.append("Cobertura baixa: não trate a nota como conclusiva.")
++    nomes = NOMES_DOS_CRITERIOS_V2 if v2 else NOMES_DOS_CRITERIOS
+     for dimensao in atendimento.get("dimensions") or []:
+         if not isinstance(dimensao, dict):
+             continue
+         chave = str(dimensao.get("key") or "")
+-        nome = NOMES_DOS_CRITERIOS.get(chave, _texto(dimensao.get("name"), 60) or chave)
++        nome = nomes.get(chave, _texto(dimensao.get("name"), 60) or chave)
+         estado = _estado_pelo_fator(dimensao.get("factor"), fatores)
+         valor = _texto(_dict((dimensao.get("criteria") or [{}])[0]).get("value"), 40)
+         linha = f"- {nome} ({chave}, peso {dimensao.get('weight')}): {estado}"
+@@ -295,6 +411,7 @@ def montar_prompt(carga: dict, hoje: Optional[date] = None) -> str:
+     import jev_framework
+ 
+     tipo = carga.get("kind") if carga.get("kind") in FOCO else "comercial"
++    v2 = usa_regua_v2(carga)
+     hoje = hoje or datetime.now(FUSO).date()
+     linhas = []
+     for numero, m in enumerate(carga.get("messages") or [], start=1):
+@@ -307,7 +424,7 @@ def montar_prompt(carga: dict, hoje: Optional[date] = None) -> str:
+             texto = (ROTULO_MIDIA.get(midia) or f"[{midia}]") + (f" {texto}" if texto else "")
+         if texto:
+             linhas.append(f"#{numero} [{_quando(m.get('sentAt'))}] {autor}: {texto}")
+-    partes = [FOCO[tipo], f"Hoje é {hoje.strftime('%d/%m/%Y')}.", ""]
++    partes = [(FOCO_V2 if v2 else FOCO)[tipo], f"Hoje é {hoje.strftime('%d/%m/%Y')}.", ""]
+     agente = carga.get("agent") if isinstance(carga.get("agent"), dict) else None
+     if agente:
+         partes.append(f"Agente que atende esta conversa: {_texto(agente.get('name'), 80)}. Jeito esperado: {_texto(agente.get('tone'), 300)}")
+@@ -339,7 +456,7 @@ def montar_prompt(carga: dict, hoje: Optional[date] = None) -> str:
+     partes.append("Etapas do funil da empresa: " + ", ".join(_texto(s, 80) for s in (carga.get("stages") or [])[:20]))
+     partes.append("O contato está no CRM: " + ("sim" if carga.get("hasContact") else "não"))
+     partes.append("")
+-    partes.append(FORMATO)
++    partes.append(FORMATO_V2 if v2 else FORMATO)
+     partes.append("")
+     partes.append("Conversa:")
+     partes.append("\n".join(linhas)[-60000:])
+@@ -379,13 +496,17 @@ def _data(valor: Any) -> Optional[str]:
+ 
+ 
+ def ler_resultado(texto: str, carga: dict) -> dict:
+-    """O JSON do Claude, conferido e aparado, no formato analysis_report.v1."""
++    """O JSON do Claude, conferido e aparado, no formato analysis_report.v1
++    (ou analysis_report.v2, quando a régua da análise é a v2)."""
+     dados = _json_do_texto(texto)
+     if not isinstance(dados, dict):
+         raise AnaliseInvalida("schema_nao_objeto")
+     resumo = _sem_numeros(dados.get("summary"), 400)
+     if not resumo:
+         raise AnaliseInvalida("schema_sem_resumo")
++    v2 = usa_regua_v2(carga)
++    criterios_validos = CRITERIOS_V2 if v2 else CRITERIOS
++    alertas_validos = ALERTAS_V2 if v2 else ALERTAS
+ 
+     # O número #N vira o message_id da carga. Número que não existe é
+     # descartado: a evidência só aponta mensagem que o analista recebeu.
+@@ -404,7 +525,7 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+         return encontrados[:3]
+ 
+     def criterio(valor: Any) -> Optional[str]:
+-        return valor if valor in CRITERIOS else None
++        return valor if valor in criterios_validos else None
+ 
+     gargalo = None
+     bruto = _dict(dados.get("main_bottleneck"))
+@@ -416,15 +537,36 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+             "evidence_message_ids": evidencias(bruto),
+         }
+ 
+-    motivos = [
+-        {
+-            "criterion": criterio(item.get("criterion")),
+-            "explanation": _sem_numeros(item.get("explanation"), 300),
+-            "evidence_message_ids": evidencias(item),
+-        }
+-        for item in (dados.get("why_this_score") or [])[:4]
+-        if isinstance(item, dict) and _texto(item.get("explanation"), 300)
+-    ]
++    if v2:
++        # Um item por ponto avaliado (até 9), com a crítica e o que um
++        # vendedor top teria feito. Ponto repetido fica com o primeiro.
++        motivos, vistos = [], set()
++        for item in dados.get("why_this_score") or []:
++            if not isinstance(item, dict) or not _texto(item.get("explanation"), 400):
++                continue
++            chave = criterio(item.get("criterion"))
++            if chave and chave in vistos:
++                continue
++            vistos.add(chave)
++            melhor = _sem_numeros(item.get("better"), 600)
++            motivos.append({
++                "criterion": chave,
++                "explanation": _sem_numeros(item.get("explanation"), 400),
++                "better": melhor if melhor and melhor.lower() != "null" else None,
++                "evidence_message_ids": evidencias(item),
++            })
++            if len(motivos) == len(CRITERIOS_V2):
++                break
++    else:
++        motivos = [
++            {
++                "criterion": criterio(item.get("criterion")),
++                "explanation": _sem_numeros(item.get("explanation"), 300),
++                "evidence_message_ids": evidencias(item),
++            }
++            for item in (dados.get("why_this_score") or [])[:4]
++            if isinstance(item, dict) and _texto(item.get("explanation"), 300)
++        ]
+ 
+     acoes = []
+     for item in dados.get("what_to_do_now") or []:
+@@ -448,7 +590,7 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+ 
+     alertas = []
+     for item in dados.get("red_flags") or []:
+-        if not isinstance(item, dict) or item.get("code") not in ALERTAS:
++        if not isinstance(item, dict) or item.get("code") not in alertas_validos:
+             continue
+         if any(alerta["code"] == item["code"] for alerta in alertas):
+             continue
+@@ -462,6 +604,28 @@ def ler_resultado(texto: str, carga: dict) -> dict:
+         if len(alertas) == 4:
+             break
+ 
++    if v2:
++        def pontos(lista: Any) -> list:
++            return [
++                {"title": _sem_numeros(item.get("title"), 160), "evidence_message_ids": evidencias(item)}
++                for item in (lista if isinstance(lista, list) else [])
++                if isinstance(item, dict) and _sem_numeros(item.get("title"), 160)
++            ][:3]
++
++        return {
++            "schema_version": SCHEMA_DO_RELATORIO_V2,
++            "formatVersion": VERSAO_DO_FORMATO_V2,
++            "summary": resumo,
++            "verdict": _sem_numeros(dados.get("verdict"), 500) or None,
++            "did_well": pontos(dados.get("did_well")),
++            "cost_the_sale": pontos(dados.get("cost_the_sale")),
++            "main_bottleneck": gargalo,
++            "why_this_score": motivos,
++            "what_to_do_now": acoes,
++            "suggested_message": sugerida,
++            "red_flags": alertas,
++        }
++
+     return {
+         "schema_version": SCHEMA_DO_RELATORIO,
+         "formatVersion": VERSAO_DO_FORMATO,
+@@ -485,9 +649,14 @@ def conferir_com_os_estados(resultado: dict, notas: Any) -> tuple[dict, dict]:
+     if not _dict(_dict(notas).get("atendimento")).get("dimensions"):
+         return resultado, {}
+     estados = estados_dos_criterios(notas)
++    v2 = any(isinstance(d, dict) and d.get("key") == "advance"
++             for d in _dict(_dict(notas).get("atendimento")).get("dimensions") or [])
++    precisa = ALERTA_PRECISA_V2 if v2 else ALERTA_PRECISA
+ 
+     def confirma(codigo: str) -> bool:
+-        criterios, regra = ALERTA_PRECISA[codigo]
++        if codigo not in precisa:
++            return False
++        criterios, regra = precisa[codigo]
+         for criterio in (criterios if isinstance(criterios, tuple) else (criterios,)):
+             if criterio in estados and regra(estados[criterio]):
+                 return True
+@@ -609,7 +778,7 @@ class Analista:
+                 tools=[],
+                 include_vault=False,
+                 no_session_persistence=True,
+-                system_prompt=SISTEMA,
++                system_prompt=SISTEMA_V2 if usa_regua_v2(carga) else SISTEMA,
+                 claude_config_dir=self.config_dir,
+             )
+ 
+@@ -644,6 +813,7 @@ class Analista:
+         ms = int((time.monotonic() - inicio) * 1000)
+         self._gravar(analise, "done", resultado=resultado, ms=ms)
+         audit.log("analysis.done", analysis_id=analise, kind=carga.get("kind"), latency_ms=ms,
++                  report=resultado["schema_version"], reply_chars=len(str(getattr(resposta, "reply", "") or "")),
+                   actions=len(resultado["what_to_do_now"]), red_flags=len(resultado["red_flags"]),
+                   service_score=_dict(_dict(carga.get("scores")).get("atendimento")).get("score"))
+         return "done"
+diff --git a/whatsapp-assistant/jev_framework.py b/whatsapp-assistant/jev_framework.py
+index a8ee78f..daf7501 100644
+--- a/whatsapp-assistant/jev_framework.py
++++ b/whatsapp-assistant/jev_framework.py
+@@ -31,7 +31,10 @@ from zoneinfo import ZoneInfo
+ # major-v2 (03/10/2026): + as perguntas do Atendimento Score v1 (att_*), da
+ # especificação ANALYSIS_SCHEMA_V1_NUCLEO_MAJOR.md. As perguntas de antes não
+ # mudaram; a versão sobe porque a leitura passou a ter mais respostas.
+-FRAMEWORK_VERSION = "major-v2"
++# major-v3 (03/10/2026): + as perguntas da Avaliação do vendedor v2 (vnd_*),
++# que substituem as att_* quando a régua em vigor da empresa é a v2
++# (`regua` no playbook, migration 20261008100000).
++FRAMEWORK_VERSION = "major-v3"
+ FUSO = ZoneInfo("America/Sao_Paulo")
+ 
+ 
+@@ -269,8 +272,118 @@ ATENDIMENTO_V1: tuple[Pergunta, ...] = (
+     }),
+ )
+ 
++# --------------------------------------- Avaliação do vendedor v2 (vnd_*)
++# Plano aprovado pelo dono em 03/10/2026. Os 9 pontos de um bom vendedor, de
++# livros de vendas; a velocidade é medida pelo banco (fatos), as outras 8 são
++# perguntas. Cada pergunta julga o TRABALHO DO VENDEDOR (pessoa ou IA), não o
++# cliente. Quem transforma estado em nota é o banco (atendimento.v2).
++REGUA_V2 = "atendimento.v2"
++
++VENDEDOR_V2: tuple[Pergunta, ...] = (
++    Pergunta("vnd_advance", "vendedor_v2", "choice",
++             "Como a conversa terminou para a venda, até agora? AVANÇO é quando o CLIENTE se compromete com uma "
++             "ação concreta e com quando (ligação ou reunião marcada, envio de documento até uma data, "
++             "assinatura). CONTINUAÇÃO é quando a conversa acaba sem compromisso do cliente: \"vou pensar\", "
++             "\"fico à disposição\", \"qualquer coisa me chama\", \"depois te falo\". Julgue o trabalho do "
++             "vendedor (SPIN Selling, Rackham).", {
++        "fechou": "O cliente fechou: comprou, assinou ou pagou.",
++        "compromisso_com_data": "O cliente se comprometeu com o próximo passo e com quando (dia ou horário).",
++        "propos_com_data": "O vendedor propôs um passo concreto com dia ou opções de horário, e o cliente ainda "
++                           "não respondeu.",
++        "compromisso_sem_data": "O cliente concordou com um próximo passo, mas sem dia nem horário.",
++        "continuacao": "Terminou sem compromisso do cliente: \"vou pensar\", \"fico à disposição\", \"qualquer "
++                       "coisa me chama\", ou o vendedor só respondeu e parou.",
++        "desqualificado_com_motivo": "O cliente não tem perfil e isso ficou dito na conversa, com o motivo.",
++        "ainda_cedo": "A conversa ainda está no começo (o cliente acabou de chegar ou ainda está explicando) e não "
++                      "havia como pedir avanço.",
++    }),
++    Pergunta("vnd_diagnosis", "vendedor_v2", "choice",
++             "Antes de oferecer, o vendedor entendeu o cliente? Bom vendedor descobre a situação, o problema e o "
++             "que o cliente quer alcançar, e faz o cliente perceber o custo de não resolver (perguntas de "
++             "implicação). Vendedor fraco só faz perguntas de situação (\"qual valor?\") ou oferece sem "
++             "perguntar. Se o cliente já disse tudo sozinho, não precisava perguntar de novo (SPIN Selling, "
++             "Gap Selling).", {
++        "bom": "Entendeu a necessidade, a situação e o objetivo antes de oferecer, e fez ao menos uma pergunta "
++               "que mostra o custo ou a consequência do problema.",
++        "atencao": "Entendeu o básico, só com perguntas de situação (valor, prazo), sem explorar o problema nem o "
++                   "que o cliente ganha resolvendo.",
++        "ruim": "Perguntou pouco e ofereceu cedo, ou ignorou informação importante que o cliente deu.",
++        "critico": "Ofereceu ou passou preço sem entender nada do cliente, ou entendeu errado e seguiu por esse "
++                   "caminho.",
++        "nao_avaliado": "Ainda não houve oportunidade de diagnóstico (conversa muito curta ou o cliente só mandou "
++                        "um oi).",
++    }),
++    Pergunta("vnd_objection", "vendedor_v2", "choice",
++             "Quando o cliente levantou uma objeção (preço, tempo, falar com outra pessoa, desconfiança, \"vou "
++             "pensar\"), o vendedor a tratou? Tratar é entender o que está por trás, responder como a estratégia "
++             "da empresa orienta e manter a venda andando. Aceitar a objeção como resposta (\"tranquilo, fico à "
++             "disposição\") é não tratar (Never Split the Difference, Voss).", {
++        "bom": "Entendeu a objeção, respondeu de forma adequada e manteve a venda andando (por exemplo, incluiu "
++               "quem decide junto, encaixou a parcela).",
++        "atencao": "Respondeu, mas de forma genérica ou sem entender o que estava por trás.",
++        "ruim": "Aceitou a objeção como resposta e deixou a venda parar, ou rebateu sem entender.",
++        "critico": "Ignorou a objeção principal ou discutiu com o cliente.",
++        "nao_avaliado": "O cliente não fez objeção.",
++    }),
++    Pergunta("vnd_leads", "vendedor_v2", "choice",
++             "O vendedor conduziu a conversa e trouxe uma visão que o cliente não tinha? Bom vendedor ensina algo "
++             "útil (como funciona, o que muda para o cliente, um caminho melhor) e diz qual é o próximo passo. "
++             "Vendedor fraco só responde o que foi perguntado e deixa o cliente conduzir (The Challenger Sale).", {
++        "bom": "Trouxe uma visão nova e útil para o cliente e conduziu os passos da conversa.",
++        "atencao": "Explicou bem quando perguntado, mas não trouxe nada novo ou deixou o cliente decidir o rumo.",
++        "ruim": "Só respondeu o que foi perguntado, sem conduzir: a conversa andou a reboque do cliente.",
++        "critico": "Deixou o cliente perdido: respostas soltas, sem caminho, ou confundiu o cliente.",
++        "nao_avaliado": "Conversa curta demais para julgar a condução.",
++    }),
++    Pergunta("vnd_close", "vendedor_v2", "choice",
++             "Quando o cliente deu sinal de compra (perguntou como pagar, como começar, o prazo, ou disse que "
++             "gostou ou que faz sentido), o vendedor pediu o fechamento ou o passo de compra? Pedir na hora certa "
++             "é bom; pressionar sem sinal nenhum também é erro (Secrets of Closing the Sale, Ziglar).", {
++        "bom": "Com sinal de compra, pediu o fechamento ou o passo de compra de forma clara (por exemplo, "
++               "oferecendo duas opções).",
++        "atencao": "Com sinal de compra, sugeriu avançar de forma tímida ou vaga, sem pedir de fato.",
++        "ruim": "Teve sinal de compra e não pediu nada, ou pressionou para fechar sem o cliente dar sinal.",
++        "critico": "Teve sinal claro de compra, o vendedor deixou passar e a conversa esfriou.",
++        "nao_avaliado": "O cliente não deu sinal de compra até agora.",
++    }),
++    Pergunta("vnd_follow_up", "vendedor_v2", "choice",
++             "Quando o cliente parou de responder ou ficou de dar retorno, o vendedor voltou a chamar? Bom "
++             "follow-up volta no prazo e traz algo novo (informação, condição, prova); só cobrar (\"e aí, "
++             "pensou?\") é fraco (Fanatical Prospecting, Blount).", {
++        "bom": "Voltou a chamar no prazo trazendo algo novo e útil.",
++        "atencao": "Voltou a chamar, mas só cobrando ou fora do prazo combinado.",
++        "ruim": "O cliente sumiu há mais de 2 dias úteis, ou o prazo combinado passou, e ninguém voltou a chamar.",
++        "critico": "O cliente pediu retorno ou ficou esperando uma resposta e foi esquecido.",
++        "nao_avaliado": "O cliente não sumiu e não havia retorno combinado, ou ainda não deu tempo.",
++    }),
++    Pergunta("vnd_empathy", "vendedor_v2", "choice",
++             "O vendedor escutou o cliente? Bom vendedor nomeia a preocupação do cliente antes de explicar "
++             "(\"entendo, muita gente tem receio de...\"), faz perguntas abertas (como, o que) e responde ao que "
++             "o cliente disse. Vendedor fraco rebate, ignora o sentimento ou muda de assunto (Never Split the "
++             "Difference, Voss).", {
++        "bom": "Mostrou que entendeu a preocupação do cliente antes de responder e usou perguntas abertas.",
++        "atencao": "Educado, mas respondeu sem reconhecer a preocupação que o cliente demonstrou.",
++        "ruim": "Rebateu, ignorou a preocupação ou respondeu outra coisa.",
++        "critico": "Foi ríspido, desdenhou da preocupação ou constrangeu o cliente.",
++        "nao_avaliado": "O cliente não demonstrou preocupação, receio ou sentimento sobre a compra.",
++    }),
++    Pergunta("vnd_promises", "vendedor_v2", "choice",
++             "O vendedor cumpriu o que prometeu ao cliente nesta conversa (mandar simulação, material, proposta, "
++             "retorno, ligação)? Promessa cumprida gera confiança; promessa esquecida destrói (Influence, "
++             "Cialdini).", {
++        "cumpriu": "Prometeu e entregou no prazo combinado (ou no mesmo dia, quando não havia prazo).",
++        "cumpriu_com_atraso": "Entregou, mas depois do prazo ou só depois de o cliente cobrar.",
++        "vencida_sem_entrega": "Prometeu, o prazo passou e não entregou.",
++        "ainda_no_prazo": "Prometeu e o prazo ainda não chegou.",
++        "sem_promessa": "O vendedor não prometeu nada concreto.",
++    }),
++)
++
+ PERGUNTAS = PERGUNTAS + ATENDIMENTO_V1
+ POR_CHAVE = {pergunta.chave: pergunta for pergunta in PERGUNTAS}
++# Todas as perguntas que existem, de qualquer régua: é por aqui que uma
++# resposta pela chave é entendida (normalizar).
++TODAS_POR_CHAVE = {pergunta.chave: pergunta for pergunta in PERGUNTAS + VENDEDOR_V2}
+ 
+ # Até onde vai o texto do playbook dentro das perguntas que dependem dele.
+ TETO_DO_PLAYBOOK = 2500
+@@ -351,21 +464,33 @@ def montar_perguntas(playbook: Any = None, jeito: Any = None, hoje: "date | None
+     recebe a data de hoje (para saber se um prazo já passou). Item do playbook
+     com chave fora do formato é ignorado, e não derruba a leitura: o banco já
+     confere o formato ao publicar, e isto é só a segunda trava.
++
++    Com a régua v2 em vigor (`regua` no playbook), as perguntas do Atendimento
++    Score v1 (att_*) dão lugar às da Avaliação do vendedor (vnd_*): o banco só
++    pontua uma régua, e as duas juntas passariam do teto de perguntas.
+     """
+-    perguntas = list(PERGUNTAS)
+     playbook = playbook if isinstance(playbook, dict) else {}
++    v2 = playbook.get("regua") == REGUA_V2
++    perguntas = list(PERGUNTAS[: len(PERGUNTAS) - len(ATENDIMENTO_V1)] + VENDEDOR_V2) if v2 else list(PERGUNTAS)
+ 
+     hoje = hoje or datetime.now(FUSO).date()
+     contexto = contexto_do_playbook(playbook)
++    passos = [
++        _texto(item.get("nome"), 120) for item in (playbook.get("proximosPassos") or [])
++        if isinstance(item, dict) and _texto(item.get("nome"), 120)
++    ]
++    data_de_hoje = f" Hoje é {hoje.strftime('%d/%m/%Y')}."
+     for indice, pergunta in enumerate(perguntas):
+-        if pergunta.chave in ("att_qualification", "att_playbook_adherence"):
+-            perguntas[indice] = Pergunta(
+-                pergunta.chave, pergunta.grupo, pergunta.tipo, f"{pergunta.instrucao}\n\n{contexto}", pergunta.criterios
+-            )
+-        elif pergunta.chave == "att_follow_up":
++        extra = ""
++        if pergunta.chave in ("att_qualification", "att_playbook_adherence", "vnd_diagnosis", "vnd_objection"):
++            extra = f"\n\n{contexto}"
++        elif pergunta.chave in ("att_follow_up", "vnd_follow_up", "vnd_promises"):
++            extra = data_de_hoje
++        elif pergunta.chave == "vnd_advance" and passos:
++            extra = "\n\nPróximos passos que esta empresa usa: " + "; ".join(passos[:6]) + "."
++        if extra:
+             perguntas[indice] = Pergunta(
+-                pergunta.chave, pergunta.grupo, pergunta.tipo,
+-                f"{pergunta.instrucao} Hoje é {hoje.strftime('%d/%m/%Y')}.", pergunta.criterios,
++                pergunta.chave, pergunta.grupo, pergunta.tipo, f"{pergunta.instrucao}{extra}", pergunta.criterios
+             )
+ 
+     objecoes = [
+@@ -451,7 +576,7 @@ def normalizar(chave: "str | Pergunta", bruta: Any) -> dict[str, Any] | None:
+     existe, nível fora da escala. Resposta que não se entende não é gravada:
+     um "talvez" inventado aqui contaminaria os números gerais.
+     """
+-    pergunta = chave if isinstance(chave, Pergunta) else POR_CHAVE.get(chave)
++    pergunta = chave if isinstance(chave, Pergunta) else TODAS_POR_CHAVE.get(chave)
+     if pergunta is None or not isinstance(bruta, dict) or bruta.get("type") != pergunta.tipo:
+         return None
+     chave = pergunta.chave
+diff --git a/whatsapp-assistant/test_atendimento_v1.py b/whatsapp-assistant/test_atendimento_v1.py
+index 47c3506..5af643c 100644
+--- a/whatsapp-assistant/test_atendimento_v1.py
++++ b/whatsapp-assistant/test_atendimento_v1.py
+@@ -36,7 +36,7 @@ class EstruturaTests(unittest.TestCase):
+         self.assertEqual(set(p["att_next_step"].criterios), {
+             "avancou_com_acao", "aguardando_acao_do_lead", "desqualificado_com_motivo", "ainda_em_descoberta", "ficou_em_aberto"})
+         self.assertEqual(set(p["att_follow_up"].criterios), {"not_due", "done", "overdue", "not_applicable"})
+-        self.assertEqual(j.FRAMEWORK_VERSION, "major-v2")
++        self.assertEqual(j.FRAMEWORK_VERSION, "major-v3")
+ 
+     def test_cabem_no_teto_do_banco_mesmo_com_playbook_e_jeito(self):
+         cheio = {**PLAYBOOK_DA_EMPRESA, "proximosPassos": [{"chave": "diag", "nome": "Diagnóstico"}],
+diff --git a/whatsapp-assistant/test_coordenador.py b/whatsapp-assistant/test_coordenador.py
+index 29741d3..a7f7814 100644
+--- a/whatsapp-assistant/test_coordenador.py
++++ b/whatsapp-assistant/test_coordenador.py
+@@ -321,7 +321,7 @@ class CoordenadorTests(unittest.TestCase):
+         self.assertEqual(gravada["status"], "ok")
+         self.assertEqual(gravada["phone"], "5565900000002")
+         self.assertEqual(gravada["analyzedUntil"], "2026-10-01T12:00:00+00:00")
+-        self.assertEqual(gravada["frameworkVersion"], "major-v2")
++        self.assertEqual(gravada["frameworkVersion"], "major-v3")
+         self.assertEqual(gravada["model"], "typesafe/jev-1.13-20260917")
+         self.assertEqual((gravada["inputTokens"], gravada["latencyMs"]), (4005, 512))
+         self.assertEqual(len(gravada["answers"]), len(jev_framework.PERGUNTAS))
+diff --git a/whatsapp-assistant/test_vendedor_v2.py b/whatsapp-assistant/test_vendedor_v2.py
+new file mode 100644
+index 0000000..d94d50a
+--- /dev/null
++++ b/whatsapp-assistant/test_vendedor_v2.py
+@@ -0,0 +1,252 @@
++"""A Avaliação do vendedor v2 (migration 20261008100000) no runtime.
++
++O que estes testes prendem:
++  * com a régua v2 em vigor (`regua` no playbook), o Jev recebe as perguntas
++    vnd_* no lugar das att_*, cabendo no teto do banco, e cada uma com o que
++    ela precisa (playbook, próximos passos da empresa, data de hoje);
++  * sem a régua v2, nada muda: as perguntas e o pedido ao Claude são os da v1;
++  * o Analista pede o analysis_report.v2 (veredito, o que fez bem, o que custou
++    a venda, crítica e "o que um vendedor top teria feito" por ponto), com o
++    tom combinado, e a resposta volta conferida contra os estados da nota.
++"""
++
++import json
++import tempfile
++import unittest
++from datetime import date
++from pathlib import Path
++from unittest.mock import patch
++
++import analista
++import jev_framework as j
++import runner
++
++PLAYBOOK_V2 = {
++    "origem": "empresa", "version": 1, "regua": "atendimento.v2", "segmento": "Consórcio (Ademicon)",
++    "objecoes": [{"chave": "falar_com_conjuge", "nome": "Preciso falar com meu marido/esposa",
++                  "resposta": "Incluir o decisor numa conversa com o casal"}],
++    "proximosPassos": [{"chave": "enviar_simulacao", "nome": "Enviar simulação personalizada"},
++                       {"chave": "conversa_com_casal", "nome": "Conversa com o casal (decisores)"}],
++    "criterios": [{"chave": f"c{i}x", "pergunta": f"Pergunta própria número {i}?"} for i in range(8)],
++}
++ESTADOS = {"bom", "atencao", "ruim", "critico", "nao_avaliado"}
++
++
++def dimensao(chave, peso, fator, valor):
++    return {"key": chave, "weight": peso, "factor": fator, "points": None if fator is None else round(peso * fator, 2),
++            "criteria": [{"key": chave, "value": valor, "factor": fator}]}
++
++
++NOTAS_V2 = {
++    "atendimento": {
++        "score": 45, "points": 39.2, "evaluatedWeight": 88, "maxWeight": 100,
++        "stateFactors": {"bom": 1.0, "atencao": 0.6, "ruim": 0.2, "critico": 0.0},
++        "dimensions": [
++            dimensao("advance", 16, 0.0, "continuacao"),
++            dimensao("diagnosis", 14, 0.6, "atencao"),
++            dimensao("objection", 12, 0.2, "ruim"),
++            dimensao("leads", 12, 0.2, "ruim"),
++            dimensao("close", 12, None, "nao_avaliado"),
++            dimensao("follow_up", 10, 0.2, "ruim"),
++            dimensao("speed", 8, 1.0, "bom"),
++            dimensao("empathy", 8, 1.0, "bom"),
++            dimensao("promises", 8, 1.0, "cumpriu"),
++        ],
++    },
++}
++
++CARGA_V2 = {
++    "analysisId": "8d0f6f6e-3c8b-4c86-8c3b-0d8c2a7f0002",
++    "kind": "atendimento",
++    "messages": [
++        {"id": "M1", "sentAt": "2026-09-22T22:30:00Z", "fromMe": True, "authorKind": "", "content": "Segue a simulação."},
++        {"id": "M2", "sentAt": "2026-09-22T22:40:00Z", "fromMe": False, "authorKind": "", "content": "Gostei, mas vou ver com minha esposa."},
++        {"id": "M3", "sentAt": "2026-09-22T22:52:00Z", "fromMe": True, "authorKind": "", "content": "Tranquilo! Fico à disposição."},
++    ],
++    "reading": {},
++    "facts": {
++        "version": 3, "messages": {"total": 3, "contact": 1, "ai": 0, "team": 2, "bot": 0},
++        "seller": {"kind": "equipe", "authorId": None, "label": "Equipe · pelo celular"},
++        "speed": {"state": "bom", "firstResponseBusinessMinutes": 4},
++    },
++    "scores": NOTAS_V2,
++    "playbook": PLAYBOOK_V2,
++    "agent": None,
++    "stages": ["Lead", "Proposta", "Perdido"],
++    "hasContact": True,
++}
++
++
++def relatorio_v2(**sobrepor):
++    dados = {
++        "summary": "Atendeu rápido, mas não vendeu.",
++        "verdict": "Mandou a simulação, ouviu 'vou ver com minha esposa' (#2) e deixou o cliente sem caminho.",
++        "did_well": [{"title": "Respondeu em 4 minutos", "evidence": [1]}, {"title": "", "evidence": []}],
++        "cost_the_sale": [{"title": "Aceitou a objeção do cônjuge", "evidence": [3]}],
++        "main_bottleneck": {"criterion": "advance", "title": "Sem avanço", "explanation": "Continuação.", "evidence": [3]},
++        "why_this_score": [
++            {"criterion": "advance", "explanation": "Terminou em 'fico à disposição'.",
++             "better": "Te ligo amanhã às 19h para mostrar a simulação para vocês dois?", "evidence": [3]},
++            {"criterion": "objection", "explanation": "Aceitou o 'vou ver com minha esposa'.",
++             "better": "Ótimo que decidem juntos! 15 minutos com vocês dois amanhã?", "evidence": [2, 3]},
++            {"criterion": "advance", "explanation": "Repetido.", "better": None, "evidence": []},
++            {"criterion": "speed", "explanation": "Respondeu rápido.", "better": "null", "evidence": [1]},
++            {"criterion": "close", "explanation": "Não avaliado, não deveria vir.", "better": None, "evidence": []},
++        ],
++        "what_to_do_now": [{"priority": "alta", "action_type": "reply", "title": "Retomar com o casal",
++                            "instruction": "Propor a conversa com os dois", "reason": "Objeção aberta", "due_at": None, "evidence": [2]}],
++        "suggested_message": {"applicable": True, "text": "Oi, Rodrigo! Que tal 15 minutos com vocês dois amanhã às 19h?"},
++        "red_flags": [
++            {"code": "conversation_left_open", "severity": "alta", "criterion": "advance", "reason": "Sem compromisso", "evidence": [3]},
++            {"code": "broken_promise", "severity": "media", "criterion": "promises", "reason": "não confirma", "evidence": []},
++            {"code": "repeated_communication_mismatch", "reason": "não existe na v2"},
++        ],
++    }
++    dados.update(sobrepor)
++    return dados
++
++
++class PerguntasV2Tests(unittest.TestCase):
++    def perguntas(self, playbook):
++        return {p.chave: p for p in j.montar_perguntas(playbook, "direto e consultivo", hoje=date(2026, 10, 3))}
++
++    def test_com_a_regua_v2_as_vnd_entram_no_lugar_das_att(self):
++        p = self.perguntas(PLAYBOOK_V2)
++        vnd = {c for c in p if c.startswith("vnd_")}
++        self.assertEqual(vnd, {"vnd_advance", "vnd_diagnosis", "vnd_objection", "vnd_leads", "vnd_close",
++                               "vnd_follow_up", "vnd_empathy", "vnd_promises"})
++        self.assertFalse(any(c.startswith("att_") for c in p))
++        self.assertIn("temperatura", p)  # as perguntas de base continuam
++        self.assertIn("pb_c7x", p)  # os critérios próprios da empresa também
++        self.assertIn("segue_o_jeito", p)
++        self.assertLessEqual(len(j.montar_perguntas(PLAYBOOK_V2, "direto")), j.LIMITE_DE_PERGUNTAS)
++
++    def test_sem_a_regua_v2_nada_muda(self):
++        for playbook in (None, {"origem": "empresa", "regua": "atendimento.v1"}, {"origem": "base_major"}):
++            p = self.perguntas(playbook)
++            self.assertIn("att_next_step", p)
++            self.assertFalse(any(c.startswith("vnd_") for c in p))
++
++    def test_estados_de_cada_pergunta(self):
++        p = self.perguntas(PLAYBOOK_V2)
++        for chave in ("vnd_diagnosis", "vnd_objection", "vnd_leads", "vnd_close", "vnd_follow_up", "vnd_empathy"):
++            self.assertEqual(set(p[chave].criterios), ESTADOS, chave)
++        self.assertEqual(set(p["vnd_advance"].criterios), {
++            "fechou", "compromisso_com_data", "propos_com_data", "compromisso_sem_data", "continuacao",
++            "desqualificado_com_motivo", "ainda_cedo"})
++        self.assertEqual(set(p["vnd_promises"].criterios), {
++            "cumpriu", "cumpriu_com_atraso", "vencida_sem_entrega", "ainda_no_prazo", "sem_promessa"})
++        self.assertEqual(j.FRAMEWORK_VERSION, "major-v3")
++
++    def test_cada_pergunta_recebe_o_que_precisa(self):
++        p = self.perguntas(PLAYBOOK_V2)
++        self.assertIn("Preciso falar com meu marido/esposa", p["vnd_objection"].instrucao)
++        self.assertIn("Estratégia definida pela empresa", p["vnd_diagnosis"].instrucao)
++        self.assertIn("Conversa com o casal (decisores)", p["vnd_advance"].instrucao)
++        self.assertIn("Hoje é 03/10/2026.", p["vnd_follow_up"].instrucao)
++        self.assertIn("Hoje é 03/10/2026.", p["vnd_promises"].instrucao)
++        self.assertIn("fico à disposição", p["vnd_advance"].instrucao)  # o exemplo do vendedor vago
++
++    def test_resposta_vnd_e_normalizada(self):
++        r = j.normalizar("vnd_advance", {"type": "choice", "choice": "continuacao", "probabilities": {"continuacao": 0.8}})
++        self.assertEqual((r["question"], r["answer"], r["probability"]), ("vnd_advance", "continuacao", 0.8))
++        self.assertIsNone(j.normalizar("vnd_advance", {"type": "choice", "choice": "ficou_em_aberto"}))
++
++
++class PromptV2Tests(unittest.TestCase):
++    def setUp(self):
++        self.prompt = analista.montar_prompt(CARGA_V2, hoje=date(2026, 10, 3))
++
++    def test_pede_o_relatorio_v2_com_a_nota_e_a_faixa(self):
++        self.assertTrue(analista.usa_regua_v2(CARGA_V2))
++        self.assertIn("analysis_report.v2", self.prompt)
++        self.assertIn('Nota do vendedor: 45/100, faixa "Atrapalhou a venda" (88 de 100 de peso avaliado, cobertura de 88%).', self.prompt)
++        self.assertIn("- Avanço com data (advance, peso 16): critico, 0.0 de 16 [estado: continuacao]", self.prompt)
++        self.assertIn("- Pede o fechamento (close, peso 12): não avaliado", self.prompt)
++        self.assertNotIn("Lead Score", self.prompt)
++
++    def test_diz_quem_atendeu_e_a_velocidade(self):
++        self.assertIn("Quem atendeu (o vendedor avaliado): a equipe pelo celular", self.prompt)
++        self.assertIn("Primeira resposta ao cliente: 4 min de horário comercial", self.prompt)
++
++    def test_o_tom_combinado_com_o_dono(self):
++        self.assertIn("Critique o trabalho, nunca a pessoa", analista.SISTEMA_V2)
++        self.assertIn("Quando algo foi bem feito, diga que foi bem feito", analista.SISTEMA_V2)
++        self.assertIn("Você NÃO dá nota", analista.SISTEMA_V2)
++        self.assertIn("UM item para CADA ponto avaliado", self.prompt)
++        self.assertIn("Nada genérico", self.prompt)
++
++    def test_a_v1_continua_igual(self):
++        carga = {**CARGA_V2, "playbook": {"origem": "base_major"}, "scores": {}}
++        prompt = analista.montar_prompt(carga, hoje=date(2026, 10, 3))
++        self.assertFalse(analista.usa_regua_v2(carga))
++        self.assertIn("analysis_report.v1", prompt)
++        self.assertNotIn("analysis_report.v2", prompt)
++
++    def test_faixas(self):
++        self.assertEqual([analista.faixa_v2(n) for n in (100, 75, 74, 50, 49, 0, None)],
++                         ["Vendeu bem", "Vendeu bem", "Atende, mas não fecha", "Atende, mas não fecha",
++                          "Atrapalhou a venda", "Atrapalhou a venda", ""])
++
++
++class LeituraV2Tests(unittest.TestCase):
++    def test_le_o_relatorio_v2(self):
++        r = analista.ler_resultado(json.dumps(relatorio_v2()), CARGA_V2)
++        self.assertEqual((r["schema_version"], r["formatVersion"]), ("analysis_report.v2", 4))
++        self.assertEqual(r["verdict"], "Mandou a simulação, ouviu 'vou ver com minha esposa' e deixou o cliente sem caminho.")
++        self.assertEqual(r["did_well"], [{"title": "Respondeu em 4 minutos", "evidence_message_ids": ["M1"]}])
++        self.assertEqual(r["cost_the_sale"][0]["evidence_message_ids"], ["M3"])
++        motivos = {m["criterion"]: m for m in r["why_this_score"]}
++        self.assertEqual(len([m for m in r["why_this_score"] if m["criterion"] == "advance"]), 1)
++        self.assertTrue(motivos["advance"]["better"].startswith("Te ligo amanhã"))
++        self.assertIsNone(motivos["speed"]["better"])  # "null" escrito vira nulo
++        self.assertEqual(motivos["objection"]["evidence_message_ids"], ["M2", "M3"])
++        self.assertNotIn("repeated_communication_mismatch", [f["code"] for f in r["red_flags"]])
++
++    def test_confere_com_os_estados_da_v2(self):
++        r = analista.ler_resultado(json.dumps(relatorio_v2()), CARGA_V2)
++        r, descartes = analista.conferir_com_os_estados(r, NOTAS_V2)
++        self.assertEqual([f["code"] for f in r["red_flags"]], ["conversation_left_open"])
++        self.assertNotIn("close", [m["criterion"] for m in r["why_this_score"]])
++        self.assertEqual(descartes, {"red_flags": 1, "why_this_score": 1})
++
++
++class FakeVerifier:
++    def __init__(self):
++        self.gravadas = []
++
++    def analysis_record(self, payload):
++        self.gravadas.append(payload)
++        return {"recorded": True}
++
++
++class AnalistaV2Tests(unittest.TestCase):
++    def test_analisa_na_v2_com_o_sistema_da_v2(self):
++        pasta = tempfile.TemporaryDirectory()
++        self.addCleanup(pasta.cleanup)
++        conta = Path(pasta.name) / "analise"
++        conta.mkdir()
++        (conta / ".credentials.json").write_text("{}", encoding="utf-8")
++        recebido = {}
++
++        def executar(prompt, claude_bin, vault, timeout, **kwargs):
++            recebido.update(kwargs, prompt=prompt)
++            return runner.RunResult(reply=json.dumps(relatorio_v2()), session_id=None, exit_code=0, duration_ms=10, tools_used=[])
++
++        verifier = FakeVerifier()
++        with patch.object(analista.audit, "log") as log:
++            a = analista.Analista(verifier=verifier, executar=executar, claude_bin="claude", vault=Path(pasta.name),
++                                  config_dir=conta, modelo="sonnet")
++            self.assertEqual(a.analisar(CARGA_V2), "done")
++        self.assertEqual(recebido["system_prompt"], analista.SISTEMA_V2)
++        resultado = verifier.gravadas[-1]["result"]
++        self.assertEqual(resultado["schema_version"], "analysis_report.v2")
++        self.assertEqual([f["code"] for f in resultado["red_flags"]], ["conversation_left_open"])
++        feito = [c.kwargs for c in log.call_args_list if c.args and c.args[0] == "analysis.done"][0]
++        self.assertEqual(feito["report"], "analysis_report.v2")
++        bruto = json.dumps([c.kwargs for c in log.call_args_list], ensure_ascii=False, default=str)
++        self.assertNotIn("esposa", bruto)
++
++
++if __name__ == "__main__":
++    unittest.main()
