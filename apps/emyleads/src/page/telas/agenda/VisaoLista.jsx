@@ -57,7 +57,7 @@ function ItemLista({ evento, cor, cores, agora, podeConcluir, aoAbrir, aoConclui
           <span className="mt-0.5 flex items-center gap-1 truncate text-[13px] text-faint md:text-[11.5px]">
             {evento.local && !tarefa && <MapPin size={12} className="flex-none" />}
             <span className="truncate">{detalhe}</span>
-            {acontecendo && <span className="ml-1 flex-none rounded-full bg-accent px-1.5 text-[11px] font-bold uppercase tracking-wide text-white md:text-[9.5px]">Agora</span>}
+            {acontecendo && <span className="ml-1 flex-none rounded-ctl bg-signal px-1.5 text-[11px] font-bold uppercase tracking-wide text-on-signal md:text-[9.5px]">Agora</span>}
           </span>
         </button>
         {tarefa && podeConcluir ? (
@@ -115,7 +115,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, aoConcluir
             {(rotuloDia || !umDia) && (
               <header className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-line bg-bg/95 px-4 backdrop-blur">
                 <span className={`text-[15px] font-semibold first-letter:uppercase md:text-[13px] ${ehHoje ? "text-accent-forte" : "text-fg"}`}>{titulo}</span>
-                {ehHoje && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent-forte md:text-[9.5px]">Hoje</span>}
+                {ehHoje && <span className="rounded-ctl bg-accent-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent-forte md:text-[9.5px]">Hoje</span>}
                 <span className="text-[13px] text-faint md:text-[11px]">· {itens.length} {itens.length === 1 ? "item" : "itens"}</span>
                 <button type="button" onClick={() => aoCriar(dia)} aria-label={`Marcar compromisso em ${titulo}`} className="ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
                   <CalendarPlus size={18} />

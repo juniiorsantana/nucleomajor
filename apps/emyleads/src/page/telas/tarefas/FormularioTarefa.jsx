@@ -13,7 +13,7 @@ import {
   prazoDoAtalho,
 } from "./tarefasUtils";
 
-const campo = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-accent md:min-h-10 md:text-[13px]";
+const campo = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-signal md:min-h-10 md:text-[13px]";
 const rotulo = "mb-1 block text-[13px] font-semibold text-sub md:text-[12px]";
 
 const ATALHOS = [
@@ -167,7 +167,7 @@ export default function FormularioTarefa({ tarefa, contatoIdInicial, contatos = 
                   type="button"
                   aria-pressed={atalhoAtivo === atalho.id}
                   onClick={() => aplicarAtalho(atalho.id)}
-                  className={`min-h-10 flex-none cursor-pointer rounded-full border px-3.5 text-[14px] font-medium md:min-h-8 md:text-[12px] ${atalhoAtivo === atalho.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                  className={`min-h-10 flex-none cursor-pointer rounded-ctl border px-3.5 text-[14px] font-medium md:min-h-8 md:text-[12px] ${atalhoAtivo === atalho.id ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
                 >
                   {atalho.rotulo}
                 </button>
@@ -245,7 +245,7 @@ export function DialogoRecusa({ tarefa, aoFechar, aoConfirmar }) {
             type="button"
             disabled={salvando}
             onClick={async () => { setSalvando(true); await aoConfirmar(motivo); }}
-            className="ml-auto min-h-11 flex-1 cursor-pointer rounded-ctl bg-danger px-4 text-[14px] font-semibold text-white hover:brightness-95 disabled:opacity-40 md:min-h-9 md:flex-none md:text-[13px]"
+            className="ml-auto min-h-11 flex-1 cursor-pointer rounded-ctl bg-danger px-4 text-[14px] font-semibold text-bg hover:brightness-95 disabled:opacity-40 md:min-h-9 md:flex-none md:text-[13px]"
           >
             {salvando ? "Recusando…" : "Recusar"}
           </button>

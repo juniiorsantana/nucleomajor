@@ -89,7 +89,7 @@ export default function CriacaoRapida({ abertura, salvando, aoSalvar, aoMaisOpco
         maxLength={240}
         aria-label="Título"
         placeholder={tipo === "tarefa" ? "O que precisa ser feito?" : "Título do compromisso"}
-        className="mt-3 min-h-10 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] font-medium text-fg outline-none focus:border-accent"
+        className="mt-3 min-h-10 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] font-medium text-fg outline-none focus:border-signal"
       />
       <p className="mt-2 text-[12px] first-letter:uppercase text-sub">
         {dia} · {tipo === "tarefa" ? `prazo às ${horaLocal(inicio)}` : `${horaLocal(inicio)}–${horaLocal(abertura.fim)} (${formatarDuracao(duracao)})`}
@@ -98,7 +98,7 @@ export default function CriacaoRapida({ abertura, salvando, aoSalvar, aoMaisOpco
         <button type="button" onClick={() => aoMaisOpcoes({ titulo, tipo })} className="min-h-8 cursor-pointer rounded-ctl px-2 text-[12px] font-semibold text-accent-forte hover:bg-accent-soft">
           Mais opções
         </button>
-        <button type="submit" disabled={!titulo.trim() || salvando} className="ml-auto min-h-8 cursor-pointer rounded-ctl bg-accent px-4 text-[12.5px] font-semibold text-white hover:brightness-110 disabled:opacity-40">
+        <button type="submit" disabled={!titulo.trim() || salvando} className="ml-auto min-h-8 cursor-pointer rounded-ctl bg-accent px-4 text-[12.5px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-40">
           {salvando ? "Salvando…" : "Salvar"}
         </button>
       </div>

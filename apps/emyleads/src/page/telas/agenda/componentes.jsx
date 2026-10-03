@@ -102,7 +102,7 @@ export function Folha({
   const direita = lado === "direita";
   return (
     <div
-      className={`fixed inset-0 ${camada} flex items-end justify-center bg-[#0f1424]/55 backdrop-blur-[2px] ${direita ? "md:items-stretch md:justify-end" : "md:items-center md:p-4"}`}
+      className={`fixed inset-0 ${camada} flex items-end justify-center bg-[rgba(17,17,19,.44)] backdrop-blur-[2px] ${direita ? "md:items-stretch md:justify-end" : "md:items-center md:p-4"}`}
       onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}
     >
       <Painel
@@ -233,14 +233,14 @@ export function Chip({ ativo, aoClicar, children, contador, tom, cor, title }) {
       aria-pressed={ativo}
       title={title}
       onClick={aoClicar}
-      className={`inline-flex min-h-10 flex-none cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[14px] font-medium transition-colors md:min-h-8 md:px-3 md:text-[12px] ${
-        ativo ? "border-accent bg-accent-soft text-accent-forte" : "border-line bg-bg text-sub hover:border-line-strong hover:text-fg"
+      className={`inline-flex min-h-10 flex-none cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-ctl border px-3.5 text-[14px] font-medium transition-colors md:min-h-8 md:px-3 md:text-[12px] ${
+        ativo ? "border-fg bg-fg text-bg" : "border-line bg-bg text-sub hover:border-line-strong hover:text-fg"
       }`}
     >
       {cor && <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ backgroundColor: cor }} />}
       {children}
       {contador > 0 && (
-        <span className={`rounded-full px-1.5 text-[12px] font-semibold leading-5 md:text-[10.5px] ${perigo ? "bg-danger text-white" : ativo ? "bg-bg/70" : "bg-surface"}`}>{contador}</span>
+        <span className={`rounded-full px-1.5 text-[12px] font-semibold leading-5 md:text-[10.5px] ${perigo ? "bg-danger text-bg" : ativo ? "bg-bg/70" : "bg-surface"}`}>{contador}</span>
       )}
     </button>
   );
@@ -305,7 +305,7 @@ export function SeletorContato({ contatos = [], valor, aoMudar, rotulo = "Contat
           <button type="button" aria-label="Remover contato" onClick={() => aoMudar("")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg"><X size={16} /></button>
         </div>
       ) : (
-        <div className="rounded-ctl border border-line bg-bg focus-within:border-accent">
+        <div className="rounded-ctl border border-line bg-bg focus-within:border-signal">
           <div className="relative">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
             <input
@@ -373,7 +373,7 @@ export function CaixaConcluir({ marcada, aoMudar, titulo, desabilitada = false }
       onClick={(e) => { e.stopPropagation(); aoMudar(); }}
       className="group/caixa -m-2 flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-40 md:h-9 md:w-9"
     >
-      <span className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 transition-colors md:h-5 md:w-5 ${marcada ? "border-success bg-success text-white" : "border-line-strong text-transparent group-hover/caixa:border-success group-hover/caixa:text-success"}`}>
+      <span className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 transition-colors md:h-5 md:w-5 ${marcada ? "border-success bg-success text-bg" : "border-line-strong text-transparent group-hover/caixa:border-success group-hover/caixa:text-success"}`}>
         <Check size={13} strokeWidth={3} />
       </span>
     </button>

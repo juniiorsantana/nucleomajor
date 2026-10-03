@@ -72,7 +72,7 @@ const TITULOS_PAINEL = {
   settings: { titulo: "Preferências da agenda", icone: Settings2 },
   filters: { titulo: "Filtros", icone: SlidersHorizontal },
 };
-const COR_TAREFA = "#D97706";
+const COR_TAREFA = "var(--el-warning)";
 
 function lerLocal(chave, padrao) {
   // O painel também roda dentro da extensão, onde localStorage pode estar
@@ -204,7 +204,7 @@ function MenuMais({ itens }) {
         className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9"
       >
         <MoreHorizontal size={20} />
-        {alerta > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[9px] font-bold text-white">{alerta}</span>}
+        {alerta > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[9px] font-bold text-bg">{alerta}</span>}
       </button>
       {aberto && (
         <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-64 overflow-hidden rounded-none border border-line bg-bg py-1 ">
@@ -218,7 +218,7 @@ function MenuMais({ itens }) {
             >
               <item.icone size={17} className="flex-none text-sub" />
               <span className="flex-1">{item.rotulo}</span>
-              {item.contador > 0 && <span className="rounded-full bg-warning px-1.5 text-[11px] font-bold leading-5 text-white">{item.contador}</span>}
+              {item.contador > 0 && <span className="rounded-full bg-warning px-1.5 text-[11px] font-bold leading-5 text-bg">{item.contador}</span>}
             </button>
           ))}
         </div>
@@ -249,9 +249,9 @@ function FaixaDias({ referencia, marcas, aoEscolher }) {
             onClick={() => aoEscolher(dia)}
             aria-pressed={ehEscolhido}
             aria-label={new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric" }).format(dia)}
-            className={`flex min-h-[58px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-none ${ehEscolhido ? "bg-accent text-white" : "text-fg active:bg-surface-hover"}`}
+            className={`flex min-h-[58px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-none ${ehEscolhido ? "bg-accent text-on-accent" : "text-fg active:bg-surface-hover"}`}
           >
-            <span className={`text-[11px] font-semibold uppercase ${ehEscolhido ? "text-white/80" : ehHoje ? "text-accent-forte" : "text-faint"}`}>
+            <span className={`text-[11px] font-semibold uppercase ${ehEscolhido ? "text-on-accent/80" : ehHoje ? "text-signal" : "text-faint"}`}>
               {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(dia).replace(".", "").slice(0, 3)}
             </span>
             <span className={`text-[17px] font-semibold tabular-nums ${!ehEscolhido && ehHoje ? "text-accent-forte" : ""}`}>{dia.getDate()}</span>
@@ -811,7 +811,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
             <div className="flex items-center gap-2">
               <button type="button" aria-label={`Avisos${naoLidas ? ` (${naoLidas} novos)` : ""}`} onClick={() => alternarPainel("notifications")} className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl border border-line text-sub hover:border-line-strong hover:text-fg">
                 <Bell size={18} />
-                {naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-white">{naoLidas}</span>}
+                {naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 text-[9px] font-bold text-on-signal">{naoLidas}</span>}
               </button>
               <button type="button" onClick={() => setTarefaAberta(null)} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 text-[14px] font-semibold text-fg hover:border-line-strong">
                 <SquareCheckBig size={17} />Nova tarefa
@@ -829,7 +829,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="relative min-w-0 flex-1">
               <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-              <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar na agenda…" aria-label="Buscar na agenda" className="min-h-11 w-full rounded-ctl border border-line bg-bg pl-10 pr-3 text-[16px] text-fg outline-none focus:border-accent" />
+              <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar na agenda…" aria-label="Buscar na agenda" className="min-h-11 w-full rounded-ctl border border-line bg-bg pl-10 pr-3 text-[16px] text-fg outline-none focus:border-signal" />
             </div>
             <button type="button" onClick={() => { setBusca(""); setBuscaAberta(false); }} className="min-h-11 cursor-pointer px-2 text-[15px] font-medium text-accent-forte">Fechar</button>
           </div>
@@ -842,7 +842,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
             <button type="button" aria-label="Buscar" onClick={() => setBuscaAberta(true)} className={botaoIcone}><Search size={20} /></button>
             <button type="button" aria-label={`Avisos${naoLidas ? ` (${naoLidas} novos)` : ""}`} onClick={() => setPainel("notifications")} className={botaoIcone}>
               <Bell size={20} />
-              {naoLidas > 0 && <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-white">{naoLidas}</span>}
+              {naoLidas > 0 && <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 text-[9px] font-bold text-on-signal">{naoLidas}</span>}
             </button>
             <MenuMais itens={itensMenu.map((item) => (item.id === "filtros" ? { ...item, rotulo: quantosFiltros ? `Filtros (${quantosFiltros})` : "Filtros" } : item))} />
           </div>
@@ -881,9 +881,9 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
         <button
           type="button"
           onClick={() => alternarPainel("filters")}
-          className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-ctl border px-3 text-[12.5px] font-semibold ${quantosFiltros ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-fg hover:border-line-strong"}`}
+          className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-ctl border px-3 text-[12.5px] font-semibold ${quantosFiltros ? "border-fg bg-fg text-bg" : "border-line text-fg hover:border-line-strong"}`}
         >
-          <SlidersHorizontal size={15} />Filtros{quantosFiltros > 0 && <span className="rounded-full bg-accent px-1.5 text-[10.5px] leading-4 text-white">{quantosFiltros}</span>}
+          <SlidersHorizontal size={15} />Filtros{quantosFiltros > 0 && <span className="rounded-full bg-fg px-1.5 text-[10.5px] leading-4 text-bg">{quantosFiltros}</span>}
         </button>
 
         {visualizacao !== "month" && (
@@ -929,7 +929,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
       </div>
 
       {/* "+" do telefone, acima do dock. */}
-      <button type="button" onClick={() => setPainel("novo")} aria-label="Criar" className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-white  active:scale-95">
+      <button type="button" onClick={() => setPainel("novo")} aria-label="Criar" className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-on-accent  active:scale-95">
         <Plus size={26} strokeWidth={2.4} />
       </button>
 
@@ -984,7 +984,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
               <span><span className="block text-[16px] font-semibold text-fg">Compromisso</span><span className="block text-[13px] text-sub">Com dia e hora marcados, na agenda.</span></span>
             </button>
             <button type="button" onClick={() => { setPainel(null); setTarefaAberta(chaveDia(referencia) === hojeChave ? null : { venceEm: dataComMinutos(referencia, 9 * 60).getTime() }); }} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-none border border-line px-4 text-left hover:border-accent">
-              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-none bg-[#D97706]/10 text-[#B45309]"><SquareCheckBig size={21} /></span>
+              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-none bg-warning-soft text-warning"><SquareCheckBig size={21} /></span>
               <span><span className="block text-[16px] font-semibold text-fg">Tarefa</span><span className="block text-[13px] text-sub">Algo a fazer, com prazo e responsável.</span></span>
             </button>
           </div>
