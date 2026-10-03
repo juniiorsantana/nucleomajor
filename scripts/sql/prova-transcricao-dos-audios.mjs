@@ -106,12 +106,28 @@ const grava = (itens, quem = ROBO, r = robo) =>
 const linha = async (id) =>
   (await db.query("select content, transcribed_at from public.whatsapp_messages where connection_id = $1 and message_id = $2", [CONEXAO, id])).rows[0];
 
+// O que falta transcrever: só áudio de conversa direta, sem texto, com o caminho.
+await db.query("update public.whatsapp_messages set media_path = $1 || '/' || $2 || '/5565988887777/a1.ogg' where message_id = 'a1'", [MAJOR.id, CONEXAO]);
+const pendentes = (ids, quem = ROBO, r = robo) =>
+  como(quem, "select public.nucleo_message_transcript_pending($1::jsonb) as r", [JSON.stringify({ ids })], { robo: r }).then((x) => x.rows[0].r);
+const p1 = await pendentes(["a1", "a2", "a3", "a4", "t1", "i1", "g1", "nao-existe"]);
+const idsPendentes = p1.items.map((i) => i.id).sort();
+confere("pendentes: só os áudios diretos sem texto", JSON.stringify(idsPendentes) === JSON.stringify(["a1", "a2", "a4"]), JSON.stringify(p1));
+confere("pendentes: com o caminho do arquivo", p1.items.find((i) => i.id === "a1")?.mediaPath.endsWith("/a1.ogg"));
+confere("pendentes: robô de outra empresa não vê", (await pendentes(["a1", "a2"], ROBO_OUTRA, roboOutra)).items.length === 0);
+const muitos = await erroDe(() => pendentes(Array.from({ length: 81 }, (_, i) => `x${i}`)));
+confere("pendentes: acima de 80 ids é recusado", muitos.includes("too large"), muitos);
+const membroPergunta = await erroDe(() => pendentes(["a1"], MAJOR.dono, null));
+confere("pendentes: membro (não robô) é recusado", membroPergunta.includes("robot credential"), membroPergunta);
+
 // O caminho feliz: áudio e ptt de conversa direta, sem texto.
 const r1 = await grava([{ id: "a1", text: "  Oi, queria saber do consórcio  " }, { id: "a2", text: "Pode me ligar amanhã" }]);
 confere("robô grava duas transcrições", r1.recorded === 2, JSON.stringify(r1));
 const a1 = await linha("a1");
 confere("o texto entra no content, aparado", a1.content === "Oi, queria saber do consórcio", a1.content);
 confere("e a marca fica", a1.transcribed_at !== null);
+const p2 = await pendentes(["a1", "a2", "a4"]);
+confere("transcrito sai dos pendentes", p2.items.map((i) => i.id).join() === "a4", JSON.stringify(p2));
 
 // O que NÃO pode mudar.
 const r2 = await grava([
@@ -185,6 +201,7 @@ confere("rollback: o áudio volta sem texto", (await db.query("select content fr
 confere("rollback: a legenda digitada fica", (await db.query("select content from public.whatsapp_messages where message_id = 'a3'")).rows[0].content === "legenda digitada");
 const funcao = (await db.query("select to_regprocedure('public.nucleo_message_transcript_record(jsonb)') as f")).rows[0].f;
 confere("rollback: a função sai", funcao === null);
+confere("rollback: a consulta de pendentes sai", (await db.query("select to_regprocedure('public.nucleo_message_transcript_pending(jsonb)') as f")).rows[0].f === null);
 const reaplicada = await erroDe(() => db.exec(ler(`supabase/migrations/${MIGRATION}`)));
 confere("depois do rollback, a migration aplica de novo", reaplicada === "", reaplicada);
 

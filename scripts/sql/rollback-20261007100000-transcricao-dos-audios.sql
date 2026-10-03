@@ -9,6 +9,7 @@ set content = ''
 where transcribed_at is not null;
 
 drop function if exists public.nucleo_message_transcript_record(jsonb);
+drop function if exists public.nucleo_message_transcript_pending(jsonb);
 
 alter table public.whatsapp_messages drop column if exists transcribed_at;
 

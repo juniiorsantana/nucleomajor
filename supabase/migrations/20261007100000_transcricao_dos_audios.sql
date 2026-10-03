@@ -53,7 +53,7 @@ comment on column public.whatsapp_messages.transcribed_at is
   'Quando a VPS transcreveu este áudio. Preenchida: o content é transcrição automática (vazio = áudio sem fala). Nula: content é o que veio do WhatsApp.';
 
 -- ---------------------------------------------------------------------------
--- 3/4. A gravação, pelo robô.
+-- 3/4. A gravação e a consulta do que falta, pelo robô.
 -- ---------------------------------------------------------------------------
 -- Entrada: {"items": [{"id": "<message_id>", "text": "<transcrição>"}]}, até
 -- 50 itens e 8000 caracteres por texto (o mesmo teto do `content` na
@@ -136,6 +136,83 @@ $$;
 revoke all on function public.nucleo_message_transcript_record(jsonb) from public, anon, authenticated;
 grant execute on function public.nucleo_message_transcript_record(jsonb) to authenticated;
 
+-- O que ainda falta transcrever, entre as mensagens que o robô pergunta.
+--
+-- É a pergunta do Agente Analista antes de analisar: o pedido de análise leva
+-- as 80 últimas mensagens, e as de áudio sem texto podem ser antigas (de antes
+-- do transcritor) ou ter escapado dele. A resposta já vem filtrada pela mesma
+-- regra da gravação — áudio, conversa direta, sem texto, sem transcrição — e
+-- traz o caminho do arquivo no bucket, de onde a VPS baixa sem depender do
+-- WhatsApp ainda ter a mídia. Entrada: {"ids": ["<message_id>", ...]}, até 80.
+create function public.nucleo_message_transcript_pending(transcript_payload jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  robot_org uuid := private.robot_organization();
+  robot_connection uuid;
+  ids jsonb := coalesce(transcript_payload -> 'ids', '[]'::jsonb);
+  resultado jsonb;
+begin
+  if robot_org is null then
+    raise exception 'robot credential is inactive or connection was revoked';
+  end if;
+  if jsonb_typeof(transcript_payload) <> 'object' or jsonb_typeof(ids) <> 'array' then
+    raise exception 'transcript payload is invalid';
+  end if;
+  if pg_catalog.jsonb_array_length(ids) > 80 then
+    raise exception 'transcript batch is too large';
+  end if;
+
+  select credential.connection_id into robot_connection
+  from public.connection_robot_credentials credential
+  join public.whatsapp_connections connection
+    on connection.id = credential.connection_id
+   and connection.organization_id = credential.organization_id
+  where credential.auth_user_id = auth.uid()
+    and credential.organization_id = robot_org
+    and credential.status = 'active'
+    and credential.revoked_at is null
+    and connection.status <> 'revoked'
+    and connection.revoked_at is null
+  limit 1;
+  if robot_connection is null then
+    raise exception 'robot connection is inactive or revoked';
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object('id', mensagem.message_id, 'mediaPath', mensagem.media_path)
+    order by mensagem.sent_at desc
+  ), '[]'::jsonb)
+  into resultado
+  from public.whatsapp_messages mensagem
+  where mensagem.connection_id = robot_connection
+    and mensagem.organization_id = robot_org
+    and mensagem.message_id in (
+      select left(trim(valor), 128)
+      from pg_catalog.jsonb_array_elements_text(ids) as valor
+    )
+    and lower(mensagem.media_type) in ('audio', 'ptt')
+    and mensagem.content = ''
+    and mensagem.transcribed_at is null
+    and exists (
+      select 1
+      from public.whatsapp_conversations conversa
+      where conversa.connection_id = mensagem.connection_id
+        and conversa.contact_phone = mensagem.contact_phone
+        and conversa.chat_kind = 'direto'
+    );
+
+  return jsonb_build_object('items', resultado);
+end;
+$$;
+
+revoke all on function public.nucleo_message_transcript_pending(jsonb) from public, anon, authenticated;
+grant execute on function public.nucleo_message_transcript_pending(jsonb) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- 4/4. Conferência.
 -- ---------------------------------------------------------------------------
@@ -156,6 +233,10 @@ begin
   end if;
   if not (select p.prosecdef from pg_proc p where p.oid = 'public.nucleo_message_transcript_record(jsonb)'::regprocedure) then
     raise exception 'conferencia: a gravação da transcrição não é security definer';
+  end if;
+  if has_function_privilege('anon', 'public.nucleo_message_transcript_pending(jsonb)', 'execute')
+     or not has_function_privilege('authenticated', 'public.nucleo_message_transcript_pending(jsonb)', 'execute') then
+    raise exception 'conferencia: privilégios da consulta de pendentes';
   end if;
 end $$;
 
