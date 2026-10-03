@@ -139,7 +139,7 @@ function DisponivelNoPlano({ tela, recursos }) {
   const semIA = tela === "conhecimento" && !planoLibera(recursos, "inteligencia");
   return (
     <div className="flex flex-1 items-center justify-center p-8">
-      <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
+      <div className="max-w-[420px] rounded-none border border-line bg-bg px-6 py-6 text-center">
         {semIA ? (
           <>
             <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
@@ -168,7 +168,7 @@ function AvisoAssinatura({ acesso }) {
     ? new Date(acesso.bloqueiaEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
     : null;
   return (
-    <div role="status" className="mx-6 mt-4 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
+    <div role="status" className="mx-6 mt-4 rounded-ctl border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
       Pagamento em atraso.{quando ? ` O acesso será suspenso em ${quando}` : " O acesso será suspenso em breve"} se a cobrança não for
       paga — o link está no e-mail enviado pelo Asaas.
     </div>
@@ -230,7 +230,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <div className="w-full max-w-md overflow-hidden rounded-[14px] border border-line bg-bg shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-none border border-line bg-bg ">
         <form onSubmit={enviar}>
           <div className="border-b border-line px-5 py-4 text-[16px] font-semibold text-fg">
             {contato?.id ? "Editar lead" : "Criar lead"}
@@ -246,7 +246,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
                   required={c.obrigatorio}
                   value={form[c.chave] || ""}
                   onChange={(e) => setForm({ ...form, [c.chave]: e.target.value })}
-                  className="w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
+                  className="w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
                 />
               </label>
             ))}
@@ -267,7 +267,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
               <button
                 type="button"
                 onClick={aoFechar}
-                className="cursor-pointer rounded-[8px] px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:text-fg"
+                className="cursor-pointer rounded-ctl px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:text-fg"
               >
                 Cancelar
               </button>
@@ -320,7 +320,7 @@ function ModalNota({ contato, aoFechar, aoSalvar }) {
           {erro && <p className="mt-2 text-[12px] text-danger">{erro}</p>}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button type="button" onClick={aoFechar} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+          <button type="button" onClick={aoFechar} className="rounded-ctl px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
             Cancelar
           </button>
           <BotaoPrimario type="submit" disabled={salvando || !texto.trim()} className="!py-2">
@@ -348,14 +348,14 @@ function EmConstrucao({ titulo }) {
 function AvisoMigracao({ migracao }) {
   if (!migracao) return null;
   return (
-    <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-[10px] border border-accent/25 bg-accent-soft px-4 py-3 text-[12.5px] text-sub">
+    <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-ctl border border-accent/25 bg-accent-soft px-4 py-3 text-[12.5px] text-sub">
       <span className="min-w-0 flex-1">
         Há dados antigos neste navegador aguardando migração para esta organização.
       </span>
       <button
         type="button"
         onClick={migracao.aoReabrir}
-        className="cursor-pointer rounded-[8px] px-3 py-1.5 font-semibold text-accent-forte hover:bg-bg"
+        className="cursor-pointer rounded-ctl px-3 py-1.5 font-semibold text-accent-forte hover:bg-bg"
       >
         Revisar migração
       </button>
@@ -408,7 +408,7 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
       <button
         onClick={() => setAberto(!aberto)}
         title={recolhido ? `${apelido} · ${sessao.organizacaoAtual.name}` : undefined}
-        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[12px] text-left transition-colors hover:bg-surface-hover ${
+        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-none text-left transition-colors hover:bg-surface-hover ${
           recolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"
         }`}
       >
@@ -430,7 +430,7 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
         // Recolhido o rodapé mede 44px: o menu abriria espremido contra a
         // borda. Largura própria, ancorada à esquerda, e ele cresce por cima
         // do conteúdo — que é para onde há espaço.
-        <div className={`absolute bottom-[calc(100%+8px)] left-0 z-20 overflow-hidden rounded-[10px] border border-line bg-bg p-1 shadow-xl ${recolhido ? "w-[248px]" : "right-0"}`}>
+        <div className={`absolute bottom-[calc(100%+8px)] left-0 z-20 overflow-hidden rounded-ctl border border-line bg-bg p-1  ${recolhido ? "w-[248px]" : "right-0"}`}>
           <div className="flex items-center gap-2.5 px-2.5 py-2">
             <Iniciais nome={perfil?.full_name || apelido} tamanho={32} cor={cor} />
             <span className="min-w-0 flex-1">
@@ -443,7 +443,7 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
               setAberto(false);
               aoAbrirConta?.();
             }}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-ctl px-2.5 py-2 text-left text-[12.5px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
           >
             <CircleUser size={15} /> Minha conta
           </button>
@@ -453,13 +453,13 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
             Trocar de empresa
           </p>
           {sessao.organizacoes.map((org) => (
-            <button key={org.id} onClick={() => trocar(org.id)} className="flex w-full cursor-pointer items-center rounded-[7px] px-2.5 py-2 text-left text-[12.5px] text-sub hover:bg-surface-hover hover:text-fg">
+            <button key={org.id} onClick={() => trocar(org.id)} className="flex w-full cursor-pointer items-center rounded-ctl px-2.5 py-2 text-left text-[12.5px] text-sub hover:bg-surface-hover hover:text-fg">
               <span className="min-w-0 flex-1 truncate">{org.name}</span>
               {org.id === sessao.organizacaoAtual.id && <span className="text-[11px] text-accent-forte">Atual</span>}
             </button>
           ))}
           <div className="my-1 border-t border-line" />
-          <button onClick={sair} className="flex w-full cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[12.5px] text-danger hover:bg-danger/10">
+          <button onClick={sair} className="flex w-full cursor-pointer items-center gap-2 rounded-ctl px-2.5 py-2 text-left text-[12.5px] text-danger hover:bg-danger/10">
             <LogOut size={14} /> Sair
           </button>
           {erro && <p className="px-2.5 pb-1 text-[11px] text-danger">{erro}</p>}
@@ -734,7 +734,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
             />
           ) : (
             <div
-              className={`flex items-center gap-2.5 rounded-[12px] ${menuRecolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"}`}
+              className={`flex items-center gap-2.5 rounded-none ${menuRecolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"}`}
               title={menuRecolhido ? `EmyLeads · ${dados ? `${dados.contatos.length} leads` : "carregando"}` : undefined}
             >
               <Marca tamanho={30} texto={false} />
@@ -764,7 +764,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         <AvisoMigracao migracao={migracaoPendente} />
         <AvisoAssinatura acesso={sessao?.acesso} />
         {erro ? (
-          <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
+          <div className="m-8 rounded-ctl border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
             {erro}
           </div>
         ) : !dados ? (

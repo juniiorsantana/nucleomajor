@@ -34,7 +34,7 @@ const PRAZOS = [
 ];
 
 const ENTRADA =
-  "w-full rounded-el border border-line bg-bg px-2 py-1.5 text-[12.5px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent";
+  "w-full rounded-ctl border border-line bg-bg px-2 py-1.5 text-[12.5px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent";
 
 function Moldura({ titulo, children, aoFechar, aoSalvar, podeSalvar }) {
   const [salvando, setSalvando] = useState(false);
@@ -52,7 +52,7 @@ function Moldura({ titulo, children, aoFechar, aoSalvar, podeSalvar }) {
   return (
     <form
       onSubmit={enviar}
-      className="flex flex-none flex-col gap-2 border-t border-line bg-bg px-3 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+      className="flex flex-none flex-col gap-2 border-t border-line bg-bg px-3 py-2.5 "
     >
       <div className="text-[11px] font-semibold text-fg">{titulo}</div>
       {children}
@@ -60,14 +60,14 @@ function Moldura({ titulo, children, aoFechar, aoSalvar, podeSalvar }) {
         <button
           type="submit"
           disabled={salvando || !podeSalvar}
-          className="cursor-pointer rounded-el bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40"
+          className="cursor-pointer rounded-ctl bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition-all hover:brightness-110 disabled:opacity-40"
         >
           {salvando ? "Salvando…" : "Salvar"}
         </button>
         <button
           type="button"
           onClick={aoFechar}
-          className="cursor-pointer rounded-el px-2 py-1.5 text-[12px] text-sub transition-colors hover:text-fg"
+          className="cursor-pointer rounded-ctl px-2 py-1.5 text-[12px] text-sub transition-colors hover:text-fg"
         >
           Cancelar
         </button>

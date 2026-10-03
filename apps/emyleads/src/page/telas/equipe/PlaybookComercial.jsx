@@ -16,7 +16,7 @@ import {
 import { fmtRelativo } from "../../../lib/formato";
 
 const entrada =
-  "w-full rounded-[9px] border border-line bg-bg px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:bg-surface disabled:text-faint";
+  "w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:bg-surface disabled:text-faint";
 
 /**
  * Uma parte do playbook que é lista de itens com campos (oferta, objeções,
@@ -28,7 +28,7 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
     aoMudar(itens.map((item, i) => (i === indice ? { ...item, [campo]: valor } : item)));
   const remover = (indice) => aoMudar(itens.filter((_, i) => i !== indice));
   return (
-    <section className="rounded-[14px] border border-line bg-bg p-4">
+    <section className="rounded-none border border-line bg-bg p-4">
       <div className="flex items-baseline gap-2">
         <h3 className="text-[13.5px] font-semibold">{titulo}</h3>
         <span className="text-[10.5px] tabular-nums text-faint">
@@ -38,10 +38,10 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
       <p className="mt-0.5 text-[11px] leading-4 text-sub">{ajuda}</p>
       <div className="mt-3 flex flex-col gap-2">
         {itens.length === 0 ? (
-          <p className="rounded-[10px] border border-dashed border-line p-3 text-center text-[11px] text-faint">{vazio}</p>
+          <p className="rounded-ctl border border-dashed border-line p-3 text-center text-[11px] text-faint">{vazio}</p>
         ) : (
           itens.map((item, indice) => (
-            <div key={indice} className="flex items-start gap-2 rounded-[10px] bg-surface/60 p-2">
+            <div key={indice} className="flex items-start gap-2 rounded-ctl bg-surface/60 p-2">
               <div className="grid min-w-0 flex-1 gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
                 {campos.map(([campo, placeholder, largo]) => (
                   <input
@@ -61,7 +61,7 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
                   type="button"
                   onClick={() => remover(indice)}
                   aria-label={`Remover de ${titulo}`}
-                  className="mt-1 rounded-[7px] p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:mt-1.5 md:p-1.5"
+                  className="mt-1 rounded-ctl p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:mt-1.5 md:p-1.5"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -74,7 +74,7 @@ function ListaDeItens({ titulo, ajuda, itens, campos, limite, vazio, novo, aoMud
         <button
           type="button"
           onClick={() => aoMudar([...itens, novo()])}
-          className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-line px-2 py-1.5 text-[11.5px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-auto md:justify-start md:border-0"
+          className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-ctl border border-dashed border-line px-2 py-1.5 text-[11.5px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-auto md:justify-start md:border-0"
         >
           <Plus size={14} />
           Adicionar
@@ -105,7 +105,7 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
                 type="button"
                 aria-label={`Remover de ${titulo}`}
                 onClick={() => aoMudar(frases.filter((_, j) => j !== i))}
-                className="rounded-[7px] p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:p-1.5"
+                className="rounded-ctl p-2.5 text-faint hover:bg-danger/10 hover:text-danger md:p-1.5"
               >
                 <Trash2 size={14} />
               </button>
@@ -116,7 +116,7 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
           <button
             type="button"
             onClick={() => aoMudar([...frases, ""])}
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-line px-2 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-fit md:justify-start md:border-0"
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-ctl border border-dashed border-line px-2 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft md:min-h-0 md:w-fit md:justify-start md:border-0"
           >
             <Plus size={13} />
             Adicionar
@@ -134,7 +134,7 @@ function ListaDeFrases({ titulo, frases, aoMudar, disabled, placeholder }) {
  */
 function SinaisDasConversas({ sinais, carregando, podeAcrescentar, aoAcrescentar }) {
   return (
-    <section className="rounded-[14px] border border-accent/25 bg-accent-soft/40 p-4">
+    <section className="rounded-none border border-accent/25 bg-accent-soft/40 p-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <Lightbulb size={16} className="text-accent-forte" />
         <h3 className="text-[13.5px] font-semibold">O que as conversas dizem</h3>
@@ -303,7 +303,7 @@ export default function PlaybookComercial({ canWrite }) {
                   setPb((atual) => aplicarModelo(atual, e.target.value));
                   setAviso("Modelo somado ao que já existia. Revise e ajuste antes de publicar.");
                 }}
-                className="rounded-[8px] border border-line bg-bg px-2 py-1.5 text-[12px]"
+                className="rounded-ctl border border-line bg-bg px-2 py-1.5 text-[12px]"
               >
                 <option value="">Escolha um segmento…</option>
                 {Object.entries(MODELOS).map(([id, modelo]) => (
@@ -335,7 +335,7 @@ export default function PlaybookComercial({ canWrite }) {
           disabled={disabled}
         />
 
-        <section className="rounded-[14px] border border-line bg-bg p-4">
+        <section className="rounded-none border border-line bg-bg p-4">
           <h3 className="text-[13.5px] font-semibold">Cliente ideal</h3>
           <p className="mt-0.5 text-[11px] leading-4 text-sub">Frases curtas sobre quem a empresa quer atender e quem não quer.</p>
           <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -394,7 +394,7 @@ export default function PlaybookComercial({ canWrite }) {
       </div>
 
       {canWrite && (
-        <footer className="playbook-rodape sticky bottom-0 mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-[12px] border border-line bg-bg/95 px-4 py-3 shadow-sm">
+        <footer className="playbook-rodape sticky bottom-0 mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-2 rounded-none border border-line bg-bg/95 px-4 py-3 ">
           {erro ? (
             <p role="alert" className="text-[11.5px] text-danger">
               {erro}
@@ -409,7 +409,7 @@ export default function PlaybookComercial({ canWrite }) {
               type="button"
               onClick={() => gravar(false)}
               disabled={disabled || !sujo}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[9px] border border-line px-3 py-2 text-[11.5px] font-semibold disabled:opacity-40 md:min-h-0 md:flex-none"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-ctl border border-line px-3 py-2 text-[11.5px] font-semibold disabled:opacity-40 md:min-h-0 md:flex-none"
             >
               <Check size={14} />
               {salvando === "salvando" ? "Salvando…" : "Salvar rascunho"}
@@ -418,7 +418,7 @@ export default function PlaybookComercial({ canWrite }) {
               type="button"
               onClick={() => gravar(true)}
               disabled={disabled}
-              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:min-h-0 md:flex-none"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:min-h-0 md:flex-none"
             >
               <Send size={14} />
               {salvando === "publicando" ? "Publicando…" : "Publicar"}

@@ -80,7 +80,7 @@ export function EdicaoRapida({
         onChange={(e) => setValor(e.target.value)}
         onBlur={gravar}
         onKeyDown={aoTeclar}
-        className={`w-full min-w-0 rounded-[4px] border border-accent bg-bg px-1 py-0.5 outline-none ${
+        className={`w-full min-w-0 rounded-ctl border border-accent bg-bg px-1 py-0.5 outline-none ${
           icone ? "text-[12.5px] text-fg" : className
         }`}
       />
@@ -114,7 +114,7 @@ export function EdicaoRapida({
     <button
       onClick={abrir}
       title={`Editar ${campo}`}
-      className={`w-full cursor-text truncate rounded-[4px] text-left transition-colors hover:bg-surface-hover ${className} ${
+      className={`w-full cursor-text truncate rounded-ctl text-left transition-colors hover:bg-surface-hover ${className} ${
         exibido ? "" : "text-faint"
       } ${salvando ? "opacity-50" : ""}`}
     >

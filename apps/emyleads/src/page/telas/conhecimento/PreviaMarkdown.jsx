@@ -17,7 +17,7 @@ function Inline({ partes }) {
     if (parte.tipo === "forte") return <strong key={indice} className="font-semibold text-fg">{parte.texto}</strong>;
     if (parte.tipo === "enfase") return <em key={indice}>{parte.texto}</em>;
     if (parte.tipo === "codigo") {
-      return <code key={indice} className="rounded-[5px] bg-surface px-1 py-0.5 font-mono text-[.92em]">{parte.texto}</code>;
+      return <code key={indice} className="rounded-ctl bg-surface px-1 py-0.5 font-mono text-[.92em]">{parte.texto}</code>;
     }
     if (parte.tipo === "link") {
       const href = hrefSeguro(parte.href);
@@ -64,7 +64,7 @@ export default function PreviaMarkdown({ markdown, className = "" }) {
         }
         if (bloco.tipo === "codigo") {
           return (
-            <pre key={indice} className="scrollbar-fina mb-3 overflow-x-auto rounded-[8px] bg-surface p-3 font-mono text-[11.5px] leading-5">
+            <pre key={indice} className="scrollbar-fina mb-3 overflow-x-auto rounded-ctl bg-surface p-3 font-mono text-[11.5px] leading-5">
               {bloco.texto}
             </pre>
           );

@@ -155,7 +155,7 @@ export function AnaliseDaConversa({
   if (podePedir && creditos === null && daFicha.length === 0 && !andando) return null;
 
   return (
-    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+    <div className="mt-3.5 rounded-ctl border border-line px-3 py-2.5">
       <div className="flex items-center gap-1.5">
         <FileSearch size={13} strokeWidth={2.2} className="flex-none text-accent-forte" />
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Análise da conversa</span>
@@ -165,7 +165,7 @@ export function AnaliseDaConversa({
         <button
           type="button"
           onClick={() => setFase("ver")}
-          className="mt-2 flex w-full cursor-pointer items-center gap-2 rounded-[9px] bg-accent-soft px-2.5 py-2 text-left text-[11.5px] font-medium text-accent-forte"
+          className="mt-2 flex w-full cursor-pointer items-center gap-2 rounded-ctl bg-accent-soft px-2.5 py-2 text-left text-[11.5px] font-medium text-accent-forte"
         >
           <LoaderCircle size={13} className="flex-none animate-spin" />
           Analisando… ver
@@ -179,7 +179,7 @@ export function AnaliseDaConversa({
               key={analise.id}
               type="button"
               onClick={() => abrir(analise)}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-[8px] px-1.5 py-1.5 text-left text-[11.5px] transition-colors hover:bg-surface-hover"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-ctl px-1.5 py-1.5 text-left text-[11.5px] transition-colors hover:bg-surface-hover"
             >
               <span className="min-w-0 flex-1 truncate text-fg">
                 {NOME_DO_TIPO[analise.tipo] || "Análise"} · {dataCurta(analise.concluidaEm)}
@@ -209,7 +209,7 @@ export function AnaliseDaConversa({
               setFase("escolher");
             }}
             disabled={andando}
-            className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[9px] border border-line py-2 text-[12px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-50"
+            className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line py-2 text-[12px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-50"
           >
             Analisar conversa
           </button>
@@ -326,7 +326,7 @@ function DialogoDaAnalise({
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}
-        className="flex max-h-[88vh] w-full max-w-[560px] flex-col rounded-[15px] border border-line bg-bg shadow-2xl"
+        className="flex max-h-[88vh] w-full max-w-[560px] flex-col rounded-none border border-line bg-bg "
       >
         <header className="flex flex-none items-start gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1">
@@ -337,7 +337,7 @@ function DialogoDaAnalise({
             type="button"
             onClick={aoFechar}
             title="Fechar"
-            className="flex h-[28px] w-[28px] flex-none cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+            className="flex h-[28px] w-[28px] flex-none cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={16} strokeWidth={2.2} />
           </button>
@@ -375,7 +375,7 @@ function DialogoDaAnalise({
                 type="button"
                 disabled={pedindo || semCreditos(creditos)}
                 onClick={() => aoPedir(tipo)}
-                className="cursor-pointer rounded-[9px] bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
+                className="cursor-pointer rounded-ctl bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
               >
                 {pedindo ? "Pedindo…" : "Analisar · usa 1 crédito"}
               </button>
@@ -398,7 +398,7 @@ function EscolherTipo({ tipo, aoEscolher }) {
         {TIPOS_DE_ANALISE.map((opcao) => (
           <label
             key={opcao.chave}
-            className={`flex cursor-pointer items-start gap-2.5 rounded-[11px] border px-3 py-2.5 transition-colors ${
+            className={`flex cursor-pointer items-start gap-2.5 rounded-ctl border px-3 py-2.5 transition-colors ${
               tipo === opcao.chave ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
             }`}
           >
@@ -439,7 +439,7 @@ function Andamento() {
 
 function Falha({ motivo }) {
   return (
-    <div role="alert" className="flex items-start gap-2.5 rounded-[11px] border border-danger/25 bg-danger/5 px-3 py-3">
+    <div role="alert" className="flex items-start gap-2.5 rounded-ctl border border-danger/25 bg-danger/5 px-3 py-3">
       <AlertCircle size={16} className="mt-0.5 flex-none text-danger" />
       <div>
         <p className="text-[12.5px] font-medium text-fg">{motivoDaFalha(motivo)}</p>
@@ -504,7 +504,7 @@ function Resultado({ resultado, podeAplicar, contexto, aoAplicar, chave }) {
 
       {resultado.proximoPasso && (
         <Bloco titulo="Próximo passo">
-          <p className="rounded-[10px] bg-accent-soft px-3 py-2 text-[12.5px] leading-[18px] text-fg">
+          <p className="rounded-ctl bg-accent-soft px-3 py-2 text-[12.5px] leading-[18px] text-fg">
             {resultado.proximoPasso}
           </p>
         </Bloco>
@@ -544,7 +544,7 @@ function Sugestao({ sugestao, podeAplicar, impedimento, aoAplicar }) {
     }
   };
   return (
-    <div className="rounded-[10px] border border-line px-3 py-2">
+    <div className="rounded-ctl border border-line px-3 py-2">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <span className="block text-[12px] text-fg">
@@ -564,7 +564,7 @@ function Sugestao({ sugestao, podeAplicar, impedimento, aoAplicar }) {
               disabled={Boolean(impedimento) || estado === "aplicando"}
               title={impedimento || undefined}
               onClick={aplicar}
-              className="flex-none cursor-pointer rounded-[8px] border border-line px-2.5 py-1 text-[11px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-45"
+              className="flex-none cursor-pointer rounded-ctl border border-line px-2.5 py-1 text-[11px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-45"
             >
               {estado === "aplicando" ? "Aplicando…" : "Aplicar"}
             </button>
@@ -608,7 +608,7 @@ function Rodape({ atual, podePedir, aoRefazer, aoSalvar, aoFechar }) {
         <button
           type="button"
           onClick={aoRefazer}
-          className="cursor-pointer rounded-[9px] border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg"
+          className="cursor-pointer rounded-ctl border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg"
         >
           {pronta ? "Refazer" : "Tentar de novo"}
         </button>
@@ -618,7 +618,7 @@ function Rodape({ atual, podePedir, aoRefazer, aoSalvar, aoFechar }) {
           type="button"
           disabled={salvando}
           onClick={salvar}
-          className="cursor-pointer rounded-[9px] bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
+          className="cursor-pointer rounded-ctl bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
         >
           {salvando ? "Salvando…" : "Salvar na ficha"}
         </button>
@@ -626,7 +626,7 @@ function Rodape({ atual, podePedir, aoRefazer, aoSalvar, aoFechar }) {
         <button
           type="button"
           onClick={aoFechar}
-          className="cursor-pointer rounded-[9px] bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110"
+          className="cursor-pointer rounded-ctl bg-accent px-3.5 py-2 text-[12px] font-semibold text-white transition-[filter] hover:brightness-110"
         >
           Fechar
         </button>

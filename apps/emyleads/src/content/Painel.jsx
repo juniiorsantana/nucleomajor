@@ -265,7 +265,7 @@ export default function Painel() {
       <button
         title="Abrir o EmyLeads"
         onClick={() => alternar(false)}
-        className="fixed right-0 top-1/2 z-[999999] -translate-y-1/2 cursor-pointer rounded-l-el border border-r-0 border-line bg-bg px-1.5 py-4 text-[10px] font-bold tracking-widest text-accent-forte shadow-sm"
+        className="fixed right-0 top-1/2 z-[999999] -translate-y-1/2 cursor-pointer rounded-l-ctl border border-r-0 border-line bg-bg px-1.5 py-4 text-[10px] font-bold tracking-widest text-accent-forte "
         style={{ writingMode: "vertical-rl" }}
       >
         EMYLEADS
@@ -297,7 +297,7 @@ export default function Painel() {
         <button
           onClick={() => setTela(tela === "importar" ? "ficha" : "importar")}
           title="Importar contatos do WhatsApp"
-          className={`cursor-pointer rounded-el p-1 transition-colors hover:bg-surface-hover ${
+          className={`cursor-pointer rounded-ctl p-1 transition-colors hover:bg-surface-hover ${
             tela === "importar" ? "text-accent" : "text-sub hover:text-fg"
           }`}
         >
@@ -306,7 +306,7 @@ export default function Painel() {
         <button
           onClick={() => alternar(true)}
           title="Recolher painel"
-          className="cursor-pointer rounded-el p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+          className="cursor-pointer rounded-ctl p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <PanelRightClose size={15} strokeWidth={1.75} />
         </button>

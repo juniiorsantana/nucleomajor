@@ -155,7 +155,7 @@ export default function FichaContato({
 
   return (
     <div className="fixed inset-0 z-40 bg-black/25" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-line bg-bg shadow-2xl">
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-line bg-bg ">
         <header className="flex items-start gap-3 border-b border-line px-5 py-4">
           <AvatarDoLead contato={contato} conversa={conversa} tamanho={42} />
           <div className="min-w-0 flex-1">
@@ -165,7 +165,7 @@ export default function FichaContato({
                 (ehLead(contato) ? "Lead" : "Contato")}
             </p>
           </div>
-          <button type="button" title="Fechar ficha" onClick={aoFechar} className="cursor-pointer rounded-[8px] p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
+          <button type="button" title="Fechar ficha" onClick={aoFechar} className="cursor-pointer rounded-ctl p-1.5 text-sub hover:bg-surface-hover hover:text-fg">
             <X size={18} />
           </button>
         </header>
@@ -181,7 +181,7 @@ export default function FichaContato({
                 type="button"
                 onClick={marcarLead}
                 disabled={!aoMarcarLead || marcando}
-                className="flex flex-none cursor-pointer items-center gap-1.5 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                className="flex flex-none cursor-pointer items-center gap-1.5 rounded-ctl bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
               >
                 <UserPlus size={14} />
                 {marcando ? "Marcando…" : "Marcar como lead"}
@@ -191,16 +191,16 @@ export default function FichaContato({
           <section className="border-b border-line px-5 py-4">
             <div className="flex items-center gap-2">
               {abrirConversa && (
-                <button type="button" onClick={abrirConversa} className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[8px] bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110">
+                <button type="button" onClick={abrirConversa} className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-ctl bg-accent px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110">
                   <MessageCircle size={14} />
                   {conversa ? "Abrir conversa" : "Começar conversa"}
                 </button>
               )}
-              <button type="button" onClick={aoEditar} className={`flex cursor-pointer items-center justify-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg ${abrirConversa ? "" : "flex-1"}`}>
+              <button type="button" onClick={aoEditar} className={`flex cursor-pointer items-center justify-center gap-2 rounded-ctl border border-line px-3 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg ${abrirConversa ? "" : "flex-1"}`}>
                 <Pencil size={14} />
                 Editar
               </button>
-              <button type="button" title={copiado ? "Copiado" : "Copiar telefone"} aria-label="Copiar telefone" onClick={copiarTelefone} disabled={!contato.telefone} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-line px-2.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" title={copiado ? "Copiado" : "Copiar telefone"} aria-label="Copiar telefone" onClick={copiarTelefone} disabled={!contato.telefone} className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-2.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40">
                 <Clipboard size={14} />
                 {copiado && "Copiado"}
               </button>
@@ -214,15 +214,15 @@ export default function FichaContato({
 
           <section className="border-b border-line px-5 py-4">
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-[8px] bg-surface px-2.5 py-2">
+              <div className="rounded-ctl bg-surface px-2.5 py-2">
                 <span className="block text-[10px] text-faint">Negócios abertos</span>
                 <strong className="mt-1 block text-[16px] font-semibold text-fg">{abertas.length}</strong>
               </div>
-              <div className="rounded-[8px] bg-surface px-2.5 py-2">
+              <div className="rounded-ctl bg-surface px-2.5 py-2">
                 <span className="block text-[10px] text-faint">Valor em aberto</span>
                 <strong className="mt-1 block truncate text-[14px] font-semibold text-fg">{fmtMoeda(valorAberto) || "R$ 0"}</strong>
               </div>
-              <div className="rounded-[8px] bg-surface px-2.5 py-2">
+              <div className="rounded-ctl bg-surface px-2.5 py-2">
                 <span className="block text-[10px] text-faint">Tarefas abertas</span>
                 <strong className="mt-1 block text-[16px] font-semibold text-fg">{tarefasAbertas.length}</strong>
               </div>
@@ -240,13 +240,13 @@ export default function FichaContato({
           </section>
 
           <section className="border-b border-line px-5 py-4">
-            <BlocoTitulo acao={<button type="button" onClick={aoCriarNegocio} className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Novo</button>}>Negócios · {negociosDoContato.length}</BlocoTitulo>
+            <BlocoTitulo acao={<button type="button" onClick={aoCriarNegocio} className="flex items-center gap-1 rounded-ctl px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Novo</button>}>Negócios · {negociosDoContato.length}</BlocoTitulo>
             {negociosDoContato.length ? (
               <div className="grid gap-2">
                 {negociosDoContato.map((negocio) => {
                   const estagio = estagioPorId[negocio.stageId];
                   return (
-                    <button key={negocio.id} type="button" onClick={() => aoAbrirNegocio?.(negocio)} className="flex items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-left hover:border-line-strong hover:bg-surface-hover">
+                    <button key={negocio.id} type="button" onClick={() => aoAbrirNegocio?.(negocio)} className="flex items-center gap-2 rounded-ctl border border-line px-3 py-2 text-left hover:border-line-strong hover:bg-surface-hover">
                       <CircleDollarSign size={15} className="flex-none text-accent-forte" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[12px] font-semibold text-fg">{negocio.titulo || "Negócio a definir"}</span>
@@ -261,13 +261,13 @@ export default function FichaContato({
           </section>
 
           <section className="px-5 py-4">
-            <BlocoTitulo acao={<button type="button" onClick={aoCriarTarefa} className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Nova</button>}>Tarefas · {tarefasDoContato.length}</BlocoTitulo>
+            <BlocoTitulo acao={<button type="button" onClick={aoCriarTarefa} className="flex items-center gap-1 rounded-ctl px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Nova</button>}>Tarefas · {tarefasDoContato.length}</BlocoTitulo>
             {tarefasDoContato.length ? (
               <div className="grid gap-1">
                 {tarefasDoContato.map((tarefa) => {
                   const vencimento = tarefa.venceEm ? fmtVencimento(tarefa.venceEm) : null;
                   return (
-                    <button key={tarefa.id} type="button" onClick={() => aoAbrirTarefa?.(tarefa)} className="flex items-center gap-2 rounded-[8px] px-2 py-2 text-left hover:bg-surface-hover">
+                    <button key={tarefa.id} type="button" onClick={() => aoAbrirTarefa?.(tarefa)} className="flex items-center gap-2 rounded-ctl px-2 py-2 text-left hover:bg-surface-hover">
                       <CheckSquare size={15} className={`flex-none ${tarefa.concluida ? "text-success" : "text-sub"}`} />
                       <span className={`min-w-0 flex-1 truncate text-[12px] ${tarefa.concluida ? "text-faint line-through" : "text-fg"}`}>{tarefa.titulo || "Sem título"}</span>
                       {vencimento && <span className={`flex-none text-[10.5px] ${tarefa.concluida ? "text-faint" : vencimento.tom === "danger" ? "text-danger" : "text-sub"}`}>{tarefa.concluida ? "Concluída" : vencimento.texto}</span>}
@@ -279,11 +279,11 @@ export default function FichaContato({
           </section>
 
           <section className="border-t border-line px-5 py-4">
-            <BlocoTitulo acao={<button type="button" onClick={aoCriarNota} className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Nova</button>}>Notas · {notasDoContato.length}</BlocoTitulo>
+            <BlocoTitulo acao={<button type="button" onClick={aoCriarNota} className="flex items-center gap-1 rounded-ctl px-1.5 py-1 text-[11px] font-semibold text-accent-forte hover:bg-accent-soft"><Plus size={13} /> Nova</button>}>Notas · {notasDoContato.length}</BlocoTitulo>
             {notasDoContato.length ? (
               <div className="grid gap-2">
                 {notasDoContato.slice(0, 3).map((nota) => (
-                  <div key={nota.id} className="rounded-[8px] bg-surface px-3 py-2">
+                  <div key={nota.id} className="rounded-ctl bg-surface px-3 py-2">
                     <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-fg">{nota.texto}</p>
                     <p className="mt-1 text-[10px] text-faint">{nota.autor ? `${nota.autor} · ` : ""}{fmtData(nota.criadoEm)}</p>
                   </div>
@@ -314,7 +314,7 @@ export default function FichaContato({
               <ChevronDown size={14} className={`text-faint transition-transform ${tecnicosAbertos ? "rotate-180" : ""}`} />
             </button>
             {tecnicosAbertos && (
-              <div className="mt-2 rounded-[8px] bg-surface px-2">
+              <div className="mt-2 rounded-ctl bg-surface px-2">
                 {camposTecnicos.map(([chave, valor]) => (
                   <CampoTecnico key={chave} chave={chave} valor={valor} aoCopiar={copiarTecnico} copiado={copiadoCampo} />
                 ))}

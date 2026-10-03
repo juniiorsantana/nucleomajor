@@ -47,13 +47,13 @@ export default function Empresas({ aoAbrir }) {
           <h1 className="text-[20px] font-semibold tracking-tight text-fg md:text-[24px]">Empresas</h1>
           {empresas && <span className="text-[12.5px] text-sub">{empresas.length} no total</span>}
           <button type="button" onClick={carregar} title="Atualizar" aria-label="Atualizar"
-            className="ml-auto cursor-pointer rounded-[8px] border border-line bg-bg p-2 text-sub hover:text-fg">
+            className="ml-auto cursor-pointer rounded-ctl border border-line bg-bg p-2 text-sub hover:text-fg">
             <RefreshCw size={15} />
           </button>
         </div>
 
         {vencendo.length > 0 && (
-          <div role="status" className="flex items-start gap-2.5 rounded-[12px] border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
+          <div role="status" className="flex items-start gap-2.5 rounded-none border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
             <AlertTriangle size={16} className="mt-0.5 flex-none text-warning" aria-hidden="true" />
             <div>
               <strong>Vence em até 7 dias, sem renovação:</strong>{" "}
@@ -85,11 +85,11 @@ export default function Empresas({ aoAbrir }) {
           </select>
         </div>
 
-        {erro && <p role="alert" className="rounded-[10px] border border-danger/30 bg-danger/5 px-4 py-3 text-[12.5px] text-danger">{erro}</p>}
+        {erro && <p role="alert" className="rounded-ctl border border-danger/30 bg-danger/5 px-4 py-3 text-[12.5px] text-danger">{erro}</p>}
         {empresas === null && <p className="text-[13px] text-sub">Carregando…</p>}
 
         {empresas !== null && !erro && (
-          <div className="overflow-x-auto rounded-[14px] border border-line bg-bg">
+          <div className="overflow-x-auto rounded-none border border-line bg-bg">
             <table className="w-full min-w-[860px] text-left text-[12.5px]">
               <thead className="border-b border-line text-[11px] font-semibold uppercase tracking-wide text-faint">
                 <tr>

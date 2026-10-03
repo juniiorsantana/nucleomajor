@@ -315,7 +315,7 @@ export default function Conversas({
 
   if (erro) {
     return (
-      <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
+      <div className="m-8 rounded-ctl border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
         {erro}
       </div>
     );
@@ -344,7 +344,7 @@ export default function Conversas({
             <button
               onClick={() => setNovaConversa(true)}
               title="Nova conversa"
-              className="ml-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+              className="ml-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
             >
               <Plus size={17} strokeWidth={2.2} />
             </button>
@@ -360,11 +360,11 @@ export default function Conversas({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar conversa ou contato"
-              className="w-full rounded-[10px] border border-line bg-bg py-2 pl-9 pr-3 text-[12.5px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+              className="w-full rounded-ctl border border-line bg-bg py-2 pl-9 pr-3 text-[12.5px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
             />
           </div>
 
-          <div className="mt-2.5 grid grid-cols-2 rounded-[10px] bg-surface p-1" role="tablist" aria-label="Tipo de conversa">
+          <div className="mt-2.5 grid grid-cols-2 rounded-ctl bg-surface p-1" role="tablist" aria-label="Tipo de conversa">
             {[
               { id: "contatos", rotulo: "Contatos", Icone: UserRound },
               { id: "grupos", rotulo: "Grupos", Icone: Users },
@@ -378,9 +378,9 @@ export default function Conversas({
                   setTipoLista(id);
                   setFiltro("tudo");
                 }}
-                className={`flex items-center justify-center gap-1.5 rounded-[8px] px-2 py-1.5 text-[11.5px] font-semibold transition-colors ${
+                className={`flex items-center justify-center gap-1.5 rounded-ctl px-2 py-1.5 text-[11.5px] font-semibold transition-colors ${
                   tipoLista === id
-                    ? "bg-bg text-fg shadow-[0_1px_3px_rgba(18,23,48,.1)]"
+                    ? "bg-bg text-fg "
                     : "text-sub hover:text-fg"
                 }`}
               >
@@ -494,7 +494,7 @@ export default function Conversas({
                 <button
                   title="Marcar como não lida — ainda sem rota"
                   disabled
-                  className="flex h-8 w-8 items-center justify-center rounded-[9px] text-sub opacity-40"
+                  className="flex h-8 w-8 items-center justify-center rounded-ctl text-sub opacity-40"
                 >
                   <MailOpen size={17} strokeWidth={1.9} />
                 </button>
@@ -502,7 +502,7 @@ export default function Conversas({
                   <button
                     onClick={() => setFichaAberta((v) => !v)}
                     title="Ficha do contato"
-                    className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-[9px] transition-colors ${
+                    className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl transition-colors ${
                       fichaAberta
                         ? "bg-accent-soft text-accent-forte"
                         : "text-sub hover:bg-surface-hover hover:text-fg"

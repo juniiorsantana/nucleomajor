@@ -13,7 +13,7 @@ import {
   prazoDoAtalho,
 } from "./tarefasUtils";
 
-const campo = "min-h-11 w-full rounded-[10px] border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-accent md:min-h-10 md:text-[13px]";
+const campo = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-accent md:min-h-10 md:text-[13px]";
 const rotulo = "mb-1 block text-[13px] font-semibold text-sub md:text-[12px]";
 
 const ATALHOS = [
@@ -127,16 +127,16 @@ export default function FormularioTarefa({ tarefa, contatoIdInicial, contatos = 
         rodape={(
           <>
             {editando && (
-              <button type="button" onClick={excluir} disabled={salvando} aria-label="Excluir tarefa" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 md:min-h-9 md:text-[13px]">
+              <button type="button" onClick={excluir} disabled={salvando} aria-label="Excluir tarefa" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-ctl px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 md:min-h-9 md:text-[13px]">
                 <Trash2 size={16} /><span className="hidden sm:inline">Excluir</span>
               </button>
             )}
             {editando && (
-              <button type="button" onClick={concluir} disabled={salvando} className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] border border-line px-3 text-[14px] font-semibold text-sub hover:border-success hover:text-success disabled:opacity-40 md:min-h-9 md:text-[13px]">
+              <button type="button" onClick={concluir} disabled={salvando} className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-3 text-[14px] font-semibold text-sub hover:border-success hover:text-success disabled:opacity-40 md:min-h-9 md:text-[13px]">
                 <CheckCircle2 size={16} />{tarefa.concluida ? "Reabrir" : "Concluir"}
               </button>
             )}
-            <button type="button" onClick={aoFechar} className="ml-auto hidden min-h-9 cursor-pointer rounded-[10px] px-3 text-[13px] font-medium text-sub hover:text-fg md:block">Cancelar</button>
+            <button type="button" onClick={aoFechar} className="ml-auto hidden min-h-9 cursor-pointer rounded-ctl px-3 text-[13px] font-medium text-sub hover:text-fg md:block">Cancelar</button>
             <BotaoPrimario type="submit" disabled={salvando} className="!min-h-11 ml-auto !flex-1 !py-2 md:!min-h-9 md:ml-0 md:!flex-none">
               {salvando ? "Salvando…" : editando ? "Salvar" : "Criar tarefa"}
             </BotaoPrimario>
@@ -213,7 +213,7 @@ export default function FormularioTarefa({ tarefa, contatoIdInicial, contatos = 
             rotulo="Quem faz"
           />
 
-          {erro && <p role="alert" className="rounded-[10px] border border-danger/25 bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
+          {erro && <p role="alert" className="rounded-ctl border border-danger/25 bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
         </div>
       </Folha>
       <DialogoConfirmar pedido={confirmacao} aoFechar={() => setConfirmacao(null)} />
@@ -240,12 +240,12 @@ export function DialogoRecusa({ tarefa, aoFechar, aoConfirmar }) {
       camada="z-[55]"
       rodape={(
         <>
-          <button type="button" onClick={aoFechar} className="min-h-11 cursor-pointer rounded-[10px] px-3 text-[14px] font-medium text-sub hover:text-fg md:min-h-9 md:text-[13px]">Cancelar</button>
+          <button type="button" onClick={aoFechar} className="min-h-11 cursor-pointer rounded-ctl px-3 text-[14px] font-medium text-sub hover:text-fg md:min-h-9 md:text-[13px]">Cancelar</button>
           <button
             type="button"
             disabled={salvando}
             onClick={async () => { setSalvando(true); await aoConfirmar(motivo); }}
-            className="ml-auto min-h-11 flex-1 cursor-pointer rounded-[10px] bg-danger px-4 text-[14px] font-semibold text-white hover:brightness-95 disabled:opacity-40 md:min-h-9 md:flex-none md:text-[13px]"
+            className="ml-auto min-h-11 flex-1 cursor-pointer rounded-ctl bg-danger px-4 text-[14px] font-semibold text-white hover:brightness-95 disabled:opacity-40 md:min-h-9 md:flex-none md:text-[13px]"
           >
             {salvando ? "Recusando…" : "Recusar"}
           </button>

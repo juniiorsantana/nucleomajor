@@ -56,7 +56,7 @@ function LinhaDeContato({ nome, detalhe, rotulo, aoEscolher }) {
     <button
       type="button"
       onClick={aoEscolher}
-      className="flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2 py-2 text-left transition-colors hover:bg-surface-hover"
+      className="flex w-full cursor-pointer items-center gap-2.5 rounded-ctl px-2 py-2 text-left transition-colors hover:bg-surface-hover"
     >
       <Iniciais nome={nome} tamanho={32} />
       <span className="flex min-w-0 flex-1 flex-col">
@@ -246,7 +246,7 @@ export function ModalNovaConversa({
         )}
 
         {aviso && !ocupado && (
-          <p className="mt-1 rounded-[9px] border border-danger/40 bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+          <p className="mt-1 rounded-ctl border border-danger/40 bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
             {aviso}
           </p>
         )}

@@ -9,6 +9,8 @@ import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "../data/client";
 import Gestao from "../page/Gestao";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "../ui/theme.css";
 import { instalarChromeFalso, semearSePreciso } from "./stub";
 

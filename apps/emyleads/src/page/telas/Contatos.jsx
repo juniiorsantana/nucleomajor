@@ -308,9 +308,9 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
           ))}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-[14px] border border-line bg-bg p-4">
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-none border border-line bg-bg p-4">
           {separaLead && (
-            <div className="flex rounded-[10px] border border-line p-0.5" role="group" aria-label="Quem mostrar">
+            <div className="flex rounded-ctl border border-line p-0.5" role="group" aria-label="Quem mostrar">
               {[
                 ["leads", `Leads (${leads.length})`],
                 ["todos", `Todos os contatos (${contatos.length})`],
@@ -320,7 +320,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                   type="button"
                   aria-pressed={mostrar === id}
                   onClick={() => setMostrar(id)}
-                  className={`cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium transition-colors ${
+                  className={`cursor-pointer rounded-ctl px-3 py-2 text-[13px] font-medium transition-colors ${
                     mostrar === id ? "bg-accent-soft text-accent-forte" : "text-sub hover:text-fg"
                   }`}
                 >
@@ -355,7 +355,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
           />
           <button
             onClick={() => setMaisFiltros(!maisFiltros)}
-            className={`flex cursor-pointer items-center gap-2 rounded-[10px] border px-4 py-2.5 text-[13.5px] font-medium transition-colors ${
+            className={`flex cursor-pointer items-center gap-2 rounded-ctl border px-4 py-2.5 text-[13.5px] font-medium transition-colors ${
               maisFiltros
                 ? "border-accent text-accent-forte"
                 : "border-line text-sub hover:border-line-strong hover:text-fg"
@@ -384,7 +384,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
             )}
             <button
               onClick={exportar}
-              className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-line px-4 py-2.5 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
+              className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 py-2.5 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
             >
               <Download size={16} />
               Exportar
@@ -399,7 +399,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
           )}
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-[14px] border border-line bg-bg">
+        <div className="mt-6 overflow-hidden rounded-none border border-line bg-bg">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-line">
@@ -511,7 +511,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                             title={conversa ? "Abrir conversa" : "Começar conversa"}
                             aria-label={conversa ? "Abrir conversa" : "Começar conversa"}
                             onClick={() => aoAbrirConversa(c)}
-                            className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-accent-forte"
+                            className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-accent-forte"
                           >
                             <MessageCircle size={17} strokeWidth={1.75} />
                           </button>
@@ -519,7 +519,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                         <button
                           title="Mais ações"
                           onClick={() => aoAbrirContato?.(c)}
-                          className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+                          className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
                         >
                           <MoreVertical size={17} strokeWidth={1.75} />
                         </button>

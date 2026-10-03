@@ -59,7 +59,7 @@ export function useConfirmacao() {
         role="alertdialog"
         aria-modal="true"
         aria-label={pedido.titulo}
-        className="w-full max-w-[380px] rounded-[14px] border border-line bg-bg p-5 shadow-2xl"
+        className="w-full max-w-[380px] rounded-none border border-line bg-bg p-5 "
       >
         <h2 className="text-[14.5px] font-semibold text-fg">{pedido.titulo}</h2>
         {pedido.mensagem && <p className="mt-1.5 text-[12px] leading-5 text-sub">{pedido.mensagem}</p>}
@@ -67,7 +67,7 @@ export function useConfirmacao() {
           <button
             type="button"
             onClick={() => responder(false)}
-            className="rounded-[9px] px-3 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
+            className="rounded-ctl px-3 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
           >
             Cancelar
           </button>
@@ -75,7 +75,7 @@ export function useConfirmacao() {
             ref={botaoRef}
             type="button"
             onClick={() => responder(true)}
-            className={`rounded-[9px] px-4 py-2 text-[12.5px] font-semibold text-white ${
+            className={`rounded-ctl px-4 py-2 text-[12.5px] font-semibold text-white ${
               pedido.destrutivo ? "bg-danger" : "bg-accent"
             }`}
           >

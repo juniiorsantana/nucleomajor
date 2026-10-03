@@ -16,11 +16,11 @@ async function iniciar() {
     const raiz = document.getElementById("raiz");
     if (raiz) {
       raiz.innerHTML = `
-        <main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#f5f6fa;color:#111936;font:16px Inter,system-ui,sans-serif">
-          <section style="width:min(100%,520px);padding:32px;border:1px solid #dfe3ec;border-radius:24px;background:#fff;box-shadow:0 18px 50px rgba(17,25,54,.08)">
-            <p style="margin:0 0 8px;color:#5946ff;font-weight:700">Núcleo Major</p>
+        <main style="min-height:100vh;display:grid;place-items:center;padding:24px;background:#f5f5f6;color:#18181b;font:16px -apple-system,"Segoe UI Variable",system-ui,sans-serif">
+          <section style="width:min(100%,520px);padding:32px;border:1px solid #e4e4e6;border-radius:0;background:#fff">
+            <p style="margin:0 0 8px;color:#2b2c30;font-weight:700;letter-spacing:.08em">Núcleo Major</p>
             <h1 style="margin:0 0 12px;font-size:28px">Não foi possível iniciar o portal</h1>
-            <p style="margin:0;color:#64708a;line-height:1.6">Confira a conexão e tente recarregar a página.</p>
+            <p style="margin:0;color:#5c5c63;line-height:1.6">Confira a conexão e tente recarregar a página.</p>
           </section>
         </main>`;
     }

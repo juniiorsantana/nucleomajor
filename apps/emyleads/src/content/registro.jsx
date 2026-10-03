@@ -129,7 +129,7 @@ export function LinhaDoTempo({ itens }) {
   const ocultos = filtrados.length - visiveis.length;
 
   return (
-    <section className="overflow-hidden rounded-el-lg border border-line bg-bg">
+    <section className="overflow-hidden rounded-ctl border border-line bg-bg">
       <div className="flex items-center gap-2 px-3 py-2.5">
         <span className="flex-1 text-[9.5px] font-bold uppercase tracking-[0.07em] text-sub">Linha do tempo</span>
         {/* O preço de juntar tudo num feed é perder "o que está pendente" de
@@ -139,7 +139,7 @@ export function LinhaDoTempo({ itens }) {
             key={f.id}
             type="button"
             onClick={() => { setFiltro(f.id); setTudo(false); }}
-            className={`cursor-pointer rounded-el px-1.5 py-0.5 text-[10px] ${
+            className={`cursor-pointer rounded-ctl px-1.5 py-0.5 text-[10px] ${
               filtro === f.id ? "bg-surface font-semibold text-fg" : "text-faint hover:text-sub"
             }`}
           >
@@ -203,7 +203,7 @@ export function Registrador({ contactId, estagios, recarregar, aoDetalhar }) {
   };
 
   return (
-    <section className="rounded-el-lg border border-line-strong bg-bg p-3 shadow-[0_1px_3px_rgba(18,23,48,0.05)]">
+    <section className="rounded-ctl border border-line-strong bg-bg p-3 ">
       <textarea
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
@@ -239,7 +239,7 @@ export function Registrador({ contactId, estagios, recarregar, aoDetalhar }) {
           disabled={!limpo || ocupado}
           onClick={registrar}
           title="Registrar (Enter)"
-          className="ml-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-el-lg bg-accent text-white transition-opacity disabled:opacity-30"
+          className="ml-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-ctl bg-accent text-white transition-opacity disabled:opacity-30"
         >
           {ocupado ? <Clock3 size={14} strokeWidth={2.2} /> : <CornerDownLeft size={14} strokeWidth={2.2} />}
         </button>

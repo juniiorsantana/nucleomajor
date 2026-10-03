@@ -46,7 +46,7 @@ function Numero({ icone: Icone, rotulo, valor, ativo, aoClicar }) {
       type="button"
       onClick={aoClicar}
       aria-pressed={ativo}
-      className={`flex min-w-0 flex-1 cursor-pointer flex-col gap-1 rounded-[12px] border px-4 py-3 text-left transition-colors ${
+      className={`flex min-w-0 flex-1 cursor-pointer flex-col gap-1 rounded-none border px-4 py-3 text-left transition-colors ${
         ativo ? "border-accent bg-accent-soft" : "border-line bg-bg hover:border-line-strong"
       }`}
     >
@@ -63,13 +63,13 @@ function PrimeiraMensagem({ fluxo, aoAbrirChatbots }) {
   const texto = textoDaPrimeiraMensagem(fluxo);
   if (!fluxo) {
     return (
-      <p className="rounded-[10px] border border-dashed border-line px-4 py-3 text-[13px] text-sub">
+      <p className="rounded-ctl border border-dashed border-line px-4 py-3 text-[13px] text-sub">
         Nenhum fluxo manda mensagem automática para quem entra por esta campanha.
       </p>
     );
   }
   return (
-    <div className="rounded-[12px] border border-line bg-bg p-4">
+    <div className="rounded-none border border-line bg-bg p-4">
       <div className="flex items-center gap-2 text-[12.5px] text-sub">
         <Bot size={15} strokeWidth={1.8} />
         <span className="min-w-0 flex-1 truncate">
@@ -83,7 +83,7 @@ function PrimeiraMensagem({ fluxo, aoAbrirChatbots }) {
       </div>
       {texto && (
         <div className="mt-3 flex justify-end">
-          <p className="max-w-[520px] whitespace-pre-wrap rounded-[12px] bg-accent-soft px-3.5 py-2.5 text-[13.5px] leading-[20px] text-fg">
+          <p className="max-w-[520px] whitespace-pre-wrap rounded-none bg-accent-soft px-3.5 py-2.5 text-[13.5px] leading-[20px] text-fg">
             {texto.replaceAll("{nome}", "Maria")}
           </p>
         </div>
@@ -139,7 +139,7 @@ function Detalhe({ campanha, dados, indice, temInteligencia, podeEditar, aoAbrir
         <h3 className="mb-2 text-[13px] font-semibold text-fg">
           {filtro ? `${FILTROS[filtro]} · ${linhas.length}` : `Leads da campanha · ${resumo.total}`}
         </h3>
-        <div className="overflow-hidden rounded-[14px] border border-line bg-bg">
+        <div className="overflow-hidden rounded-none border border-line bg-bg">
           {linhas.length === 0 ? (
             <p className="px-4 py-10 text-center text-[13.5px] text-sub">
               {resumo.total === 0 ? "Ninguém entrou por esta campanha ainda." : "Nenhum lead nesta situação."}
@@ -185,7 +185,7 @@ function Detalhe({ campanha, dados, indice, temInteligencia, podeEditar, aoAbrir
                           title={conversa ? "Abrir conversa" : "Começar conversa"}
                           aria-label={conversa ? "Abrir conversa" : "Começar conversa"}
                           onClick={() => aoAbrirConversa({ ...contato, telefone: contato.telefone || lead.telefone })}
-                          className="cursor-pointer rounded-[8px] p-1.5 text-sub hover:bg-surface-hover hover:text-accent-forte"
+                          className="cursor-pointer rounded-ctl p-1.5 text-sub hover:bg-surface-hover hover:text-accent-forte"
                         >
                           <MessageCircle size={17} strokeWidth={1.75} />
                         </button>
@@ -200,7 +200,7 @@ function Detalhe({ campanha, dados, indice, temInteligencia, podeEditar, aoAbrir
       </section>
 
       {temInteligencia && (
-        <section className="rounded-[14px] border border-line bg-bg p-5">
+        <section className="rounded-none border border-line bg-bg p-5">
           <h3 className="flex items-center gap-2 text-[14px] font-semibold text-fg">
             <Sparkles size={16} className="text-accent-forte" />
             IA da campanha
@@ -264,7 +264,7 @@ export default function Campanhas({ dados, sessao, temInteligencia, aoAbrirConta
       />
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8">
-        {erro && <p role="alert" className="mb-4 rounded-[10px] bg-danger/10 px-4 py-3 text-[13px] text-danger">{erro}</p>}
+        {erro && <p role="alert" className="mb-4 rounded-ctl bg-danger/10 px-4 py-3 text-[13px] text-danger">{erro}</p>}
 
         {campanhas === null ? (
           <p className="py-16 text-center text-[14px] text-sub">Carregando campanhas…</p>
@@ -287,7 +287,7 @@ export default function Campanhas({ dados, sessao, temInteligencia, aoAbrirConta
                     type="button"
                     onClick={() => setSelecionada(campanha.id)}
                     aria-current={campanha.id === selecionada ? "true" : undefined}
-                    className={`cursor-pointer rounded-[12px] border p-3.5 text-left transition-colors ${
+                    className={`cursor-pointer rounded-none border p-3.5 text-left transition-colors ${
                       campanha.id === selecionada ? "border-accent bg-accent-soft" : "border-line bg-bg hover:border-line-strong"
                     }`}
                   >
@@ -307,7 +307,7 @@ export default function Campanhas({ dados, sessao, temInteligencia, aoAbrirConta
 
             <div className="min-w-0">
               {selecionada === "nova" ? (
-                <section className="rounded-[14px] border border-line bg-bg p-5">
+                <section className="rounded-none border border-line bg-bg p-5">
                   <h2 className="mb-4 text-[18px] font-semibold text-fg">Nova campanha</h2>
                   <IaDaCampanha campanhaId={null} podeEditar={podeEditar} aoSalvar={(nome) => carregar(nome)} />
                 </section>

@@ -57,7 +57,7 @@ function Escolhas({ titulo, itens, marcados, aoMudar, desabilitado }) {
   );
 }
 
-const CAMPO = "mt-1 w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13px] font-normal text-fg";
+const CAMPO = "mt-1 w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13px] font-normal text-fg";
 
 /**
  * `campanhaId` nulo é campanha nova. `aoSalvar` recebe o nome, para a tela
@@ -184,7 +184,7 @@ export default function IaDaCampanha({ campanhaId, podeEditar, aoSalvar }) {
           type="button"
           onClick={salvar}
           disabled={salvando || !rascunho.nome.trim()}
-          className="ml-auto inline-flex cursor-pointer items-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[13px] font-semibold text-white hover:brightness-110 disabled:opacity-40"
+          className="ml-auto inline-flex cursor-pointer items-center gap-2 rounded-ctl bg-accent px-4 py-2.5 text-[13px] font-semibold text-white hover:brightness-110 disabled:opacity-40"
         >
           {novo ? <Sparkles size={15} /> : <Save size={15} />}
           {salvando ? "Salvando…" : novo ? "Criar campanha" : "Salvar IA da campanha"}

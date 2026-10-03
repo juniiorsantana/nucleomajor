@@ -14,7 +14,7 @@
 .chatbot-flow .react-flow__node {
   width: 276px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   font-family: inherit;
@@ -29,21 +29,21 @@
   position: relative;
   overflow: visible;
   border: 1px solid var(--el-line-strong);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--el-bg);
   color: var(--el-fg);
-  box-shadow: 0 8px 24px rgb(18 23 48 / 7%);
+  box-shadow: none;
   transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
 .flow-node:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px rgb(18 23 48 / 11%);
+  box-shadow: none;
 }
 
 .flow-node.is-selected {
   border-color: var(--el-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-accent) 15%, transparent), 0 14px 34px rgb(79 60 252 / 14%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--el-accent) 15%, transparent);
 }
 
 .flow-node__header {
@@ -61,7 +61,7 @@
   height: 27px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 2px;
 }
 
 .flow-node__icon--entrada { color: var(--el-accent-forte); background: var(--el-accent-soft); }
@@ -121,7 +121,7 @@
 .flow-node__warning {
   max-width: 130px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 2px;
   background: var(--el-surface-hover);
   padding: 3px 7px;
   color: var(--el-sub);
@@ -187,9 +187,9 @@
   gap: 2px;
   padding: 4px;
   border: 1px solid var(--el-line);
-  border-radius: 10px;
+  border-radius: 2px;
   background: var(--el-bg);
-  box-shadow: 0 6px 18px rgb(18 23 48 / 10%);
+  box-shadow: none;
 }
 
 .chatbot-flow .flow-zoom button {
@@ -200,7 +200,7 @@
   justify-content: center;
   gap: 5px;
   padding: 0 7px;
-  border-radius: 7px;
+  border-radius: 2px;
   color: var(--el-sub);
   font-size: 11px;
   font-weight: 600;
@@ -217,19 +217,19 @@
   text-align: center;
 }
 
-.chatbot-flow .flow-zoom__ajustar { border-left: 1px solid var(--el-line); border-radius: 0 7px 7px 0; }
+.chatbot-flow .flow-zoom__ajustar { border-left: 1px solid var(--el-line); border-radius: 0 2px 2px 0; }
 
 .chatbot-flow .flow-dica {
   display: flex;
   align-items: center;
   gap: 7px;
   border: 1px solid var(--el-line);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 7px 13px;
   background: color-mix(in srgb, var(--el-bg) 92%, transparent);
   color: var(--el-sub);
   font-size: 10.5px;
-  box-shadow: 0 6px 18px rgb(18 23 48 / 8%);
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -275,10 +275,10 @@
   align-items: center;
   justify-content: center;
   border: 1px solid var(--el-line-strong);
-  border-radius: 7px;
+  border-radius: 2px;
   background: var(--el-bg);
   color: var(--el-sub);
-  box-shadow: 0 2px 6px rgb(18 23 48 / 12%);
+  box-shadow: none;
   cursor: pointer;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -309,7 +309,7 @@
   gap: 7px;
   height: 30px;
   border: 1px solid var(--el-line);
-  border-radius: 9px;
+  border-radius: 2px;
   padding: 0 10px;
   background: var(--el-surface);
   color: var(--el-sub);
@@ -357,9 +357,9 @@
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--el-line);
-  border-radius: 9px;
+  border-radius: 2px;
   background: var(--el-bg);
-  box-shadow: 0 4px 14px rgb(18 23 48 / 14%);
+  box-shadow: none;
   pointer-events: all;
 }
 
@@ -369,7 +369,7 @@
   height: 24px;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 2px;
   color: var(--el-sub);
   cursor: pointer;
 }
@@ -388,9 +388,9 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--el-line);
-  border-radius: 13px;
+  border-radius: 0;
   background: var(--el-bg);
-  box-shadow: 0 18px 44px rgb(18 23 48 / 20%);
+  box-shadow: none;
 }
 
 .flow-seletor__topo {
@@ -418,7 +418,7 @@
   width: 100%;
   align-items: center;
   gap: 10px;
-  border-radius: 9px;
+  border-radius: 2px;
   padding: 7px;
   text-align: left;
   cursor: pointer;

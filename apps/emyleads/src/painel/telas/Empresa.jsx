@@ -33,7 +33,7 @@ const PAPEL = { owner: "Dono", admin: "Administrador", member: "Membro" };
 
 function AvisoAsaas() {
   return (
-    <div role="note" className="flex items-start gap-2.5 rounded-[12px] border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] leading-relaxed text-fg">
+    <div role="note" className="flex items-start gap-2.5 rounded-none border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] leading-relaxed text-fg">
       <AlertTriangle size={16} className="mt-0.5 flex-none text-warning" aria-hidden="true" />
       <span>{AVISO_ASAAS}</span>
     </div>
@@ -43,12 +43,12 @@ function AvisoAsaas() {
 function RodapeModal({ aoFechar, enviando, desabilitado, rotulo, perigo = false }) {
   return (
     <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-      <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+      <button type="button" onClick={aoFechar} className="cursor-pointer rounded-ctl px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
         Cancelar
       </button>
       {perigo ? (
         <button type="submit" disabled={enviando || desabilitado}
-          className="cursor-pointer rounded-[9px] bg-danger px-4 py-2 text-[13px] font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">
+          className="cursor-pointer rounded-ctl bg-danger px-4 py-2 text-[13px] font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">
           {enviando ? "Aplicando…" : rotulo}
         </button>
       ) : (
@@ -167,7 +167,7 @@ function ModalPlano({ empresa, planos, asaas, aoFechar, aoConcluir }) {
           </CampoFormulario>
           <p className="text-[12px] text-sub">Os ajustes desta empresa continuam valendo por cima do plano novo.</p>
           {rebaixa && (
-            <p role="note" className="rounded-[10px] border border-danger/30 bg-danger/5 px-3 py-2 text-[12.5px] text-danger">
+            <p role="note" className="rounded-ctl border border-danger/30 bg-danger/5 px-3 py-2 text-[12.5px] text-danger">
               Este plano é menor que o atual: a empresa perde as funções que só o plano de hoje dá.
             </p>
           )}
@@ -242,7 +242,7 @@ export function ModalFuncao({ empresa, item, acao, aoFechar, aoConcluir }) {
             <p className="text-[12px] text-sub">Quando o prazo passar, a empresa volta sozinha ao que o plano diz.</p>
           )}
           {pedeIA && (
-            <label className="flex items-start gap-2 rounded-[10px] border border-warning/30 bg-warning/10 px-3 py-2.5 text-[12.5px] leading-relaxed text-fg">
+            <label className="flex items-start gap-2 rounded-ctl border border-warning/30 bg-warning/10 px-3 py-2.5 text-[12.5px] leading-relaxed text-fg">
               <input type="checkbox" checked={confirmouIA} onChange={(e) => setConfirmouIA(e.target.checked)} className="mt-0.5" />
               <span>
                 Confirmo que a empresa tem o <strong>WhatsApp próprio</strong> e que a conexão está <strong>montada na VPS</strong>.
@@ -369,7 +369,7 @@ export default function Empresa({ id, aoVoltar }) {
           </button>
         </div>
 
-        <header className="rounded-[14px] border border-line bg-bg px-5 py-4">
+        <header className="rounded-none border border-line bg-bg px-5 py-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-[20px] font-semibold tracking-tight text-fg">{empresa.nome}</h1>
             <Selo tom={s.tom}>{s.rotulo}</Selo>
@@ -387,7 +387,7 @@ export default function Empresa({ id, aoVoltar }) {
         </header>
 
         {asaas && <AvisoAsaas />}
-        {aviso && <p role="status" className="rounded-[10px] border border-success/30 bg-success-soft/50 px-4 py-2.5 text-[12.5px] text-fg">{aviso}</p>}
+        {aviso && <p role="status" className="rounded-ctl border border-success/30 bg-success-soft/50 px-4 py-2.5 text-[12.5px] text-fg">{aviso}</p>}
         {erro && <p role="alert" className="text-[12.5px] text-danger">{erro}</p>}
 
         <Secao titulo="Acesso e plano" descricao="Estender não mexe no plano; trocar o plano não mexe na data.">
@@ -454,7 +454,7 @@ export default function Empresa({ id, aoVoltar }) {
               ["Conversas em 30 dias", uso.conversations30d],
               ["Mensagens em 30 dias", uso.messages30d],
             ].map(([rotulo, valor]) => (
-              <div key={rotulo} className="rounded-[10px] border border-line px-3 py-2.5">
+              <div key={rotulo} className="rounded-ctl border border-line px-3 py-2.5">
                 <div className="text-[11.5px] text-faint">{rotulo}</div>
                 <div className="text-[18px] font-semibold tabular-nums text-fg">{valor ?? 0}</div>
               </div>

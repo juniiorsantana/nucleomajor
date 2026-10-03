@@ -1,5 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation, useNavigate } from "react-router-dom";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "../ui/theme.css";
 import AuthGate from "../page/AuthGate";
 import Gestao from "../page/Gestao";

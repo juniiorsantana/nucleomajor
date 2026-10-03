@@ -4,7 +4,7 @@ import { fmtMoeda } from "../../lib/formato";
 import { corDaPessoa, nomeCurto } from "../../ui/perfil";
 
 export const ENTRADA_GESTAO =
-  "w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
+  "w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
 
 export function nomeDoContato(contatos, contactId) {
   return contatos.find((c) => c.id === contactId)?.nome || "Lead sem nome";
@@ -89,7 +89,7 @@ export function ModalGestao({ titulo, children, aoFechar }) {
         aria-modal="true"
         aria-labelledby={tituloId}
         tabIndex={-1}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] border border-line bg-bg shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-none border border-line bg-bg "
       >
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <h2 id={tituloId} className="min-w-0 flex-1 text-[16px] font-semibold text-fg">{titulo}</h2>
@@ -98,7 +98,7 @@ export function ModalGestao({ titulo, children, aoFechar }) {
             onClick={aoFechar}
             aria-label="Fechar"
             title="Fechar"
-            className="cursor-pointer rounded-[8px] p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+            className="cursor-pointer rounded-ctl p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={17} />
           </button>
@@ -163,7 +163,7 @@ export function SeletorResponsaveis({ membros = [], valores = [], aoMudar, rotul
   return (
     <div>
       <span className="mb-1 block text-[12px] font-medium text-sub">{rotulo}</span>
-      <div className="flex flex-wrap gap-1.5 rounded-[9px] border border-line bg-bg p-2">
+      <div className="flex flex-wrap gap-1.5 rounded-ctl border border-line bg-bg p-2">
         {membros.length === 0 && <span className="text-[12px] text-faint">Nenhuma pessoa na equipe.</span>}
         {membros.map((membro) => {
           const id = membro.user_id || membro.profile?.id;
@@ -197,7 +197,7 @@ export function SeletorEtiquetas({ tags = [], valores = [], aoMudar, rotulo = "E
   return (
     <div>
       <span className="mb-1 block text-[12px] font-medium text-sub">{rotulo}</span>
-      <div className="flex flex-wrap gap-1.5 rounded-[9px] border border-line bg-bg p-2">
+      <div className="flex flex-wrap gap-1.5 rounded-ctl border border-line bg-bg p-2">
         {tags.length === 0 && <span className="text-[12px] text-faint">Nenhuma etiqueta cadastrada.</span>}
         {tags.map((tag) => {
           const marcada = selecionadas.has(tag.id);

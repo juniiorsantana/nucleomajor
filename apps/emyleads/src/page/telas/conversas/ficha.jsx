@@ -84,7 +84,7 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
 
   return (
     <div
-      className={`mt-3.5 rounded-[11px] border px-3 py-2.5 ${
+      className={`mt-3.5 rounded-ctl border px-3 py-2.5 ${
         atende ? "border-line" : "border-danger/25 bg-danger/5"
       }`}
     >
@@ -167,14 +167,14 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
   };
 
   return (
-    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+    <div className="mt-3.5 rounded-ctl border border-line px-3 py-2.5">
       <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Iniciar fluxo</span>
       <div className="mt-2 flex items-center gap-1.5">
         <select
           value={escolhido}
           onChange={(event) => { setEscolhido(event.target.value); setEstado({ tipo: "parado", texto: "" }); }}
           aria-label="Fluxo para iniciar"
-          className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+          className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
         >
           {fluxos.map((fluxo) => <option key={fluxo.id} value={fluxo.id}>{fluxo.nome}</option>)}
         </select>
@@ -183,7 +183,7 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
           onClick={iniciar}
           disabled={estado.tipo === "enviando" || !escolhido}
           title="Iniciar este fluxo para o contato"
-          className="flex h-[30px] flex-none cursor-pointer items-center gap-1 rounded-[8px] bg-accent px-2.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+          className="flex h-[30px] flex-none cursor-pointer items-center gap-1 rounded-ctl bg-accent px-2.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
         >
           <Play size={12} strokeWidth={2.4} />
           {estado.tipo === "enviando" ? "Iniciando…" : "Iniciar"}
@@ -217,7 +217,7 @@ const chanceEmTexto = (chance) =>
 function LeituraAutomatica({ leitura }) {
   if (!leitura) return null;
   return (
-    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+    <div className="mt-3.5 rounded-ctl border border-line px-3 py-2.5">
       <div className="flex items-center gap-1.5">
         <Sparkles size={13} strokeWidth={2.2} className="flex-none text-accent-forte" />
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
@@ -332,7 +332,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
           <button
             type="button"
             onClick={() => setAberto((valor) => !valor)}
-            className="ml-auto inline-flex items-center gap-1 rounded-[7px] px-1.5 py-1 text-[10.5px] font-semibold text-accent-forte transition-colors hover:bg-accent-soft"
+            className="ml-auto inline-flex items-center gap-1 rounded-ctl px-1.5 py-1 text-[10.5px] font-semibold text-accent-forte transition-colors hover:bg-accent-soft"
           >
             <Tag size={12} strokeWidth={2} />
             Gerenciar
@@ -344,7 +344,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
         {etiquetas.length ? etiquetas.map((tag) => (
           <span
             key={tag.id}
-            className="rounded-[6px] px-2 py-1 text-[10.5px] font-semibold"
+            className="rounded-ctl px-2 py-1 text-[10.5px] font-semibold"
             style={{ color: tag.cor || "var(--el-sub)", backgroundColor: `${tag.cor || "#667085"}18` }}
           >
             {tag.nome}
@@ -355,7 +355,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
       {!contato && <p className="mt-2 text-[11px] leading-4 text-faint">Crie o lead para adicionar etiquetas.</p>}
 
       {aberto && contato && (
-        <div className="mt-2.5 rounded-[10px] border border-line bg-surface p-2">
+        <div className="mt-2.5 rounded-ctl border border-line bg-surface p-2">
           <div className="max-h-40 space-y-1 overflow-y-auto">
             {todas.map((tag) => {
               const ativa = selecionadas.includes(tag.id);
@@ -365,7 +365,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
                   type="button"
                   disabled={salvando}
                   onClick={() => alternar(tag.id)}
-                  className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11.5px] transition-colors ${ativa ? "bg-accent-soft text-fg" : "text-sub hover:bg-surface-hover hover:text-fg"}`}
+                  className={`flex w-full items-center gap-2 rounded-ctl px-2 py-1.5 text-left text-[11.5px] transition-colors ${ativa ? "bg-accent-soft text-fg" : "text-sub hover:bg-surface-hover hover:text-fg"}`}
                 >
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.cor || "#667085" }} />
                   <span className="min-w-0 flex-1 truncate">{tag.nome}</span>
@@ -382,13 +382,13 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
               onChange={(evento) => setNova(evento.target.value)}
               placeholder="Nova etiqueta"
               aria-label="Nome da nova etiqueta"
-              className="min-w-0 flex-1 rounded-[7px] border border-line bg-bg px-2 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent"
+              className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent"
             />
             <button
               type="submit"
               disabled={!nova.trim() || salvando}
               title="Criar e adicionar etiqueta"
-              className="flex h-8 w-8 items-center justify-center rounded-[7px] bg-accent text-white transition-colors hover:bg-accent-forte disabled:opacity-40"
+              className="flex h-8 w-8 items-center justify-center rounded-ctl bg-accent text-white transition-colors hover:bg-accent-forte disabled:opacity-40"
             >
               <Plus size={14} strokeWidth={2.3} />
             </button>
@@ -420,7 +420,7 @@ function BotaoMarcarLead({ aoMarcar }) {
       <button
         onClick={marcar}
         disabled={!aoMarcar || salvando}
-        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-accent py-2.5 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
+        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-accent py-2.5 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
       >
         <UserPlus size={14} strokeWidth={2} />
         {salvando ? "Marcando…" : "Marcar como lead"}
@@ -467,7 +467,7 @@ export function FichaLateral({
         <button
           onClick={aoFechar}
           title="Fechar ficha"
-          className="ml-auto flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+          className="ml-auto flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <X size={15} strokeWidth={2.2} />
         </button>
@@ -524,7 +524,7 @@ export function FichaLateral({
         />
 
         {negocio ? (
-          <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+          <div className="mt-3.5 rounded-ctl border border-line px-3 py-2.5">
             <div className="flex items-center gap-2">
               <PilulaEstagio nome={estagio?.nome} cor={corDoEstagio(estagio?.ordem)} />
               {negocio.valor != null && (
@@ -542,7 +542,7 @@ export function FichaLateral({
             </div>
           </div>
         ) : (
-          <div className="mt-3.5 rounded-[11px] border border-dashed border-line px-3 py-2.5 text-[11.5px] text-faint">
+          <div className="mt-3.5 rounded-ctl border border-dashed border-line px-3 py-2.5 text-[11.5px] text-faint">
             Nenhum negócio aberto com este contato.
           </div>
         )}
@@ -552,11 +552,11 @@ export function FichaLateral({
         </div>
         {tarefa ? (
           <div
-            className={`mt-1.5 flex items-start gap-2 rounded-[10px] border px-2.5 py-2.5 ${
+            className={`mt-1.5 flex items-start gap-2 rounded-ctl border px-2.5 py-2.5 ${
               vencimento?.tom === "danger" ? "border-danger/25 bg-danger/5" : "border-line"
             }`}
           >
-            <span className="mt-0.5 block h-[15px] w-[15px] flex-none rounded-[5px] border border-line-strong bg-bg" />
+            <span className="mt-0.5 block h-[15px] w-[15px] flex-none rounded-ctl border border-line-strong bg-bg" />
             <span className="min-w-0">
               <span className="block text-[12px] font-medium text-fg">{tarefa.titulo}</span>
               <span className={`mt-0.5 block text-[10.5px] font-semibold ${TONS[vencimento.tom]}`}>
@@ -626,7 +626,7 @@ export function FichaLateral({
         ) : contato ? (
           <button
             onClick={aoAbrirFicha}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
           >
             Abrir ficha do lead
             <ArrowRight size={14} strokeWidth={2} />
@@ -643,7 +643,7 @@ export function FichaLateral({
               })
             }
             disabled={!aoSalvarContato}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
           >
             <UserPlus size={14} strokeWidth={2} />
             Criar lead

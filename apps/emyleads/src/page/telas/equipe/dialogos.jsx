@@ -33,7 +33,7 @@ function Moldura({ titulo, descricao, aoFechar, children }) {
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
-        className="w-full max-w-md rounded-[15px] border border-line bg-bg p-5 shadow-2xl"
+        className="w-full max-w-md rounded-none border border-line bg-bg p-5 "
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -44,7 +44,7 @@ function Moldura({ titulo, descricao, aoFechar, children }) {
             type="button"
             aria-label="Fechar"
             onClick={aoFechar}
-            className="flex-none cursor-pointer rounded-[8px] p-1 text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+            className="flex-none cursor-pointer rounded-ctl p-1 text-faint transition-colors hover:bg-surface-hover hover:text-fg"
           >
             <X size={16} />
           </button>
@@ -82,7 +82,7 @@ export function DialogoConvite({ ocupado, aoConvidar, aoFechar }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="pessoa@empresa.com.br"
-            className="w-full rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
+            className="w-full rounded-ctl border border-line bg-bg px-3 py-2.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
           />
         </label>
 
@@ -95,7 +95,7 @@ export function DialogoConvite({ ocupado, aoConvidar, aoFechar }) {
           <button
             type="button"
             onClick={aoFechar}
-            className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub transition-colors hover:border-line-strong hover:text-fg"
+            className="cursor-pointer rounded-ctl border border-line px-3.5 py-2 text-[12px] font-semibold text-sub transition-colors hover:border-line-strong hover:text-fg"
           >
             Cancelar
           </button>
@@ -148,7 +148,7 @@ export function DialogoWhatsApp({ membro, ocupado, podeEnviar, aoVincular, aoFec
                 setTelefone((atual) => formatarTelefoneOperador(atual, e.target.value));
               }}
               aria-label={`País do telefone de ${nome}`}
-              className="w-full rounded-[9px] border border-line bg-bg px-2.5 py-2.5 text-[12.5px] text-fg outline-none focus:border-accent"
+              className="w-full rounded-ctl border border-line bg-bg px-2.5 py-2.5 text-[12.5px] text-fg outline-none focus:border-accent"
             >
               {PAISES_TELEFONE.map((item) => (
                 <option key={item.codigo} value={item.codigo}>
@@ -167,7 +167,7 @@ export function DialogoWhatsApp({ membro, ocupado, podeEnviar, aoVincular, aoFec
               onChange={(e) => setTelefone(formatarTelefoneOperador(e.target.value, pais))}
               placeholder={paisDoTelefone(pais).placeholder}
               aria-label={`Telefone pessoal de ${nome}`}
-              className="w-full rounded-[9px] border border-line bg-bg px-3 py-2.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
+              className="w-full rounded-ctl border border-line bg-bg px-3 py-2.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
             />
           </label>
         </div>
@@ -181,7 +181,7 @@ export function DialogoWhatsApp({ membro, ocupado, podeEnviar, aoVincular, aoFec
           <button
             type="button"
             onClick={aoFechar}
-            className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub transition-colors hover:border-line-strong hover:text-fg"
+            className="cursor-pointer rounded-ctl border border-line px-3.5 py-2 text-[12px] font-semibold text-sub transition-colors hover:border-line-strong hover:text-fg"
           >
             Cancelar
           </button>

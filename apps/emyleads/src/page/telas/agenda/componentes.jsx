@@ -113,7 +113,7 @@ export function Folha({
         aria-label={titulo ? undefined : rotuloAcessivel}
         tabIndex={-1}
         onSubmit={onSubmit}
-        className={`folha-agenda flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[22px] border border-line bg-bg shadow-2xl outline-none ${largura} ${direita ? "md:h-full md:max-h-none md:w-[420px] md:max-w-[94vw] md:rounded-none md:border-y-0 md:border-r-0" : "md:max-h-[90vh] md:rounded-[16px]"}`}
+        className={`folha-agenda flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-none border border-line bg-bg  outline-none ${largura} ${direita ? "md:h-full md:max-h-none md:w-[420px] md:max-w-[94vw] md:rounded-none md:border-y-0 md:border-r-0" : "md:max-h-[90vh] md:rounded-none"}`}
       >
         {/* A alça diz "isto se fecha puxando para baixo" antes de qualquer
             texto — é a convenção que o telefone já ensinou. */}
@@ -121,7 +121,7 @@ export function Folha({
         {!semCabecalho && (
           <header className="flex flex-none items-start gap-3 border-b border-line px-4 py-3 md:px-5 md:py-4">
             {Icone && (
-              <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-accent-soft text-accent-forte">
+              <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-ctl bg-accent-soft text-accent-forte">
                 <Icone size={18} />
               </span>
             )}
@@ -133,7 +133,7 @@ export function Folha({
               type="button"
               onClick={aoFechar}
               aria-label="Fechar"
-              className="-mr-1 flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9"
+              className="-mr-1 flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9"
             >
               <X size={19} />
             </button>
@@ -172,19 +172,19 @@ export function Aviso({ aviso, aoFechar }) {
       <div
         role={erro ? "alert" : "status"}
         aria-live="polite"
-        className={`pointer-events-auto flex min-h-12 w-full max-w-[560px] items-center gap-3 rounded-[12px] border px-4 py-2 shadow-lg md:w-auto ${erro ? "border-danger/30 bg-[color-mix(in_srgb,var(--el-danger)_12%,var(--el-bg))] text-danger" : "border-line-strong bg-fg text-bg"}`}
+        className={`pointer-events-auto flex min-h-12 w-full max-w-[560px] items-center gap-3 rounded-none border px-4 py-2  md:w-auto ${erro ? "border-danger/30 bg-[color-mix(in_srgb,var(--el-danger)_12%,var(--el-bg))] text-danger" : "border-line-strong bg-fg text-bg"}`}
       >
         <span className="min-w-0 flex-1 text-[14px] font-medium md:text-[13px]">{aviso.texto}</span>
         {aviso.acao && (
           <button
             type="button"
             onClick={() => { aviso.acao.executar(); aoFechar(); }}
-            className={`flex min-h-10 flex-none cursor-pointer items-center gap-1.5 rounded-[8px] px-3 text-[13px] font-bold ${erro ? "hover:bg-danger/15" : "bg-bg/15 hover:bg-bg/25"}`}
+            className={`flex min-h-10 flex-none cursor-pointer items-center gap-1.5 rounded-ctl px-3 text-[13px] font-bold ${erro ? "hover:bg-danger/15" : "bg-bg/15 hover:bg-bg/25"}`}
           >
             <Undo2 size={15} />{aviso.acao.rotulo}
           </button>
         )}
-        <button type="button" aria-label="Fechar aviso" onClick={aoFechar} className="flex h-10 w-10 flex-none cursor-pointer items-center justify-center rounded-[8px] opacity-60 hover:opacity-100">
+        <button type="button" aria-label="Fechar aviso" onClick={aoFechar} className="flex h-10 w-10 flex-none cursor-pointer items-center justify-center rounded-ctl opacity-60 hover:opacity-100">
           <X size={16} />
         </button>
       </div>
@@ -200,7 +200,7 @@ export function Aviso({ aviso, aoFechar }) {
  */
 export function Segmentado({ opcoes, valor, aoMudar, rotulo, className = "", cheio = false }) {
   return (
-    <div role="radiogroup" aria-label={rotulo} className={`flex rounded-[10px] bg-surface p-1 ${cheio ? "w-full" : ""} ${className}`}>
+    <div role="radiogroup" aria-label={rotulo} className={`flex rounded-ctl bg-surface p-1 ${cheio ? "w-full" : ""} ${className}`}>
       {opcoes.map((opcao) => {
         const ativo = opcao.id === valor;
         return (
@@ -211,7 +211,7 @@ export function Segmentado({ opcoes, valor, aoMudar, rotulo, className = "", che
             aria-checked={ativo}
             title={opcao.dica}
             onClick={() => aoMudar(opcao.id)}
-            className={`flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-3 text-[14px] font-semibold transition-colors md:min-h-8 md:text-[12px] ${ativo ? "bg-bg text-fg shadow-sm" : "text-sub hover:text-fg"}`}
+            className={`flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-ctl px-3 text-[14px] font-semibold transition-colors md:min-h-8 md:text-[12px] ${ativo ? "bg-bg text-fg " : "text-sub hover:text-fg"}`}
           >
             {opcao.rotulo}
             {opcao.contador > 0 && (
@@ -293,7 +293,7 @@ export function SeletorContato({ contatos = [], valor, aoMudar, rotulo = "Contat
     <div>
       <label htmlFor={entradaId} className="mb-1 block text-[13px] font-semibold text-sub md:text-[12px]">{rotulo}</label>
       {escolhido && !aberto ? (
-        <div className="flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-bg py-1 pl-3 pr-1">
+        <div className="flex min-h-11 items-center gap-2 rounded-ctl border border-line bg-bg py-1 pl-3 pr-1">
           <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent-forte">
             {nomeDe(escolhido).split(/\s+/).slice(0, 2).map((parte) => parte[0]).join("").toUpperCase()}
           </span>
@@ -301,11 +301,11 @@ export function SeletorContato({ contatos = [], valor, aoMudar, rotulo = "Contat
             <span className="block truncate text-[15px] font-medium text-fg md:text-[13px]">{nomeDe(escolhido)}</span>
             {(escolhido.empresa || escolhido.telefone) && <span className="block truncate text-[12px] text-faint md:text-[11px]">{escolhido.empresa || escolhido.telefone}</span>}
           </span>
-          <button type="button" id={entradaId} onClick={() => { setAberto(true); setTimeout(() => entradaRef.current?.focus(), 0); }} className="min-h-9 cursor-pointer rounded-[8px] px-2.5 text-[13px] font-semibold text-accent-forte hover:bg-accent-soft md:text-[12px]">Trocar</button>
-          <button type="button" aria-label="Remover contato" onClick={() => aoMudar("")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-surface-hover hover:text-fg"><X size={16} /></button>
+          <button type="button" id={entradaId} onClick={() => { setAberto(true); setTimeout(() => entradaRef.current?.focus(), 0); }} className="min-h-9 cursor-pointer rounded-ctl px-2.5 text-[13px] font-semibold text-accent-forte hover:bg-accent-soft md:text-[12px]">Trocar</button>
+          <button type="button" aria-label="Remover contato" onClick={() => aoMudar("")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg"><X size={16} /></button>
         </div>
       ) : (
-        <div className="rounded-[10px] border border-line bg-bg focus-within:border-accent">
+        <div className="rounded-ctl border border-line bg-bg focus-within:border-accent">
           <div className="relative">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
             <input
@@ -326,7 +326,7 @@ export function SeletorContato({ contatos = [], valor, aoMudar, rotulo = "Contat
                 }
               }}
               placeholder={escolhido ? nomeDe(escolhido) : placeholder}
-              className="min-h-11 w-full rounded-[10px] bg-transparent pl-9 pr-3 text-[15px] text-fg outline-none placeholder:text-faint md:min-h-10 md:text-[13px]"
+              className="min-h-11 w-full rounded-ctl bg-transparent pl-9 pr-3 text-[15px] text-fg outline-none placeholder:text-faint md:min-h-10 md:text-[13px]"
             />
           </div>
           {aberto && (

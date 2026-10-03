@@ -71,7 +71,7 @@ export default function BarraLateral({
               <button
                 type="button"
                 onClick={() => (item.tarefa ? aoAbrirTarefa(item.tarefa) : aoAbrirEvento(item.evento))}
-                className={`min-h-8 min-w-0 flex-1 cursor-pointer truncate rounded-[6px] px-1 text-left text-[12.5px] hover:bg-surface-hover ${!item.tarefa && new Date(item.evento.fim) <= agora ? "text-faint" : "text-fg"}`}
+                className={`min-h-8 min-w-0 flex-1 cursor-pointer truncate rounded-ctl px-1 text-left text-[12.5px] hover:bg-surface-hover ${!item.tarefa && new Date(item.evento.fim) <= agora ? "text-faint" : "text-fg"}`}
                 title={item.titulo}
               >
                 {item.titulo}
@@ -80,13 +80,13 @@ export default function BarraLateral({
             </li>
           ))}
         </ul>
-        <button type="button" onClick={aoNovaTarefa} className="mt-2 flex min-h-8 cursor-pointer items-center gap-1.5 rounded-[7px] px-1 text-[12px] font-semibold text-accent-forte hover:bg-accent-soft">
+        <button type="button" onClick={aoNovaTarefa} className="mt-2 flex min-h-8 cursor-pointer items-center gap-1.5 rounded-ctl px-1 text-[12px] font-semibold text-accent-forte hover:bg-accent-soft">
           <Plus size={14} />Tarefa para hoje
         </button>
       </section>
 
       {atrasadas > 0 && (
-        <button type="button" onClick={aoIrParaTarefas} className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-danger/25 bg-danger/5 px-3 py-2.5 text-left text-[12px] text-danger hover:bg-danger/10">
+        <button type="button" onClick={aoIrParaTarefas} className="flex cursor-pointer items-center gap-2 rounded-ctl border border-danger/25 bg-danger/5 px-3 py-2.5 text-left text-[12px] text-danger hover:bg-danger/10">
           <AlertTriangle size={15} className="flex-none" />
           <span className="flex-1"><strong>{atrasadas}</strong> {atrasadas === 1 ? "tarefa atrasada" : "tarefas atrasadas"}</span>
           <ChevronRight size={15} />

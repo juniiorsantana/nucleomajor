@@ -32,7 +32,7 @@ export function AbaPlaybook({ agent, aoAbrirPlaybook }) {
   const publicado = (dados?.versao || 0) > 0;
   return (
     <div className="grid max-w-2xl gap-4">
-      <section className="rounded-[12px] border border-line p-4">
+      <section className="rounded-none border border-line p-4">
         <div className="flex flex-wrap items-center gap-2">
           <BookMarked size={16} className="text-accent-forte" />
           <h3 className="text-[13.5px] font-semibold">Playbook comercial da empresa</h3>
@@ -66,7 +66,7 @@ export function AbaPlaybook({ agent, aoAbrirPlaybook }) {
           <button
             type="button"
             onClick={aoAbrirPlaybook}
-            className="mt-3 w-full rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-auto"
+            className="mt-3 w-full rounded-ctl border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-auto"
           >
             {publicado ? "Editar playbook" : "Criar o playbook"}
           </button>
@@ -97,7 +97,7 @@ export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
       {colecoes.length ? (
         <div className="grid gap-2">
           {colecoes.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 rounded-[10px] border border-line p-3">
+            <div key={c.id} className="flex items-center gap-3 rounded-ctl border border-line p-3">
               <BookOpen size={15} className="shrink-0 text-accent" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[12.5px] font-semibold">{c.name}</p>
@@ -110,7 +110,7 @@ export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
           ))}
         </div>
       ) : (
-        <p className="rounded-[10px] border border-dashed border-line p-4 text-center text-[11px] text-sub">
+        <p className="rounded-ctl border border-dashed border-line p-4 text-center text-[11px] text-sub">
           Nenhuma coleção para este público ainda.
         </p>
       )}
@@ -118,7 +118,7 @@ export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
         <button
           type="button"
           onClick={aoAbrirBiblioteca}
-          className="w-full rounded-[8px] border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-fit"
+          className="w-full rounded-ctl border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-fit"
         >
           Abrir a Biblioteca
         </button>
@@ -193,7 +193,7 @@ export function AvaliacaoDoJev({ agent, canWrite }) {
   };
 
   return (
-    <section className="rounded-[14px] border border-line bg-bg p-4">
+    <section className="rounded-none border border-line bg-bg p-4">
       <div className="flex items-center gap-2">
         <Sparkles size={16} className="text-accent-forte" />
         <h3 className="text-[13.5px] font-semibold">Avaliar uma conversa com o Jev</h3>
@@ -210,7 +210,7 @@ export function AvaliacaoDoJev({ agent, canWrite }) {
         rows={8}
         maxLength={20000}
         disabled={!canWrite || rodando}
-        className="mt-3 w-full rounded-[10px] border border-line bg-bg p-3 font-mono text-[11.5px] leading-5 outline-none focus:border-accent disabled:bg-surface"
+        className="mt-3 w-full rounded-ctl border border-line bg-bg p-3 font-mono text-[11.5px] leading-5 outline-none focus:border-accent disabled:bg-surface"
       />
       <div className="mt-2 flex flex-col items-stretch gap-2 md:flex-row md:items-center">
         {!canWrite && <p className="text-[11px] text-faint">Só dono ou admin pode pedir a avaliação.</p>}
@@ -218,7 +218,7 @@ export function AvaliacaoDoJev({ agent, canWrite }) {
           type="button"
           onClick={avaliar}
           disabled={!canWrite || rodando || texto.trim().length < 10}
-          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:ml-auto md:min-h-0"
+          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 py-2 text-[11.5px] font-semibold text-white disabled:opacity-40 md:ml-auto md:min-h-0"
         >
           <Sparkles size={14} />
           {rodando ? "Avaliando…" : "Avaliar com o Jev"}
@@ -235,7 +235,7 @@ export function AvaliacaoDoJev({ agent, canWrite }) {
             <p className="text-[11.5px] text-sub md:col-span-3">O Jev não devolveu respostas que a tela saiba mostrar.</p>
           ) : (
             grupos.map((grupo) => (
-              <div key={grupo.titulo} className="rounded-[10px] bg-surface/70 p-3">
+              <div key={grupo.titulo} className="rounded-ctl bg-surface/70 p-3">
                 <p className="text-[10.5px] font-semibold text-sub">{grupo.titulo}</p>
                 <div className="mt-1.5 flex flex-col gap-1.5">
                   {grupo.itens.map((item) => (
@@ -263,7 +263,7 @@ function Indicador({ rotulo, taxa, bom = "baixo" }) {
   const valor = taxa?.pct;
   const tom = valor == null ? "text-faint" : (bom === "baixo" ? valor <= 20 : valor >= 60) ? "text-success" : "text-warning";
   return (
-    <div className="rounded-[10px] border border-line p-3">
+    <div className="rounded-ctl border border-line p-3">
       <p className="text-[10.5px] text-sub">{rotulo}</p>
       <p className={`mt-1 text-[20px] font-semibold tabular-nums ${tom}`}>{valor == null ? "—" : `${valor}%`}</p>
       <p className="text-[10px] text-faint">{taxa?.total ? `em ${taxa.total} ${taxa.total === 1 ? "conversa" : "conversas"}` : "sem leitura confiável"}</p>
@@ -312,7 +312,7 @@ export function AbaDesempenho({ agent }) {
   if (!d) return <p className="text-[12px] text-sub">Carregando leituras…</p>;
   if (!d.conversas) {
     return (
-      <div className="max-w-2xl rounded-[12px] border border-dashed border-line p-5 text-center">
+      <div className="max-w-2xl rounded-none border border-dashed border-line p-5 text-center">
         <ChartColumn size={22} className="mx-auto text-faint" />
         <p className="mt-2 text-[12px] text-sub">
           Nenhuma conversa de {agent.name} lida pelo Jev nos últimos 30 dias. A leitura acontece depois que a conversa fica
@@ -336,7 +336,7 @@ export function AbaDesempenho({ agent }) {
         <Indicador rotulo="Cliente insatisfeito" taxa={d.insatisfeito} />
         <Indicador rotulo="Pediu uma pessoa" taxa={d.pediuPessoa} />
       </div>
-      <section className="grid gap-4 rounded-[12px] border border-line p-4 md:grid-cols-2">
+      <section className="grid gap-4 rounded-none border border-line p-4 md:grid-cols-2">
         <div>
           <p className="mb-2 text-[11px] font-semibold text-sub">Temperatura dos leads</p>
           <Barra

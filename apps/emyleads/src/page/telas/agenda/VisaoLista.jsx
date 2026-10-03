@@ -94,7 +94,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, aoConcluir
   const umDia = dias.length === 1;
 
   return (
-    <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto rounded-[14px] border border-line bg-bg">
+    <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto rounded-none border border-line bg-bg">
       {/* O respiro do fim deixa o último compromisso sair de trás do "+". */}
       {grupos.map(({ dia, itens }) => {
         const ehHoje = chaveDia(dia) === hoje;
@@ -104,7 +104,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, aoConcluir
             <section key={chaveDia(dia)} className="flex min-h-12 items-center gap-2 border-b border-line px-4 last:border-b-0">
               <span className={`text-[14px] font-semibold first-letter:uppercase md:text-[12.5px] ${ehHoje ? "text-accent-forte" : "text-sub"}`}>{titulo}</span>
               <span className="text-[13px] text-faint md:text-[11.5px]">· Livre</span>
-              <button type="button" onClick={() => aoCriar(dia)} aria-label={`Marcar compromisso em ${titulo}`} className="ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
+              <button type="button" onClick={() => aoCriar(dia)} aria-label={`Marcar compromisso em ${titulo}`} className="ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
                 <CalendarPlus size={18} />
               </button>
             </section>
@@ -117,7 +117,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, aoConcluir
                 <span className={`text-[15px] font-semibold first-letter:uppercase md:text-[13px] ${ehHoje ? "text-accent-forte" : "text-fg"}`}>{titulo}</span>
                 {ehHoje && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-accent-forte md:text-[9.5px]">Hoje</span>}
                 <span className="text-[13px] text-faint md:text-[11px]">· {itens.length} {itens.length === 1 ? "item" : "itens"}</span>
-                <button type="button" onClick={() => aoCriar(dia)} aria-label={`Marcar compromisso em ${titulo}`} className="ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
+                <button type="button" onClick={() => aoCriar(dia)} aria-label={`Marcar compromisso em ${titulo}`} className="ml-auto flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9">
                   <CalendarPlus size={18} />
                 </button>
               </header>
@@ -141,7 +141,7 @@ export default function VisaoLista({ dias, eventos, aoAbrir, aoCriar, aoConcluir
               <div className="flex flex-col items-center px-6 py-14 text-center">
                 <p className="text-[16px] font-medium text-fg md:text-[14px]">{ehHoje ? "Nada marcado para hoje" : "Dia livre"}</p>
                 <p className="mt-1 text-[14px] text-sub md:text-[12.5px]">Nenhum compromisso nem tarefa com prazo neste dia.</p>
-                <button type="button" onClick={() => aoCriar(dia)} className="mt-4 flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-line px-4 text-[14px] font-semibold text-fg hover:border-accent hover:text-accent-forte md:min-h-9 md:text-[13px]">
+                <button type="button" onClick={() => aoCriar(dia)} className="mt-4 flex min-h-11 cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 text-[14px] font-semibold text-fg hover:border-accent hover:text-accent-forte md:min-h-9 md:text-[13px]">
                   <CalendarPlus size={16} />Marcar compromisso
                 </button>
               </div>
