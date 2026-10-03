@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useId, useRef } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import NavegacaoMobile from "./NavegacaoMobile";
+import { aparenciaDoAgent, gradeDoSimbolo } from "../domain/aparenciaDoAgente";
 
 /**
  * Peças da página de gestão.
@@ -40,6 +41,47 @@ export function Marca({ tamanho = 36, texto = true }) {
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * O símbolo de um agente de IA: quadrado, na cor dele, com a grade 5x5 que
+ * só ele tem. Pessoa é círculo (`Iniciais`); agente é quadrado. É isso que
+ * deixa claro, em qualquer tela, se quem fala é IA ou gente.
+ *
+ * `aparencia` sobrepõe a do agente: é o que a criação usa para mostrar a
+ * escolha antes de o agente existir.
+ */
+export function MarcaDoAgente({ agent = null, aparencia = null, tamanho = 32, titulo = null }) {
+  const { cor, semente } = aparencia || aparenciaDoAgent(agent);
+  const grade = gradeDoSimbolo(semente);
+  const passo = 100 / 7;
+  return (
+    <svg
+      width={tamanho}
+      height={tamanho}
+      viewBox="0 0 100 100"
+      role={titulo ? "img" : undefined}
+      aria-label={titulo || undefined}
+      aria-hidden={titulo ? undefined : true}
+      className="flex-none"
+    >
+      <rect width="100" height="100" fill={`color-mix(in srgb, var(--el-ag-${cor}) 14%, var(--el-bg))`} />
+      {grade.flatMap((linha, y) =>
+        linha.map((acesa, x) =>
+          acesa ? (
+            <rect
+              key={`${x}-${y}`}
+              x={(x + 1) * passo}
+              y={(y + 1) * passo}
+              width={passo + 0.2}
+              height={passo + 0.2}
+              fill={`var(--el-ag-${cor})`}
+            />
+          ) : null,
+        ),
+      )}
+    </svg>
   );
 }
 

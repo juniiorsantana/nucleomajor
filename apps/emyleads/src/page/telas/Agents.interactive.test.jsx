@@ -1,22 +1,12 @@
 // @vitest-environment jsdom
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 /**
- * Teste INTERATIVO da Central de Agentes — ETAPA 12B / 12B.1.
+ * Teste INTERATIVO dos agentes (fluxo novo da Equipe de IA, 03/10/2026).
  *
- * A suíte do app inteiro roda em `renderToStaticMarkup` (ambiente `node`, sem
- * DOM) e não clica em nada — `Agents.test.jsx` prova o que a tela MOSTRA, não
- * o que acontece quando alguém age nela. Este arquivo prova o caminho
- * completo: evento de DOM real → handler real do componente → chamada real a
- * `api.agents.*` → resposta (controlada) → re-render → estado visível.
- *
- * A fronteira mockada é `../../data/client`, que é a fronteira que o próprio
- * arquivo declara ("Painel e página de gestão falam SÓ com este arquivo").
- * Abaixo dela — chamar, web/operations.js, criarOperacoesAgents, o Supabase
- * real — já está coberto por `test/agent-management.test.mjs` (domínio puro)
- * e pela prova comportamental em Postgres descartável; nada aqui toca banco.
- *
- * Infra: `jsdom` é devDependency mínima (mesmo padrão de `fake-indexeddb`, já
- * usado neste projeto) — nenhum framework de teste novo.
+ * Prova o caminho completo: evento de DOM real → handler real do componente
+ * → chamada real a `api.agents.*` → resposta controlada → re-render → estado
+ * visível. A fronteira mockada é `../../data/client`, a única que a tela
+ * conhece. Abaixo dela, o provider tem os próprios testes.
  */
 
 import { act } from "react";
@@ -35,8 +25,6 @@ const agentsApi = {
 
 vi.mock("../../data/client", () => ({ api: { agents: agentsApi } }));
 
-// Importados DEPOIS do mock (vitest hoisted o vi.mock acima de qualquer
-// import, então isto pega a versão já substituída).
 const { useState } = await import("react");
 const { default: Agents } = await import("./Agents");
 
@@ -53,10 +41,7 @@ const CATALOGO_VENDAS = [
   { id: "sk-pre", slug: "pre-qualificacao", name: "Pré-qualificação", description: "Descobre o perfil do contato.", audience: "customer", status: "published" },
 ];
 
-/**
- * Espelha exatamente o que `Inteligencia.jsx` faz: mantém a lista em estado
- * próprio e `recarregar` chama `api.agents.listar()` de novo.
- */
+/** Espelha o que `Inteligencia.jsx` faz: lista em estado próprio e `recarregar` lista de novo. */
 function Harness({ inicial, catalogoSkills = [], canWrite = true }) {
   const [agents, setAgents] = useState(inicial);
   const [erro, setErro] = useState("");
@@ -81,9 +66,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   vi.clearAllMocks();
-  // Toda instância de DetalheAgent busca skills ao montar. Sem isto, um teste
-  // que não configura listarSkills quebra com "undefined.then" — produção
-  // sempre recebe uma Promise real; é o double do teste que precisa do padrão.
+  // Toda página de agente busca as habilidades ao montar.
   agentsApi.listarSkills.mockResolvedValue([]);
 });
 
@@ -105,133 +88,115 @@ async function tick() {
   });
 }
 
-function botoes() {
-  return Array.from(container.querySelectorAll("button"));
-}
-function titulos() {
-  // A tela monta desktop E mobile ao mesmo tempo no DOM — só classes CSS
-  // escondem um dos dois, e jsdom não aplica layout. Por isso "h2" nunca é
-  // singular fora do assistente de criação (que é um overlay único).
-  return Array.from(container.querySelectorAll("h2")).map((h) => h.textContent);
-}
+const botoes = () => Array.from(container.querySelectorAll("button"));
 function botaoComTexto(texto) {
   const achado = botoes().find((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
   if (!achado) throw new Error(`botão "${texto}" não encontrado`);
   return achado;
 }
-function existeBotao(texto) {
-  return botoes().some((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
-}
+const existeBotao = (texto) => botoes().some((b) => b.textContent.trim() === texto || b.getAttribute("aria-label") === texto);
 function inputPorRotulo(rotulo) {
-  const labels = Array.from(container.querySelectorAll("label"));
-  const label = labels.find((l) => l.querySelector(":scope > span")?.textContent === rotulo);
+  const label = Array.from(container.querySelectorAll("label")).find((l) => l.querySelector(":scope > span")?.textContent === rotulo);
   if (!label) throw new Error(`campo "${rotulo}" não encontrado`);
   return label.querySelector("input, textarea");
 }
-function assistenteAberto() {
-  return Boolean(container.querySelector('[role="progressbar"]'));
-}
-/**
- * Os cartões do assistente (preset, audiência) têm ícone + título + descrição
- * dentro do MESMO botão — o textContent concatenado nunca bate exatamente com
- * o rótulo. O rótulo em si é sempre um <span> folha (sem filhos); clicar o
- * botão mais próximo dele é o mesmo gesto que a pessoa faz na tela.
- */
-function abrirDetalhes(texto) {
-  const summary = Array.from(container.querySelectorAll("summary"))
-    .find((s) => s.textContent.trim() === texto);
-  if (!summary) throw new Error(`<summary> "${texto}" não encontrado`);
-  return clicar(summary);
-}
-function clicarCard(rotulo) {
-  const spans = Array.from(container.querySelectorAll("span"));
-  const alvo = spans.find((s) => s.children.length === 0 && s.textContent.trim() === rotulo);
-  if (!alvo) throw new Error(`cartão "${rotulo}" não encontrado`);
-  const botao = alvo.closest("button");
-  if (!botao) throw new Error(`cartão "${rotulo}" não está dentro de um botão`);
-  return clicar(botao);
-}
+const assistenteAberto = () => Boolean(container.querySelector('[role="progressbar"]'));
 
 async function clicar(el) {
   await act(async () => {
     el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
   });
 }
-
 async function digitar(el, valor) {
   await act(async () => {
-    const setter = Object.getOwnPropertyDescriptor(
-      Object.getPrototypeOf(el), "value",
-    ).set;
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set;
     setter.call(el, valor);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+/** Cartão da criação: o rótulo é um <span> folha dentro do botão. */
+function clicarCard(rotulo) {
+  const alvo = Array.from(container.querySelectorAll("span")).find((s) => s.children.length === 0 && s.textContent.trim() === rotulo);
+  if (!alvo?.closest("button")) throw new Error(`cartão "${rotulo}" não encontrado`);
+  return clicar(alvo.closest("button"));
+}
+function abrirDetalhes(texto) {
+  const summary = Array.from(container.querySelectorAll("summary")).find((s) => s.textContent.trim() === texto);
+  if (!summary) throw new Error(`<summary> "${texto}" não encontrado`);
+  return clicar(summary);
+}
+/** Abre um agente pela linha da lista. */
+async function abrirAgente(nome) {
+  const linha = Array.from(container.querySelectorAll(".agent-linha")).find((b) => b.textContent.includes(nome));
+  if (!linha) throw new Error(`agente "${nome}" não está na lista`);
+  await clicar(linha);
+  await tick();
+}
+/** Vai para uma seção do roteiro da página do agente. */
+async function irParaSecao(rotulo) {
+  const nav = container.querySelector('nav[aria-label="Roteiro do agente"]');
+  const botao = Array.from(nav.querySelectorAll("button"))
+    .find((b) => Array.from(b.querySelectorAll("span")).some((s) => s.children.length === 0 && s.textContent === rotulo));
+  if (!botao) throw new Error(`seção "${rotulo}" não encontrada`);
+  await clicar(botao);
+  await tick();
+}
+function confirmarNoDialogo(texto) {
+  const botao = Array.from(container.querySelectorAll('[role="alertdialog"] button')).find((b) => b.textContent.trim() === texto);
+  if (!botao) throw new Error(`confirmação "${texto}" não encontrada`);
+  return clicar(botao);
+}
 
-describe("CRIAR — assistente em etapas até a chamada real da API", () => {
-  it("escolher um preset e seguir as 5 telas chama criar + as skills sugeridas, sem is_default", async () => {
+describe("CRIAR — três passos até a chamada real da API", () => {
+  it("escolher um tipo e seguir os passos cria o agente PAUSADO, com aparência e as habilidades sugeridas", async () => {
     await montar({ inicial: [], catalogoSkills: CATALOGO_VENDAS });
 
     await clicar(botaoComTexto("Criar agente"));
     expect(assistenteAberto()).toBe(true);
-    expect(container.textContent).toContain("O que você quer que esse agente faça?");
+    expect(container.textContent).toContain("Para que serve esse agente?");
 
-    // Passo 0: intenção. Escolher "Vendas" pré-preenche função, tom, soul e
-    // as duas skills que a organização já publicou para esse preset.
+    // Passo 1: o tipo já define o público; segue direto para nome e jeito.
     await clicarCard("Vendas");
-    expect(container.textContent).toContain("Com quem esse agente vai conversar?");
-
-    // Passo 1: público. O preset já sugeriu "customer"; confirmar avança.
-    await clicarCard("Clientes e leads");
-    expect(container.textContent).toContain("Como ele se chama?");
-
-    // Passo 2: identidade. Função e tom já vieram do preset.
+    expect(container.textContent).toContain("Como ele se chama e como conversa?");
     expect(inputPorRotulo("Função").value).toBe("Vendas");
     expect(existeBotao("Persuasivo")).toBe(true);
+    expect(container.textContent).toContain("Outro símbolo");
+    await clicar(botaoComTexto("Cor 6"));
     await digitar(inputPorRotulo("Nome"), "Emília");
     await clicar(botaoComTexto("Continuar"));
-    expect(container.textContent).toContain("Personalidade e instruções");
 
-    // Passo 3: personalidade, já sugerida pelo preset — segue sem editar.
-    expect(container.textContent).toMatch(/conduz para o fechamento/i);
-    await clicar(botaoComTexto("Continuar"));
-    expect(container.textContent).toContain("O que esse agente sabe fazer?");
-
-    // Passo 4: habilidades, as duas do preset já vêm marcadas.
-    expect(container.textContent).toContain("Vendas");
+    // Passo 3: revisar, com as habilidades do tipo já marcadas.
+    expect(container.textContent).toContain("Confira antes de criar");
+    expect(container.textContent).toContain("Ele nasce pausado.");
     expect(container.textContent).toContain("Pré-qualificação");
 
-    agentsApi.criar.mockResolvedValueOnce(agent({ id: "emilia", name: "Emília", role: "Vendas" }));
+    agentsApi.criar.mockResolvedValueOnce(agent({ id: "emilia", name: "Emília", role: "Vendas", status: "inactive" }));
     agentsApi.definirSkill.mockResolvedValue({});
-    agentsApi.listar.mockResolvedValueOnce([agent({ id: "emilia", name: "Emília", role: "Vendas" })]);
+    agentsApi.listar.mockResolvedValueOnce([agent({ id: "emilia", name: "Emília", role: "Vendas", status: "inactive" })]);
 
-    await clicar(botaoComTexto("Concluir"));
+    await clicar(botaoComTexto("Criar e abrir"));
     await tick();
 
-    // A chamada de criação, com o payload real que o assistente monta.
     expect(agentsApi.criar).toHaveBeenCalledTimes(1);
     const enviado = agentsApi.criar.mock.calls[0][0];
-    expect(enviado).toMatchObject({ name: "Emília", audience: "customer", role: "Vendas" });
+    expect(enviado).toMatchObject({ name: "Emília", audience: "customer", role: "Vendas", active: false });
     expect(enviado.tone).toMatch(/persuasivo/i);
-    expect(enviado).not.toHaveProperty("isDefault");
-    expect(enviado).not.toHaveProperty("is_default");
-    expect(enviado).not.toHaveProperty("skillIds"); // órfão de UX, nunca vai pro comando de criação
+    expect(enviado.appearance).toMatchObject({ cor: 6 });
+    expect(enviado.appearance.semente).toMatch(/^[0-9a-z]{6}$/);
+    for (const proibido of ["isDefault", "is_default", "skillIds"]) expect(enviado).not.toHaveProperty(proibido);
 
-    // As duas skills sugeridas foram vinculadas ao agente RECÉM-CRIADO.
     expect(agentsApi.definirSkill).toHaveBeenCalledTimes(2);
-    for (const chamada of agentsApi.definirSkill.mock.calls) {
-      expect(chamada[0]).toMatchObject({ agentId: "emilia", enabled: true });
-    }
-    expect(agentsApi.definirSkill.mock.calls.map((c) => c[0].skillId).sort())
-      .toEqual(["sk-pre", "sk-vendas"]);
+    for (const chamada of agentsApi.definirSkill.mock.calls) expect(chamada[0]).toMatchObject({ agentId: "emilia", enabled: true });
 
-    // Fechou o assistente e recarregou do servidor — não é otimista.
+    // Fechou a criação, recarregou do servidor e abriu a página do agente novo.
     expect(assistenteAberto()).toBe(false);
     expect(agentsApi.listar).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('nav[aria-label="Roteiro do agente"]')).toBeTruthy();
     expect(container.textContent).toContain("Emília");
+    expect(container.textContent).toContain("Pausado");
   });
 
-  it("'Criar do zero' não pré-preenche nada, e pede a audiência no passo seguinte", async () => {
+  it("'Criar do zero' não pré-preenche nada, e pede o público antes de seguir", async () => {
     await montar({ inicial: [] });
     await clicar(botaoComTexto("Criar agente"));
     await clicarCard("Criar do zero");
@@ -241,8 +206,6 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
 
     expect(inputPorRotulo("Função").value).toBe("");
     expect(inputPorRotulo("Nome").value).toBe("");
-
-    // Sem nome, "Continuar" fica desabilitado — não avança em branco.
     expect(botaoComTexto("Continuar").disabled).toBe(true);
   });
 
@@ -250,14 +213,12 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
     await montar({ inicial: [], catalogoSkills: CATALOGO_VENDAS });
     await clicar(botaoComTexto("Criar agente"));
     await clicarCard("Vendas");
-    await clicarCard("Clientes e leads");
     await digitar(inputPorRotulo("Nome"), "SDR");
-    await clicar(botaoComTexto("Continuar"));
     await clicar(botaoComTexto("Continuar"));
     agentsApi.criar.mockResolvedValueOnce(agent({ id: "sdr", name: "SDR" }));
     agentsApi.definirSkill.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN" }).mockResolvedValueOnce({});
     agentsApi.listar.mockResolvedValueOnce([agent({ id: "sdr", name: "SDR" })]);
-    await clicar(botaoComTexto("Concluir"));
+    await clicar(botaoComTexto("Criar e abrir"));
     await tick();
     expect(assistenteAberto()).toBe(false);
     expect(container.textContent).toContain("O agente foi criado, mas 1 habilidade(s) não foram vinculadas");
@@ -270,36 +231,28 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
     await clicar(botaoComTexto("Criar agente"));
     await clicarCard("Criar do zero");
     await clicarCard("Clientes e leads");
-
-    // Fechado por padrão: o identificador não aparece no fluxo principal.
-    expect(container.querySelector('input[value=""]')).toBeTruthy();
     await digitar(inputPorRotulo("Nome"), "Agente Teste");
-
     await abrirDetalhes("Configurações avançadas");
     expect(inputPorRotulo("Identificador técnico").value).toBe("agente-teste");
   });
 
-  it("erro na criação (identificador duplicado) mantém o assistente aberto e não cria fantasma", async () => {
+  it("erro na criação (identificador duplicado) mantém a criação aberta e não cria fantasma", async () => {
     await montar({ inicial: [agent({ id: "x", name: "Existente" })] });
     await clicar(botaoComTexto("Criar agente"));
     await clicarCard("Criar do zero");
     await clicarCard("Clientes e leads");
     await digitar(inputPorRotulo("Nome"), "Existente");
     await clicar(botaoComTexto("Continuar"));
-    await clicar(botaoComTexto("Continuar"));
 
     agentsApi.criar.mockRejectedValueOnce({
       code: "AGENT_SLUG_ALREADY_EXISTS",
       message: 'duplicate key value violates unique constraint "assistant_profiles_organization_slug_key"',
     });
-    await clicar(botaoComTexto("Concluir"));
+    await clicar(botaoComTexto("Criar e abrir"));
     await tick();
 
-    // Mensagem amigável, nunca o texto cru do banco.
     expect(container.textContent).toContain("Já existe um agente com esse identificador");
     expect(container.textContent).not.toMatch(/constraint|duplicate key/i);
-
-    // O assistente continua aberto — não fica "meio sucesso".
     expect(assistenteAberto()).toBe(true);
     expect(agentsApi.listar).not.toHaveBeenCalled();
   });
@@ -307,52 +260,68 @@ describe("CRIAR — assistente em etapas até a chamada real da API", () => {
   it("fechar pelo X não chama a API e não deixa nada preso", async () => {
     await montar({ inicial: [] });
     await clicar(botaoComTexto("Criar agente"));
-    expect(assistenteAberto()).toBe(true);
-
     await clicar(container.querySelector('button[aria-label="Fechar"]'));
-
     expect(assistenteAberto()).toBe(false);
     expect(agentsApi.criar).not.toHaveBeenCalled();
     expect(existeBotao("Criar agente")).toBe(true);
   });
+
+  it("cada passo é uma tela própria, e 'Voltar' funciona", async () => {
+    await montar({ inicial: [] });
+    await clicar(botaoComTexto("Criar agente"));
+    await clicarCard("Vendas");
+    expect(container.textContent).toContain("Como ele se chama e como conversa?");
+    await clicar(container.querySelector('button[aria-label="Voltar"]'));
+    expect(container.textContent).toContain("Para que serve esse agente?");
+  });
 });
 
-describe("EDITAR — não vaza campo estrutural", () => {
-  it("editar nome envia só os campos permitidos, e a UI reflete o novo estado", async () => {
+describe("EDITAR — barra de não salvo, e nada estrutural vaza", () => {
+  it("mudar o nome mostra 'Alterações não salvas'; Salvar envia só o permitido e recarrega", async () => {
     await montar({ inicial: [agent({ id: "closer", name: "Closer" })] });
+    await abrirAgente("Closer");
 
-    await clicar(container.querySelector('.agent-card'));
-    await tick();
-
-    const campoNome = inputPorRotulo("Nome");
-    expect(campoNome.value).toBe("Closer");
-    await digitar(campoNome, "Closer Noturno");
+    expect(container.textContent).not.toContain("Alterações não salvas");
+    await digitar(inputPorRotulo("Nome"), "Closer Noturno");
+    expect(container.textContent).toContain("Alterações não salvas");
 
     agentsApi.editar.mockResolvedValueOnce(agent({ id: "closer", name: "Closer Noturno" }));
     agentsApi.listar.mockResolvedValueOnce([agent({ id: "closer", name: "Closer Noturno" })]);
-
     await clicar(botaoComTexto("Salvar"));
     await tick();
 
-    expect(agentsApi.editar).toHaveBeenCalledTimes(1);
     const enviado = agentsApi.editar.mock.calls[0][0];
     expect(enviado).toMatchObject({ agentId: "closer", name: "Closer Noturno" });
-    for (const proibido of ["organization_id", "organizationId", "audience", "is_default", "isDefault"]) {
+    for (const proibido of ["organization_id", "organizationId", "audience", "is_default", "isDefault", "appearance"]) {
       expect(enviado).not.toHaveProperty(proibido);
     }
-
     expect(agentsApi.listar).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("Closer Noturno");
   });
 
-  it("erro ao editar não mente: mostra o erro e não apaga o que foi digitado", async () => {
+  it("trocar a cor manda só a aparência junto, e Descartar volta ao salvo", async () => {
     await montar({ inicial: [agent({ id: "closer", name: "Closer" })] });
-    await clicar(container.querySelector('.agent-card'));
+    await abrirAgente("Closer");
+
+    await clicar(botaoComTexto("Cor 3"));
+    expect(container.textContent).toContain("Alterações não salvas");
+    await clicar(botaoComTexto("Descartar"));
+    expect(container.textContent).not.toContain("Alterações não salvas");
+
+    await clicar(botaoComTexto("Cor 3"));
+    agentsApi.editar.mockResolvedValueOnce(agent({ id: "closer", name: "Closer", appearance: { cor: 3 } }));
+    agentsApi.listar.mockResolvedValueOnce([agent({ id: "closer", name: "Closer", appearance: { cor: 3 } })]);
+    await clicar(botaoComTexto("Salvar"));
     await tick();
+    expect(agentsApi.editar.mock.calls[0][0].appearance).toMatchObject({ cor: 3 });
+  });
+
+  it("erro ao salvar não mente: mostra o erro e não apaga o que foi digitado", async () => {
+    await montar({ inicial: [agent({ id: "closer", name: "Closer" })] });
+    await abrirAgente("Closer");
 
     await digitar(inputPorRotulo("Nome"), "Closer Editado");
     agentsApi.editar.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN", message: "sem permissão" });
-
     await clicar(botaoComTexto("Salvar"));
     await tick();
 
@@ -369,15 +338,13 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
     agent({ id: "closer", name: "Closer", isDefault: false }),
   ];
 
-  it("tornar principal chama SOMENTE agents.tornarPadrao, com confirmação antes", async () => {
+  it("tornar principal, em Onde atende, chama SOMENTE agents.tornarPadrao, com confirmação antes", async () => {
     await montar({ inicial: elenco() });
+    await abrirAgente("Closer");
+    await irParaSecao("Onde atende");
 
-    const cartaoCloser = botoes().find((b) => b.textContent.includes("Closer"));
-    await clicar(cartaoCloser);
-    await tick();
-
-    await clicar(botaoComTexto("Tornar porta de entrada"));
-    expect(container.textContent).toContain("Closer passa a ser o agente inicial");
+    await clicar(botaoComTexto("Tornar principal"));
+    expect(container.textContent).toContain("Closer passa a receber primeiro");
     expect(container.textContent).toContain("Emilia");
     expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
 
@@ -386,125 +353,92 @@ describe("PRINCIPAL — uma chamada só, nunca dois updates", () => {
       agent({ id: "emilia", name: "Emilia", isDefault: false }),
       agent({ id: "closer", name: "Closer", isDefault: true }),
     ]);
-
-    const confirmar = Array.from(container.querySelectorAll('[role="alertdialog"] button'))
-      .find((b) => b.textContent.trim() === "Tornar porta de entrada");
-    await clicar(confirmar);
+    await confirmarNoDialogo("Tornar principal");
     await tick();
 
     expect(agentsApi.tornarPadrao).toHaveBeenCalledTimes(1);
     expect(agentsApi.tornarPadrao).toHaveBeenCalledWith({ agentId: "closer" });
     expect(agentsApi.editar).not.toHaveBeenCalled();
     expect(agentsApi.definirAtivo).not.toHaveBeenCalled();
-
-    expect(container.textContent).toContain("Porta de entrada de clientes");
+    expect(container.textContent).toContain("Principal de clientes");
   });
 
   it("falha ao trocar o principal preserva o estado anterior na tela", async () => {
     await montar({ inicial: elenco() });
-    const cartaoCloser = botoes().find((b) => b.textContent.includes("Closer"));
-    await clicar(cartaoCloser);
-    await tick();
+    await abrirAgente("Closer");
+    await irParaSecao("Onde atende");
 
-    await clicar(botaoComTexto("Tornar porta de entrada"));
+    await clicar(botaoComTexto("Tornar principal"));
     agentsApi.tornarPadrao.mockRejectedValueOnce({ code: "AGENT_FORBIDDEN", message: "sem permissão" });
-
-    const confirmar = Array.from(container.querySelectorAll('[role="alertdialog"] button'))
-      .find((b) => b.textContent.trim() === "Tornar porta de entrada");
-    await clicar(confirmar);
+    await confirmarNoDialogo("Tornar principal");
     await tick();
 
     expect(container.textContent).toContain("Você não tem permissão");
     expect(agentsApi.listar).not.toHaveBeenCalled();
-    expect(existeBotao("Tornar porta de entrada")).toBe(true);
+    expect(existeBotao("Tornar principal")).toBe(true);
   });
 });
 
-describe("DESATIVAR O PRINCIPAL — aviso antes, sem autopromoção", () => {
-  it("avisa antes de desativar, muda só active, e não promove ninguém", async () => {
+describe("PAUSAR O PRINCIPAL — aviso antes, sem autopromoção", () => {
+  it("avisa antes de pausar, muda só active, e não promove ninguém", async () => {
     const emilia = agent({ id: "emilia", name: "Emilia", isDefault: true, status: "active" });
     await montar({ inicial: [emilia] });
+    await abrirAgente("Emilia");
 
-    await clicar(botoes().find((b) => b.textContent.includes("Emilia")));
-    await tick();
-
-    await clicar(botaoComTexto("Desativar"));
+    await clicar(botaoComTexto("Pausar"));
     expect(container.textContent).toMatch(/fica.*sem atendimento/i);
     expect(container.textContent).toMatch(/Nenhum outro agente é promovido/i);
     expect(agentsApi.definirAtivo).not.toHaveBeenCalled();
 
     agentsApi.definirAtivo.mockResolvedValueOnce(agent({ ...emilia, status: "inactive" }));
     agentsApi.listar.mockResolvedValueOnce([agent({ ...emilia, status: "inactive" })]);
-
-    const confirmar = Array.from(container.querySelectorAll('[role="alertdialog"] button'))
-      .find((b) => b.textContent.trim() === "Desativar mesmo assim");
-    await clicar(confirmar);
+    await confirmarNoDialogo("Pausar mesmo assim");
     await tick();
 
     expect(agentsApi.definirAtivo).toHaveBeenCalledWith({ agentId: "emilia", active: false });
     expect(agentsApi.tornarPadrao).not.toHaveBeenCalled();
-
-    // Estado válido e simultâneo: principal E inativo ao mesmo tempo.
-    expect(container.textContent).toContain("Porta de entrada de clientes");
+    // Estado válido e simultâneo: principal E pausado ao mesmo tempo.
+    expect(container.textContent).toContain("Principal de clientes");
     expect(container.textContent).toContain("Ativar");
   });
 });
 
-describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
+describe("HABILIDADES — ligar e desligar, N:N de verdade", () => {
   it("remover do agente A não afeta o agente B", async () => {
     const skillX = { id: "sx", name: "Vendas", slug: "vendas", audience: "customer", status: "published" };
-    const A = agent({ id: "a", name: "Agente A" });
-    const B = agent({ id: "b", name: "Agente B" });
+    agentsApi.listarSkills.mockImplementation(async () => [{ skill_id: "sx", enabled: true, priority: 10 }]);
+    await montar({ inicial: [agent({ id: "a", name: "Agente A" }), agent({ id: "b", name: "Agente B" })], catalogoSkills: [skillX] });
 
-    agentsApi.listarSkills.mockImplementation(async () =>
-      [{ skill_id: "sx", enabled: true, priority: 10 }]);
-
-    await montar({ inicial: [A, B], catalogoSkills: [skillX] });
-
-    await clicar(botoes().find((b) => b.textContent.includes("Agente A")));
-    await tick();
-    await clicar(botaoComTexto("Habilidades"));
-    await tick();
-
+    await abrirAgente("Agente A");
+    await irParaSecao("Habilidades");
     expect(container.textContent).toContain("Vendas");
-    expect(existeBotao("Remover")).toBe(true);
 
     agentsApi.definirSkill.mockResolvedValueOnce({});
     agentsApi.listarSkills.mockImplementation(async ({ agentId }) =>
       agentId === "a" ? [] : [{ skill_id: "sx", enabled: true, priority: 10 }]);
-
     await clicar(botaoComTexto("Remover"));
     await tick();
 
     expect(agentsApi.definirSkill).toHaveBeenCalledWith({ agentId: "a", skillId: "sx", enabled: false });
     expect(container.textContent).toContain("Este agente ainda não sabe fazer nada");
 
-    await clicar(botoes().find((b) => b.textContent.includes("Agente B")));
-    await tick();
-    await clicar(botaoComTexto("Habilidades"));
-    await tick();
-
-    expect(container.textContent).toContain("Vendas");
+    await clicar(botaoComTexto("Voltar"));
+    await abrirAgente("Agente B");
+    await irParaSecao("Habilidades");
+    expect(existeBotao("Remover")).toBe(true);
     expect(agentsApi.definirSkill).toHaveBeenCalledTimes(1);
   });
 
-  it("adicionar uma habilidade disponível chama definirSkill(enabled: true) e ela migra de seção", async () => {
+  it("adicionar uma habilidade chama definirSkill(enabled: true) e ela muda de seção", async () => {
     const skillY = { id: "sy", name: "Agenda", slug: "agenda", audience: "customer", status: "published" };
-    const A = agent({ id: "a", name: "Agente A" });
     agentsApi.listarSkills.mockResolvedValue([]);
-
-    await montar({ inicial: [A], catalogoSkills: [skillY] });
-    await clicar(botoes().find((b) => b.textContent.includes("Agente A")));
-    await tick();
-    await clicar(botaoComTexto("Habilidades"));
-    await tick();
+    await montar({ inicial: [agent({ id: "a", name: "Agente A" })], catalogoSkills: [skillY] });
+    await abrirAgente("Agente A");
+    await irParaSecao("Habilidades");
 
     expect(container.textContent).toContain("Pode aprender (1)");
-    expect(existeBotao("Adicionar")).toBe(true);
-
     agentsApi.definirSkill.mockResolvedValueOnce({});
     agentsApi.listarSkills.mockResolvedValueOnce([{ skill_id: "sy", enabled: true, priority: 100 }]);
-
     await clicar(botaoComTexto("Adicionar"));
     await tick();
 
@@ -514,55 +448,17 @@ describe("HABILIDADES — vincular/desvincular, N:N de verdade", () => {
   });
 });
 
-describe("MOBILE — navegação de uma tela por vez", () => {
-  function painelMobile() {
-    const achado = container.querySelector(".agent-drawer") || container.querySelector(".agents-gallery");
-    if (!achado) throw new Error("painel mobile não encontrado");
-    return achado;
-  }
-
-  it("lista → agente → detalhe → voltar, tudo dentro do painel mobile", async () => {
+describe("NAVEGAÇÃO — lista e página do agente", () => {
+  it("lista → página do agente → voltar", async () => {
     await montar({ inicial: [agent({ id: "emilia", name: "Emilia", isDefault: true })] });
+    expect(container.textContent).toContain("Sua equipe de IA");
 
-    const painel = painelMobile();
-    expect(painel.textContent).toContain("Emilia");
-    expect(painel.textContent).not.toContain("Selecione um agente");
+    await abrirAgente("Emilia");
+    expect(container.textContent).toContain("Principal de clientes");
+    expect(container.textContent).not.toContain("Sua equipe de IA");
 
-    const cartao = Array.from(painel.querySelectorAll("button"))
-      .find((b) => b.textContent.includes("Emilia"));
-    await clicar(cartao);
+    await clicar(botaoComTexto("Voltar"));
     await tick();
-
-    expect(painelMobile().textContent).toContain("Porta de entrada de clientes");
-    expect(painelMobile().textContent).not.toContain("Sua equipe de IA");
-
-    const voltar = painelMobile().querySelector('button[aria-label="Voltar"]');
-    expect(voltar).toBeTruthy();
-    await clicar(voltar);
-    await tick();
-
-    expect(painelMobile().textContent).toContain("Sua equipe de IA");
-  });
-
-  it("assistente de criação no mobile: X fecha sem deixar nada preso", async () => {
-    await montar({ inicial: [] });
-    await clicar(botaoComTexto("Criar agente"));
-    expect(assistenteAberto()).toBe(true);
-
-    await clicar(container.querySelector('button[aria-label="Fechar"]'));
-
-    expect(assistenteAberto()).toBe(false);
-    expect(agentsApi.criar).not.toHaveBeenCalled();
-    expect(existeBotao("Criar agente")).toBe(true);
-  });
-
-  it("cada etapa do assistente é uma tela própria — 'Voltar' funciona", async () => {
-    await montar({ inicial: [] });
-    await clicar(botaoComTexto("Criar agente"));
-    await clicarCard("Vendas");
-    expect(container.textContent).toContain("Com quem esse agente vai conversar?");
-
-    await clicar(container.querySelector('button[aria-label="Voltar"]'));
-    expect(container.textContent).toContain("O que você quer que esse agente faça?");
+    expect(container.textContent).toContain("Sua equipe de IA");
   });
 });

@@ -68,7 +68,7 @@ export function selosDoAgent(agent) {
   const selos = [];
   if (agent?.isDefault) selos.push({ id: "principal", texto: "Principal", tom: "destaque" });
   selos.push(agent?.status === "inactive"
-    ? { id: "status", texto: "Inativo", tom: "apagado" }
+    ? { id: "status", texto: "Pausado", tom: "apagado" }
     : { id: "status", texto: "Ativo", tom: "vivo" });
   return selos;
 }
@@ -95,28 +95,28 @@ export function padraoDaAudiencia(agents, audience) {
 export function avisoAoDesativar(agent) {
   if (!agent?.isDefault || agent.status !== "active") return null;
   return {
-    titulo: "Desativar a porta de entrada?",
-    descricao: `${agent.name} é a porta de entrada de ${rotuloDeAudiencia(agent.audience).toLowerCase()}. `
-      + "Ao desativá-lo, novas conversas dessa audiência ficam sem atendimento até ele ser "
-      + "reativado ou outro agente virar a porta de entrada. Nenhum outro agente é promovido "
+    titulo: "Pausar o agente principal?",
+    descricao: `${agent.name} é o principal de ${rotuloDeAudiencia(agent.audience).toLowerCase()}. `
+      + "Pausado, as novas conversas desse público ficam sem atendimento até ele voltar "
+      + "ou outro agente virar o principal. Nenhum outro agente é promovido "
       + "automaticamente.",
-    rotulo: "Desativar mesmo assim",
+    rotulo: "Pausar mesmo assim",
   };
 }
 
 /** Promover pede confirmação, porque muda quem atende primeiro. */
 export function avisoAoTornarPadrao(agent, principalAtual) {
   return {
-    titulo: "Tornar este agente a porta de entrada?",
-    descricao: `${agent.name} passa a ser o agente inicial de `
+    titulo: "Tornar este agente o principal?",
+    descricao: `${agent.name} passa a receber primeiro quem chega de `
       + `${rotuloDeAudiencia(agent.audience).toLowerCase()}`
       + (principalAtual && principalAtual.id !== agent.id
-        ? `, no lugar de ${principalAtual.name}, que continua existindo como agente comum.`
+        ? `, no lugar de ${principalAtual.name}, que continua existindo e atende só pelas campanhas.`
         : ".")
       + (agent.status === "inactive"
-        ? " Ele está inativo: enquanto continuar assim, essa audiência segue sem atendimento."
+        ? " Ele está pausado: enquanto continuar assim, esse público segue sem atendimento."
         : ""),
-    rotulo: "Tornar porta de entrada",
+    rotulo: "Tornar principal",
   };
 }
 
@@ -159,7 +159,7 @@ export function mensagemDeErro(erro) {
     return "Já existe um agente com esse identificador. Troque o nome ou o identificador.";
   }
   if (codigo === AGENT_ERRORS.DEFAULT_ALREADY_EXISTS) {
-    return "Este público já tem uma porta de entrada. Use “Tornar porta de entrada” no agente desejado.";
+    return "Este público já tem um agente principal. Use “Tornar principal” no agente desejado.";
   }
   if (codigo === AGENT_ERRORS.FORBIDDEN) {
     return "Você não tem permissão para gerenciar agentes desta organização.";

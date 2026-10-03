@@ -11,14 +11,22 @@ import { mensagemDeGravacao } from "./conhecimento/erroDeGravacao";
 import { limparRascunho } from "./conhecimento/rascunhoLocal";
 import { useConfirmacao } from "./conhecimento/Confirmacao";
 
-export default function Conhecimento({ sessao, inteligencia = null, embedded = false }) {
+/**
+ * `somenteEnsino`: aberto de dentro de um agente ("Ensinar algo novo"). Só o
+ * assistente aparece, já no público do agente, e ao salvar ou fechar a tela
+ * volta para o agente (`aoTerminarEnsino`) em vez de abrir o editor.
+ */
+export default function Conhecimento({
+  sessao, inteligencia = null, embedded = false,
+  somenteEnsino = false, publicoInicial = null, aoTerminarEnsino = null,
+}) {
   const [documentos, setDocumentos] = useState([]);
   const [filtro, setFiltro] = useState("todos");
   const [busca, setBusca] = useState("");
   const [rascunho, setRascunho] = useState(null);
   // `null` = fechado; string = aberto no assunto que o primeiro acesso escolheu;
   // "" = aberto na etapa 1, sem assunto ainda.
-  const [assistente, setAssistente] = useState(null);
+  const [assistente, setAssistente] = useState(somenteEnsino ? "" : null);
   const [versoes, setVersoes] = useState(null);
   const [membros, setMembros] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -161,6 +169,10 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
       limparRascunho();
       await carregar();
       setAssistente(null);
+      if (somenteEnsino) {
+        aoTerminarEnsino?.({ salvo: true });
+        return;
+      }
       abrir({ ...salvo, colecoesIds: documento.colecoesIds }, { forcar: true });
       setSalvoEm(salvo.atualizadoEm || new Date().toISOString());
     } catch (e) {
@@ -206,6 +218,27 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
       <Plus size={16} /> Adicionar conhecimento
     </button>
   );
+
+  if (somenteEnsino) {
+    return (
+      <>
+        {assistente !== null && (
+          <AssistenteConhecimento
+            modeloId={null}
+            inteligencia={dadosInteligencia}
+            documentos={documentos}
+            salvando={salvando}
+            falha={falha}
+            aoFechar={() => { setAssistente(null); setFalha(null); aoTerminarEnsino?.({ salvo: false }); }}
+            aoSalvar={persistir}
+            somentePessoal={!ehAdmin}
+            publicoInicial={publicoInicial}
+          />
+        )}
+        {dialogoDeConfirmacao}
+      </>
+    );
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-x-hidden bg-surface">
