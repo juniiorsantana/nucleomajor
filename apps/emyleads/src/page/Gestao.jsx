@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Bot, Cable, CalendarDays, ChartColumn, ChevronDown, CircleUser, Filter, LibraryBig, LogOut, Megaphone, MessageSquare, Settings, SquareCheckBig, Users, UsersRound } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Cable, CalendarDays, ChartColumn, ChevronDown, CircleUser, Filter, LogOut, Megaphone, MessageSquare, Settings, SquareCheckBig, Users, UsersRound, Workflow } from "lucide-react";
 import { api } from "../data/client";
 import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
@@ -11,7 +11,8 @@ import FichaContato from "./telas/FichaContato";
 import Funil from "./telas/Funil";
 import Tarefas from "./telas/Tarefas";
 import { CampoFormulario, ENTRADA_GESTAO, ModalGestao } from "./telas/gestaoCompartilhados";
-import { BotaoPrimario, CabecalhoTela, Iniciais, Marca, Rail } from "./ui";
+import { BotaoPrimario, CabecalhoTela, DicaDoTrilho, GRUPO_DA_ORGANIZACAO, Iniciais, Rail } from "./ui";
+import { idsDosResponsaveis } from "./telas/tarefas/tarefasUtils";
 
 const Agenda = lazy(() => import("./telas/Agenda"));
 const Conversas = lazy(() => import("./telas/Conversas"));
@@ -27,28 +28,6 @@ const MinhaConta = lazy(() => import("./telas/MinhaConta"));
 
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
-/**
- * Recolher o menu é preferência, e preferência atravessa recarga.
- *
- * Quem esconde o menu quer espaço para a tela larga — a conversa, o funil, o
- * editor — e quer isso amanhã de novo. Reabrir sozinho a cada F5 transformaria
- * a escolha num clique diário.
- *
- * Fica no `localStorage` e não no Supabase de propósito: é preferência DESTE
- * computador. A mesma pessoa num monitor pequeno e num grande quer coisas
- * diferentes, e sincronizar isso seria sincronizar o incômodo.
- */
-const CHAVE_DO_MENU = "emyleads.menu.recolhido";
-
-function menuRecolhidoNoInicio() {
-  try {
-    return window.localStorage.getItem(CHAVE_DO_MENU) === "1";
-  } catch {
-    // Janela anônima, cookies bloqueados, extensão sem permissão: o menu
-    // simplesmente abre, que é o padrão. Preferência perdida não é falha.
-    return false;
-  }
-}
 
 /**
  * `grupo` é o rótulo que o menu desenha acima do bloco, não uma chave.
@@ -69,21 +48,23 @@ const TELAS = [
         // Só no portal. Dentro da extensão a conversa já está na tela — é o
         // WhatsApp com o painel do EmyLeads do lado. Uma caixa de entrada
         // dentro dela seria a mesma conversa duas vezes.
-        { id: "conversas", rotulo: "Conversas", icone: MessageSquare, grupo: "Atendimento" },
+        { id: "conversas", rotulo: "Conversas", icone: MessageSquare, grupo: "Atendimento", atalho: "C" },
       ]
     : []),
-  { id: "contatos", rotulo: "Leads", icone: Users, grupo: "Gestão" },
+  { id: "contatos", rotulo: "Leads", icone: Users, grupo: "Gestão", atalho: "L" },
   // Só no portal: lê as campanhas e os leads delas no banco. Liberada pelo
   // CRM, e não pela Inteligência, para o plano Base ver as campanhas dele.
-  ...(PLATAFORMA_WEB ? [{ id: "campanhas", rotulo: "Campanhas", icone: Megaphone, grupo: "Gestão" }] : []),
-  { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão" },
+  ...(PLATAFORMA_WEB ? [{ id: "campanhas", rotulo: "Campanhas", icone: Megaphone, grupo: "Gestão", atalho: "P" }] : []),
+  { id: "funil", rotulo: "Funil", icone: Filter, grupo: "Gestão", atalho: "F" },
   // Só no portal: conta pela marca de lead e pelo histórico de etapas, que
   // moram no banco; a extensão guarda os dados no navegador e não tem nenhum dos dois.
-  ...(PLATAFORMA_WEB ? [{ id: "relatorios", rotulo: "Relatórios", icone: ChartColumn, grupo: "Gestão" }] : []),
-  { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão" },
-  { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão" },
-  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Equipe de IA", icone: LibraryBig, grupo: "Automação" }] : []),
-  { id: "chatbots", rotulo: "Chatbots", icone: Bot, grupo: "Automação" },
+  ...(PLATAFORMA_WEB ? [{ id: "relatorios", rotulo: "Relatórios", icone: ChartColumn, grupo: "Gestão", atalho: "R" }] : []),
+  { id: "tarefas", rotulo: "Tarefas", icone: SquareCheckBig, grupo: "Gestão", atalho: "T" },
+  { id: "agenda", rotulo: "Agenda", icone: CalendarDays, grupo: "Gestão", atalho: "A" },
+  ...(PLATAFORMA_WEB ? [{ id: "conhecimento", rotulo: "Equipe de IA", icone: Bot, grupo: "Automação", atalho: "I", tom: "ia" }] : []),
+  // "Fluxos" e não "Chatbots": a tela é o construtor de fluxos, e o nome
+  // casa com a cor do ator Fluxo, a mesma da bolha e da lista de conversas.
+  { id: "chatbots", rotulo: "Fluxos", icone: Workflow, grupo: "Automação", atalho: "X", tom: "flow" },
   { id: "conexoes", rotulo: "Conexões", icone: Cable, grupo: "Ambiente" },
   { id: "equipe", rotulo: "Equipe", icone: UsersRound, grupo: "Ambiente" },
   { id: "config", rotulo: "Configurações", icone: Settings, grupo: "Ambiente" },
@@ -139,7 +120,7 @@ function DisponivelNoPlano({ tela, recursos }) {
   const semIA = tela === "conhecimento" && !planoLibera(recursos, "inteligencia");
   return (
     <div className="flex flex-1 items-center justify-center p-8">
-      <div className="max-w-[420px] rounded-[14px] border border-line bg-bg px-6 py-6 text-center">
+      <div className="max-w-[420px] rounded-none border border-line bg-bg px-6 py-6 text-center">
         {semIA ? (
           <>
             <h2 className="text-[16px] font-semibold text-fg">Disponível nos planos com IA</h2>
@@ -168,7 +149,7 @@ function AvisoAssinatura({ acesso }) {
     ? new Date(acesso.bloqueiaEm).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
     : null;
   return (
-    <div role="status" className="mx-6 mt-4 rounded-[10px] border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
+    <div role="status" className="mx-6 mt-4 rounded-ctl border border-warning/30 bg-warning/10 px-4 py-3 text-[12.5px] text-fg">
       Pagamento em atraso.{quando ? ` O acesso será suspenso em ${quando}` : " O acesso será suspenso em breve"} se a cobrança não for
       paga — o link está no e-mail enviado pelo Asaas.
     </div>
@@ -230,7 +211,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <div className="w-full max-w-md overflow-hidden rounded-[14px] border border-line bg-bg shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-none border border-line bg-bg ">
         <form onSubmit={enviar}>
           <div className="border-b border-line px-5 py-4 text-[16px] font-semibold text-fg">
             {contato?.id ? "Editar lead" : "Criar lead"}
@@ -246,7 +227,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
                   required={c.obrigatorio}
                   value={form[c.chave] || ""}
                   onChange={(e) => setForm({ ...form, [c.chave]: e.target.value })}
-                  className="w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
+                  className="w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent"
                 />
               </label>
             ))}
@@ -267,7 +248,7 @@ function ModalContato({ contato, aoFechar, aoSalvar }) {
               <button
                 type="button"
                 onClick={aoFechar}
-                className="cursor-pointer rounded-[8px] px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:text-fg"
+                className="cursor-pointer rounded-ctl px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:text-fg"
               >
                 Cancelar
               </button>
@@ -320,7 +301,7 @@ function ModalNota({ contato, aoFechar, aoSalvar }) {
           {erro && <p className="mt-2 text-[12px] text-danger">{erro}</p>}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-          <button type="button" onClick={aoFechar} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
+          <button type="button" onClick={aoFechar} className="rounded-ctl px-3 py-2 text-[13px] font-medium text-sub hover:text-fg">
             Cancelar
           </button>
           <BotaoPrimario type="submit" disabled={salvando || !texto.trim()} className="!py-2">
@@ -348,14 +329,14 @@ function EmConstrucao({ titulo }) {
 function AvisoMigracao({ migracao }) {
   if (!migracao) return null;
   return (
-    <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-[10px] border border-accent/25 bg-accent-soft px-4 py-3 text-[12.5px] text-sub">
+    <div className="mx-6 mt-4 flex flex-wrap items-center gap-3 rounded-ctl border border-accent/25 bg-accent-soft px-4 py-3 text-[12.5px] text-sub">
       <span className="min-w-0 flex-1">
         Há dados antigos neste navegador aguardando migração para esta organização.
       </span>
       <button
         type="button"
         onClick={migracao.aoReabrir}
-        className="cursor-pointer rounded-[8px] px-3 py-1.5 font-semibold text-accent-forte hover:bg-bg"
+        className="cursor-pointer rounded-ctl px-3 py-1.5 font-semibold text-accent-forte hover:bg-bg"
       >
         Revisar migração
       </button>
@@ -372,9 +353,24 @@ function AvisoMigracao({ migracao }) {
  * segue a mesma separação do modelo de dados: quem você é em cima, em que
  * empresa você está embaixo.
  */
-function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) {
+function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, compacto = false, telasDaOrganizacao = [], ativa = null, aoAbrirTela = null }) {
   const [aberto, setAberto] = useState(false);
   const [erro, setErro] = useState("");
+  const caixa = useRef(null);
+
+  // Clique fora ou Esc fecham o menu. Sem isso ele ficava aberto por cima da
+  // tela até alguém clicar de novo no mesmo botão.
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const aoClicar = (e) => { if (!caixa.current?.contains(e.target)) setAberto(false); };
+    const aoTeclar = (e) => { if (e.key === "Escape") setAberto(false); };
+    document.addEventListener("mousedown", aoClicar);
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.removeEventListener("mousedown", aoClicar);
+      document.removeEventListener("keydown", aoTeclar);
+    };
+  }, [aberto]);
 
   const sair = async () => {
     try {
@@ -402,76 +398,140 @@ function RodapeWorkspace({ sessao, aoTrocar, aoAbrirConta, recolhido = false }) 
   const apelido = nomeCurto(perfil, sessao.usuario?.email || "Conta");
   const cor = corDaPessoa(perfil);
   const papel = PAPEIS[sessao.organizacaoAtual.papel] || "";
+  const empresa = sessao.organizacaoAtual.name || "Empresa";
+  const iniciaisDaEmpresa = empresa
+    .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase() || "NM";
+  const organizacoes = sessao.organizacoes || [];
 
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setAberto(!aberto)}
-        title={recolhido ? `${apelido} · ${sessao.organizacaoAtual.name}` : undefined}
-        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[12px] text-left transition-colors hover:bg-surface-hover ${
-          recolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"
-        }`}
-      >
-        <Iniciais nome={perfil?.full_name || apelido} tamanho={30} cor={cor} />
-        {!recolhido && (
-          <>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
-              <span className="block truncate text-[11.5px] text-sub">
-                {sessao.organizacaoAtual.name}
-                {papel && ` · ${papel}`}
-              </span>
-            </span>
-            <ChevronDown size={15} className={`flex-none text-sub transition-transform ${aberto ? "rotate-180" : ""}`} />
-          </>
-        )}
-      </button>
-      {aberto && (
-        // Recolhido o rodapé mede 44px: o menu abriria espremido contra a
-        // borda. Largura própria, ancorada à esquerda, e ele cresce por cima
-        // do conteúdo — que é para onde há espaço.
-        <div className={`absolute bottom-[calc(100%+8px)] left-0 z-20 overflow-hidden rounded-[10px] border border-line bg-bg p-1 shadow-xl ${recolhido ? "w-[248px]" : "right-0"}`}>
-          <div className="flex items-center gap-2.5 px-2.5 py-2">
-            <Iniciais nome={perfil?.full_name || apelido} tamanho={32} cor={cor} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
-              <span className="block truncate text-[11.5px] text-sub">{sessao.usuario?.email || "Conta conectada"}</span>
-            </span>
+  const item = "flex w-full cursor-pointer items-center gap-2.5 rounded-ctl px-2.5 py-2 text-left text-[12.5px] text-sub hover:bg-surface-hover hover:text-fg";
+
+  const menu = (
+    <div
+      role="menu"
+      className={`absolute z-40 overflow-hidden rounded-none border border-line-strong bg-bg p-1 ${
+        compacto ? "bottom-0 left-[calc(100%+10px)] w-[264px]" : "bottom-[calc(100%+8px)] left-0 right-0"
+      }`}
+    >
+      {compacto && (
+        <>
+          <div className="-m-1 mb-1 border-b border-line px-3.5 py-3">
+            <span className="block truncate text-[13px] font-semibold text-fg">{empresa}</span>
+            {papel && <span className="block truncate text-[11.5px] text-faint">Você é {papel.toLowerCase()}</span>}
           </div>
-          <button
-            onClick={() => {
-              setAberto(false);
-              aoAbrirConta?.();
-            }}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-sub hover:bg-surface-hover hover:text-fg"
-          >
-            <CircleUser size={15} /> Minha conta
-          </button>
+          {telasDaOrganizacao.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="menuitem"
+              aria-current={t.id === ativa ? "page" : undefined}
+              onClick={() => {
+                setAberto(false);
+                aoAbrirTela?.(t.id);
+              }}
+              className={`${item} ${t.id === ativa ? "bg-surface-hover font-medium text-fg shadow-[inset_2px_0_0_var(--el-signal)]" : ""}`}
+            >
+              <t.icone size={15} strokeWidth={1.75} aria-hidden="true" /> {t.rotulo}
+            </button>
+          ))}
+          {telasDaOrganizacao.length > 0 && <div className="my-1 border-t border-line" />}
+        </>
+      )}
+      <div className="flex items-center gap-2.5 px-2.5 py-2">
+        <Iniciais nome={perfil?.full_name || apelido} tamanho={28} cor={cor} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[12.5px] font-semibold text-fg">{apelido}</span>
+          <span className="block truncate text-[11px] text-sub">{sessao.usuario?.email || "Conta conectada"}</span>
+        </span>
+      </div>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setAberto(false);
+          aoAbrirConta?.();
+        }}
+        className={item}
+      >
+        <CircleUser size={15} strokeWidth={1.75} aria-hidden="true" /> Minha conta
+      </button>
 
+      {organizacoes.length > 1 && (
+        <>
           <div className="my-1 border-t border-line" />
           <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-faint">
             Trocar de empresa
           </p>
-          {sessao.organizacoes.map((org) => (
-            <button key={org.id} onClick={() => trocar(org.id)} className="flex w-full cursor-pointer items-center rounded-[7px] px-2.5 py-2 text-left text-[12.5px] text-sub hover:bg-surface-hover hover:text-fg">
+          {organizacoes.map((org) => (
+            <button key={org.id} type="button" role="menuitem" onClick={() => trocar(org.id)} className={item}>
               <span className="min-w-0 flex-1 truncate">{org.name}</span>
-              {org.id === sessao.organizacaoAtual.id && <span className="text-[11px] text-accent-forte">Atual</span>}
+              {org.id === sessao.organizacaoAtual.id && <span className="text-[11px] font-medium text-signal">Atual</span>}
             </button>
           ))}
-          <div className="my-1 border-t border-line" />
-          <button onClick={sair} className="flex w-full cursor-pointer items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[12.5px] text-danger hover:bg-danger/10">
-            <LogOut size={14} /> Sair
-          </button>
-          {erro && <p className="px-2.5 pb-1 text-[11px] text-danger">{erro}</p>}
-        </div>
+        </>
       )}
+      <div className="my-1 border-t border-line" />
+      <button type="button" role="menuitem" onClick={sair} className="flex w-full cursor-pointer items-center gap-2.5 rounded-ctl px-2.5 py-2 text-left text-[12.5px] text-danger hover:bg-danger-soft">
+        <LogOut size={14} aria-hidden="true" /> Sair
+      </button>
+      {erro && <p className="px-2.5 pb-1 text-[11px] text-danger">{erro}</p>}
+    </div>
+  );
+
+  if (compacto) {
+    const naOrganizacao = telasDaOrganizacao.some((t) => t.id === ativa);
+    return (
+      <div ref={caixa} className="relative">
+        <button
+          type="button"
+          onClick={() => setAberto(!aberto)}
+          aria-haspopup="menu"
+          aria-expanded={aberto}
+          aria-label={`${empresa}: conexões, equipe, configurações e conta`}
+          className={`group relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-ctl border text-[11.5px] font-semibold tracking-tight transition-colors ${
+            aberto || naOrganizacao ? "border-fg bg-bg text-fg" : "border-line-strong bg-bg text-sub hover:border-faint hover:text-fg"
+          }`}
+        >
+          {iniciaisDaEmpresa}
+          {!aberto && <DicaDoTrilho rotulo={empresa} estado="ajustes e conta" />}
+        </button>
+        {aberto && menu}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={caixa} className="relative">
+      <button
+        type="button"
+        onClick={() => setAberto(!aberto)}
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        className="flex w-full cursor-pointer items-center gap-2.5 rounded-none border border-line px-3 py-2.5 text-left transition-colors hover:bg-surface-hover"
+      >
+        <Iniciais nome={perfil?.full_name || apelido} tamanho={30} cor={cor} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-semibold text-fg">{apelido}</span>
+          <span className="block truncate text-[11.5px] text-sub">
+            {empresa}
+            {papel && ` · ${papel}`}
+          </span>
+        </span>
+        <ChevronDown size={15} className={`flex-none text-sub transition-transform ${aberto ? "rotate-180" : ""}`} />
+      </button>
+      {aberto && menu}
     </div>
   );
 }
 
 export default function Gestao({ sessao = null, atualizarSessao = null, migracaoPendente = null, telaInicial = null, aoTrocarTela = null }) {
   const recursos = sessao?.acesso?.recursos || null;
-  const telasDoPlano = TELAS.filter((item) => telaLiberada(item.id, recursos));
+  const telasDoPlano = useMemo(() => TELAS.filter((item) => telaLiberada(item.id, recursos)), [recursos]);
   const [telaEscolhida, setTela] = useState(telaInicial || TELA_PADRAO);
   const tela = telaDeEntrada(telaEscolhida, recursos);
   const [dados, setDados] = useState(null);
@@ -484,7 +544,6 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const [notaContato, setNotaContato] = useState(null);
   const [comando, setComando] = useState(null);
   const [chatbotEditando, setChatbotEditando] = useState(undefined); // undefined = lista fechada, null = novo
-  const [menuRecolhido, setMenuRecolhido] = useState(menuRecolhidoNoInicio);
 
   const carregar = useCallback(async () => {
     try {
@@ -524,17 +583,6 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
     aoTrocarTela?.(proxima);
   }, [aoTrocarTela]);
 
-  const alternarMenu = useCallback(() => {
-    setMenuRecolhido((antes) => {
-      const proximo = !antes;
-      try {
-        window.localStorage.setItem(CHAVE_DO_MENU, proximo ? "1" : "0");
-      } catch {
-        // Sem onde guardar, a escolha vale só nesta sessão — e continua valendo.
-      }
-      return proximo;
-    });
-  }, []);
 
   useEffect(() => {
     const sincronizar = () => {
@@ -552,24 +600,69 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   }, [carregar]);
 
   // ⌘K / Ctrl+K foca a busca — o atalho está desenhado no campo, então tem
-  // que funcionar de verdade. ⌘B / Ctrl+B recolhe o menu, que é o atalho que
-  // todo editor usa para a mesma coisa.
+  // que funcionar de verdade.
+  //
+  // "G" e depois a letra do destino (G C, G F...) troca de tela: é o atalho
+  // que a dica do trilho mostra. Só vale fora de campo de texto, e a segunda
+  // tecla tem 1,2s para chegar; depois disso o "G" é esquecido.
   useEffect(() => {
+    let esperandoDestino = 0;
+    const digitando = (alvo) =>
+      alvo instanceof HTMLElement && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName));
     const aoTeclar = (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      const tecla = e.key.toLowerCase();
-      if (tecla === "k") {
-        e.preventDefault();
-        document.querySelector('input[placeholder^="Buscar"]')?.focus();
+      const tecla = (e.key || "").toLowerCase();
+      if (e.metaKey || e.ctrlKey) {
+        if (tecla === "k") {
+          e.preventDefault();
+          buscarNaTela();
+        }
+        return;
       }
-      if (tecla === "b") {
-        e.preventDefault();
-        alternarMenu();
+      if (e.altKey || digitando(e.target)) return;
+      if (esperandoDestino && Date.now() - esperandoDestino < 1200) {
+        esperandoDestino = 0;
+        const destino = telasDoPlano.find((t) => t.atalho && t.atalho.toLowerCase() === tecla);
+        if (destino) {
+          e.preventDefault();
+          trocarTela(destino.id);
+        }
+        return;
       }
+      esperandoDestino = tecla === "g" ? Date.now() : 0;
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, [alternarMenu]);
+  }, [telasDoPlano, trocarTela]);
+
+  const buscarNaTela = () => document.querySelector('input[placeholder^="Buscar"]')?.focus();
+
+  const trocarOrganizacao = async (proximo) => {
+    setDados(null);
+    // Descarrega a credencial local do workspace que está saindo antes de
+    // qualquer consulta do novo. Uma credencial que sobrevive à troca é acesso
+    // que o usuário acha que encerrou.
+    const anterior = sessao?.organizacaoAtual?.id;
+    if (anterior && anterior !== proximo) {
+      await api.gateway.descarregar({ organizationId: anterior }).catch(() => {});
+    }
+    if (atualizarSessao) await atualizarSessao(proximo);
+    await carregar();
+  };
+
+  // Contagens do trilho: só o que é DA PESSOA e está esperando. Tarefas abertas
+  // que são suas e vencem hoje ou já venceram. Conversas e o estado do
+  // WhatsApp não chegam até aqui (cada tela carrega os seus), e o trilho não
+  // desenha número que não sabe.
+  const contagens = (() => {
+    const meuId = sessao?.usuario?.id;
+    if (!dados || !meuId) return {};
+    const fimDeHoje = new Date();
+    fimDeHoje.setHours(23, 59, 59, 999);
+    const vencendo = dados.tarefas.filter(
+      (t) => !t.concluida && t.venceEm != null && t.venceEm <= fimDeHoje.getTime() && idsDosResponsaveis(t).includes(meuId),
+    ).length;
+    return vencendo ? { tarefas: { numero: vencendo, texto: vencendo === 1 ? "1 sua para hoje" : `${vencendo} suas para hoje` } } : {};
+  })();
 
   const abrirFicha = (contato) => {
     if (contato) setFicha(contato);
@@ -678,74 +771,37 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   return (
     <div className="portal-shell flex h-dvh bg-surface text-fg">
       {/*
-        O menu recolhe pela LARGURA de quem o envolve, e não deixando de ser
-        desenhado. A diferença importa: `Rail` desenha duas navegações, a de
-        computador e a barra de baixo do celular, e a do celular é
-        `position: fixed` — está fora do fluxo, e por isso continua inteira
-        quando esta caixa encolhe. Deixar de desenhar `Rail` levaria a
-        navegação do celular junto, e no celular não há menu lateral para
-        recolher: só a barra de baixo, que é a única forma de navegar.
+        O trilho tem largura FIXA de 60px no computador e zero no celular.
 
-        `w-0 md:...` e não `w-auto`: no celular esta caixa precisa medir zero
-        SEMPRE — lá dentro só há a navegação escondida do computador e a barra
-        fixa de baixo, e uma largura automática que um dia medisse diferente
-        abriria uma coluna vazia na tela do celular. A largura fixa é também o
-        que torna a animação possível: o CSS não interpola de `auto` para zero.
+        `w-0 md:w-[60px]` e não `w-auto`: no celular esta caixa precisa medir
+        zero SEMPRE. Lá dentro só há a navegação escondida do computador e a
+        barra fixa de baixo (`position: fixed`, fora do fluxo), e uma largura
+        automática abriria uma coluna vazia na tela do celular.
 
-        Recolhido são 68px e não zero: 44px de alvo mais os 12px de respiro de
-        cada lado. Cabe o ícone, a marca e o avatar da conta — some o texto,
-        não a navegação.
-
-        Sem `overflow-hidden`: a dica que devolve o rótulo no modo ícone vive
-        FORA da barra, à direita, e um recorte aqui a comeria. Ela não precisa
-        mais existir: a `nav` lá dentro é `w-full` e acompanha esta largura em
-        vez de estourar dela.
+        Sem `overflow-hidden`: a dica de cada ícone vive FORA da barra, à
+        direita, e um recorte aqui a comeria.
       */}
       {!editorDeChatbotAberto && (
-      <div
-        className={`flex-none transition-[width] duration-200 ${
-          menuRecolhido ? "w-0 md:w-[68px]" : "w-0 md:w-64"
-        }`}
-      >
+      <div className="w-0 flex-none md:w-[60px]">
       <Rail
         telas={telasDoPlano}
         ativa={tela}
         aoTrocar={trocarTela}
-        recolhido={menuRecolhido}
-        aoAlternar={alternarMenu}
-        rodape={
+        contagens={contagens}
+        aoBuscar={buscarNaTela}
+        rodape={sessao ? <RodapeWorkspace sessao={sessao} aoAbrirConta={() => trocarTela("conta")} aoTrocar={trocarOrganizacao} /> : null}
+        rodapeCompacto={
           sessao ? (
             <RodapeWorkspace
+              compacto
               sessao={sessao}
-              recolhido={menuRecolhido}
+              telasDaOrganizacao={telasDoPlano.filter((t) => t.grupo === GRUPO_DA_ORGANIZACAO)}
+              ativa={tela}
+              aoAbrirTela={trocarTela}
               aoAbrirConta={() => trocarTela("conta")}
-              aoTrocar={async (proximo) => {
-                setDados(null);
-                // Descarrega a credencial local do workspace que está saindo
-                // antes de qualquer consulta do novo. Uma credencial que
-                // sobrevive à troca é acesso que o usuário acha que encerrou.
-                const anterior = sessao?.organizacaoAtual?.id;
-                if (anterior && anterior !== proximo) {
-                  await api.gateway.descarregar({ organizationId: anterior }).catch(() => {});
-                }
-                if (atualizarSessao) await atualizarSessao(proximo);
-                await carregar();
-              }}
+              aoTrocar={trocarOrganizacao}
             />
-          ) : (
-            <div
-              className={`flex items-center gap-2.5 rounded-[12px] ${menuRecolhido ? "justify-center py-1" : "border border-line px-3 py-2.5"}`}
-              title={menuRecolhido ? `EmyLeads · ${dados ? `${dados.contatos.length} leads` : "carregando"}` : undefined}
-            >
-              <Marca tamanho={30} texto={false} />
-              {!menuRecolhido && (
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-semibold text-fg">EmyLeads</div>
-                  <div className="truncate text-[11.5px] text-sub">{dados ? `${dados.contatos.length} leads` : "Carregando…"}</div>
-                </div>
-              )}
-            </div>
-          )
+          ) : null
         }
       />
       </div>
@@ -764,7 +820,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
         <AvisoMigracao migracao={migracaoPendente} />
         <AvisoAssinatura acesso={sessao?.acesso} />
         {erro ? (
-          <div className="m-8 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
+          <div className="m-8 rounded-ctl border border-danger/40 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
             {erro}
           </div>
         ) : !dados ? (
@@ -792,9 +848,6 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               aoDefinirAtendimentoIA={definirAtendimentoIA}
               fluxosManuais={fluxosManuais}
               aoIniciarFluxo={iniciarFluxo}
-              aoAbrirConversa={() => {
-                if (!menuRecolhido) alternarMenu();
-              }}
               telefoneParaAbrir={telefoneParaAbrir}
               aoConsumirTelefone={() => setTelefoneParaAbrir(null)}
               sessao={sessao}

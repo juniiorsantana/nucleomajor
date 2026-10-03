@@ -151,7 +151,7 @@ function BlocoEvento({
       draggable={editavel}
       onDragStart={(e) => aoDragStart(e, evento)}
       onClick={(e) => { e.stopPropagation(); aoAbrir(evento); }}
-      className={`group absolute flex flex-col overflow-hidden rounded-[8px] border-l-[3px] px-2 py-1 text-left text-fg shadow-[0_1px_2px_rgba(18,23,48,0.06)] transition-[box-shadow,transform] hover:z-[20] hover:shadow-[0_4px_12px_rgba(18,23,48,0.18)] ${Z_CASCATA[indiceCascata] || "z-[2]"} ${tarefa ? "border-dashed" : ""} ${editavel ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+      className={`group absolute flex flex-col overflow-hidden rounded-ctl border-l-2 px-2 py-1 text-left text-fg  transition-[box-shadow,transform] hover:z-[20]  ${Z_CASCATA[indiceCascata] || "z-[2]"} ${tarefa ? "border-dashed" : ""} ${editavel ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
       style={{
         top: topo,
         height: altura,
@@ -163,7 +163,8 @@ function BlocoEvento({
         background: apagado ? `${hachura}, ${fundo}` : fundo,
         borderLeftColor: cor,
         ...(provisorio ? { borderTop: `1px dashed ${cor}`, borderRight: `1px dashed ${cor}`, borderBottom: `1px dashed ${cor}` } : null),
-        ...(indiceCascata > 0 ? { boxShadow: "-3px 0 8px rgba(18,23,48,.13)" } : null),
+        // Sem sombra: na cascata, um filete da cor do fundo separa um evento do outro.
+        ...(indiceCascata > 0 ? { boxShadow: "-1px 0 0 var(--el-bg)" } : null),
       }}
       title={`${evento.titulo} · ${horaLocal(evento.inicio)}–${horaLocal(evento.fim)} · ${tipo.rotulo}${evento.categoryName ? ` · ${evento.categoryName}` : ""} · ${evento.ownerName || "Sem responsável"}`}
     >
@@ -192,7 +193,7 @@ function BlocoEvento({
           {densidade === "completa" && (
             <span className="mt-auto flex min-w-0 items-center gap-1.5 text-[10px] leading-[13px] text-sub">
               {evento.categoryName && (
-                <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ backgroundColor: evento.categoryColor || "#8B7CFF" }} />
+                <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ backgroundColor: evento.categoryColor || "var(--el-faint)" }} />
               )}
               <span className="truncate">
                 {[evento.categoryName, evento.local].filter(Boolean).join(" · ") || evento.ownerName}
@@ -426,14 +427,14 @@ export default function GradeAgenda({
 
   if (!colunas.length) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center rounded-[14px] border border-line bg-bg text-[12px] text-faint">
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-none border border-line bg-bg text-[12px] text-faint">
         Nenhum profissional para exibir com os filtros atuais.
       </div>
     );
   }
 
   return (
-    <div ref={rolagemRef} className="scrollbar-fina min-h-0 flex-1 overflow-auto rounded-[14px] border border-line bg-bg">
+    <div ref={rolagemRef} className="scrollbar-fina min-h-0 flex-1 overflow-auto rounded-none border border-line bg-bg">
       <div style={{ width: dias.length === 1 && !agruparPorPessoa ? "100%" : `${larguraMinima}px`, minWidth: "100%" }}>
         <div className="sticky top-0 z-20 grid border-b border-line bg-bg/95 backdrop-blur" style={{ gridTemplateColumns: gradeColunas }}>
           {/* A régua acompanha a rolagem horizontal. Sem isto, arrastar a
@@ -488,7 +489,7 @@ export default function GradeAgenda({
                       key={`${evento.sourceType}-${evento.id}`}
                       type="button"
                       onClick={() => aoAbrir(evento)}
-                      className="mb-1 block w-full cursor-pointer truncate rounded-[6px] border-l-[3px] px-2 py-1 text-left text-[10.5px] font-semibold text-fg"
+                      className="mb-1 block w-full cursor-pointer truncate rounded-ctl border-l-2 px-2 py-1 text-left text-[10.5px] font-semibold text-fg"
                       style={{ background: fundoDoEvento(cor), borderLeftColor: cor }}
                     >
                       {evento.titulo}
@@ -501,7 +502,7 @@ export default function GradeAgenda({
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: gradeColunas }}>
-          <div className="sticky left-0 z-[9] border-r border-line bg-bg shadow-[4px_0_6px_-4px_rgba(18,23,48,0.12)]" style={{ height: altura }}>
+          <div className="sticky left-0 z-[9] border-r border-line bg-bg " style={{ height: altura }}>
             {/* 11px em `sub` e não 9,5px em `faint`: em branco o faint dá
                 2,58:1, e a régua é a única coisa da tela que se lê o dia
                 inteiro sem querer. */}
@@ -560,7 +561,7 @@ export default function GradeAgenda({
                 ))}
                 {selecionando && (
                   <div
-                    className="pointer-events-none absolute inset-x-1 z-[3] rounded-[7px] border border-accent bg-accent-soft/80"
+                    className="pointer-events-none absolute inset-x-1 z-[3] rounded-none border border-signal bg-signal-soft/80"
                     style={{
                       top: (Math.min(selecao.inicio, selecao.fim) - inicioMinuto) * alturaPorMinuto,
                       height: Math.max(passo, Math.abs(selecao.fim - selecao.inicio)) * alturaPorMinuto,
@@ -572,8 +573,8 @@ export default function GradeAgenda({
                   </div>
                 )}
                 {coluna.hoje && minutosAgora >= inicioMinuto && minutosAgora <= fimMinuto && (
-                  <div className="pointer-events-none absolute inset-x-0 z-[5] border-t border-accent" style={{ top: (minutosAgora - inicioMinuto) * alturaPorMinuto }}>
-                    <span className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-accent" />
+                  <div className="pointer-events-none absolute inset-x-0 z-[5] border-t border-signal" style={{ top: (minutosAgora - inicioMinuto) * alturaPorMinuto }}>
+                    <span className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-signal" />
                   </div>
                 )}
                 {agruparParaCascata(visiveis, maxCascata).map(({ chave, mostrados, excedente }) => (
@@ -614,7 +615,7 @@ export default function GradeAgenda({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); aoVerDia(coluna.dia); }}
                         title={excedente.map((item) => `${horaLocal(item.evento.inicio)} ${item.evento.titulo}`).join("\n")}
-                        className="absolute inset-x-0.5 z-[8] flex cursor-pointer items-center justify-center gap-1 rounded-[6px] bg-fg px-2 text-[10.5px] font-bold text-bg hover:brightness-110"
+                        className="absolute inset-x-0.5 z-[8] flex cursor-pointer items-center justify-center gap-1 rounded-ctl bg-fg px-2 text-[10.5px] font-bold text-bg hover:brightness-110"
                         style={{
                           top: (Math.max(mostrados[0].inicioMinutos, inicioMinuto) - inicioMinuto) * alturaPorMinuto
                             + Math.max(18, (mostrados[0].fimMinutos - Math.max(mostrados[0].inicioMinutos, inicioMinuto)) * alturaPorMinuto - 2) + 2,

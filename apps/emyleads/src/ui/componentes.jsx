@@ -100,7 +100,7 @@ export function Botao({ variante = "primario", className = "", ...props }) {
   };
   return (
     <button
-      className={`cursor-pointer rounded-el px-2.5 py-1.5 text-[12px] transition-all ${variantes[variante]} ${className}`}
+      className={`cursor-pointer rounded-ctl px-2.5 py-1.5 text-[12px] transition-all ${variantes[variante]} ${className}`}
       {...props}
     />
   );
@@ -110,7 +110,7 @@ export function BotaoIcone({ titulo, className = "", ...props }) {
   return (
     <button
       title={titulo}
-      className={`flex cursor-pointer items-center justify-center rounded-el p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg ${className}`}
+      className={`flex cursor-pointer items-center justify-center rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg ${className}`}
       {...props}
     />
   );
@@ -119,7 +119,7 @@ export function BotaoIcone({ titulo, className = "", ...props }) {
 export function Entrada({ className = "", ...props }) {
   return (
     <input
-      className={`w-full rounded-el border border-line bg-bg px-2.5 py-1.5 text-[12.5px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent ${className}`}
+      className={`w-full rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-[12.5px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent ${className}`}
       {...props}
     />
   );
@@ -182,7 +182,7 @@ export function Cartao({ titulo, acao, children, className = "" }) {
     // na altura disponível em vez de a pilha rolar — a ficha inteira ficava
     // achatada, com o conteúdo cortado dentro de cada cartão.
     <section
-      className={`shrink-0 overflow-hidden rounded-el-lg border border-line bg-bg ${className}`}
+      className={`shrink-0 overflow-hidden rounded-ctl border border-line bg-bg ${className}`}
     >
       {titulo && (
         <div className="flex items-center gap-2 px-3 pb-1 pt-2.5">
@@ -256,7 +256,7 @@ export function Esqueleto({ linhas = 4 }) {
       {Array.from({ length: linhas }).map((_, i) => (
         <div
           key={i}
-          className="h-3 animate-pulse rounded bg-surface-hover"
+          className="h-3 animate-pulse rounded-ctl bg-surface-hover"
           style={{ width: `${90 - i * 12}%` }}
         />
       ))}

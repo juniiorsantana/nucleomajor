@@ -90,7 +90,7 @@ function Campo({ rotulo, ajuda, children }) {
   );
 }
 
-const entrada = "mt-1 w-full rounded-[9px] border border-line bg-bg px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:bg-surface disabled:text-faint";
+const entrada = "mt-1 w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:bg-surface disabled:text-faint";
 
 /** Cartão da lista. Um agente é uma entidade com cara própria, não uma linha de formulário. */
 function CartaoAgent({ agent, ativo, aoAbrir, skills = [] }) {
@@ -224,10 +224,10 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f1424]/55 backdrop-blur-[2px] md:items-center md:p-4">
-      <section className="flex h-full w-full flex-col overflow-hidden bg-bg md:h-auto md:max-h-[92vh] md:max-w-lg md:rounded-[16px] md:border md:border-line md:shadow-2xl">
+      <section className="flex h-full w-full flex-col overflow-hidden bg-bg md:h-auto md:max-h-[92vh] md:max-w-lg md:rounded-none md:border md:border-line ">
         <header className="flex flex-none items-center gap-3 border-b border-line px-5 py-4">
           {passo > 0 ? (
-            <button onClick={voltar} className="-ml-1.5 rounded-[8px] p-1.5 text-sub" aria-label="Voltar">
+            <button onClick={voltar} className="-ml-1.5 rounded-ctl p-1.5 text-sub" aria-label="Voltar">
               <ArrowLeft size={18} />
             </button>
           ) : null}
@@ -254,8 +254,8 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
                   const Icone = ICONE_DO_PRESET[preset.id] ?? Bot;
                   return (
                     <button key={preset.id} onClick={() => escolherPreset(preset)}
-                      className="flex flex-col items-start gap-2 rounded-[12px] border border-line bg-bg p-3.5 text-left transition hover:border-accent hover:bg-accent-soft/30">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent-forte">
+                      className="flex flex-col items-start gap-2 rounded-none border border-line bg-bg p-3.5 text-left transition hover:border-accent hover:bg-accent-soft/30">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-ctl bg-accent-soft text-accent-forte">
                         <Icone size={17} />
                       </span>
                       <span>
@@ -278,10 +278,10 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
               <div className="grid gap-2.5">
                 {AUDIENCIAS.map((audiencia) => (
                   <button key={audiencia.id} onClick={() => escolherAudience(audiencia.id)}
-                    className={`flex items-center gap-3 rounded-[12px] border p-4 text-left transition ${
+                    className={`flex items-center gap-3 rounded-none border p-4 text-left transition ${
                       form.audience === audiencia.id ? "border-accent bg-accent-soft" : "border-line hover:border-faint"
                     }`}>
-                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] ${
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl ${
                       audiencia.id === "internal" ? "bg-accent-soft text-accent-forte" : "bg-[#e6f6f2] text-[#08796e]"
                     }`}>
                       {audiencia.id === "internal" ? <Users size={18} /> : <MessageCircle size={18} />}
@@ -334,7 +334,7 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
                   className={`${entrada} mt-2`} />
               </div>
 
-              <details className="rounded-[10px] border border-line">
+              <details className="rounded-ctl border border-line">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold text-sub [&::-webkit-details-marker]:hidden">
                   <ChevronDown size={14} />Configurações avançadas
                 </summary>
@@ -348,7 +348,7 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
 
               {erro ? <p className="text-[11.5px] text-danger" role="alert">{erro}</p> : null}
               <button onClick={() => setPasso(3)} disabled={!nomeValido}
-                className="rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">
+                className="rounded-ctl bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">
                 Continuar
               </button>
             </div>
@@ -370,7 +370,7 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
                 rows={8} className={`${entrada} leading-5`}
                 placeholder="Ex.: recebe cada pessoa com atenção, entende o que ela precisa antes de responder e nunca soa como um robô de menu." />
               <button onClick={() => setPasso(4)}
-                className="rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white">
+                className="rounded-ctl bg-accent px-4 py-2.5 text-[12px] font-semibold text-white">
                 Continuar
               </button>
             </div>
@@ -388,7 +388,7 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
                     const marcada = form.skillIds.includes(skill.id);
                     return (
                       <label key={skill.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-[10px] border p-3 ${
+                        className={`flex cursor-pointer items-start gap-3 rounded-ctl border p-3 ${
                           marcada ? "border-accent bg-accent-soft/40" : "border-line"
                         }`}>
                         <input type="checkbox" checked={marcada} onChange={() => alternarSkill(skill.id)}
@@ -402,19 +402,19 @@ export function AssistenteDeCriacao({ catalogoSkills, aoFechar, aoCriar }) {
                   })}
                 </div>
               ) : (
-                <p className="rounded-[10px] border border-dashed border-line p-4 text-center text-[11px] text-sub">
+                <p className="rounded-ctl border border-dashed border-line p-4 text-center text-[11px] text-sub">
                   Nenhuma habilidade publicada para essa audiência ainda. Você pode vincular depois.
                 </p>
               )}
 
-              <p className="rounded-[10px] bg-surface p-3 text-[10.5px] leading-4 text-sub">
+              <p className="rounded-ctl bg-surface p-3 text-[10.5px] leading-4 text-sub">
                 {form.name || "Esse agente"} vai atender como um agente comum. Quem responde primeiro continua
                 sendo o agente principal — você pode tornar {form.name || "este"} o principal depois de criado.
               </p>
 
               {erro ? <p className="text-[11.5px] text-danger" role="alert">{erro}</p> : null}
               <button onClick={concluir} disabled={salvando}
-                className="inline-flex items-center justify-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">
+                className="inline-flex items-center justify-center gap-2 rounded-ctl bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">
                 <Check size={14} />{salvando ? "Criando…" : "Concluir"}
               </button>
             </div>
@@ -512,7 +512,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex-none border-b border-line px-4 pt-4 md:px-6">
         <div className="flex items-start gap-3">
-          <button onClick={aoVoltar} className="-ml-1 rounded-[8px] p-1.5 text-sub" aria-label="Voltar">
+          <button onClick={aoVoltar} className="-ml-1 rounded-ctl p-1.5 text-sub" aria-label="Voltar">
             <ArrowLeft size={18} />
           </button>
           <Avatar agent={agent} tamanho={44} />
@@ -530,17 +530,17 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
         {canWrite ? (
           <div className="agent-acoes mt-3 flex flex-wrap gap-2">
             {agent.isDefault ? (
-              <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-accent-soft px-3 py-1.5 text-[11px] font-semibold text-accent-forte">
+              <span className="inline-flex items-center gap-1.5 rounded-ctl bg-accent-soft px-3 py-1.5 text-[11px] font-semibold text-accent-forte">
                 <ShieldCheck size={13} />Porta de entrada de {rotuloDeAudiencia(agent.audience).toLowerCase()}
               </span>
             ) : (
               <button onClick={() => acoes.tornarPadrao(agent)}
-                className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-3 py-1.5 text-[11px] font-semibold hover:border-accent">
+                className="inline-flex items-center gap-1.5 rounded-ctl border border-line px-3 py-1.5 text-[11px] font-semibold hover:border-accent">
                 <Star size={13} />Tornar porta de entrada
               </button>
             )}
             <button onClick={() => acoes.alternarAtivo(agent)}
-              className="inline-flex items-center gap-1.5 rounded-[8px] border border-line px-3 py-1.5 text-[11px] font-semibold hover:border-accent">
+              className="inline-flex items-center gap-1.5 rounded-ctl border border-line px-3 py-1.5 text-[11px] font-semibold hover:border-accent">
               <Power size={13} />{agent.status === "active" ? "Desativar" : "Ativar"}
             </button>
           </div>
@@ -555,7 +555,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
         <div className="mt-3 hidden gap-1 overflow-x-auto md:flex">
           {abas.map(([id, rotulo]) => (
             <button key={id} onClick={() => setAba(id)}
-              className={`min-w-fit rounded-t-[8px] border-b-2 px-3 py-2 text-[11.5px] font-semibold ${
+              className={`min-w-fit rounded-t-ctl border-b-2 px-3 py-2 text-[11.5px] font-semibold ${
                 aba === id ? "border-accent text-accent-forte" : "border-transparent text-sub"
               }`}>{rotulo}</button>
           ))}
@@ -582,7 +582,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
             </Campo>
 
             <details open={avancado} onToggle={(e) => setAvancado(e.target.open)}
-              className="rounded-[10px] border border-line">
+              className="rounded-ctl border border-line">
               <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold text-sub [&::-webkit-details-marker]:hidden">
                 <ChevronDown size={14} />Configurações avançadas
               </summary>
@@ -622,7 +622,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
               {vinculadas.length ? (
                 <div className="grid gap-2">
                   {vinculadas.map((skill) => (
-                    <div key={skill.id} className="flex items-center gap-3 rounded-[10px] border border-line p-3">
+                    <div key={skill.id} className="flex items-center gap-3 rounded-ctl border border-line p-3">
                       <Sparkles size={15} className="shrink-0 text-accent" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12.5px] font-semibold">{skill.name}</p>
@@ -630,7 +630,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
                       </div>
                       {canWrite ? (
                         <button onClick={() => trocarSkill(skill.id, false)}
-                          className="shrink-0 rounded-[7px] border border-line px-2.5 py-1 text-[10.5px] text-sub hover:border-danger hover:text-danger">
+                          className="shrink-0 rounded-ctl border border-line px-2.5 py-1 text-[10.5px] text-sub hover:border-danger hover:text-danger">
                           Remover
                         </button>
                       ) : null}
@@ -638,7 +638,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
                   ))}
                 </div>
               ) : (
-                <p className="rounded-[10px] border border-dashed border-line p-4 text-center text-[11px] text-sub">
+                <p className="rounded-ctl border border-dashed border-line p-4 text-center text-[11px] text-sub">
                   Este agente ainda não sabe fazer nada. Adicione abaixo.
                 </p>
               )}
@@ -649,14 +649,14 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
               {disponiveis.length ? (
                 <div className="grid gap-2">
                   {disponiveis.map((skill) => (
-                    <div key={skill.id} className="flex items-center gap-3 rounded-[10px] border border-line bg-surface/50 p-3">
+                    <div key={skill.id} className="flex items-center gap-3 rounded-ctl border border-line bg-surface/50 p-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12.5px] font-semibold">{skill.name}</p>
                         <p className="truncate text-[10.5px] text-sub">{descricaoDaSkill(skill)}</p>
                       </div>
                       {canWrite ? (
                         <button onClick={() => trocarSkill(skill.id, true)}
-                          className="shrink-0 rounded-[7px] bg-accent px-2.5 py-1 text-[10.5px] font-semibold text-white">
+                          className="shrink-0 rounded-ctl bg-accent px-2.5 py-1 text-[10.5px] font-semibold text-white">
                           Adicionar
                         </button>
                       ) : null}
@@ -664,7 +664,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
                   ))}
                 </div>
               ) : (
-                <p className="rounded-[10px] border border-dashed border-line p-4 text-center text-[11px] text-sub">
+                <p className="rounded-ctl border border-dashed border-line p-4 text-center text-[11px] text-sub">
                   Nenhuma outra habilidade publicada para esta audiência.
                 </p>
               )}
@@ -682,7 +682,7 @@ export function DetalheAgent({ agent, catalogoSkills, canWrite, aoVoltar, acoes,
           {erro ? <p className="text-[11.5px] text-danger" role="alert">{erro}</p> : null}
           {salvo && !sujo ? <p className="text-[11.5px] text-success">Salvo.</p> : null}
           <button onClick={salvar} disabled={!sujo || salvando}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-[9px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40 md:ml-auto md:w-auto">
+            className="inline-flex w-full items-center justify-center gap-2 rounded-ctl bg-accent px-4 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40 md:ml-auto md:w-auto">
             <Check size={14} />{salvando ? "Salvando…" : "Salvar"}
           </button>
         </footer>
@@ -825,7 +825,7 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
         ) : null}
       </div>
 
-      {falha ? <p className="mx-4 mt-3 rounded-[9px] bg-danger/10 p-2.5 text-[11.5px] text-danger md:mx-5" role="alert">{falha}</p> : null}
+      {falha ? <p className="mx-4 mt-3 rounded-ctl bg-danger/10 p-2.5 text-[11.5px] text-danger md:mx-5" role="alert">{falha}</p> : null}
 
       <div className="agents-status-filter" aria-label="Filtrar agentes por status">
         {[["todos", `Todos (${(agents ?? []).length})`], ["active", `Ativos (${ativos})`], ["inactive", `Inativos (${(agents ?? []).length - ativos})`]].map(([status, label]) => (
@@ -838,7 +838,7 @@ export default function Agents({ agents, catalogoSkills, bindings = [], aoAtuali
                   skills={separarSkills(catalogoSkills, bindings.filter(binding => binding.profile_id === agent.id), agent.audience).vinculadas}
                   ativo={agent.id === selecionadoId} aoAbrir={(a) => setSelecionadoId(a.id)} />
         ))) : (
-          <p className="rounded-[12px] border border-dashed border-line p-8 text-center text-[12px] text-sub">
+          <p className="rounded-none border border-dashed border-line p-8 text-center text-[12px] text-sub">
             Nenhum agente configurado.
           </p>
         )}

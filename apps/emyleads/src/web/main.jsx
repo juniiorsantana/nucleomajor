@@ -1,8 +1,20 @@
+import { lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation, useNavigate } from "react-router-dom";
 import "../ui/theme.css";
-import AuthGate from "../page/AuthGate";
-import Gestao from "../page/Gestao";
+import { painelEscolhido } from "./painel";
+import { TrocaDePainel } from "./TrocaDePainel";
+
+// Dois painéis, um código cada: o novo (Sistema Grafite, src/page) e o
+// antigo (cópia congelada, src/page-classico). Só o escolhido é baixado.
+const PAINEL = painelEscolhido();
+document.documentElement.dataset.painel = PAINEL;
+if (PAINEL === "novo") {
+  import("@fontsource-variable/geist");
+  import("@fontsource-variable/geist-mono");
+}
+const AuthGate = lazy(() => (PAINEL === "novo" ? import("../page/AuthGate") : import("../page-classico/AuthGate")));
+const Gestao = lazy(() => (PAINEL === "novo" ? import("../page/Gestao") : import("../page-classico/Gestao")));
 
 /*
  * Todo destino do menu precisa de slug aqui, e a falta de um não dá erro — dá
@@ -58,6 +70,9 @@ function WebApp() {
 
 createRoot(document.getElementById("raiz")).render(
   <BrowserRouter basename="/app">
-    <WebApp />
+    <Suspense fallback={null}>
+      <WebApp />
+    </Suspense>
+    <TrocaDePainel painel={PAINEL} />
   </BrowserRouter>,
 );

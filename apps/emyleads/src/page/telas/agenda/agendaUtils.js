@@ -486,11 +486,15 @@ export function corDaPessoa(id, cores) {
  * já existia em CORES_PESSOA ou nos tokens de texto.
  */
 export const TIPOS_EVENTO = [
-  { id: "appointment", rotulo: "Compromisso", cor: "#4F3CFC" },
-  { id: "event", rotulo: "Evento", cor: "#0EA5E9" },
-  { id: "task", rotulo: "Tarefa", cor: "#D97706" },
-  { id: "block", rotulo: "Bloqueio", cor: "#667085" },
-  { id: "unavailable", rotulo: "Indisponível", cor: "#98A2B3" },
+  // Sistema Grafite (02/10/2026): as cores saem dos tokens e mudam com o tema.
+  // Compromisso é o azul de sinal (é o que a pessoa marcou e precisa cumprir),
+  // evento da empresa é o grafite, tarefa é a cor de pendência, e bloqueio e
+  // indisponível são cinzas. Antes o compromisso usava o roxo da marca antiga.
+  { id: "appointment", rotulo: "Compromisso", cor: "var(--el-signal)" },
+  { id: "event", rotulo: "Evento", cor: "var(--el-fg)" },
+  { id: "task", rotulo: "Tarefa", cor: "var(--el-warning)" },
+  { id: "block", rotulo: "Bloqueio", cor: "var(--el-faint)" },
+  { id: "unavailable", rotulo: "Indisponível", cor: "var(--el-line-strong)" },
 ];
 
 const TIPO_POR_ID = new Map(TIPOS_EVENTO.map((tipo) => [tipo.id, tipo]));
@@ -554,7 +558,7 @@ export function somarPorCategoria(eventos) {
   const mapa = new Map();
   eventos.filter((evento) => evento.sourceType !== "task" && !evento.diaInteiro).forEach((evento) => {
     const chave = evento.titulo === "Indisponível" ? "Indisponível" : evento.categoryName || "Atividade";
-    const atual = mapa.get(chave) || { nome: chave, cor: evento.titulo === "Indisponível" ? "#CBD5E1" : evento.categoryColor, minutos: 0 };
+    const atual = mapa.get(chave) || { nome: chave, cor: evento.titulo === "Indisponível" ? "var(--el-line-strong)" : evento.categoryColor, minutos: 0 };
     atual.minutos += minutosVisiveis(evento);
     mapa.set(chave, atual);
   });

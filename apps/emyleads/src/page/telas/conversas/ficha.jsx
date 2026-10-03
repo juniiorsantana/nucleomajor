@@ -84,9 +84,7 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
 
   return (
     <div
-      className={`mt-3.5 rounded-[11px] border px-3 py-2.5 ${
-        atende ? "border-line" : "border-danger/25 bg-danger/5"
-      }`}
+      className={`-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5 ${atende ? "" : "bg-danger-soft pb-3.5"}`}
     >
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
@@ -99,24 +97,28 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
           aria-label="A IA atende este contato"
           disabled={salvando || !aoDefinir || !conhecido}
           onClick={alternar}
-          className={`ml-auto flex h-[22px] w-[40px] flex-none cursor-pointer items-center rounded-full border p-[2px] transition-colors disabled:cursor-default disabled:opacity-40 ${
-            atende ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-bg"
+          className={`ml-auto flex h-[20px] w-[36px] flex-none cursor-pointer items-center rounded-ctl border p-[2px] transition-colors disabled:cursor-default disabled:opacity-40 ${
+            atende ? "justify-end border-ia bg-ia" : "justify-start border-line-strong bg-surface"
           }`}
         >
-          <span className={`block h-[16px] w-[16px] rounded-full ${atende ? "bg-white" : "bg-line-strong"}`} />
+          {/* Ligado é a cor da IA: o interruptor diz quem responde, como o resto da conversa. */}
+          <span className={`block h-[14px] w-[14px] rounded-[1px] ${atende ? "bg-bg" : "border border-line-strong bg-bg"}`} />
         </button>
       </div>
-      <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
-        {salvando
-          ? "Salvando…"
-          : !conhecido
-            ? erro
-              ? "Não deu para conferir agora. Recarregue a conversa para tentar de novo."
-              : "Conferindo no servidor…"
-            : atende
-            ? "A IA responde este número. Desligue para contatos pessoais — nada é enviado a quem está desligado."
-            : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
-      </p>
+      {/* Ligado não ganha frase: o interruptor violeta já diz que a IA atende.
+          O texto fica para o que precisa ser explicado: salvando, conferindo,
+          falhou ou desligado. */}
+      {(salvando || !conhecido || !atende) && (
+        <p className="mt-1.5 text-[11.5px] leading-4 text-sub">
+          {salvando
+            ? "Salvando…"
+            : !conhecido
+              ? erro
+                ? "Não deu para conferir agora. Recarregue a conversa para tentar de novo."
+                : "Conferindo no servidor…"
+              : "Desligado: a IA não responde este número em nenhuma conversa. Etiqueta “Não atender IA” no CRM."}
+        </p>
+      )}
       {erro && <p className="mt-1 text-[11px] text-danger">{erro}</p>}
     </div>
   );
@@ -167,14 +169,14 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
   };
 
   return (
-    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+    <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
       <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Iniciar fluxo</span>
       <div className="mt-2 flex items-center gap-1.5">
         <select
           value={escolhido}
           onChange={(event) => { setEscolhido(event.target.value); setEstado({ tipo: "parado", texto: "" }); }}
           aria-label="Fluxo para iniciar"
-          className="min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+          className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2 py-1.5 text-[12px] text-fg outline-none focus:border-signal"
         >
           {fluxos.map((fluxo) => <option key={fluxo.id} value={fluxo.id}>{fluxo.nome}</option>)}
         </select>
@@ -183,7 +185,7 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
           onClick={iniciar}
           disabled={estado.tipo === "enviando" || !escolhido}
           title="Iniciar este fluxo para o contato"
-          className="flex h-[30px] flex-none cursor-pointer items-center gap-1 rounded-[8px] bg-accent px-2.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+          className="flex h-[30px] flex-none cursor-pointer items-center gap-1 rounded-ctl bg-flow-soft px-2.5 text-[11.5px] font-semibold text-flow transition-colors hover:bg-flow hover:text-bg disabled:cursor-default disabled:opacity-50"
         >
           <Play size={12} strokeWidth={2.4} />
           {estado.tipo === "enviando" ? "Iniciando…" : "Iniciar"}
@@ -199,8 +201,8 @@ function IniciarFluxo({ contato, fluxos, aoIniciar }) {
 }
 
 const SELO_DO_SINAL = {
-  danger: "border-danger/25 bg-danger/5 text-danger",
-  warning: "border-warning/25 bg-warning/5 text-warning",
+  danger: "bg-danger-soft text-danger",
+  warning: "bg-warning-soft text-warning",
 };
 
 const chanceEmTexto = (chance) =>
@@ -217,9 +219,10 @@ const chanceEmTexto = (chance) =>
 function LeituraAutomatica({ leitura }) {
   if (!leitura) return null;
   return (
-    <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
+    <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
       <div className="flex items-center gap-1.5">
-        <Sparkles size={13} strokeWidth={2.2} className="flex-none text-accent-forte" />
+        {/* Quem leu foi a IA: o ícone leva a cor dela. */}
+        <Sparkles size={13} strokeWidth={2.2} className="flex-none text-ia" />
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
           Leitura automática
         </span>
@@ -238,7 +241,7 @@ function LeituraAutomatica({ leitura }) {
           {leitura.sinais.map((sinal) => (
             <span
               key={sinal.chave}
-              className={`rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${SELO_DO_SINAL[sinal.tom] || "border-line text-sub"}`}
+              className={`rounded-ctl px-1.5 py-0.5 text-[10.5px] font-semibold ${SELO_DO_SINAL[sinal.tom] || "border border-line-strong text-sub"}`}
             >
               {sinal.texto}
             </span>
@@ -325,14 +328,14 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
   };
 
   return (
-    <div className="mt-3.5 border-t border-line pt-3">
+    <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Etiquetas</span>
         {contato && (
           <button
             type="button"
             onClick={() => setAberto((valor) => !valor)}
-            className="ml-auto inline-flex items-center gap-1 rounded-[7px] px-1.5 py-1 text-[10.5px] font-semibold text-accent-forte transition-colors hover:bg-accent-soft"
+            className="ml-auto inline-flex items-center gap-1 rounded-ctl px-1.5 py-1 text-[10.5px] font-semibold text-signal transition-colors hover:bg-signal-soft"
           >
             <Tag size={12} strokeWidth={2} />
             Gerenciar
@@ -344,7 +347,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
         {etiquetas.length ? etiquetas.map((tag) => (
           <span
             key={tag.id}
-            className="rounded-[6px] px-2 py-1 text-[10.5px] font-semibold"
+            className="rounded-ctl px-2 py-1 text-[10.5px] font-semibold"
             style={{ color: tag.cor || "var(--el-sub)", backgroundColor: `${tag.cor || "#667085"}18` }}
           >
             {tag.nome}
@@ -355,7 +358,7 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
       {!contato && <p className="mt-2 text-[11px] leading-4 text-faint">Crie o lead para adicionar etiquetas.</p>}
 
       {aberto && contato && (
-        <div className="mt-2.5 rounded-[10px] border border-line bg-surface p-2">
+        <div className="mt-2.5 rounded-ctl border border-line bg-surface p-2">
           <div className="max-h-40 space-y-1 overflow-y-auto">
             {todas.map((tag) => {
               const ativa = selecionadas.includes(tag.id);
@@ -365,11 +368,11 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
                   type="button"
                   disabled={salvando}
                   onClick={() => alternar(tag.id)}
-                  className={`flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left text-[11.5px] transition-colors ${ativa ? "bg-accent-soft text-fg" : "text-sub hover:bg-surface-hover hover:text-fg"}`}
+                  className={`flex w-full items-center gap-2 rounded-ctl px-2 py-1.5 text-left text-[11.5px] transition-colors ${ativa ? "bg-accent-soft text-fg" : "text-sub hover:bg-surface-hover hover:text-fg"}`}
                 >
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.cor || "#667085" }} />
                   <span className="min-w-0 flex-1 truncate">{tag.nome}</span>
-                  {ativa && <Check size={13} strokeWidth={2.5} className="text-accent" />}
+                  {ativa && <Check size={13} strokeWidth={2.5} className="text-signal" />}
                 </button>
               );
             })}
@@ -382,13 +385,13 @@ function EditorEtiquetas({ contato, etiquetas, todas, aoAtualizar, aoCriar }) {
               onChange={(evento) => setNova(evento.target.value)}
               placeholder="Nova etiqueta"
               aria-label="Nome da nova etiqueta"
-              className="min-w-0 flex-1 rounded-[7px] border border-line bg-bg px-2 py-1.5 text-[11.5px] text-fg outline-none focus:border-accent"
+              className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2 py-1.5 text-[11.5px] text-fg outline-none focus:border-signal"
             />
             <button
               type="submit"
               disabled={!nova.trim() || salvando}
               title="Criar e adicionar etiqueta"
-              className="flex h-8 w-8 items-center justify-center rounded-[7px] bg-accent text-white transition-colors hover:bg-accent-forte disabled:opacity-40"
+              className="flex h-8 w-8 items-center justify-center rounded-ctl bg-accent text-on-accent transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               <Plus size={14} strokeWidth={2.3} />
             </button>
@@ -420,7 +423,7 @@ function BotaoMarcarLead({ aoMarcar }) {
       <button
         onClick={marcar}
         disabled={!aoMarcar || salvando}
-        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-accent py-2.5 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-50"
+        className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-accent py-2.5 text-[12.5px] font-semibold text-on-accent transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
       >
         <UserPlus size={14} strokeWidth={2} />
         {salvando ? "Marcando…" : "Marcar como lead"}
@@ -467,32 +470,36 @@ export function FichaLateral({
         <button
           onClick={aoFechar}
           title="Fechar ficha"
-          className="ml-auto flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-[9px] text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+          className="ml-auto flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-ctl text-sub transition-colors hover:bg-surface-hover hover:text-fg"
         >
           <X size={15} strokeWidth={2.2} />
         </button>
       </div>
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-3.5 pb-4 pt-3">
-        <div className="flex flex-col items-center text-center">
+        {/* Alinhada à esquerda, como o resto da ficha: o olho desce pela mesma
+            margem do nome até a última nota, sem voltar ao centro. */}
+        <div className="flex items-start gap-3">
           <AvatarComDono
             nome={conversa.nome}
             foto={conversa.fotoUrl}
             dono={conversa.dono}
-            tamanho={62}
+            tamanho={44}
           />
-          <span className="mt-2.5 text-[15.5px] font-semibold text-fg">{conversa.nome}</span>
-          {(conversa.cargo || conversa.empresa) && (
-            <span className="mt-0.5 text-[12px] text-sub">
-              {[conversa.cargo, conversa.empresa].filter(Boolean).join(" · ")}
-            </span>
-          )}
-          {conversa.telefone && (
-            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[11.5px] text-sub">
-              <SeloWhatsApp tamanho={12} />
-              {formatPhone(conversa.telefone)}
-            </span>
-          )}
+          <span className="flex min-w-0 flex-col pt-0.5">
+            <span className="truncate text-[15px] font-semibold tracking-tight text-fg">{conversa.nome}</span>
+            {(conversa.cargo || conversa.empresa) && (
+              <span className="truncate text-[12px] text-sub">
+                {[conversa.cargo, conversa.empresa].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            {conversa.telefone && (
+              <span className="mt-1 inline-flex items-center gap-1.5 font-mono text-[11.5px] tabular-nums text-sub">
+                <SeloWhatsApp tamanho={12} />
+                {formatPhone(conversa.telefone)}
+              </span>
+            )}
+          </span>
         </div>
 
         {!conversa.grupo && (
@@ -524,9 +531,10 @@ export function FichaLateral({
         />
 
         {negocio ? (
-          <div className="mt-3.5 rounded-[11px] border border-line px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <PilulaEstagio nome={estagio?.nome} cor={corDoEstagio(estagio?.ordem)} />
+          <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
+            <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Negócio</span>
+            <div className="mt-2 flex items-center gap-2">
+              <PilulaEstagio nome={estagio?.nome} cor={corDoEstagio(estagio)} />
               {negocio.valor != null && (
                 <span className="ml-auto text-[14px] font-semibold tabular-nums text-fg">
                   {fmtMoeda(negocio.valor)}
@@ -542,21 +550,20 @@ export function FichaLateral({
             </div>
           </div>
         ) : (
-          <div className="mt-3.5 rounded-[11px] border border-dashed border-line px-3 py-2.5 text-[11.5px] text-faint">
-            Nenhum negócio aberto com este contato.
+          <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
+            <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Negócio</span>
+            <p className="mt-1.5 text-[11.5px] text-faint">Nenhum negócio aberto com este contato.</p>
           </div>
         )}
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5 flex items-center gap-2">
           <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Tarefas</span>
         </div>
         {tarefa ? (
           <div
-            className={`mt-1.5 flex items-start gap-2 rounded-[10px] border px-2.5 py-2.5 ${
-              vencimento?.tom === "danger" ? "border-danger/25 bg-danger/5" : "border-line"
-            }`}
+            className="mt-2 flex items-start gap-2"
           >
-            <span className="mt-0.5 block h-[15px] w-[15px] flex-none rounded-[5px] border border-line-strong bg-bg" />
+            <span className="mt-0.5 block h-[15px] w-[15px] flex-none rounded-ctl border border-line-strong bg-bg" />
             <span className="min-w-0">
               <span className="block text-[12px] font-medium text-fg">{tarefa.titulo}</span>
               <span className={`mt-0.5 block text-[10.5px] font-semibold ${TONS[vencimento.tom]}`}>
@@ -585,7 +592,7 @@ export function FichaLateral({
           aoCriar={aoCriarEtiqueta}
         />
 
-        <div className="mt-3.5 border-t border-line pt-2.5">
+        <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
           <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">
             Última nota
           </span>
@@ -626,7 +633,7 @@ export function FichaLateral({
         ) : contato ? (
           <button
             onClick={aoAbrirFicha}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line-strong py-2.5 text-[12.5px] font-semibold text-fg transition-colors hover:bg-surface-hover"
           >
             Abrir ficha do lead
             <ArrowRight size={14} strokeWidth={2} />
@@ -643,7 +650,7 @@ export function FichaLateral({
               })
             }
             disabled={!aoSalvarContato}
-            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line py-2.5 text-[12.5px] font-semibold text-accent-forte transition-colors hover:border-accent disabled:cursor-default disabled:opacity-40"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-accent py-2.5 text-[12.5px] font-semibold text-on-accent transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
           >
             <UserPlus size={14} strokeWidth={2} />
             Criar lead

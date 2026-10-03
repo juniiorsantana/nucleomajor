@@ -10,7 +10,7 @@ function Campo({ rotulo, ...props }) {
       <span className="mb-1.5 block text-[12px] font-medium text-sub">{rotulo}</span>
       <input
         {...props}
-        className="w-full rounded-[9px] border border-line bg-bg px-3.5 py-2.5 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+        className="w-full rounded-ctl border border-line bg-bg px-3.5 py-2.5 text-[14px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
       />
     </label>
   );
@@ -21,7 +21,7 @@ function Moldura({ titulo, descricao, children }) {
     <div className="flex min-h-screen items-center justify-center bg-surface p-5 text-fg">
       <div className="w-full max-w-[390px]">
         <div className="mb-5 flex justify-center"><Marca tamanho={38} /></div>
-        <section className="rounded-[14px] border border-line bg-bg p-6 shadow-[0_18px_55px_rgba(18,23,48,0.08)]">
+        <section className="rounded-none border border-line bg-bg p-6 ">
           <h1 className="text-[20px] font-semibold tracking-tight">{titulo}</h1>
           <p className="mt-1.5 text-[13px] leading-5 text-sub">{descricao}</p>
           {children}
@@ -71,7 +71,7 @@ function Acesso({ aoAutenticar, ativacao = null }) {
       descricao="Sua base fica protegida e sincronizada entre seus dispositivos."
     >
       {ativacao && (
-        <div className="mt-4 rounded-[9px] border border-success/25 bg-success-soft px-3.5 py-3 text-[12.5px] leading-5 text-success">
+        <div className="mt-4 rounded-ctl border border-success/25 bg-success-soft px-3.5 py-3 text-[12.5px] leading-5 text-success">
           Pagamento confirmado. {modo === "cadastrar" ? "Crie sua conta" : "Entre"} com
           {ativacao.email ? <> <strong>{ativacao.email}</strong></> : " o e-mail da compra"} para ativar sua empresa.
         </div>
@@ -88,8 +88,8 @@ function Acesso({ aoAutenticar, ativacao = null }) {
           required value={form.senha}
           onChange={(e) => setForm({ ...form, senha: e.target.value })} />
 
-        {erro && <div role="alert" className="rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
-        {confirmacao && <div className="rounded-[8px] bg-success-soft px-3 py-2 text-[12.5px] text-success">{confirmacao}</div>}
+        {erro && <div role="alert" className="rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
+        {confirmacao && <div className="rounded-ctl bg-success-soft px-3 py-2 text-[12.5px] text-success">{confirmacao}</div>}
 
         <BotaoPrimario type="submit" disabled={enviando} className="w-full justify-center !py-2.5">
           {enviando && <LoaderCircle size={16} className="animate-spin" />}
@@ -125,7 +125,7 @@ function SemOrganizacao({ aoEntrar, ativacao = null }) {
           : "Cole o código que a pessoa que administra a empresa enviou para você."
       }
     >
-      <div className="mt-5 flex gap-1 rounded-[9px] bg-surface p-1">
+      <div className="mt-5 flex gap-1 rounded-ctl bg-surface p-1">
         {[
           { id: "ativar", rotulo: "Ativar empresa", icone: Building2 },
           { id: "convite", rotulo: "Tenho um convite", icone: Ticket },
@@ -134,8 +134,8 @@ function SemOrganizacao({ aoEntrar, ativacao = null }) {
             key={id}
             type="button"
             onClick={() => setAba(id)}
-            className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-3 py-2 text-[12.5px] font-medium transition-colors ${
-              aba === id ? "bg-bg text-fg shadow-[0_1px_3px_rgba(18,23,48,0.10)]" : "text-sub hover:text-fg"
+            className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-ctl px-3 py-2 text-[12.5px] font-medium transition-colors ${
+              aba === id ? "bg-bg text-fg " : "text-sub hover:text-fg"
             }`}
           >
             <Icone size={14} />
@@ -187,7 +187,7 @@ function FormCriarEmpresa({ aoCriar, codigoInicial = "" }) {
       <Campo rotulo="Código de ativação" required minLength={8} value={codigo}
         placeholder="NM12-3456-7890-AB" spellCheck={false} autoCapitalize="characters"
         onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
-      <div className="rounded-[9px] border border-line bg-surface px-3.5 py-3">
+      <div className="rounded-ctl border border-line bg-surface px-3.5 py-3">
         <div className="flex items-center justify-between gap-3 text-[12.5px]">
           <span className="font-semibold text-fg">Plano contratado</span>
           <span className="rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent-forte">Código do e-mail</span>
@@ -196,7 +196,7 @@ function FormCriarEmpresa({ aoCriar, codigoInicial = "" }) {
           O código chega no e-mail da compra e vale para a conta com esse mesmo e-mail.
         </p>
       </div>
-      {erro && <div role="alert" className="rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
+      {erro && <div role="alert" className="rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
       <BotaoPrimario type="submit" disabled={enviando || !codigo.trim()} className="w-full justify-center !py-2.5">
         {enviando ? "Ativando…" : "Ativar minha empresa"}
       </BotaoPrimario>
@@ -241,7 +241,7 @@ function FormConvite({ aoAceitar }) {
       <Campo rotulo="Código do convite" autoFocus required minLength={8} value={token}
         placeholder="Cole aqui o código recebido" spellCheck={false}
         onChange={(e) => setToken(e.target.value)} />
-      {erro && <div role="alert" className="rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
+      {erro && <div role="alert" className="rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
       <BotaoPrimario type="submit" disabled={enviando || !token.trim()} className="w-full justify-center !py-2.5">
         {enviando ? "Entrando…" : "Entrar na empresa"}
       </BotaoPrimario>
@@ -292,7 +292,7 @@ function AssinaturaBloqueada({ estado, aoTrocar, aoSair }) {
       </p>
       {dono && compra && (
         <a href={compra} target="_blank" rel="noreferrer"
-          className="mt-5 inline-flex w-full items-center justify-center rounded-[10px] bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-white hover:opacity-95">
+          className="mt-5 inline-flex w-full items-center justify-center rounded-ctl bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-white hover:opacity-95">
           Assinar novamente
         </a>
       )}
@@ -301,15 +301,15 @@ function AssinaturaBloqueada({ estado, aoTrocar, aoSair }) {
           <p className="text-[11.5px] font-medium text-faint">Entrar em outra empresa</p>
           {outras.map((org) => (
             <button key={org.id} type="button" onClick={() => agir(() => aoTrocar(org.id))}
-              className="w-full cursor-pointer rounded-[9px] border border-line px-3.5 py-2.5 text-left text-[13px] font-medium text-fg hover:bg-surface-hover">
+              className="w-full cursor-pointer rounded-ctl border border-line px-3.5 py-2.5 text-left text-[13px] font-medium text-fg hover:bg-surface-hover">
               {org.name}
             </button>
           ))}
         </div>
       )}
-      {erro && <div role="alert" className="mt-3 rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
+      {erro && <div role="alert" className="mt-3 rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
       <button type="button" onClick={() => agir(aoSair)}
-        className="mt-4 w-full cursor-pointer rounded-[10px] px-5 py-2.5 text-[13px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg">
+        className="mt-4 w-full cursor-pointer rounded-ctl px-5 py-2.5 text-[13px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg">
         Sair
       </button>
     </Moldura>
@@ -377,7 +377,7 @@ function MigrarDados({ status, aoConcluir, aoAdiar }) {
       titulo="Levar seus dados para a nuvem?"
       descricao="Encontramos dados locais neste navegador. Eles serão copiados para sua empresa e permanecerão disponíveis aqui."
     >
-      <div className="mt-5 divide-y divide-line rounded-[9px] border border-line">
+      <div className="mt-5 divide-y divide-line rounded-ctl border border-line">
         {linhas.map(([nome, total]) => (
           <div key={nome} className="flex items-center justify-between px-3.5 py-2.5 text-[13px]">
             <span className="text-sub">{nome}</span><span className="font-semibold text-fg">{total}</span>
@@ -385,7 +385,7 @@ function MigrarDados({ status, aoConcluir, aoAdiar }) {
         ))}
       </div>
       {progresso && progresso.status !== "concluido" && (
-        <div className="mt-4 rounded-[9px] border border-line bg-surface px-3.5 py-3">
+        <div className="mt-4 rounded-ctl border border-line bg-surface px-3.5 py-3">
           <div className="flex items-center justify-between text-[12px]">
             <span className="text-sub">Progresso salvo · {etapa || "preparando"}</span>
             <span className="font-semibold text-fg">{percentual}%</span>
@@ -396,12 +396,12 @@ function MigrarDados({ status, aoConcluir, aoAdiar }) {
           <p className="mt-2 text-[11px] leading-4 text-faint">Se a conexão cair, o próximo clique continua deste snapshot.</p>
         </div>
       )}
-      {status.erro && <div role="alert" className="mt-3 rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{status.erro}</div>}
-      {erro && <div role="alert" className="mt-3 rounded-[8px] bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
+      {status.erro && <div role="alert" className="mt-3 rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{status.erro}</div>}
+      {erro && <div role="alert" className="mt-3 rounded-ctl bg-danger/10 px-3 py-2 text-[12.5px] text-danger">{erro}</div>}
       <BotaoPrimario onClick={migrar} disabled={enviando} className="mt-5 w-full justify-center !py-2.5">
         {enviando ? "Migrando dados…" : "Migrar agora"}
       </BotaoPrimario>
-      <button type="button" onClick={entrarNoPainel} disabled={enviando || adiando} className="mt-2 w-full cursor-pointer rounded-[10px] px-5 py-2.5 text-[13px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-40">
+      <button type="button" onClick={entrarNoPainel} disabled={enviando || adiando} className="mt-2 w-full cursor-pointer rounded-ctl px-5 py-2.5 text-[13px] font-medium text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-40">
         {adiando ? "Salvando escolha…" : "Entrar no painel e migrar depois"}
       </button>
       <p className="mt-3 text-center text-[11.5px] leading-4 text-faint">

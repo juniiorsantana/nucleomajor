@@ -21,4 +21,14 @@ describe("lista de conversas", () => {
     expect(passaFiltro({ grupo: true, dono: "bot", naoLidas: 0 }, "bot")).toBe(false);
     expect(passaFiltro({ grupo: false, dono: "bot", naoLidas: 0 }, "bot")).toBe(true);
   });
+
+  it("'Precisa de você' é não lida com gente no atendimento, e só ela", () => {
+    expect(passaFiltro({ grupo: false, dono: "humano", naoLidas: 2 }, "precisa")).toBe(true);
+    // a IA e o fluxo respondem as deles
+    expect(passaFiltro({ grupo: false, dono: "ia", naoLidas: 2 }, "precisa")).toBe(false);
+    expect(passaFiltro({ grupo: false, dono: "bot", naoLidas: 2 }, "precisa")).toBe(false);
+    // lida não espera ninguém; grupo não tem atendimento
+    expect(passaFiltro({ grupo: false, dono: "humano", naoLidas: 0 }, "precisa")).toBe(false);
+    expect(passaFiltro({ grupo: true, dono: "humano", naoLidas: 5 }, "precisa")).toBe(false);
+  });
 });

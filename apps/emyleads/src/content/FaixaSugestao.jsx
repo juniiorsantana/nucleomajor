@@ -83,7 +83,7 @@ export function FaixaSugestao({ contato, contactId, sugestoes, recarregarSugesto
       <button
         title="Dispensar sugestão"
         onClick={dispensar}
-        className="flex-none cursor-pointer rounded-el p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
+        className="flex-none cursor-pointer rounded-ctl p-1 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
       >
         <X size={13} strokeWidth={1.75} />
       </button>

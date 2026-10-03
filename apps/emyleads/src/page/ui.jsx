@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef } from "react";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import NavegacaoMobile from "./NavegacaoMobile";
 
 /**
@@ -14,32 +14,29 @@ import NavegacaoMobile from "./NavegacaoMobile";
 /* ------------------------------------------------------------------ */
 
 /**
- * Marca — símbolo + assinatura.
+ * Marca do Núcleo Major (Sistema Grafite, 02/10/2026).
  *
- * A ordem dos pesos e cores vem da logo e não do palpite: **Emy** é escuro e
- * pesado, **Leads** é roxo e leve. Eu tinha codado ao contrário antes de ver o
- * arquivo.
+ * Quadrado grafite com as iniciais e o ponto de sinal no canto: o único azul
+ * da marca, o mesmo que no portal quer dizer "aqui tem algo". O nome da
+ * interface é Núcleo Major; "EmyLeads" ficou só no código.
  *
- * O símbolo é o PNG de verdade, servido de `/icons/` — caminho que funciona
- * tanto na extensão (raiz do pacote) quanto na bancada (pasta public).
+ * Desenhada em HTML, e não num PNG, para seguir o tema: o grafite vira claro
+ * no escuro junto com o resto.
  */
 export function Marca({ tamanho = 36, texto = true }) {
-  const base = typeof import.meta !== "undefined" ? import.meta.env.BASE_URL || "/" : "/";
   return (
     <div className="flex items-center gap-2.5">
-      <img
-        src={`${base}icons/marca.png`}
-        alt=""
-        className="flex-none"
-        style={{ width: tamanho, height: tamanho }}
-      />
+      <span
+        aria-hidden="true"
+        className="relative flex flex-none items-center justify-center bg-fg font-bold tracking-tight text-bg"
+        style={{ width: tamanho, height: tamanho, fontSize: tamanho * 0.36 }}
+      >
+        NM
+        <span className="absolute bg-signal" style={{ width: tamanho * 0.19, height: tamanho * 0.19, top: -tamanho * 0.09, right: -tamanho * 0.09 }} />
+      </span>
       {texto && (
-        <span
-          className="tracking-tight"
-          style={{ fontSize: tamanho * 0.58 }}
-        >
-          <span className="font-bold text-fg">Emy</span>
-          <span className="font-medium text-accent">Leads</span>
+        <span className="font-semibold tracking-tight text-fg" style={{ fontSize: tamanho * 0.5 }}>
+          Núcleo Major
         </span>
       )}
     </div>
@@ -107,115 +104,117 @@ export function SeloWhatsApp({ tamanho = 16 }) {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Telas que o trilho NÃO desenha: Conexões, Equipe e Configurações moram no
+ * menu da organização, embaixo. São abertas poucas vezes por semana, e no
+ * trilho disputavam espaço com o que se usa cem vezes por dia.
+ */
+export const GRUPO_DA_ORGANIZACAO = "Ambiente";
+
+/**
  * Agrupa as telas em blocos CONSECUTIVOS de mesmo `grupo`.
  *
  * Consecutivo, e não por chave, porque a lista já chega na ordem em que se
- * quer ler. Um grupo que some inteiro na extensão (Atendimento só existe no
- * portal) simplesmente não aparece, sem precisar de tabela paralela.
+ * quer ler. No trilho, Atendimento e Gestão são o mesmo bloco de trabalho; a
+ * régua só aparece antes da Automação.
  */
-function agruparTelas(telas) {
-  const grupos = [];
-  telas.forEach((t) => {
-    const ultimo = grupos[grupos.length - 1];
-    if (ultimo && ultimo.rotulo === t.grupo) ultimo.telas.push(t);
-    else grupos.push({ rotulo: t.grupo || "", telas: [t] });
-  });
-  return grupos;
+function blocosDoTrilho(telas) {
+  const blocos = [];
+  telas
+    .filter((t) => t.grupo !== GRUPO_DA_ORGANIZACAO)
+    .forEach((t) => {
+      const bloco = t.grupo === "Automação" ? "automacao" : "trabalho";
+      const ultimo = blocos[blocos.length - 1];
+      if (ultimo && ultimo.id === bloco) ultimo.telas.push(t);
+      else blocos.push({ id: bloco, telas: [t] });
+    });
+  return blocos;
 }
 
 /**
- * O punho que recolhe o menu.
+ * A dica do trilho: nome, o que está esperando e o atalho.
  *
- * `PanelLeftClose` e não `ChevronsLeft`: chevron duplo é o desenho de
- * «voltar», e voltar não é o que acontece. Painel quer dizer painel.
+ * Vive FORA da barra, à direita; por isso não pode haver `overflow` no
+ * caminho até ela. Aparece também no foco do teclado, não só no mouse.
  */
-function PunhoDoMenu({ recolhido, aoAlternar }) {
-  const Icone = recolhido ? PanelLeftOpen : PanelLeftClose;
+export function DicaDoTrilho({ rotulo, estado, atalho }) {
   return (
-    <button
-      onClick={aoAlternar}
-      title={`${recolhido ? "Mostrar" : "Esconder"} o menu (Ctrl+B)`}
-      aria-label={recolhido ? "Mostrar o menu" : "Esconder o menu"}
-      aria-expanded={!recolhido}
-      className="flex h-7 w-7 flex-none cursor-pointer items-center justify-center rounded-[8px] text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 flex -translate-y-1/2 items-center gap-2.5 whitespace-nowrap rounded-ctl bg-fg px-2.5 py-1.5 text-[12px] font-medium text-bg opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-visible:opacity-100"
     >
-      <Icone size={18} strokeWidth={1.9} />
-    </button>
+      {rotulo}
+      {estado && <span className="text-signal-soft">{estado}</span>}
+      {atalho && <kbd className="font-mono text-[10.5px] opacity-60">{atalho}</kbd>}
+    </span>
   );
 }
 
 /**
- * Navegação principal.
+ * Navegação principal: o trilho Instrumento (Sistema Grafite, 02/10/2026).
  *
- * Recolhido o menu vira uma BARRA DE ÍCONES de 68px, e não um vazio: quem
- * recolhe quer espaço para a tela larga, não quer perder de vista onde está
- * nem como voltar. A marca, os onze destinos e a conta continuam na tela — o
- * que sai é só o texto, que a dica ao passar o mouse devolve.
+ * Só ícones, numa barra de 60px, mas um trilho que trabalha:
+ *   - em cima, a busca da tela e os destinos de trabalho;
+ *   - depois da régua, a automação, com a cor do ator (IA em violeta, Fluxos
+ *     em ciano);
+ *   - embaixo, a organização, que abre Conexões, Equipe, Configurações, a
+ *     troca de empresa e a conta (`rodapeCompacto`).
  *
- * A largura de verdade quem anima é quem envolve (`Gestao`); aqui a `nav` é
- * `w-full` para acompanhar. Por isso NÃO pode haver `overflow` no caminho até
- * a dica: ela vive fora da barra, à direita.
+ * `contagens` só traz o que é DA PESSOA e está esperando; contagem que não
+ * vem não é desenhada. Um zero inventado ensinaria a ignorar o número.
+ *
+ * O celular não usa o trilho: `NavegacaoMobile` desenha o dock de baixo, com
+ * `rodape` (o rodapé completo) dentro do "Mais".
  */
-export function Rail({ telas, ativa, aoTrocar, rodape, recolhido = false, aoAlternar = null }) {
-  const grupos = agruparTelas(telas);
+export function Rail({ telas, ativa, aoTrocar, rodape, rodapeCompacto = null, contagens = {}, aoBuscar = null }) {
+  const blocos = blocosDoTrilho(telas);
 
   return (
     <>
-      <nav aria-label="Navegação principal" className="relative z-30 hidden h-full w-full flex-none flex-col border-r border-line bg-bg md:flex">
-        <div className={`flex h-16 flex-none items-center gap-2.5 ${recolhido ? "justify-center" : "pl-5 pr-3"}`}>
-          <Marca tamanho={32} texto={!recolhido} />
-          {!recolhido && aoAlternar && (
-            <span className="ml-auto flex">
-              <PunhoDoMenu recolhido={false} aoAlternar={aoAlternar} />
-            </span>
-          )}
+      <nav aria-label="Navegação principal" className="relative z-30 hidden h-full w-full flex-none flex-col items-center border-r border-line bg-surface py-3 md:flex">
+        <div className="mb-3 flex-none">
+          <Marca tamanho={32} texto={false} />
         </div>
 
-        {recolhido && aoAlternar && (
-          <div className="flex flex-none justify-center pb-2.5">
-            <PunhoDoMenu recolhido aoAlternar={aoAlternar} />
-          </div>
+        {aoBuscar && (
+          <button
+            type="button"
+            onClick={aoBuscar}
+            aria-label="Buscar nesta tela"
+            className="group relative mb-2 flex h-8 w-9 flex-none cursor-pointer items-center justify-center rounded-ctl border border-line-strong bg-bg text-faint transition-colors hover:border-faint hover:text-fg"
+          >
+            <Search size={15} strokeWidth={1.75} aria-hidden="true" />
+            <DicaDoTrilho rotulo="Buscar nesta tela" atalho="Ctrl K" />
+          </button>
         )}
 
-        {/* Só o menu aberto rola: a dica do modo ícone precisa escapar pela
-            direita, e `overflow-y: auto` recortaria ela junto. */}
-        <div className={`flex min-h-0 flex-1 flex-col gap-0.5 px-3 ${recolhido ? "pt-0.5" : "scrollbar-fina overflow-y-auto pb-2 pt-1"}`}>
-          {grupos.map((grupo, iGrupo) => (
-            <Fragment key={grupo.rotulo || iGrupo}>
-              {grupo.rotulo &&
-                (recolhido ? (
-                  iGrupo > 0 && <div className="mx-2 my-2.5 h-px flex-none bg-line" />
-                ) : (
-                  <p className={`flex-none px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-faint ${iGrupo > 0 ? "pt-4" : "pt-0.5"}`}>
-                    {grupo.rotulo}
-                  </p>
-                ))}
-              {grupo.telas.map((t) => {
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5">
+          {blocos.map((bloco, iBloco) => (
+            <Fragment key={bloco.id + iBloco}>
+              {iBloco > 0 && <div className="my-2 h-px w-6 flex-none bg-line-strong" />}
+              {bloco.telas.map((t) => {
                 const on = t.id === ativa;
+                const contagem = contagens[t.id];
+                const tom = t.tom === "ia" ? "text-ia" : t.tom === "flow" ? "text-flow" : on ? "text-fg" : "text-faint";
                 return (
                   <button
                     key={t.id}
+                    type="button"
                     onClick={() => aoTrocar(t.id)}
                     aria-current={on ? "page" : undefined}
-                    className={`group relative flex h-10 flex-none cursor-pointer items-center gap-3 rounded-[10px] text-left text-[14px] transition-colors ${
-                      recolhido ? "justify-center" : "px-3"
-                    } ${
-                      on
-                        ? "bg-accent-soft font-semibold text-accent-forte"
-                        : "font-medium text-sub hover:bg-surface-hover hover:text-fg"
-                    }`}
+                    aria-label={contagem ? `${t.rotulo}, ${contagem.texto}` : t.rotulo}
+                    className={`group relative flex h-10 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl transition-colors hover:bg-surface-hover hover:text-fg ${tom} ${on ? "bg-surface-hover" : ""}`}
                   >
-                    <t.icone size={19} strokeWidth={1.75} className="flex-none" />
-                    {recolhido ? (
-                      <>
-                        <span className="sr-only">{t.rotulo}</span>
-                        <span className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-[7px] bg-fg px-2.5 py-1.5 text-[12px] font-medium text-bg opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                          {t.rotulo}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="truncate">{t.rotulo}</span>
+                    {on && <span aria-hidden="true" className="absolute -left-2 bottom-1.5 top-1.5 w-0.5 bg-signal" />}
+                    <t.icone size={19} strokeWidth={1.75} aria-hidden="true" />
+                    {contagem?.numero > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-0 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 text-[10px] font-semibold tabular-nums text-on-signal ring-2 ring-surface"
+                      >
+                        {contagem.numero > 99 ? "99+" : contagem.numero}
+                      </span>
                     )}
+                    <DicaDoTrilho rotulo={t.rotulo} estado={contagem?.texto} atalho={t.atalho ? `G ${t.atalho}` : null} />
                   </button>
                 );
               })}
@@ -223,7 +222,7 @@ export function Rail({ telas, ativa, aoTrocar, rodape, recolhido = false, aoAlte
           ))}
         </div>
 
-        {rodape && <div className="flex-none p-3">{rodape}</div>}
+        {(rodapeCompacto || rodape) && <div className="mt-2 flex-none">{rodapeCompacto || rodape}</div>}
       </nav>
       <NavegacaoMobile telas={telas} ativa={ativa} aoTrocar={aoTrocar} rodape={rodape} />
     </>
@@ -258,7 +257,7 @@ export function CampoBusca({ valor, aoMudar, placeholder }) {
         value={valor}
         onChange={(e) => aoMudar(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-[10px] border border-line bg-bg py-2.5 pl-11 pr-14 text-[14px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent"
+        className="w-full rounded-ctl border border-line bg-bg py-2.5 pl-11 pr-14 text-[14px] text-fg placeholder:text-faint outline-none transition-colors focus:border-accent"
       />
       <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 text-[12px] font-medium text-faint md:block">
         ⌘K
@@ -270,7 +269,7 @@ export function CampoBusca({ valor, aoMudar, placeholder }) {
 export function BotaoPrimario({ children, className = "", ...props }) {
   return (
     <button
-      className={`flex min-h-11 flex-none cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-accent px-5 py-3 text-[14px] font-semibold text-white transition-[filter,box-shadow] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`flex min-h-11 flex-none cursor-pointer items-center justify-center gap-2 rounded-ctl bg-accent px-5 py-3 text-[14px] font-semibold text-white transition-[filter,box-shadow] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
       {...props}
     >
       {children}
@@ -288,33 +287,31 @@ export function BotaoPrimario({ children, className = "", ...props }) {
  * anterior exigiria histórico, que não guardamos; e número inventado na tela é
  * pior do que número a menos.
  */
-export function CartaoIndicador({ icone: Icone, rotulo, valor, nota, tomNota = "success" }) {
+export function FaixaDeNumeros({ itens }) {
   const tons = {
     success: "text-success",
     danger: "text-danger",
     neutro: "text-faint",
   };
+  // Uma faixa só, com régua entre os números (Sistema Grafite): são leituras
+  // do mesmo conjunto, e caixas soltas com ícone pareciam assuntos diferentes.
   return (
-    <div className="flex-1 rounded-[14px] border border-line bg-bg p-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-forte">
-          <Icone size={19} strokeWidth={1.75} />
-        </div>
-        <span className="text-[14px] font-medium text-sub">{rotulo}</span>
-      </div>
-      <div className="mt-3 text-[30px] font-semibold leading-none tracking-tight text-fg">
-        {valor}
-      </div>
-      {nota && (
-        <div className={`mt-3 flex items-center gap-1 text-[13px] font-medium ${tons[tomNota]}`}>
-          {tomNota === "success" && (
-            <svg viewBox="0 0 24 24" className="h-4 w-4 stroke-current" fill="none" strokeWidth="2.2">
-              <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+    <div className="grid border border-line bg-bg sm:grid-cols-2 xl:grid-cols-4">
+      {itens.map(({ rotulo, valor, nota, tomNota = "success" }, i) => (
+        <div
+          key={rotulo}
+          className={`min-w-0 px-4 py-3 ${i > 0 ? "border-t border-line sm:border-t-0" : ""} ${i % 2 === 1 ? "sm:border-l sm:border-line" : ""} ${i > 1 ? "sm:border-t sm:border-line xl:border-t-0" : ""} ${i > 0 ? "xl:border-l xl:border-line" : ""}`}
+        >
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">{rotulo}</span>
+          <strong className="mt-1.5 block truncate text-[22px] font-semibold leading-none tracking-tight tabular-nums text-fg">{valor}</strong>
+          {nota && (
+            <span className={`mt-1 flex items-center gap-1 text-[11.5px] font-medium ${tons[tomNota] || "text-faint"}`}>
+              {tomNota === "success" && <span aria-hidden="true">↑</span>}
+              {nota}
+            </span>
           )}
-          {nota}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -334,7 +331,7 @@ export function Seletor({ valor, aoMudar, opcoes, rotuloVazio, compacto = false 
       <select
         value={valor}
         onChange={(e) => aoMudar(e.target.value)}
-        className={`cursor-pointer appearance-none rounded-[9px] border border-line bg-bg font-medium text-sub outline-none transition-colors hover:border-line-strong focus:border-accent ${compacto ? "py-1.5 pl-3 pr-8 text-[12px]" : "py-2.5 pl-4 pr-10 text-[13.5px]"}`}
+        className={`cursor-pointer appearance-none rounded-ctl border border-line bg-bg font-medium text-sub outline-none transition-colors hover:border-line-strong focus:border-accent ${compacto ? "py-1.5 pl-3 pr-8 text-[12px]" : "py-2.5 pl-4 pr-10 text-[13.5px]"}`}
       >
         {rotuloVazio && <option value="">{rotuloVazio}</option>}
         {opcoes.map((o) => (
@@ -356,7 +353,7 @@ export function Caixa({ marcada, aoMudar, titulo }) {
     <button
       onClick={aoMudar}
       title={titulo}
-      className={`flex h-[18px] w-[18px] flex-none cursor-pointer items-center justify-center rounded-[5px] border transition-colors ${
+      className={`flex h-[18px] w-[18px] flex-none cursor-pointer items-center justify-center rounded-ctl border transition-colors ${
         marcada ? "border-accent bg-accent text-white" : "border-line-strong bg-bg hover:border-accent"
       }`}
     >
@@ -369,13 +366,15 @@ export function Caixa({ marcada, aoMudar, titulo }) {
   );
 }
 
+/**
+ * O estágio como etiqueta neutra com o quadrado da cor do degrau. O nome é
+ * texto comum, e por isso lê nos dois temas; a cor só diz onde no funil.
+ */
 export function PilulaEstagio({ nome, cor }) {
   if (!nome) return <span className="text-[13px] text-faint">—</span>;
   return (
-    <span
-      className="inline-flex items-center rounded-[8px] px-2.5 py-1 text-[12.5px] font-medium"
-      style={{ color: cor.texto, background: cor.fundo }}
-    >
+    <span className="inline-flex items-center gap-1.5 rounded-ctl border border-line-strong px-2 py-0.5 text-[12px] font-medium text-fg">
+      <span aria-hidden="true" className="h-2 w-2 flex-none" style={{ background: cor?.marca || "var(--el-st-1)" }} />
       {nome}
     </span>
   );
@@ -395,7 +394,7 @@ export function Paginacao({ pagina, paginas, aoIr }) {
   const Botao = ({ children, ...props }) => (
     <button
       {...props}
-      className="flex h-9 min-w-9 cursor-pointer items-center justify-center rounded-[8px] border border-line bg-bg px-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
+      className="flex h-9 min-w-9 cursor-pointer items-center justify-center rounded-ctl border border-line bg-bg px-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
     >
       {children}
     </button>
@@ -415,7 +414,7 @@ export function Paginacao({ pagina, paginas, aoIr }) {
           <button
             key={n}
             onClick={() => aoIr(n)}
-            className={`flex h-9 min-w-9 cursor-pointer items-center justify-center rounded-[8px] border px-2 text-[13.5px] font-medium transition-colors ${
+            className={`flex h-9 min-w-9 cursor-pointer items-center justify-center rounded-ctl border px-2 text-[13.5px] font-medium transition-colors ${
               n === pagina
                 ? "border-accent bg-accent-soft text-accent-forte"
                 : "border-line bg-bg text-sub hover:border-line-strong hover:text-fg"
@@ -460,18 +459,18 @@ export function DialogoConfirmar({ pedido, aoFechar }) {
   if (!pedido) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0f1424]/55 p-4 backdrop-blur-[2px]" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar(); }}>
-      <section role="alertdialog" aria-modal="true" aria-labelledby={tituloId} className="w-full max-w-sm rounded-[15px] border border-line bg-bg p-5 shadow-2xl">
+      <section role="alertdialog" aria-modal="true" aria-labelledby={tituloId} className="w-full max-w-sm rounded-none border border-line bg-bg p-5 ">
         <h2 id={tituloId} className="text-[15px] font-semibold text-fg">{pedido.titulo}</h2>
         <p className="mt-2 text-[12px] text-sub">{pedido.descricao}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg">
+          <button type="button" onClick={aoFechar} className="cursor-pointer rounded-ctl border border-line px-3.5 py-2 text-[12px] font-semibold text-sub hover:border-line-strong hover:text-fg">
             Cancelar
           </button>
           <button
             ref={botaoRef}
             type="button"
             onClick={() => { pedido.confirmar(); aoFechar(); }}
-            className="cursor-pointer rounded-[9px] bg-danger px-3.5 py-2 text-[12px] font-semibold text-white hover:brightness-95"
+            className="cursor-pointer rounded-ctl bg-danger px-3.5 py-2 text-[12px] font-semibold text-white hover:brightness-95"
           >
             {pedido.rotulo || "Confirmar"}
           </button>

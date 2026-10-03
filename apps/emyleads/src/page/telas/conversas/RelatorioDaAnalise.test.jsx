@@ -285,7 +285,7 @@ describe("mostrarMensagem", () => {
     alvo.scrollIntoView = vi.fn();
     expect(mostrarMensagem(lista, "m2")).toBe(true);
     expect(alvo.scrollIntoView).toHaveBeenCalled();
-    expect(alvo.firstElementChild.classList.contains("outline-accent")).toBe(true);
+    expect(alvo.firstElementChild.classList.contains("outline-signal")).toBe(true);
     expect(mostrarMensagem(lista, "nao-existe")).toBe(false);
     expect(mostrarMensagem(null, "m1")).toBe(false);
   });

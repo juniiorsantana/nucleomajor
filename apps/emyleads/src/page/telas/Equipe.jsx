@@ -75,7 +75,7 @@ function situacaoDoConvite(convite) {
 
 function ConviteCriado({ convite, aoFechar }) {
   return (
-    <div className="mb-4 flex items-start gap-3 rounded-[10px] border border-accent/40 bg-accent/5 px-4 py-3">
+    <div className="mb-4 flex items-start gap-3 rounded-ctl border border-accent/40 bg-accent/5 px-4 py-3">
       <Mail size={15} className="mt-0.5 flex-none text-accent-forte" />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold text-fg">
@@ -322,12 +322,12 @@ export default function Equipe({ sessao }) {
             {convite && <ConviteCriado convite={convite} aoFechar={() => setConvite(null)} />}
 
             {erro && (
-              <div className="mb-4 rounded-[10px] border border-danger/40 bg-danger/10 px-4 py-3 text-[13px] text-danger">
+              <div className="mb-4 rounded-ctl border border-danger/40 bg-danger/10 px-4 py-3 text-[13px] text-danger">
                 {erro}
               </div>
             )}
 
-            <div className="overflow-hidden rounded-[12px] border border-line bg-bg">
+            <div className="overflow-hidden rounded-none border border-line bg-bg">
               <div
                 className={`${colunas} bg-surface py-2.5 text-[9.5px] font-bold uppercase tracking-[0.07em] text-sub`}
               >
@@ -393,7 +393,7 @@ export default function Equipe({ sessao }) {
             </div>
 
             {gerencia ? (
-              <div className="mt-3.5 flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-surface px-3.5 py-2.5">
+              <div className="mt-3.5 flex flex-wrap items-center gap-2.5 rounded-ctl border border-line bg-surface px-3.5 py-2.5">
                 <Phone size={15} className="flex-none text-sub" />
                 {assistenteDaEquipe ? (
                   <p className="min-w-[280px] flex-1 text-[12px] leading-relaxed text-sub">
@@ -418,7 +418,7 @@ export default function Equipe({ sessao }) {
                     <select
                       value={operadores.conexaoId}
                       onChange={(e) => operadores.setConexaoId(e.target.value)}
-                      className="rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
+                      className="rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-accent"
                     >
                       {operadores.conexoes.map((item) => (
                         <option key={item.connectionId} value={item.connectionId}>
@@ -442,12 +442,12 @@ export default function Equipe({ sessao }) {
               </p>
             )}
             {operadores.aviso && (
-              <p className="mt-2 rounded-[8px] bg-success-soft px-3 py-2 text-[12px] text-success">
+              <p className="mt-2 rounded-ctl bg-success-soft px-3 py-2 text-[12px] text-success">
                 {operadores.aviso}
               </p>
             )}
             {operadores.erro && (
-              <p className="mt-2 rounded-[8px] bg-danger/10 px-3 py-2 text-[12px] text-danger">
+              <p className="mt-2 rounded-ctl bg-danger/10 px-3 py-2 text-[12px] text-danger">
                 {operadores.erro}
               </p>
             )}

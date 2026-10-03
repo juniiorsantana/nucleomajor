@@ -21,7 +21,7 @@ export default function Historico({ aoAbrirEmpresa }) {
 
   if (linhas === null) return <p className="text-[13px] text-sub">Carregando…</p>;
   return (
-    <section className="rounded-[14px] border border-line bg-bg">
+    <section className="rounded-none border border-line bg-bg">
       {erro && <p role="alert" className="px-5 py-3 text-[12.5px] text-danger">{erro}</p>}
       <ListaDoHistorico linhas={linhas} aoAbrirEmpresa={aoAbrirEmpresa} />
     </section>

@@ -85,15 +85,15 @@ function LinhaTarefa({
             type="button"
             onClick={() => aoAbrirContato?.(contato)}
             title={`Abrir a ficha de ${contato.nome || "contato"}`}
-            className="hidden max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-line px-2 py-1 text-[11.5px] text-sub hover:border-accent hover:text-accent-forte sm:flex"
+            className="hidden max-w-[180px] cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-2 py-1 text-[11.5px] text-sub hover:border-accent hover:text-accent-forte sm:flex"
           >
             <Iniciais nome={contato.nome} tamanho={16} />
             <span className="truncate">{contato.nome || "Contato sem nome"}</span>
           </button>
         )}
         <span className="hidden gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 md:flex">
-          <button type="button" onClick={() => aoAbrir(tarefa)} aria-label="Editar tarefa" title="Editar" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-surface-hover hover:text-fg"><Pencil size={14} /></button>
-          <button type="button" onClick={() => aoRemover(tarefa)} aria-label="Excluir tarefa" title="Excluir" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-danger/10 hover:text-danger"><Trash2 size={14} /></button>
+          <button type="button" onClick={() => aoAbrir(tarefa)} aria-label="Editar tarefa" title="Editar" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg"><Pencil size={14} /></button>
+          <button type="button" onClick={() => aoRemover(tarefa)} aria-label="Excluir tarefa" title="Excluir" className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-danger/10 hover:text-danger"><Trash2 size={14} /></button>
         </span>
       </span>
       {(precisoResponder || (pendencias.length > 0 && !concluida)) && (
@@ -108,10 +108,10 @@ function LinhaTarefa({
           {precisoResponder && (
             <>
               <span className="text-[12px] font-medium text-accent-forte md:text-[11px]">Colocaram você nesta tarefa.</span>
-              <button type="button" onClick={() => aoAssumir(tarefa)} className="flex min-h-10 cursor-pointer items-center gap-1 rounded-[9px] bg-accent px-3.5 text-[14px] font-semibold text-white hover:brightness-110 md:min-h-8 md:text-[12px]">
+              <button type="button" onClick={() => aoAssumir(tarefa)} className="flex min-h-10 cursor-pointer items-center gap-1 rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-on-accent hover:brightness-110 md:min-h-8 md:text-[12px]">
                 <Check size={14} strokeWidth={2.6} />Assumir
               </button>
-              <button type="button" onClick={() => aoRecusar(tarefa)} className="min-h-10 cursor-pointer rounded-[9px] border border-line px-3.5 text-[14px] font-medium text-sub hover:border-line-strong hover:text-fg md:min-h-8 md:text-[12px]">
+              <button type="button" onClick={() => aoRecusar(tarefa)} className="min-h-10 cursor-pointer rounded-ctl border border-line px-3.5 text-[14px] font-medium text-sub hover:border-line-strong hover:text-fg md:min-h-8 md:text-[12px]">
                 Recusar
               </button>
             </>
@@ -349,7 +349,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
             </div>
           )}
 
-          <div className="overflow-hidden rounded-[14px] border border-line bg-bg">
+          <div className="overflow-hidden rounded-none border border-line bg-bg">
             {aba !== "concluidas" && (
               <form onSubmit={criarRapida} className="flex items-center gap-2 border-b border-line px-3 py-2">
                 <Plus size={18} className="ml-1 flex-none text-accent-forte" aria-hidden="true" />
@@ -362,7 +362,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
                   className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-faint md:min-h-9 md:text-[13.5px]"
                 />
                 {rapida.trim() && (
-                  <button type="submit" disabled={criando} className="min-h-10 flex-none cursor-pointer rounded-[9px] bg-accent px-3.5 text-[14px] font-semibold text-white disabled:opacity-40 md:min-h-8 md:text-[12px]">
+                  <button type="submit" disabled={criando} className="min-h-10 flex-none cursor-pointer rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-on-accent disabled:opacity-40 md:min-h-8 md:text-[12px]">
                     {criando ? "Criando…" : "Adicionar"}
                   </button>
                 )}
@@ -383,7 +383,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
                   {aba === "minhas" && !filtroPrazo && !busca ? "Você não tem tarefas abertas." : "Troque o filtro ou busque por outro termo."}
                 </p>
                 {aba === "minhas" && equipeAbertas > 0 && (
-                  <button type="button" onClick={() => setAba("equipe")} className="mt-4 min-h-11 cursor-pointer rounded-[10px] border border-line px-4 text-[14px] font-semibold text-fg hover:border-accent hover:text-accent-forte md:min-h-9 md:text-[13px]">
+                  <button type="button" onClick={() => setAba("equipe")} className="mt-4 min-h-11 cursor-pointer rounded-ctl border border-line px-4 text-[14px] font-semibold text-fg hover:border-accent hover:text-accent-forte md:min-h-9 md:text-[13px]">
                     Ver as {equipeAbertas} da equipe
                   </button>
                 )}
@@ -428,7 +428,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
         type="button"
         onClick={() => setEditando(null)}
         aria-label="Nova tarefa"
-        className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-white shadow-[0_8px_24px_rgba(36,86,199,0.4)] active:scale-95"
+        className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-on-accent  active:scale-95"
       >
         <Plus size={26} strokeWidth={2.4} />
       </button>

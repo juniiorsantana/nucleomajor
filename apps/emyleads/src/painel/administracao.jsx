@@ -13,7 +13,7 @@ import { BotaoPrimario } from "../page/ui";
  */
 
 export const ENTRADA_PAINEL =
-  "rounded-[8px] border border-line bg-bg px-3 py-1.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent";
+  "rounded-ctl border border-line bg-bg px-3 py-1.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent";
 const entrada = ENTRADA_PAINEL;
 
 const CICLO = { MONTHLY: "mensal", QUARTERLY: "trimestral", SEMIANNUALLY: "semestral", YEARLY: "anual" };
@@ -105,7 +105,7 @@ export function VendasDoAsaas() {
       {aviso && <p role="status" className="mt-2 text-[12.5px] text-success">{aviso}</p>}
       {erro && <p role="alert" className="mt-2 text-[12.5px] text-danger">{erro}</p>}
       {vendas.length > 0 && (
-        <ul className="mt-2 divide-y divide-line rounded-[10px] border border-line">
+        <ul className="mt-2 divide-y divide-line rounded-ctl border border-line">
           {vendas.map((venda) => {
             const podeReenviar = !venda.empresa && ["active", "past_due"].includes(venda.status);
             const podeRevogar = !venda.empresa && venda.codigoStatus === "pending" && venda.codigoId;
@@ -125,13 +125,13 @@ export function VendasDoAsaas() {
                 )}
                 {podeReenviar && (
                   <button type="button" disabled={ocupado === venda.id} onClick={() => reenviar(venda)}
-                    className="cursor-pointer rounded-[8px] border border-line bg-bg px-3 py-1.5 font-medium text-sub hover:text-fg disabled:opacity-40">
+                    className="cursor-pointer rounded-ctl border border-line bg-bg px-3 py-1.5 font-medium text-sub hover:text-fg disabled:opacity-40">
                     {ocupado === venda.id ? "Enviando…" : "Reenviar ativação"}
                   </button>
                 )}
                 {podeRevogar && (
                   <button type="button" disabled={ocupado === venda.id} onClick={() => revogar(venda)}
-                    className="cursor-pointer rounded-[8px] px-3 py-1.5 font-medium text-danger hover:bg-danger/10 disabled:opacity-40">
+                    className="cursor-pointer rounded-ctl px-3 py-1.5 font-medium text-danger hover:bg-danger/10 disabled:opacity-40">
                     Revogar
                   </button>
                 )}
@@ -193,16 +193,16 @@ export function PedidosDeConexao({ mostrarVazio = false }) {
       <h3 className="text-[13px] font-semibold text-fg">WhatsApps aguardando a VPS</h3>
       <ul className="mt-2 space-y-2">
         {pendentes.map((pedido) => (
-          <li key={pedido.conexaoId} className="rounded-[10px] border border-line px-3.5 py-2.5 text-[12.5px]">
+          <li key={pedido.conexaoId} className="rounded-ctl border border-line px-3.5 py-2.5 text-[12.5px]">
             <div className="font-medium text-fg">{pedido.empresa} · final {pedido.final || "????"}</div>
             <div className="text-sub">
               {pedido.dono || "sem dono"} · plano {pedido.plano || "?"} · pedido em{" "}
               {pedido.pedidoEm ? new Date(pedido.pedidoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "?"}
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded-[8px] bg-surface px-2.5 py-1.5 text-[11.5px] text-fg">{comandoDaVps(pedido)}</code>
+              <code className="min-w-0 flex-1 truncate rounded-ctl bg-surface px-2.5 py-1.5 text-[11.5px] text-fg">{comandoDaVps(pedido)}</code>
               <button type="button" onClick={() => copiar(pedido)}
-                className="inline-flex flex-none cursor-pointer items-center gap-1.5 rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[12px] font-medium text-sub hover:text-fg">
+                className="inline-flex flex-none cursor-pointer items-center gap-1.5 rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-[12px] font-medium text-sub hover:text-fg">
                 {copiado === pedido.conexaoId ? <Check size={14} /> : <Copy size={14} />}
                 {copiado === pedido.conexaoId ? "Copiado" : "Copiar"}
               </button>
@@ -256,7 +256,7 @@ export function LiberarAcesso() {
   };
 
   return (
-    <section className="rounded-[14px] border border-line bg-bg">
+    <section className="rounded-none border border-line bg-bg">
       <p className="border-b border-line px-5 py-4 text-[12.5px] leading-relaxed text-sub">
         Emita uma liberação comercial vinculada ao e-mail do novo cliente. O código aparece uma única vez e ativa uma
         organização no plano escolhido. Quem paga pelo link do Asaas recebe o código sozinho.
@@ -285,8 +285,8 @@ export function LiberarAcesso() {
         <div className="border-t border-line bg-success-soft/40 px-5 py-4">
           <p className="text-[12.5px] text-sub">Envie este código somente para <strong className="text-fg">{liberacao.email}</strong>:</p>
           <div className="mt-2 flex items-center gap-2">
-            <code className="rounded-[8px] border border-success/20 bg-bg px-3 py-2 text-[15px] font-semibold tracking-wide text-fg">{liberacao.access_code}</code>
-            <button type="button" onClick={copiar} className="inline-flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line bg-bg px-3 py-2 text-[12.5px] font-medium text-sub hover:text-fg">
+            <code className="rounded-ctl border border-success/20 bg-bg px-3 py-2 text-[15px] font-semibold tracking-wide text-fg">{liberacao.access_code}</code>
+            <button type="button" onClick={copiar} className="inline-flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line bg-bg px-3 py-2 text-[12.5px] font-medium text-sub hover:text-fg">
               {copiado ? <Check size={15} /> : <Copy size={15} />}{copiado ? "Copiado" : "Copiar"}
             </button>
           </div>

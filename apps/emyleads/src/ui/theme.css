@@ -1,79 +1,113 @@
 @import "tailwindcss";
 
 /**
- * Tokens do EmyLeads — provisórios até o brandbook.
+ * Tokens do Núcleo Major: Sistema Grafite (02/10/2026).
  *
  * Ficam como custom properties e só depois entram no @theme. Assim o tema
  * escuro é uma troca de valores num bloco só, em vez de uma auditoria em cada
- * componente — que é o preço de deixar cor solta pelo código.
+ * componente, que é o preço de deixar cor solta pelo código.
+ *
+ * A base é preto, branco e grafite. Cor só entra com dono:
+ *   - `accent`: a ação principal, em grafite. Não é mais um azul de marca.
+ *   - `signal`: azul de SINAL. Novo, não lido, selecionado, foco, lido pelo
+ *     cliente. Sempre em dose pequena; nunca em área grande.
+ *   - `ia` e `flow`: os atores do atendimento. Violeta é a IA, ciano é o fluxo;
+ *     a pessoa é o próprio grafite.
+ *   - `success`, `warning`, `danger`: estado, sempre com palavra junto.
+ * Todos os pares de texto passam de 4,5:1 nos dois temas.
  *
  * NOTA: `prefers-color-scheme` segue o sistema operacional, não o tema do
- * WhatsApp, que é uma preferência interna dele. Sincronizar com o tema real do
- * WhatsApp fica para a Etapa 3, lendo a classe que ele põe no <html>.
- *
- * Densidade é de software de produtividade: corpo em 13px, metadado em 11-12px,
- * nada acima de 20px. Hierarquia vem de peso, espaço e contraste — não de
- * borda, sombra ou cartão.
+ * WhatsApp, que é uma preferência interna dele.
  */
 
 /* `:root, :host` e não só `:root`.
-   O painel monta dentro de um Shadow DOM, e ali `:root` não casa com nada —
+   O painel monta dentro de um Shadow DOM, e ali `:root` não casa com nada:
    o shadow root não é o elemento raiz do documento. Declarando só em `:root`,
    todas as variáveis ficavam indefinidas dentro do painel, `var()` resolvia
    para vazio e o fundo saía TRANSPARENTE por cima do WhatsApp. */
 :root,
 :host {
-  /* `bg` é o CARTÃO (branco) e `surface` é o FUNDO do painel (cinza claro).
-     A hierarquia vem daí: bloco de conteúdo flutua sobre a base, em vez de ser
-     separado por régua. */
+  /* `bg` é a área de trabalho (branco) e `surface` é o apoio (cinza claro). */
   --el-bg: #ffffff;
-  --el-surface: #f4f6f9;
-  --el-surface-hover: #eaf0f6;
-  --el-line: #e1e6ee;
-  --el-line-strong: #c8d1de;
-  /* Amostrado do "Emy" da marca. */
-  --el-fg: #182438;
-  --el-sub: #53637a;
-  --el-faint: #68788e;
-  /* Roxo é a MARCA; verde é SUCESSO. Separar os dois é o que impede o produto
-     de virar extensão visual do WhatsApp.
-
-     Os valores saem da logo, não de uma paleta pronta: `accent` é o roxo do
-     símbolo e `accent-forte` é o roxo do "Leads" — que já é mais escuro
-     justamente porque ali ele é TEXTO, e precisa de contraste. */
-  --el-accent: #2456c7;
-  --el-accent-forte: #1945a5;
-  --el-accent-soft: #eaf0fc;
+  --el-surface: #f5f5f6;
+  --el-surface-hover: #ededee;
+  --el-line: #e4e4e6;
+  --el-line-strong: #c2c2c6;
+  --el-fg: #18181b;
+  --el-sub: #5c5c63;
+  --el-faint: #6c6c72;
+  /* Grafite da marca, provisório até o código oficial do rebrand.
+     `accent-forte` é o accent quando ele é TEXTO (item ativo, link de ação). */
+  --el-accent: #2b2c30;
+  --el-accent-forte: #18181b;
+  --el-accent-soft: #ededee;
   --el-on-accent: #ffffff;
+  --el-signal: #2f5bea;
+  --el-signal-soft: #ebf0fe;
+  --el-on-signal: #ffffff;
+  --el-ia: #6b4fd8;
+  --el-ia-soft: #f1eefc;
+  --el-flow: #0a7489;
+  --el-flow-soft: #e6f3f5;
+  /* Estágios do funil: escala do azul de sinal, do claro ao intenso. */
+  --el-st-1: #c9d5fb;
+  --el-st-2: #a7bcf7;
+  --el-st-3: #86a2f3;
+  --el-st-4: #6888f0;
+  --el-st-5: #4b71ed;
+  --el-st-6: #2f5bea;
   --el-control-height: 44px;
-  --el-radius-control: 10px;
-  --el-radius-panel: 20px;
+  --el-radius-control: 2px;
+  --el-radius-panel: 0px;
   --el-space-page: 24px;
-  --el-shadow-floating: 0 8px 32px #12173024;
-  --el-success: #16a34a;
-  --el-success-soft: #dcfce7;
-  --el-warning: #b45309;
-  --el-danger: #dc2626;
+  /* Sem sombra: camada aparece por borda forte (e fundo escurecido no modal). */
+  --el-shadow-floating: none;
+  --el-success: #2f7a4e;
+  --el-success-soft: #eaf3ed;
+  --el-warning: #8f5e00;
+  --el-warning-soft: #f7f0e1;
+  --el-danger: #b3261e;
+  --el-danger-soft: #f9eae9;
 }
 
 @media (prefers-color-scheme: dark) {
   :root,
   :host {
-    --el-bg: #171c24;
-    --el-surface: #11151b;
-    --el-surface-hover: #1e242e;
-    --el-line: #262d38;
-    --el-line-strong: #333c4a;
-    --el-fg: #e8ecf1;
-    --el-sub: #9aa5b4;
-    --el-faint: #95a2b5;
-    --el-accent: #3064d8;
-    --el-accent-forte: #a7c4ff;
-    --el-accent-soft: #1b2b49;
-    --el-success: #3ecf8e;
-    --el-success-soft: #10291d;
-    --el-warning: #d99341;
-    --el-danger: #e8776c;
+    /* `bg` continua mais claro que `surface` no escuro: enquanto houver
+       cartão no portal, é o que mantém o bloco acima da base. */
+    --el-bg: #19191c;
+    --el-surface: #111113;
+    --el-surface-hover: #242428;
+    --el-line: #26262a;
+    --el-line-strong: #3a3a40;
+    --el-fg: #ececee;
+    --el-sub: #a3a3ab;
+    --el-faint: #8b8b93;
+    /* Grafite levantado, e não invertido: 77 botões ainda escrevem
+       `text-white` sobre `bg-accent`. Com #636369 o branco dá 6:1 e o botão
+       se separa do fundo (3,2:1). A inversão vem com a revisão de componentes. */
+    --el-accent: #636369;
+    --el-accent-forte: #ececee;
+    --el-accent-soft: #242428;
+    --el-signal: #7c9cff;
+    --el-signal-soft: #17213d;
+    --el-on-signal: #111113;
+    --el-ia: #a996ff;
+    --el-ia-soft: #221b3d;
+    --el-flow: #4fc3d6;
+    --el-flow-soft: #0f2a30;
+    --el-st-1: #2a3657;
+    --el-st-2: #34477a;
+    --el-st-3: #40599e;
+    --el-st-4: #4f6dc4;
+    --el-st-5: #6584e6;
+    --el-st-6: #7c9cff;
+    --el-success: #6cc28f;
+    --el-success-soft: #16261c;
+    --el-warning: #d9a441;
+    --el-warning-soft: #2a2213;
+    --el-danger: #ec7b72;
+    --el-danger-soft: #2c1615;
   }
 }
 
@@ -89,15 +123,30 @@
   --color-accent: var(--el-accent);
   --color-accent-forte: var(--el-accent-forte);
   --color-accent-soft: var(--el-accent-soft);
+  --color-on-accent: var(--el-on-accent);
+  --color-signal: var(--el-signal);
+  --color-signal-soft: var(--el-signal-soft);
+  --color-on-signal: var(--el-on-signal);
+  --color-ia: var(--el-ia);
+  --color-ia-soft: var(--el-ia-soft);
+  --color-flow: var(--el-flow);
+  --color-flow-soft: var(--el-flow-soft);
   --color-success: var(--el-success);
   --color-success-soft: var(--el-success-soft);
   --color-warning: var(--el-warning);
+  --color-warning-soft: var(--el-warning-soft);
   --color-danger: var(--el-danger);
+  --color-danger-soft: var(--el-danger-soft);
 
-  --font-sans: "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Geist Variable", -apple-system, "SF Pro Text", "Segoe UI Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 
-  --radius-el: 6px;
-  --radius-el-lg: 8px;
+  /* Dois raios só: 0 na estrutura (painel, lista, modal, menu) e 2px no
+     controle (botão, campo, etiqueta). Círculo fica para avatar, contador e
+     ponto de status (`rounded-full`). */
+  --radius-ctl: 2px;
+  --radius-el: 2px;
+  --radius-el-lg: 2px;
 }
 
 /* Shared product controls and mobile navigation. */
@@ -121,23 +170,23 @@
   .portal-shell :where(input:not([type=checkbox]):not([type=radio]), select, textarea) { font-size: 16px; min-height: var(--el-control-height); }
   .portal-shell :where(button) { touch-action: manipulation; }
   .mobile-dock { position: fixed; z-index: 20; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 4px; width: min(360px, calc(100% - 32px)); padding: 6px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-panel); background: var(--el-bg); box-shadow: var(--el-shadow-floating); }
-  .mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 44px; height: 52px; border-radius: 14px; color: var(--el-sub); cursor: pointer; transition: background-color 150ms, color 150ms; }
+  .mobile-dock-item { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 44px; height: 52px; border-radius: var(--el-radius-control); color: var(--el-sub); cursor: pointer; transition: background-color 150ms, color 150ms; }
   .mobile-dock-item[aria-current=page], .mobile-dock-item[data-active] { color: var(--el-accent-forte); background: var(--el-accent-soft); }
   .mobile-dock-item[aria-current=page]::after { content: ''; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
   .mobile-dock-item:active { background: var(--el-surface-hover); }
   .mobile-menu[open] { display: block; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px; max-height: 85dvh; border: 0; padding: 0; background: transparent; color: var(--el-fg); overflow-y: auto; }
-  .mobile-menu::backdrop { background: #10182770; }
-  .mobile-menu-surface { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--el-bg); border-radius: 24px 24px 0 0; }
+  .mobile-menu::backdrop { background: rgba(17, 17, 19, .44); }
+  .mobile-menu-surface { padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--el-bg); border-radius: 0; border-top: 1px solid var(--el-line-strong); }
   .mobile-menu-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 18px; font-weight: 600; }
   .mobile-menu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .mobile-menu-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 88px; padding: 8px; border-radius: 14px; background: var(--el-surface); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+  .mobile-menu-grid button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 88px; padding: 8px; border-radius: var(--el-radius-control); background: var(--el-surface); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
   .mobile-menu-grid button[aria-current=page] { background: var(--el-accent-soft); color: var(--el-accent-forte); }
   .mobile-menu-account { border-top: 1px solid var(--el-line); padding-top: 16px; margin-top: 16px; }
 }
 
 @layer utilities {
   :where(button, a, input, select, textarea):focus-visible {
-    outline: 2px solid var(--el-accent);
+    outline: 2px solid var(--el-signal);
     outline-offset: 2px;
   }
 
@@ -147,7 +196,7 @@
   }
   .scrollbar-fina::-webkit-scrollbar-thumb {
     background: var(--el-line-strong);
-    border-radius: 999px;
+    border-radius: 0;
   }
   .scrollbar-fina::-webkit-scrollbar-track {
     background: transparent;
@@ -164,3 +213,67 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * O painel antigo (a chave "Painel novo / Painel antigo", web/painel.js).
+ *
+ * Os dois painéis usam as mesmas variáveis. Com `data-painel="antigo"` no
+ * <html>, valem os valores de antes do Sistema Grafite (copiados da main de
+ * 02/10/2026): azul de marca, cantos arredondados, sombra e a fonte do
+ * sistema. Fica fora de @layer para ganhar das regras acima. Sai junto com
+ * src/page-classico quando o painel antigo for desligado.
+ * ------------------------------------------------------------------------- */
+html[data-painel="antigo"] {
+  --el-bg: #ffffff;
+  --el-surface: #f4f6f9;
+  --el-surface-hover: #eaf0f6;
+  --el-line: #e1e6ee;
+  --el-line-strong: #c8d1de;
+  --el-fg: #182438;
+  --el-sub: #53637a;
+  --el-faint: #68788e;
+  --el-accent: #2456c7;
+  --el-accent-forte: #1945a5;
+  --el-accent-soft: #eaf0fc;
+  --el-on-accent: #ffffff;
+  --el-signal: #2456c7;
+  --el-signal-soft: #eaf0fc;
+  --el-radius-control: 10px;
+  --el-radius-panel: 20px;
+  --el-shadow-floating: 0 8px 32px #12173024;
+  --el-success: #16a34a;
+  --el-success-soft: #dcfce7;
+  --el-warning: #b45309;
+  --el-danger: #dc2626;
+  --font-sans: "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-el: 6px;
+  --radius-el-lg: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-painel="antigo"] {
+    --el-bg: #171c24;
+    --el-surface: #11151b;
+    --el-surface-hover: #1e242e;
+    --el-line: #262d38;
+    --el-line-strong: #333c4a;
+    --el-fg: #e8ecf1;
+    --el-sub: #9aa5b4;
+    --el-faint: #95a2b5;
+    --el-accent: #3064d8;
+    --el-accent-forte: #a7c4ff;
+    --el-accent-soft: #1b2b49;
+    --el-signal: #3064d8;
+    --el-signal-soft: #1b2b49;
+    --el-success: #3ecf8e;
+    --el-success-soft: #10291d;
+    --el-warning: #d99341;
+    --el-danger: #e8776c;
+  }
+}
+
+html[data-painel="antigo"] .mobile-dock-item,
+html[data-painel="antigo"] .mobile-menu-grid button { border-radius: 14px; }
+html[data-painel="antigo"] .mobile-menu::backdrop { background: #10182770; }
+html[data-painel="antigo"] .mobile-menu-surface { border-radius: 24px 24px 0 0; border-top: 0; }
+html[data-painel="antigo"] .scrollbar-fina::-webkit-scrollbar-thumb { border-radius: 999px; }

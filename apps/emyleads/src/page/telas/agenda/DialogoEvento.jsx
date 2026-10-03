@@ -13,7 +13,7 @@ const TIPOS = [
   { id: "block", rotulo: "Bloqueio", dica: "Horário indisponível. Os colegas veem só que você está ocupado." },
 ];
 
-const campo = "min-h-11 w-full rounded-[10px] border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-accent md:min-h-10 md:text-[13px]";
+const campo = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none transition-colors focus:border-signal md:min-h-10 md:text-[13px]";
 const rotulo = "mb-1 block text-[13px] font-semibold text-sub md:text-[12px]";
 
 function textoLembrete(minutos) {
@@ -139,11 +139,11 @@ export default function DialogoEvento({
       rodape={(
         <>
           {editando && (
-            <button type="button" onClick={aoExcluir} disabled={salvando} aria-label="Excluir compromisso" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-[10px] px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 md:min-h-9 md:text-[13px]">
+            <button type="button" onClick={aoExcluir} disabled={salvando} aria-label="Excluir compromisso" className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-ctl px-2.5 text-[14px] font-medium text-danger hover:bg-danger/10 disabled:opacity-40 md:min-h-9 md:text-[13px]">
               <Trash2 size={16} /><span className="hidden sm:inline">Excluir</span>
             </button>
           )}
-          <button type="button" onClick={aoFechar} className="ml-auto hidden min-h-9 cursor-pointer rounded-[10px] px-3 text-[13px] font-medium text-sub hover:text-fg md:block">Cancelar</button>
+          <button type="button" onClick={aoFechar} className="ml-auto hidden min-h-9 cursor-pointer rounded-ctl px-3 text-[13px] font-medium text-sub hover:text-fg md:block">Cancelar</button>
           <BotaoPrimario type="submit" disabled={salvando} className="!min-h-11 ml-auto !flex-1 !py-2 md:!min-h-9 md:ml-0 md:!flex-none">
             {salvando ? "Salvando…" : editando ? "Salvar alterações" : "Criar compromisso"}
           </BotaoPrimario>
@@ -175,7 +175,7 @@ export default function DialogoEvento({
                   disabled={bloqueado}
                   title={bloqueado ? "Bloqueio é sempre pessoal" : tipo.dica}
                   onClick={() => mudar("tipo", tipo.id)}
-                  className={`min-h-10 flex-1 cursor-pointer rounded-full border px-2 text-[14px] font-medium disabled:cursor-not-allowed disabled:opacity-40 md:min-h-8 md:flex-none md:px-3.5 md:text-[12px] ${form.tipo === tipo.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                  className={`min-h-10 flex-1 cursor-pointer rounded-ctl border px-2 text-[14px] font-medium disabled:cursor-not-allowed disabled:opacity-40 md:min-h-8 md:flex-none md:px-3.5 md:text-[12px] ${form.tipo === tipo.id ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
                 >
                   {tipo.rotulo}
                 </button>
@@ -188,7 +188,7 @@ export default function DialogoEvento({
         <Secao icone={Clock3} titulo="Quando">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <input required type="date" aria-label="Data" className={campo} value={form.data} onChange={(e) => mudar("data", e.target.value)} />
-            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[10px] border border-line px-3 text-[15px] text-fg md:min-h-10 md:text-[13px]">
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-ctl border border-line px-3 text-[15px] text-fg md:min-h-10 md:text-[13px]">
               Dia inteiro
               <input type="checkbox" role="switch" checked={form.diaInteiro} onChange={(e) => mudar("diaInteiro", e.target.checked)} className="h-5 w-5 accent-accent" />
             </label>
@@ -207,7 +207,7 @@ export default function DialogoEvento({
                     type="button"
                     aria-pressed={duracao === minutos}
                     onClick={() => aplicarDuracao(minutos)}
-                    className={`min-h-9 cursor-pointer rounded-full border px-3 text-[13px] font-medium md:min-h-7 md:text-[11.5px] ${duracao === minutos ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                    className={`min-h-9 cursor-pointer rounded-ctl border px-3 text-[13px] font-medium md:min-h-7 md:text-[11.5px] ${duracao === minutos ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
                   >
                     {formatarDuracao(minutos)}
                   </button>
@@ -245,7 +245,7 @@ export default function DialogoEvento({
                   visibilidade: opcao.id,
                   tipo: opcao.id === "organization" && atual.tipo === "block" ? "event" : atual.tipo,
                 }))}
-                className={`min-h-14 cursor-pointer rounded-[11px] border p-3 text-left ${form.visibilidade === opcao.id ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}
+                className={`min-h-14 cursor-pointer rounded-ctl border p-3 text-left ${form.visibilidade === opcao.id ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}
               >
                 <span className="block text-[15px] font-semibold text-fg md:text-[13px]">{opcao.titulo}</span>
                 <span className="mt-0.5 block text-[13px] leading-5 text-sub md:text-[11.5px] md:leading-4">{opcao.texto}</span>
@@ -262,7 +262,7 @@ export default function DialogoEvento({
                 type="button"
                 aria-pressed={form.lembretes.includes(minutos)}
                 onClick={() => alternarLembrete(minutos)}
-                className={`min-h-10 cursor-pointer rounded-full border px-3.5 text-[14px] font-medium md:min-h-8 md:px-3 md:text-[12px] ${form.lembretes.includes(minutos) ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                className={`min-h-10 cursor-pointer rounded-ctl border px-3.5 text-[14px] font-medium md:min-h-8 md:px-3 md:text-[12px] ${form.lembretes.includes(minutos) ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
               >
                 {textoLembrete(minutos)}
               </button>
@@ -271,7 +271,7 @@ export default function DialogoEvento({
           {form.lembretes.length === 0 && <p className="mt-1.5 text-[12px] text-faint md:text-[11px]">Sem lembrete.</p>}
         </Secao>
 
-        <div className="rounded-[12px] border border-line">
+        <div className="rounded-none border border-line">
           <button
             type="button"
             aria-expanded={detalhes}
@@ -295,7 +295,7 @@ export default function DialogoEvento({
                       type="button"
                       aria-pressed={(form.categoryId || categorias[0]?.id) === categoria.id}
                       onClick={() => mudar("categoryId", categoria.id)}
-                      className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[14px] font-medium md:min-h-8 md:text-[12px] ${(form.categoryId || categorias[0]?.id) === categoria.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                      className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-ctl border px-3 text-[14px] font-medium md:min-h-8 md:text-[12px] ${(form.categoryId || categorias[0]?.id) === categoria.id ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
                     >
                       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: categoria.color }} />{categoria.name}
                     </button>
@@ -311,7 +311,7 @@ export default function DialogoEvento({
                       type="button"
                       aria-pressed={form.status === opcao.id}
                       onClick={() => mudar("status", opcao.id)}
-                      className={`min-h-10 cursor-pointer rounded-full border px-3.5 text-[14px] font-medium md:min-h-8 md:text-[12px] ${form.status === opcao.id ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-sub hover:border-line-strong"}`}
+                      className={`min-h-10 cursor-pointer rounded-ctl border px-3.5 text-[14px] font-medium md:min-h-8 md:text-[12px] ${form.status === opcao.id ? "border-fg bg-fg text-bg" : "border-line text-sub hover:border-line-strong"}`}
                     >
                       {opcao.rotulo}
                     </button>
@@ -336,7 +336,7 @@ export default function DialogoEvento({
           )}
         </div>
 
-        {erro && <p role="alert" className="rounded-[10px] border border-danger/25 bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
+        {erro && <p role="alert" className="rounded-ctl border border-danger/25 bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
       </div>
     </Folha>
   );

@@ -69,7 +69,7 @@ export default function CriacaoRapida({ abertura, salvando, aoSalvar, aoMaisOpco
       role="dialog"
       aria-label="Criação rápida"
       onSubmit={enviar}
-      className="fixed z-50 rounded-[14px] border border-line bg-bg p-3 shadow-[0_12px_40px_rgba(18,23,48,0.22)]"
+      className="fixed z-50 rounded-none border border-line bg-bg p-3 "
       style={{ ...posicao, width: Math.min(LARGURA, typeof window === "undefined" ? LARGURA : window.innerWidth - MARGEM * 2) }}
     >
       <div className="flex items-center gap-2">
@@ -80,7 +80,7 @@ export default function CriacaoRapida({ abertura, salvando, aoSalvar, aoMaisOpco
           className="flex-1"
           opcoes={[{ id: "compromisso", rotulo: "Compromisso" }, { id: "tarefa", rotulo: "Tarefa" }]}
         />
-        <button type="button" onClick={aoFechar} aria-label="Fechar" className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[8px] text-sub hover:bg-surface-hover hover:text-fg"><X size={16} /></button>
+        <button type="button" onClick={aoFechar} aria-label="Fechar" className="flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg"><X size={16} /></button>
       </div>
       <input
         ref={entradaRef}
@@ -89,16 +89,16 @@ export default function CriacaoRapida({ abertura, salvando, aoSalvar, aoMaisOpco
         maxLength={240}
         aria-label="Título"
         placeholder={tipo === "tarefa" ? "O que precisa ser feito?" : "Título do compromisso"}
-        className="mt-3 min-h-10 w-full rounded-[9px] border border-line bg-bg px-3 text-[14px] font-medium text-fg outline-none focus:border-accent"
+        className="mt-3 min-h-10 w-full rounded-ctl border border-line bg-bg px-3 text-[14px] font-medium text-fg outline-none focus:border-signal"
       />
       <p className="mt-2 text-[12px] first-letter:uppercase text-sub">
         {dia} · {tipo === "tarefa" ? `prazo às ${horaLocal(inicio)}` : `${horaLocal(inicio)}–${horaLocal(abertura.fim)} (${formatarDuracao(duracao)})`}
       </p>
       <div className="mt-3 flex items-center gap-2">
-        <button type="button" onClick={() => aoMaisOpcoes({ titulo, tipo })} className="min-h-8 cursor-pointer rounded-[8px] px-2 text-[12px] font-semibold text-accent-forte hover:bg-accent-soft">
+        <button type="button" onClick={() => aoMaisOpcoes({ titulo, tipo })} className="min-h-8 cursor-pointer rounded-ctl px-2 text-[12px] font-semibold text-accent-forte hover:bg-accent-soft">
           Mais opções
         </button>
-        <button type="submit" disabled={!titulo.trim() || salvando} className="ml-auto min-h-8 cursor-pointer rounded-[8px] bg-accent px-4 text-[12.5px] font-semibold text-white hover:brightness-110 disabled:opacity-40">
+        <button type="submit" disabled={!titulo.trim() || salvando} className="ml-auto min-h-8 cursor-pointer rounded-ctl bg-accent px-4 text-[12.5px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-40">
           {salvando ? "Salvando…" : "Salvar"}
         </button>
       </div>

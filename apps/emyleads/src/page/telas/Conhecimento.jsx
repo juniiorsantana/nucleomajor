@@ -201,7 +201,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
       type="button"
       onClick={() => criar("")}
       disabled={!podeCriar}
-      className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-accent px-4 text-[13px] font-semibold text-white disabled:opacity-35"
+      className="inline-flex h-10 items-center gap-2 rounded-ctl bg-accent px-4 text-[13px] font-semibold text-white disabled:opacity-35"
     >
       <Plus size={16} /> Adicionar conhecimento
     </button>
@@ -217,7 +217,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
               Ensine seus assistentes a responder usando informações confiáveis da sua empresa.
             </p>
           </div>
-          <label className="order-3 flex h-10 w-full items-center gap-2 rounded-[10px] border border-line px-3 text-sub focus-within:border-accent md:order-none md:ml-auto md:w-72">
+          <label className="order-3 flex h-10 w-full items-center gap-2 rounded-ctl border border-line px-3 text-sub focus-within:border-accent md:order-none md:ml-auto md:w-72">
             <Search size={16} />
             <input
               value={busca}
@@ -231,7 +231,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
       )}
       {embedded && (
         <div className="flex flex-none flex-wrap items-center gap-3 border-b border-line bg-bg px-4 py-3 md:px-7">
-          <label className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-[9px] border border-line px-3 text-sub focus-within:border-accent md:max-w-md">
+          <label className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-ctl border border-line px-3 text-sub focus-within:border-accent md:max-w-md">
             <Search size={15} />
             <input
               value={busca}
@@ -244,7 +244,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
         </div>
       )}
 
-      {erro && <div role="alert" className="mx-4 mt-4 rounded-[9px] bg-danger/10 px-4 py-3 text-[12.5px] text-danger md:mx-8">{erro}</div>}
+      {erro && <div role="alert" className="mx-4 mt-4 rounded-ctl bg-danger/10 px-4 py-3 text-[12.5px] text-danger md:mx-8">{erro}</div>}
 
       {/* O editor governa a própria altura: as três colunas rolam de forma
           independente, o que não funciona dentro de um pai que já rola. */}
@@ -309,13 +309,13 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
 
       {versoes && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" onMouseDown={(e) => e.target === e.currentTarget && setVersoes(null)}>
-          <section className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-[14px] border border-line bg-bg shadow-2xl">
+          <section className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-none border border-line bg-bg ">
             <header className="flex items-center border-b border-line px-5 py-4">
               <div>
                 <h2 className="text-[15px] font-semibold text-fg">Histórico de versões</h2>
                 <p className="text-[11px] text-sub">Cada salvamento preserva a versão anterior.</p>
               </div>
-              <button onClick={() => setVersoes(null)} className="ml-auto rounded-[8px] p-2 text-sub hover:bg-surface-hover"><X size={17} /></button>
+              <button onClick={() => setVersoes(null)} className="ml-auto rounded-ctl p-2 text-sub hover:bg-surface-hover"><X size={17} /></button>
             </header>
             <div className="scrollbar-fina max-h-[60vh] overflow-y-auto">
               {versoes.map((versao) => (
@@ -338,7 +338,7 @@ export default function Conhecimento({ sessao, inteligencia = null, embedded = f
                     </span>
                   </div>
                   <p className="mt-1 font-mono text-[10.5px] text-sub">{versao.path}</p>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-[8px] bg-surface p-3 text-[10.5px] text-sub">{versao.content_markdown}</pre>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-ctl bg-surface p-3 text-[10.5px] text-sub">{versao.content_markdown}</pre>
                 </div>
               ))}
             </div>

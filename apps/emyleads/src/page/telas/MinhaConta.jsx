@@ -28,11 +28,11 @@ import { CabecalhoTela, Iniciais } from "../ui";
  */
 
 const entrada =
-  "w-full rounded-[8px] border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent disabled:bg-surface disabled:text-sub";
+  "w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13.5px] text-fg outline-none transition-colors focus:border-accent disabled:bg-surface disabled:text-sub";
 
 function Bloco({ titulo, descricao, children, etiqueta }) {
   return (
-    <section className="rounded-[14px] border border-line bg-bg">
+    <section className="rounded-none border border-line bg-bg">
       <div className="border-b border-line px-5 py-4">
         <div className="flex items-center gap-2.5">
           <h2 className="text-[15px] font-semibold text-fg">{titulo}</h2>
@@ -74,7 +74,7 @@ function Aba({ ativa, aoClicar, children }) {
     <button
       type="button"
       onClick={aoClicar}
-      className={`cursor-pointer rounded-[9px] px-3.5 py-2 text-[13.5px] transition-colors ${
+      className={`cursor-pointer rounded-ctl px-3.5 py-2 text-[13.5px] transition-colors ${
         ativa
           ? "bg-accent-soft font-semibold text-accent-forte"
           : "font-medium text-sub hover:bg-surface-hover hover:text-fg"
@@ -187,7 +187,7 @@ function BlocoVoce({ perfil, aoSalvar, ocupado }) {
           </div>
         </div>
 
-        <div className="min-w-[240px] flex-1 rounded-[10px] bg-surface p-4">
+        <div className="min-w-[240px] flex-1 rounded-ctl bg-surface p-4">
           <p className="text-[11.5px] font-semibold uppercase tracking-wide text-faint">
             Como o time te vê
           </p>
@@ -210,7 +210,7 @@ function BlocoVoce({ perfil, aoSalvar, ocupado }) {
           </div>
           <div className="mt-4 flex items-center gap-2.5">
             <div
-              className="min-w-0 flex-1 rounded-[4px] px-2.5 py-1.5"
+              className="min-w-0 flex-1 rounded-ctl px-2.5 py-1.5"
               style={{ borderLeft: `3px solid ${corEfetiva}`, background: `${corEfetiva}1f` }}
             >
               <p className="truncate text-[12px] font-semibold text-fg">Reunião de proposta</p>
@@ -226,7 +226,7 @@ function BlocoVoce({ perfil, aoSalvar, ocupado }) {
           type="button"
           disabled={!alterado || longoDemais || ocupado}
           onClick={() => aoSalvar({ nome, nomeCurto: curto, cor })}
-          className="flex cursor-pointer items-center gap-2 rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-all hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+          className="flex cursor-pointer items-center gap-2 rounded-ctl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-all hover:brightness-110 disabled:cursor-default disabled:opacity-40"
         >
           {ocupado && <LoaderCircle size={14} className="animate-spin" />}
           Salvar
@@ -258,14 +258,14 @@ function BlocoNestaEmpresa({ organizacao, membro, gerencia, aoSalvarResponsabili
     <Bloco
       titulo="Nesta empresa"
       etiqueta={
-        <span className="rounded-[7px] bg-surface px-2.5 py-1 text-[12px] font-semibold text-sub">
+        <span className="rounded-ctl bg-surface px-2.5 py-1 text-[12px] font-semibold text-sub">
           {organizacao?.name}
         </span>
       }
       descricao="Este bloco troca junto com a empresa. Você tem um destes em cada empresa de que participa."
     >
       <Linha titulo="Seu papel" nota="Quem muda papéis é só o dono, na tela de Equipe.">
-        <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-accent-soft px-3 py-1.5 text-[12.5px] font-semibold text-accent-forte">
+        <span className="inline-flex items-center gap-1.5 rounded-ctl bg-accent-soft px-3 py-1.5 text-[12.5px] font-semibold text-accent-forte">
           {organizacao?.papel === "owner" && <ShieldCheck size={14} />}
           {textoDoPapel(organizacao?.papel)}
         </span>
@@ -293,7 +293,7 @@ function BlocoNestaEmpresa({ organizacao, membro, gerencia, aoSalvarResponsabili
               type="button"
               disabled={!alterado || ocupado}
               onClick={() => aoSalvarResponsabilidade(texto)}
-              className="flex-none cursor-pointer rounded-[8px] border border-line px-3 py-2 text-[12.5px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:cursor-default disabled:opacity-40"
+              className="flex-none cursor-pointer rounded-ctl border border-line px-3 py-2 text-[12.5px] font-semibold text-sub transition-colors hover:border-accent hover:text-accent-forte disabled:cursor-default disabled:opacity-40"
             >
               Salvar responsabilidade
             </button>
@@ -366,7 +366,7 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
               type="button"
               disabled={!alterado || !tamanhoValido || ocupado}
               onClick={() => aoSalvarNome(limpo)}
-              className="flex cursor-pointer items-center gap-2 rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-all hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+              className="flex cursor-pointer items-center gap-2 rounded-ctl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-all hover:brightness-110 disabled:cursor-default disabled:opacity-40"
             >
               {ocupado && <LoaderCircle size={14} className="animate-spin" />}
               Salvar
@@ -399,7 +399,7 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
             )}
           </div>
         </div>
-        <div className="mx-5 mb-4 rounded-[10px] bg-surface px-4 py-3">
+        <div className="mx-5 mb-4 rounded-ctl bg-surface px-4 py-3">
           <p className="text-[12px] leading-relaxed text-sub">
             Transferir a empresa para outra pessoa ainda não existe: o banco recusa promover
             alguém a dono. Enquanto isso, o caminho é criar um administrador, que convida e
@@ -415,7 +415,7 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
         <div className="flex flex-wrap items-center gap-4 px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             {ativos.map((membro) => (
-              <div key={membro.user_id} className="flex items-center gap-2 rounded-[9px] bg-surface px-2.5 py-1.5">
+              <div key={membro.user_id} className="flex items-center gap-2 rounded-ctl bg-surface px-2.5 py-1.5">
                 <Iniciais
                   nome={membro.profile?.full_name || "?"}
                   tamanho={22}
@@ -432,7 +432,7 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
           <button
             type="button"
             onClick={aoAbrirEquipe}
-            className="ml-auto flex flex-none cursor-pointer items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[13px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
+            className="ml-auto flex flex-none cursor-pointer items-center gap-2 rounded-ctl border border-line px-3 py-2 text-[13px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
           >
             <UsersRound size={15} /> Abrir a Equipe
           </button>
@@ -532,7 +532,7 @@ export default function MinhaConta({ sessao, atualizarSessao, aoAbrirTela }) {
         <div className="flex max-w-4xl flex-col gap-6">
           {(erro || salvo) && (
             <div
-              className={`rounded-[10px] px-4 py-3 text-[13px] ${
+              className={`rounded-ctl px-4 py-3 text-[13px] ${
                 erro
                   ? "border border-danger/40 bg-danger/10 text-danger"
                   : "border border-success/40 bg-success-soft text-success"

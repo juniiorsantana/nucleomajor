@@ -32,14 +32,14 @@ const DURACAO_DO_COMPROMISSO_MS = 30 * 60 * 1000;
 
 // As cores dos estados. Ficam escritas por inteiro para o Tailwind achar.
 const CHIP = {
-  success: "bg-success/12 text-success",
-  warning: "bg-warning/12 text-warning",
-  danger: "bg-danger/10 text-danger",
+  success: "bg-success-soft text-success",
+  warning: "bg-warning-soft text-warning",
+  danger: "bg-danger-soft text-danger",
   faint: "bg-surface-hover text-sub",
 };
 const CHEIO = { success: "bg-success", warning: "bg-warning", danger: "bg-danger" };
-const CLARO = { success: "bg-success/15", warning: "bg-warning/15", danger: "bg-danger/12" };
-const ARO = { accent: "border-accent", warning: "border-warning", danger: "border-danger" };
+const CLARO = { success: "bg-success-soft", warning: "bg-warning-soft", danger: "bg-danger-soft" };
+const ARO = { accent: "border-signal", warning: "border-warning", danger: "border-danger" };
 const LEGENDA = { accent: "text-sub", warning: "text-warning", danger: "text-danger" };
 const LISTRADO = { background: "repeating-linear-gradient(135deg, var(--el-line) 0 5px, var(--el-surface) 5px 10px)" };
 
@@ -53,12 +53,12 @@ const ROTULO_DO_TIPO = {
 
 const PRIORIDADE_CURTA = { alta: "Alta", media: "Média", baixa: "Baixa" };
 
-const CARTAO = "rounded-[20px] bg-bg p-4 lg:p-6";
+const CARTAO = "rounded-none border border-line bg-bg p-4 lg:p-6";
 const ROTULO = "text-[12px] font-semibold text-sub";
 const BOTAO =
-  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-[10px] border border-line-strong bg-bg px-4 text-[13px] font-semibold text-fg transition-colors hover:border-accent hover:text-accent-forte";
+  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-ctl border border-line-strong bg-bg px-4 text-[13px] font-semibold text-fg transition-colors hover:border-accent hover:text-accent-forte";
 const BOTAO_FORTE =
-  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-[10px] bg-accent px-4 text-[13px] font-semibold text-white transition-[filter] hover:brightness-110";
+  "inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-ctl bg-accent px-4 text-[13px] font-semibold text-on-accent transition-opacity hover:opacity-90";
 
 /**
  * O relatório da análise no formato v1 (ANALYSIS_SCHEMA_V1_NUCLEO_MAJOR.md,
@@ -198,7 +198,7 @@ function CartaoDaNota({ atendimento, leadScore }) {
             {cobertura ? `${atendimento.score}/100` : notaEmTexto(atendimento)}
             {/* No computador, a cobertura vai na linha de baixo e o travessão some. */}
             {cobertura && (
-              <span className="text-[13px] font-semibold text-accent-forte lg:block">
+              <span className="text-[13px] font-semibold text-signal lg:block">
                 <span className="lg:hidden"> — </span>
                 {cobertura.porcento}% dos critérios avaliados
               </span>
@@ -207,11 +207,11 @@ function CartaoDaNota({ atendimento, leadScore }) {
           {cobertura && (
             <ul className="hidden flex-col gap-2 text-[12px] text-sub lg:flex">
               <li className="flex items-start gap-2">
-                <span aria-hidden="true" className="mt-[4px] h-2.5 w-2.5 flex-none rounded-[3px] bg-fg" />
+                <span aria-hidden="true" className="mt-[4px] h-2.5 w-2.5 flex-none rounded-ctl bg-fg" />
                 anel de dentro: a nota
               </li>
               <li className="flex items-start gap-2">
-                <span aria-hidden="true" className="mt-[4px] h-2.5 w-2.5 flex-none rounded-[3px] bg-accent" />
+                <span aria-hidden="true" className="mt-[4px] h-2.5 w-2.5 flex-none rounded-ctl bg-signal" />
                 anel de fora: quanto da conversa deu para avaliar
               </li>
             </ul>
@@ -219,7 +219,7 @@ function CartaoDaNota({ atendimento, leadScore }) {
         </div>
       </div>
       {cobertura && (
-        <p className={`rounded-[12px] px-3.5 py-3 text-[12.5px] leading-[18px] ${baixa ? "bg-warning/10 text-warning" : "bg-surface text-fg"}`}>
+        <p className={`rounded-none px-3.5 py-3 text-[12.5px] leading-[18px] ${baixa ? "bg-warning-soft text-warning" : "bg-surface text-fg"}`}>
           {baixa ? (
             "Poucos critérios avaliados: a nota ainda não é conclusiva."
           ) : (
@@ -239,7 +239,7 @@ function CartaoDaNota({ atendimento, leadScore }) {
           <p className="text-[13px] font-semibold text-fg">Lead Score</p>
           <p className="text-[11.5px] text-sub">chance de fechar</p>
         </div>
-        <span className="rounded-full bg-surface-hover px-2.5 py-1 text-[11.5px] font-semibold text-sub">
+        <span className="rounded-ctl bg-surface-hover px-2.5 py-1 text-[11.5px] font-semibold text-sub">
           {leadScore == null ? "em breve" : `${leadScore}/100`}
         </span>
       </div>
@@ -255,11 +255,11 @@ function Anel({ nota, cobertura, baixa }) {
   return (
     <div className="relative h-[112px] w-[112px] flex-none lg:h-[168px] lg:w-[168px]">
       <svg viewBox="0 0 176 176" className="h-full w-full" aria-hidden="true">
-        <circle cx="88" cy="88" r="80" fill="none" strokeWidth="7" style={{ stroke: "var(--el-accent-soft)" }} />
+        <circle cx="88" cy="88" r="80" fill="none" strokeWidth="7" style={{ stroke: "var(--el-signal-soft)" }} />
         {cobertura > 0 && (
           <circle
             cx="88" cy="88" r="80" fill="none" strokeWidth="7" strokeLinecap="round" transform="rotate(-90 88 88)"
-            strokeDasharray={`${(fora * cobertura) / 100} ${fora}`} style={{ stroke: "var(--el-accent)" }}
+            strokeDasharray={`${(fora * cobertura) / 100} ${fora}`} style={{ stroke: "var(--el-signal)" }}
           />
         )}
         <circle cx="88" cy="88" r="62" fill="none" strokeWidth="15" strokeDasharray={baixa ? "6 6" : undefined} style={{ stroke: "var(--el-surface-hover)" }} />
@@ -295,8 +295,8 @@ function CartaoDoProblema({ diagnostico, alertas, criterios, aoVer }) {
       )}
 
       {gargalo?.title && (
-        <div className="flex gap-3.5 rounded-[14px] bg-danger/8 p-4">
-          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-danger text-white" aria-hidden="true">
+        <div className="flex gap-3.5 rounded-none bg-danger-soft p-4">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-ctl bg-danger text-on-accent" aria-hidden="true">
             <AlertTriangle size={18} strokeWidth={2.2} />
           </span>
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -304,7 +304,7 @@ function CartaoDoProblema({ diagnostico, alertas, criterios, aoVer }) {
             <p className="text-[17px] font-bold leading-[23px] text-fg">{limpo(gargalo.title)}</p>
             {gargalo.explanation && <p className="text-[13px] leading-[19px] text-fg/80">{limpo(gargalo.explanation)}</p>}
             {doGargalo && (
-              <span className="mt-1 self-start rounded-full border border-danger/30 bg-bg px-2.5 py-[3px] text-[11.5px] font-semibold text-danger">
+              <span className="mt-1 self-start rounded-ctl border border-danger/40 bg-bg px-2.5 py-[3px] text-[11.5px] font-semibold text-danger">
                 {NOME_DO_CRITERIO[doGargalo.key] || doGargalo.name} · {doGargalo.points_awarded == null ? "não avaliado" : `${pontosDoCriterio(doGargalo).replace("/", " de ")}`}
               </span>
             )}
@@ -367,29 +367,29 @@ function OQueFazer({ acoes, sugerida, podeAgir, contato, negocio, aoUsarMensagem
           return (
             <article
               key={indice}
-              className={`flex flex-col gap-3 rounded-[16px] p-4 lg:p-[18px] ${
-                primeira ? "bg-accent text-white lg:border lg:border-line-strong lg:bg-bg lg:text-fg" : "border border-line text-fg"
+              className={`flex flex-col gap-3 rounded-none p-4 lg:p-[18px] ${
+                primeira ? "bg-accent text-on-accent lg:border lg:border-fg lg:bg-bg lg:text-fg" : "border border-line text-fg"
               }`}
             >
               <div className="flex flex-wrap items-center gap-2 text-[12px]">
                 <span
-                  className={`rounded-full px-2.5 py-[3px] font-bold ${
-                    primeira ? "bg-white text-accent-forte lg:bg-accent lg:text-white" : acao.priority === "media" ? "bg-accent-soft text-accent-forte" : "bg-surface-hover text-sub"
+                  className={`rounded-ctl px-2.5 py-[3px] font-bold ${
+                    primeira ? "bg-bg text-fg lg:bg-accent lg:text-on-accent" : acao.priority === "media" ? "bg-accent-soft text-accent-forte" : "bg-surface-hover text-sub"
                   }`}
                 >
                   {indice + 1}
                   {acao.priority ? ` · ${PRIORIDADE_CURTA[acao.priority] || acao.priority}` : ""}
                 </span>
                 {(tipo || prazo) && (
-                  <span className={primeira ? "text-white/85 lg:text-sub" : "text-sub"}>{[tipo, prazo && `até ${prazo}`].filter(Boolean).join(" · ")}</span>
+                  <span className={primeira ? "text-on-accent/85 lg:text-sub" : "text-sub"}>{[tipo, prazo && `até ${prazo}`].filter(Boolean).join(" · ")}</span>
                 )}
               </div>
               <h3 className="text-[17px] font-bold leading-[23px]">{limpo(acao.title || acao.instruction)}</h3>
-              {acao.instruction && acao.title && <p className={`text-[13px] leading-[19px] ${primeira ? "text-white/90 lg:text-fg" : "text-fg"}`}>{limpo(acao.instruction)}</p>}
-              {acao.reason && <p className={`text-[12.5px] leading-[18px] ${primeira ? "text-white/80 lg:text-sub" : "text-sub"}`}>{limpo(acao.reason)}</p>}
+              {acao.instruction && acao.title && <p className={`text-[13px] leading-[19px] ${primeira ? "text-on-accent/90 lg:text-fg" : "text-fg"}`}>{limpo(acao.instruction)}</p>}
+              {acao.reason && <p className={`text-[12.5px] leading-[18px] ${primeira ? "text-on-accent/80 lg:text-sub" : "text-sub"}`}>{limpo(acao.reason)}</p>}
 
               {sugerida && indice === comMensagem && (
-                <div className="flex flex-col gap-1.5 rounded-[12px] bg-bg p-3.5 text-fg lg:bg-surface">
+                <div className="flex flex-col gap-1.5 rounded-none bg-bg p-3.5 text-fg lg:bg-surface">
                   <span className="text-[11.5px] font-semibold text-sub">Mensagem sugerida</span>
                   <p className="whitespace-pre-wrap text-[13.5px] leading-[20px]">{sugerida}</p>
                 </div>
@@ -399,7 +399,7 @@ function OQueFazer({ acoes, sugerida, podeAgir, contato, negocio, aoUsarMensagem
                 {sugerida && indice === comMensagem && (
                   <>
                     {podeAgir && aoUsarMensagem && (
-                      <button type="button" onClick={() => aoUsarMensagem(sugerida)} className={`${BOTAO_FORTE} max-lg:bg-bg max-lg:text-accent-forte`}>
+                      <button type="button" onClick={() => aoUsarMensagem(sugerida)} className={`${BOTAO_FORTE} max-lg:bg-bg max-lg:text-fg`}>
                         Usar na conversa
                       </button>
                     )}
@@ -444,7 +444,7 @@ function PorQueEssaNota({ atendimento, motivos, aoVer }) {
 
       <div className="flex flex-col gap-2">
         <span className="text-[12px] font-semibold text-sub">Os 100 pontos possíveis, por critério</span>
-        <div className="flex h-[22px] gap-[3px] overflow-hidden rounded-[8px] lg:h-[30px]" aria-hidden="true">
+        <div className="flex h-[22px] gap-[3px] overflow-hidden rounded-none lg:h-[30px]" aria-hidden="true">
           {faixa.map((pedaco) => (
             <div key={pedaco.key} className={`flex ${pedaco.avaliado ? CLARO[pedaco.tom] || "bg-surface-hover" : ""}`} style={{ flex: `${pedaco.peso} 1 0`, ...(pedaco.avaliado ? {} : LISTRADO) }}>
               {pedaco.avaliado && pedaco.ganho > 0 && <div className={CHEIO[pedaco.tom] || "bg-sub"} style={{ width: `${pedaco.ganho}%` }} />}
@@ -452,9 +452,9 @@ function PorQueEssaNota({ atendimento, motivos, aoVer }) {
           ))}
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-sub">
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-success" />parte cheia: pontos ganhos</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-danger/12" />parte clara: pontos perdidos</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px]" style={LISTRADO} />listrado: não avaliado, fica fora da conta</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-ctl bg-success" />parte cheia: pontos ganhos</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-ctl bg-danger-soft" />parte clara: pontos perdidos</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-ctl" style={LISTRADO} />listrado: não avaliado, fica fora da conta</span>
         </div>
       </div>
 
@@ -479,7 +479,7 @@ function PorQueEssaNota({ atendimento, motivos, aoVer }) {
                 <span className="hidden lg:inline">{NOME_LONGO_DO_CRITERIO[criterio.key] || criterio.name}</span>
               </span>
               <span role="cell">
-                <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-[3px] text-[11.5px] font-semibold ${CHIP[tom]}`}>
+                <span className={`inline-block whitespace-nowrap rounded-ctl px-2.5 py-[3px] text-[11.5px] font-semibold ${CHIP[tom]}`}>
                   {rotuloDoCriterio(criterio)}
                   {avaliado && <span className="lg:hidden"> · {pontos}</span>}
                 </span>
@@ -488,8 +488,8 @@ function PorQueEssaNota({ atendimento, motivos, aoVer }) {
                 {avaliado ? pontos.replace("/", " / ") : "—"}
               </span>
               <span role="cell" aria-hidden="true" className="hidden lg:block">
-                <span className={`flex h-2 overflow-hidden rounded-full ${avaliado ? CLARO[tom] || "bg-surface-hover" : ""}`} style={avaliado ? undefined : LISTRADO}>
-                  {avaliado && ganho > 0 && <span className={`rounded-full ${CHEIO[tom] || "bg-sub"}`} style={{ width: `${ganho}%` }} />}
+                <span className={`flex h-2 overflow-hidden rounded-none ${avaliado ? CLARO[tom] || "bg-surface-hover" : ""}`} style={avaliado ? undefined : LISTRADO}>
+                  {avaliado && ganho > 0 && <span className={CHEIO[tom] || "bg-sub"} style={{ width: `${ganho}%` }} />}
                 </span>
               </span>
               <span role="cell" className="col-span-2 text-[12.5px] leading-[18px] lg:col-span-1 lg:text-[13px]">
@@ -562,7 +562,7 @@ function OndeAconteceu({ linha, aoVer }) {
             <div className="absolute left-0 right-0 top-[56px] h-px bg-line" />
             <div className="absolute left-0 right-0 top-[136px] h-px bg-line" />
             {linha.parada && (
-              <div className="absolute top-[34px] flex h-[124px] items-center justify-center rounded-[10px] px-2 text-center" style={{ left: `${linha.parada.x1}%`, right: 0, ...LISTRADO }}>
+              <div className="absolute top-[34px] flex h-[124px] items-center justify-center rounded-none px-2 text-center" style={{ left: `${linha.parada.x1}%`, right: 0, ...LISTRADO }}>
                 <span className="text-[12.5px] font-semibold text-sub">{linha.parada.rotulo}</span>
               </div>
             )}
@@ -582,7 +582,8 @@ function OndeAconteceu({ linha, aoVer }) {
             ))}
             {linha.mensagens.map((m) => {
               const ia = m.lado === "equipe" && (m.autor === "ia" || m.autor === "bot");
-              const cor = m.lado === "cliente" ? "bg-sub" : ia ? "bg-accent/45" : "bg-accent";
+              // A IA tem a cor dela (Sistema Grafite); a pessoa da equipe é o grafite.
+              const cor = m.lado === "cliente" ? "bg-line-strong" : ia ? "bg-ia" : "bg-fg";
               const quem = m.lado === "cliente" ? "Cliente" : ia ? "IA" : "Equipe";
               return (
                 <button
@@ -623,9 +624,9 @@ function OndeAconteceu({ linha, aoVer }) {
           </div>
         </div>
         <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[11.5px] text-sub">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-sub" />cliente</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-accent" />equipe</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-accent/45" />IA ou robô</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-line-strong" />cliente</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-fg" />equipe</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ia" />IA ou robô</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-danger" />mensagem citada num alerta</span>
         </div>
       </div>
@@ -647,7 +648,7 @@ function OndeAconteceu({ linha, aoVer }) {
                           ? "h-2.5 w-2.5 bg-line-strong"
                           : momento.tom && momento.tom !== "accent"
                             ? `h-3.5 w-3.5 border-[3px] bg-bg ${ARO[momento.tom]}`
-                            : `h-2.5 w-2.5 ${momento.lado === "cliente" ? "bg-sub" : "bg-accent"}`
+                            : `h-2.5 w-2.5 ${momento.lado === "cliente" ? "bg-line-strong" : "bg-fg"}`
                       }`}
                     />
                     {!ultimo && <span className="w-0.5 flex-1 bg-line" />}
@@ -690,7 +691,7 @@ function Evidencias({ ids, aoVer, claro = false }) {
           key={id}
           type="button"
           onClick={() => aoVer(id)}
-          className={`cursor-pointer text-[12px] font-semibold underline-offset-2 hover:underline ${claro ? "text-white lg:text-accent-forte" : "text-accent-forte"}`}
+          className={`cursor-pointer text-[12px] font-semibold underline-offset-2 hover:underline ${claro ? "text-on-accent lg:text-accent-forte" : "text-accent-forte"}`}
         >
           {ids.length > 1 ? `Ver evidência ${indice + 1}` : "Ver evidência"}
         </button>
@@ -716,11 +717,11 @@ function AcaoSugerida({ acao, contato, negocio, claro, aoCriado }) {
   if (!rotulo) return null;
 
   if (!contato) {
-    return <p className={`text-[12px] ${claro ? "text-white/80 lg:text-faint" : "text-faint"}`}>Crie o lead para {rotulo.toLowerCase()} por aqui.</p>;
+    return <p className={`text-[12px] ${claro ? "text-on-accent/80 lg:text-faint" : "text-faint"}`}>Crie o lead para {rotulo.toLowerCase()} por aqui.</p>;
   }
   if (estado === "feito") {
     return (
-      <p className={`inline-flex items-center gap-1 text-[12.5px] font-semibold ${claro ? "text-white lg:text-success" : "text-success"}`}>
+      <p className={`inline-flex items-center gap-1 text-[12.5px] font-semibold ${claro ? "text-on-accent lg:text-success" : "text-success"}`}>
         <Check size={14} strokeWidth={2.5} /> Criado
       </p>
     );
@@ -761,12 +762,12 @@ function AcaoSugerida({ acao, contato, negocio, claro, aoCriado }) {
   };
 
   return (
-    <form onSubmit={criar} className="flex w-full flex-col gap-2 rounded-[12px] border border-line bg-bg p-2.5 text-fg">
+    <form onSubmit={criar} className="flex w-full flex-col gap-2 rounded-none border border-line bg-bg p-2.5 text-fg">
       <input
         aria-label="Título"
         value={titulo}
         onChange={(evento) => setTitulo(evento.target.value)}
-        className="min-h-[40px] rounded-[8px] border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
+        className="min-h-[40px] rounded-ctl border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
       />
       <div className="flex gap-2">
         <input
@@ -774,14 +775,14 @@ function AcaoSugerida({ acao, contato, negocio, claro, aoCriado }) {
           aria-label="Data"
           value={data}
           onChange={(evento) => setData(evento.target.value)}
-          className="min-h-[40px] min-w-0 flex-1 rounded-[8px] border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
+          className="min-h-[40px] min-w-0 flex-1 rounded-ctl border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
         />
         <input
           type="time"
           aria-label="Hora"
           value={hora}
           onChange={(evento) => setHora(evento.target.value)}
-          className="min-h-[40px] w-[104px] rounded-[8px] border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
+          className="min-h-[40px] w-[104px] rounded-ctl border border-line bg-bg px-2.5 text-[13px] text-fg outline-none focus:border-accent"
         />
       </div>
       {!prazo.hora && prazo.data && <span className="text-[11.5px] text-faint">A conversa não diz o horário: escolha antes de criar.</span>}

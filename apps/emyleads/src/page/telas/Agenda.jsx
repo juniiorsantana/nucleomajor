@@ -72,7 +72,7 @@ const TITULOS_PAINEL = {
   settings: { titulo: "Preferências da agenda", icone: Settings2 },
   filters: { titulo: "Filtros", icone: SlidersHorizontal },
 };
-const COR_TAREFA = "#D97706";
+const COR_TAREFA = "var(--el-warning)";
 
 function lerLocal(chave, padrao) {
   // O painel também roda dentro da extensão, onde localStorage pode estar
@@ -117,7 +117,7 @@ function rotuloCurto(visualizacao, referencia) {
 function Esqueleto({ lista }) {
   if (lista) {
     return (
-      <div className="min-h-0 flex-1 animate-pulse space-y-px overflow-hidden rounded-[14px] border border-line bg-bg" aria-hidden="true">
+      <div className="min-h-0 flex-1 animate-pulse space-y-px overflow-hidden rounded-none border border-line bg-bg" aria-hidden="true">
         {[0, 1, 2, 3, 4].map((linha) => (
           <div key={linha} className="flex items-center gap-3 px-4 py-4">
             <div className="h-3 w-10 rounded-full bg-surface-hover" />
@@ -129,7 +129,7 @@ function Esqueleto({ lista }) {
     );
   }
   return (
-    <div className="min-h-0 flex-1 animate-pulse overflow-hidden rounded-[14px] border border-line bg-bg" aria-hidden="true">
+    <div className="min-h-0 flex-1 animate-pulse overflow-hidden rounded-none border border-line bg-bg" aria-hidden="true">
       <div className="grid border-b border-line" style={{ gridTemplateColumns: "62px repeat(5, minmax(0, 1fr))" }}>
         <div className="border-r border-line py-3" />
         {[0, 1, 2, 3, 4].map((coluna) => (
@@ -144,7 +144,7 @@ function Esqueleto({ lista }) {
         {[0, 1, 2, 3, 4].map((coluna) => (
           <div key={coluna} className="space-y-2 border-r border-line p-2 last:border-r-0">
             {[0, 1, 2].map((linha) => (
-              <div key={linha} className="rounded-[7px] bg-surface-hover" style={{ height: 34 + ((coluna + linha) % 3) * 26, marginTop: linha === 0 ? (coluna % 3) * 22 : 0 }} />
+              <div key={linha} className="rounded-ctl bg-surface-hover" style={{ height: 34 + ((coluna + linha) % 3) * 26, marginTop: linha === 0 ? (coluna % 3) * 22 : 0 }} />
             ))}
           </div>
         ))}
@@ -201,13 +201,13 @@ function MenuMais({ itens }) {
         aria-haspopup="menu"
         aria-expanded={aberto}
         onClick={() => setAberto((atual) => !atual)}
-        className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9"
+        className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9"
       >
         <MoreHorizontal size={20} />
-        {alerta > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[9px] font-bold text-white">{alerta}</span>}
+        {alerta > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[9px] font-bold text-bg">{alerta}</span>}
       </button>
       {aberto && (
-        <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-64 overflow-hidden rounded-[12px] border border-line bg-bg py-1 shadow-xl">
+        <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-64 overflow-hidden rounded-none border border-line bg-bg py-1 ">
           {itens.map((item) => (
             <button
               key={item.id}
@@ -218,7 +218,7 @@ function MenuMais({ itens }) {
             >
               <item.icone size={17} className="flex-none text-sub" />
               <span className="flex-1">{item.rotulo}</span>
-              {item.contador > 0 && <span className="rounded-full bg-warning px-1.5 text-[11px] font-bold leading-5 text-white">{item.contador}</span>}
+              {item.contador > 0 && <span className="rounded-full bg-warning px-1.5 text-[11px] font-bold leading-5 text-bg">{item.contador}</span>}
             </button>
           ))}
         </div>
@@ -249,9 +249,9 @@ function FaixaDias({ referencia, marcas, aoEscolher }) {
             onClick={() => aoEscolher(dia)}
             aria-pressed={ehEscolhido}
             aria-label={new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric" }).format(dia)}
-            className={`flex min-h-[58px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] ${ehEscolhido ? "bg-accent text-white" : "text-fg active:bg-surface-hover"}`}
+            className={`flex min-h-[58px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-none ${ehEscolhido ? "bg-accent text-on-accent" : "text-fg active:bg-surface-hover"}`}
           >
-            <span className={`text-[11px] font-semibold uppercase ${ehEscolhido ? "text-white/80" : ehHoje ? "text-accent-forte" : "text-faint"}`}>
+            <span className={`text-[11px] font-semibold uppercase ${ehEscolhido ? "text-on-accent/80" : ehHoje ? "text-signal" : "text-faint"}`}>
               {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(dia).replace(".", "").slice(0, 3)}
             </span>
             <span className={`text-[17px] font-semibold tabular-nums ${!ehEscolhido && ehHoje ? "text-accent-forte" : ""}`}>{dia.getDate()}</span>
@@ -743,13 +743,13 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
     { id: "prefs", rotulo: "Preferências", icone: Settings2, acao: () => setPainel("settings") },
   ];
 
-  const botaoIcone = "relative flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-[10px] text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9";
+  const botaoIcone = "relative flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl text-sub hover:bg-surface-hover hover:text-fg md:h-9 md:w-9";
 
   const conteudoPrincipal = carregando ? (
     <Esqueleto lista={estreito} />
   ) : estreito && visualizacao === "month" ? (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="rounded-[14px] border border-line bg-bg px-2 pb-1 pt-2">
+      <div className="rounded-none border border-line bg-bg px-2 pb-1 pt-2">
         <MiniCalendario
           grande
           mes={referencia}
@@ -809,11 +809,11 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
           busca={<CampoBusca valor={busca} aoMudar={setBusca} placeholder="Buscar na agenda…" />}
           acao={(
             <div className="flex items-center gap-2">
-              <button type="button" aria-label={`Avisos${naoLidas ? ` (${naoLidas} novos)` : ""}`} onClick={() => alternarPainel("notifications")} className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-[10px] border border-line text-sub hover:border-line-strong hover:text-fg">
+              <button type="button" aria-label={`Avisos${naoLidas ? ` (${naoLidas} novos)` : ""}`} onClick={() => alternarPainel("notifications")} className="relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-ctl border border-line text-sub hover:border-line-strong hover:text-fg">
                 <Bell size={18} />
-                {naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-white">{naoLidas}</span>}
+                {naoLidas > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 text-[9px] font-bold text-on-signal">{naoLidas}</span>}
               </button>
-              <button type="button" onClick={() => setTarefaAberta(null)} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-line px-4 text-[14px] font-semibold text-fg hover:border-line-strong">
+              <button type="button" onClick={() => setTarefaAberta(null)} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 text-[14px] font-semibold text-fg hover:border-line-strong">
                 <SquareCheckBig size={17} />Nova tarefa
               </button>
               <BotaoPrimario onClick={() => abrirFormulario()} title="Novo compromisso (N)"><Plus size={17} />Novo compromisso</BotaoPrimario>
@@ -829,20 +829,20 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="relative min-w-0 flex-1">
               <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-              <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar na agenda…" aria-label="Buscar na agenda" className="min-h-11 w-full rounded-[10px] border border-line bg-bg pl-10 pr-3 text-[16px] text-fg outline-none focus:border-accent" />
+              <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar na agenda…" aria-label="Buscar na agenda" className="min-h-11 w-full rounded-ctl border border-line bg-bg pl-10 pr-3 text-[16px] text-fg outline-none focus:border-signal" />
             </div>
             <button type="button" onClick={() => { setBusca(""); setBuscaAberta(false); }} className="min-h-11 cursor-pointer px-2 text-[15px] font-medium text-accent-forte">Fechar</button>
           </div>
         ) : (
           <div className="flex items-center gap-1 px-2 py-2">
-            <button type="button" onClick={() => setPainel("periodo")} aria-label="Escolher data" className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-[10px] px-2 text-left">
+            <button type="button" onClick={() => setPainel("periodo")} aria-label="Escolher data" className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-ctl px-2 text-left">
               <span className="truncate text-[19px] font-semibold first-letter:uppercase text-fg">{rotuloCurto(visualizacao, referencia)}</span>
               <ChevronDown size={18} className="flex-none text-sub" />
             </button>
             <button type="button" aria-label="Buscar" onClick={() => setBuscaAberta(true)} className={botaoIcone}><Search size={20} /></button>
             <button type="button" aria-label={`Avisos${naoLidas ? ` (${naoLidas} novos)` : ""}`} onClick={() => setPainel("notifications")} className={botaoIcone}>
               <Bell size={20} />
-              {naoLidas > 0 && <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-white">{naoLidas}</span>}
+              {naoLidas > 0 && <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 text-[9px] font-bold text-on-signal">{naoLidas}</span>}
             </button>
             <MenuMais itens={itensMenu.map((item) => (item.id === "filtros" ? { ...item, rotulo: quantosFiltros ? `Filtros (${quantosFiltros})` : "Filtros" } : item))} />
           </div>
@@ -850,7 +850,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
         <div className="flex items-center gap-2 px-3 pb-2">
           <Segmentado rotulo="Visualização" className="flex-1" valor={visualizacao} aoMudar={setVisualizacao} opcoes={VISUALIZACOES} />
           {!ehHojeNaTela && (
-            <button type="button" onClick={() => setReferencia(new Date())} className="min-h-11 flex-none cursor-pointer rounded-[10px] border border-line px-3 text-[14px] font-semibold text-fg">Hoje</button>
+            <button type="button" onClick={() => setReferencia(new Date())} className="min-h-11 flex-none cursor-pointer rounded-ctl border border-line px-3 text-[14px] font-semibold text-fg">Hoje</button>
           )}
         </div>
         {visualizacao !== "month" && <FaixaDias referencia={referencia} marcas={marcas} aoEscolher={(dia) => { setReferencia(dia); setVisualizacao("day"); }} />}
@@ -869,7 +869,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
         <button type="button" onClick={() => setLateral((atual) => !atual)} aria-pressed={lateral} title={lateral ? "Esconder a coluna de hoje" : "Mostrar a coluna de hoje"} aria-label="Coluna de hoje" className={`hidden lg:flex ${botaoIcone} ${lateral ? "bg-accent-soft text-accent-forte" : ""}`}>
           <PanelLeft size={18} />
         </button>
-        <button type="button" onClick={() => setReferencia(new Date())} title="Ir para hoje (T)" className="min-h-9 cursor-pointer rounded-[9px] border border-line px-3 text-[12.5px] font-semibold text-fg hover:border-line-strong">Hoje</button>
+        <button type="button" onClick={() => setReferencia(new Date())} title="Ir para hoje (T)" className="min-h-9 cursor-pointer rounded-ctl border border-line px-3 text-[12.5px] font-semibold text-fg hover:border-line-strong">Hoje</button>
         <div className="flex">
           <button type="button" aria-label="Período anterior" title="Período anterior (←)" onClick={() => navegar(-1)} className={botaoIcone}><ChevronLeft size={18} /></button>
           <button type="button" aria-label="Próximo período" title="Próximo período (→)" onClick={() => navegar(1)} className={botaoIcone}><ChevronRight size={18} /></button>
@@ -881,13 +881,13 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
         <button
           type="button"
           onClick={() => alternarPainel("filters")}
-          className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-[9px] border px-3 text-[12.5px] font-semibold ${quantosFiltros ? "border-accent bg-accent-soft text-accent-forte" : "border-line text-fg hover:border-line-strong"}`}
+          className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-ctl border px-3 text-[12.5px] font-semibold ${quantosFiltros ? "border-fg bg-fg text-bg" : "border-line text-fg hover:border-line-strong"}`}
         >
-          <SlidersHorizontal size={15} />Filtros{quantosFiltros > 0 && <span className="rounded-full bg-accent px-1.5 text-[10.5px] leading-4 text-white">{quantosFiltros}</span>}
+          <SlidersHorizontal size={15} />Filtros{quantosFiltros > 0 && <span className="rounded-full bg-fg px-1.5 text-[10.5px] leading-4 text-bg">{quantosFiltros}</span>}
         </button>
 
         {visualizacao !== "month" && (
-          <div className="flex items-center rounded-[9px] border border-line" title="Zoom da régua (+ / −, ou Ctrl + roda)">
+          <div className="flex items-center rounded-ctl border border-line" title="Zoom da régua (+ / −, ou Ctrl + roda)">
             <button type="button" aria-label="Diminuir zoom" disabled={zoom === 0} onClick={() => ajustarZoom(-1)} className="flex h-9 w-8 cursor-pointer items-center justify-center text-sub hover:text-fg disabled:opacity-30"><Minus size={14} /></button>
             <span className="px-1 text-[11px] font-semibold tabular-nums text-sub">{Math.round((alturaHora / NIVEIS_ZOOM[ZOOM_PADRAO]) * 100)}%</span>
             <button type="button" aria-label="Aumentar zoom" disabled={zoom === NIVEIS_ZOOM.length - 1} onClick={() => ajustarZoom(1)} className="flex h-9 w-8 cursor-pointer items-center justify-center text-sub hover:text-fg disabled:opacity-30"><Plus size={14} /></button>
@@ -918,9 +918,9 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
           onTouchEnd={estreito ? aoSoltar : undefined}
         >
           {erroCarga && (
-            <div role="alert" className="mb-3 flex items-center gap-2 rounded-[10px] border border-danger/25 bg-danger/10 px-3 py-2 text-[14px] text-danger md:text-[12px]">
+            <div role="alert" className="mb-3 flex items-center gap-2 rounded-ctl border border-danger/25 bg-danger/10 px-3 py-2 text-[14px] text-danger md:text-[12px]">
               <span className="flex-1">{erroCarga}</span>
-              <button type="button" onClick={() => carregar()} className="flex min-h-9 flex-none cursor-pointer items-center gap-1.5 rounded-[8px] px-2 font-semibold hover:bg-danger/10"><RefreshCw size={14} />Tentar de novo</button>
+              <button type="button" onClick={() => carregar()} className="flex min-h-9 flex-none cursor-pointer items-center gap-1.5 rounded-ctl px-2 font-semibold hover:bg-danger/10"><RefreshCw size={14} />Tentar de novo</button>
             </div>
           )}
           {conteudoPrincipal}
@@ -929,7 +929,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
       </div>
 
       {/* "+" do telefone, acima do dock. */}
-      <button type="button" onClick={() => setPainel("novo")} aria-label="Criar" className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-white shadow-[0_8px_24px_rgba(36,86,199,0.4)] active:scale-95">
+      <button type="button" onClick={() => setPainel("novo")} aria-label="Criar" className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-on-accent  active:scale-95">
         <Plus size={26} strokeWidth={2.4} />
       </button>
 
@@ -938,7 +938,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
       {painelInfo && (
         <Folha titulo={painelInfo.titulo} icone={painelInfo.icone} lado="direita" aoFechar={() => setPainel(null)} rodape={painel === "filters" ? (
           <>
-            {quantosFiltros > 0 && <button type="button" onClick={() => mudarFiltros({ profissional: "mine", categoria: "", contato: "" })} className="min-h-11 cursor-pointer rounded-[10px] px-3 text-[14px] font-medium text-sub hover:text-fg md:min-h-9 md:text-[13px]">Limpar</button>}
+            {quantosFiltros > 0 && <button type="button" onClick={() => mudarFiltros({ profissional: "mine", categoria: "", contato: "" })} className="min-h-11 cursor-pointer rounded-ctl px-3 text-[14px] font-medium text-sub hover:text-fg md:min-h-9 md:text-[13px]">Limpar</button>}
             <BotaoPrimario type="button" onClick={() => setPainel(null)} className="!min-h-11 ml-auto !flex-1 !py-2 md:!min-h-9 md:!flex-none">Ver agenda</BotaoPrimario>
           </>
         ) : null}
@@ -971,7 +971,7 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
               aoEscolher={(dia) => { setReferencia(dia); setPainel(null); }}
               aoMudarMes={(direcao) => setReferencia((atual) => new Date(atual.getFullYear(), atual.getMonth() + direcao, 1))}
             />
-            <button type="button" onClick={() => { setReferencia(new Date()); setPainel(null); }} className="mt-3 min-h-11 w-full cursor-pointer rounded-[10px] border border-line text-[15px] font-semibold text-fg">Voltar para hoje</button>
+            <button type="button" onClick={() => { setReferencia(new Date()); setPainel(null); }} className="mt-3 min-h-11 w-full cursor-pointer rounded-ctl border border-line text-[15px] font-semibold text-fg">Voltar para hoje</button>
           </div>
         </Folha>
       )}
@@ -979,12 +979,12 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
       {painel === "novo" && (
         <Folha titulo="Criar" aoFechar={() => setPainel(null)}>
           <div className="grid gap-2 p-4">
-            <button type="button" onClick={() => { setPainel(null); abrirFormulario(); }} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-[14px] border border-line px-4 text-left hover:border-accent">
-              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[12px] bg-accent-soft text-accent-forte"><CalendarDays size={21} /></span>
+            <button type="button" onClick={() => { setPainel(null); abrirFormulario(); }} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-none border border-line px-4 text-left hover:border-accent">
+              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-none bg-accent-soft text-accent-forte"><CalendarDays size={21} /></span>
               <span><span className="block text-[16px] font-semibold text-fg">Compromisso</span><span className="block text-[13px] text-sub">Com dia e hora marcados, na agenda.</span></span>
             </button>
-            <button type="button" onClick={() => { setPainel(null); setTarefaAberta(chaveDia(referencia) === hojeChave ? null : { venceEm: dataComMinutos(referencia, 9 * 60).getTime() }); }} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-[14px] border border-line px-4 text-left hover:border-accent">
-              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[12px] bg-[#D97706]/10 text-[#B45309]"><SquareCheckBig size={21} /></span>
+            <button type="button" onClick={() => { setPainel(null); setTarefaAberta(chaveDia(referencia) === hojeChave ? null : { venceEm: dataComMinutos(referencia, 9 * 60).getTime() }); }} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-none border border-line px-4 text-left hover:border-accent">
+              <span className="flex h-11 w-11 flex-none items-center justify-center rounded-none bg-warning-soft text-warning"><SquareCheckBig size={21} /></span>
               <span><span className="block text-[16px] font-semibold text-fg">Tarefa</span><span className="block text-[13px] text-sub">Algo a fazer, com prazo e responsável.</span></span>
             </button>
           </div>

@@ -60,7 +60,7 @@ function Entrar({ aoEntrar }) {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface p-4">
-      <form onSubmit={enviar} className="w-full max-w-[380px] rounded-[16px] border border-line bg-bg p-6 shadow-sm">
+      <form onSubmit={enviar} className="w-full max-w-[380px] rounded-none border border-line bg-bg p-6 ">
         <Marca tamanho={32} />
         <h1 className="mt-5 text-[18px] font-semibold text-fg">Painel da plataforma</h1>
         <p className="mt-1 text-[12.5px] text-sub">Só para a administração do Núcleo Major.</p>
@@ -86,7 +86,7 @@ function Entrar({ aoEntrar }) {
 function AcessoRestrito({ email, aoSair }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface p-4">
-      <section className="w-full max-w-[420px] rounded-[16px] border border-line bg-bg p-6 text-center shadow-sm">
+      <section className="w-full max-w-[420px] rounded-none border border-line bg-bg p-6 text-center ">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
           <ShieldAlert size={22} aria-hidden="true" />
         </div>
@@ -96,7 +96,7 @@ function AcessoRestrito({ email, aoSair }) {
           {email ? <> Você entrou como <strong className="text-fg">{email}</strong>.</> : null}
         </p>
         <button type="button" onClick={aoSair}
-          className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-line px-4 py-2 text-[13px] font-semibold text-sub hover:text-fg">
+          className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 py-2 text-[13px] font-semibold text-sub hover:text-fg">
           <LogOut size={15} /> Sair
         </button>
       </section>
@@ -174,10 +174,10 @@ export default function PainelApp({ caminho = "/", aoNavegar = () => {} }) {
           ativa={ativa}
           aoTrocar={(tela) => ir({ tela })}
           rodape={
-            <div className="flex items-center gap-2 rounded-[12px] border border-line px-3 py-2.5">
+            <div className="flex items-center gap-2 rounded-none border border-line px-3 py-2.5">
               <span className="min-w-0 flex-1 truncate text-[12px] text-sub" title={usuario?.email}>{usuario?.email}</span>
               <button type="button" onClick={sair} title="Sair" aria-label="Sair"
-                className="flex-none cursor-pointer rounded-[7px] p-1 text-sub hover:bg-danger/10 hover:text-danger">
+                className="flex-none cursor-pointer rounded-ctl p-1 text-sub hover:bg-danger/10 hover:text-danger">
                 <LogOut size={15} />
               </button>
             </div>
@@ -195,14 +195,14 @@ export default function PainelApp({ caminho = "/", aoNavegar = () => {} }) {
         )}
         {rota.tela === "vendas" && (
           <Cartao titulo="Vendas do Asaas">
-            <section className="rounded-[14px] border border-line bg-bg [&>div]:border-t-0">
+            <section className="rounded-none border border-line bg-bg [&>div]:border-t-0">
               <VendasDoAsaas />
             </section>
           </Cartao>
         )}
         {rota.tela === "whatsapp" && (
           <Cartao titulo="Pedidos de WhatsApp">
-            <section className="rounded-[14px] border border-line bg-bg [&>div]:border-t-0">
+            <section className="rounded-none border border-line bg-bg [&>div]:border-t-0">
               <PedidosDeConexao mostrarVazio />
             </section>
           </Cartao>

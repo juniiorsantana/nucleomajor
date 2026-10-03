@@ -60,7 +60,7 @@ function descreverPeriodo(p, presetId) {
 
 function Bloco({ titulo, subtitulo, acao, children, className = "" }) {
   return (
-    <section className={`min-w-0 rounded-[12px] border border-line bg-bg ${className}`}>
+    <section className={`min-w-0 rounded-none border border-line bg-bg ${className}`}>
       <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-3.5">
         <div className="min-w-0">
           <h2 className="text-[13.5px] font-semibold text-fg">{titulo}</h2>
@@ -78,7 +78,7 @@ function BotaoCsv({ onClick, rotulo = "CSV" }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-none cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-2.5 py-1.5 text-[11.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
+      className="flex flex-none cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-2.5 py-1.5 text-[11.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
     >
       <Download size={13} strokeWidth={1.9} />
       {rotulo}
@@ -105,10 +105,10 @@ function Variacao({ atual, anterior, rotuloAnterior }) {
 
 function Cartao({ icone: Icone, rotulo, valor, detalhe, atual, anterior, rotuloAnterior, comparar = true, className = "" }) {
   return (
-    <div className={`flex min-w-0 flex-col${className ? " " + className : ""} gap-1.5 rounded-[12px] border border-line bg-bg px-4 py-3.5`}>
+    <div className={`flex min-w-0 flex-col${className ? " " + className : ""} gap-1.5 rounded-none border border-line bg-bg px-4 py-3.5`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-faint">{rotulo}</span>
-        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-[7px] bg-accent-soft text-accent-forte">
+        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-ctl bg-accent-soft text-accent-forte">
           <Icone size={14} strokeWidth={1.9} />
         </span>
       </div>
@@ -121,7 +121,7 @@ function Cartao({ icone: Icone, rotulo, valor, detalhe, atual, anterior, rotuloA
 
 function Aviso({ children }) {
   return (
-    <div className="flex items-start gap-2 rounded-[10px] border border-line bg-surface px-3 py-2.5 text-[12px] leading-[18px] text-sub">
+    <div className="flex items-start gap-2 rounded-ctl border border-line bg-surface px-3 py-2.5 text-[12px] leading-[18px] text-sub">
       <CircleAlert size={15} className="mt-[1px] flex-none text-warning" />
       <div>{children}</div>
     </div>
@@ -139,9 +139,9 @@ function FunilSafra({ degraus }) {
       {degraus.map((d, i) => (
         <li key={d.id} className="grid grid-cols-[minmax(96px,132px)_1fr_auto] items-center gap-3">
           <span className="truncate text-[12.5px] text-sub">{d.rotulo}</span>
-          <div className="h-6 rounded-[4px] bg-surface" title={`${d.rotulo}: ${num(d.total)} (${pct(d.doTopo)} dos contatos novos)`}>
+          <div className="h-6 rounded-ctl bg-surface" title={`${d.rotulo}: ${num(d.total)} (${pct(d.doTopo)} dos contatos novos)`}>
             <div
-              className="h-full rounded-[4px] bg-accent transition-[width] duration-300"
+              className="h-full rounded-ctl bg-accent transition-[width] duration-300"
               style={{ width: `${Math.max(d.total ? 1.5 : 0, (d.doTopo || 0) * 100)}%`, opacity: 1 - i * 0.12 }}
             />
           </div>
@@ -183,7 +183,7 @@ function BarrasPorMes({ meses, medida, rotuloMedida, periodo, aoEscolherMes }) {
                 </span>
               )}
               <span
-                className={`w-full max-w-[26px] rounded-t-[4px] transition-colors ${noPeriodo ? "bg-accent" : "bg-accent/30 group-hover:bg-accent/55"}`}
+                className={`w-full max-w-[26px] rounded-t-ctl transition-colors ${noPeriodo ? "bg-accent" : "bg-accent/30 group-hover:bg-accent/55"}`}
                 style={{ height: `${valor ? Math.max(3, (valor / maximo) * 100) : 0}%` }}
               />
             </button>
@@ -191,7 +191,7 @@ function BarrasPorMes({ meses, medida, rotuloMedida, periodo, aoEscolherMes }) {
         })}
         {emFoco && (
           <div
-            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-[8px] border border-line bg-bg px-2.5 py-1.5 text-[11.5px] shadow-[0_4px_16px_rgba(18,23,48,0.12)]"
+            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-ctl border border-line bg-bg px-2.5 py-1.5 text-[11.5px] "
             style={{ left: `${((foco + 0.5) / meses.length) * 100}%` }}
           >
             <div className="font-semibold text-fg">{rotuloDoMes(emFoco.inicio, true)}</div>
@@ -305,7 +305,7 @@ export default function Relatorios({ dados, aoAbrirContato }) {
 
   const leadsVisiveis = todosOsLeads ? leads : leads.slice(0, 12);
   const chip = (ativo) =>
-    `cursor-pointer whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+    `cursor-pointer whitespace-nowrap rounded-ctl px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
       ativo ? "bg-accent-soft text-accent-forte" : "text-sub hover:bg-surface hover:text-fg"
     }`;
 
@@ -325,7 +325,7 @@ export default function Relatorios({ dados, aoAbrirContato }) {
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-4 py-3 md:px-8 md:py-4">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-3">
           {/* Período e filtros numa linha só, acima de tudo que eles mudam. */}
-          <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-line bg-bg px-2 py-1.5">
+          <div className="flex flex-wrap items-center gap-2 rounded-ctl border border-line bg-bg px-2 py-1.5">
             <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label="Período">
               {PRESETS.map((p) => (
                 <button key={p.id} type="button" className={chip(presetId === p.id)} onClick={() => escolherPreset(p.id)} aria-pressed={presetId === p.id}>
@@ -342,10 +342,10 @@ export default function Relatorios({ dados, aoAbrirContato }) {
             {presetId === "personalizado" && (
               <div className="flex items-center gap-1.5 text-[12px] text-sub">
                 <input type="date" value={de} onChange={(e) => setDe(e.target.value)} aria-label="De"
-                  className="rounded-[8px] border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent" />
+                  className="rounded-ctl border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent" />
                 <span>até</span>
                 <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até"
-                  className="rounded-[8px] border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent" />
+                  className="rounded-ctl border border-line bg-bg px-2 py-1 text-[12px] text-fg outline-none focus:border-accent" />
               </div>
             )}
             <div className="ml-auto flex flex-wrap items-center gap-1.5">

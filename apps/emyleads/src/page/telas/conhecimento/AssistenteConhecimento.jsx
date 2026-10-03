@@ -61,7 +61,7 @@ function Opcao({ ativo, titulo, descricao, etiqueta, aviso, onClick, children })
       type="button"
       onClick={onClick}
       aria-pressed={ativo}
-      className={`flex w-full items-start gap-3 rounded-[11px] border p-3 text-left ${
+      className={`flex w-full items-start gap-3 rounded-ctl border p-3 text-left ${
         ativo ? "border-accent bg-accent-soft" : "border-line bg-bg hover:bg-surface-hover"
       }`}
     >
@@ -240,11 +240,11 @@ export default function AssistenteConhecimento({
         role="dialog"
         aria-modal="true"
         aria-label="Adicionar conhecimento"
-        className="flex max-h-[92dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[16px] border border-line bg-bg shadow-2xl sm:max-h-[86dvh] sm:rounded-[16px]"
+        className="flex max-h-[92dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-none border border-line bg-bg  sm:max-h-[86dvh] sm:rounded-none"
       >
         <header className="flex flex-none items-start gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0 flex-1"><Trilha etapa={estado.etapa} /></div>
-          <button type="button" onClick={pedirFechamento} className="-mr-1 rounded-[8px] p-2 text-sub hover:bg-surface-hover hover:text-fg" aria-label="Fechar">
+          <button type="button" onClick={pedirFechamento} className="-mr-1 rounded-ctl p-2 text-sub hover:bg-surface-hover hover:text-fg" aria-label="Fechar">
             <X size={17} />
           </button>
         </header>
@@ -256,7 +256,7 @@ export default function AssistenteConhecimento({
               antigo ao texto que está sendo digitado seria pior do que perder
               o antigo. */}
           {guardado && !estadoFoiAlterado(estado, estadoOriginal.current) && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[10px] border border-accent/30 bg-accent-soft px-3.5 py-2.5">
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-ctl border border-accent/30 bg-accent-soft px-3.5 py-2.5">
               <p className="min-w-0 flex-1 text-[11.5px] leading-4 text-fg">
                 Você deixou <strong className="font-semibold">{guardado.estado?.titulo?.trim() || "um documento"}</strong> pela metade
                 <span className="text-sub"> · {tempoRelativo(new Date(guardado.salvoEm).toISOString())}</span>
@@ -264,14 +264,14 @@ export default function AssistenteConhecimento({
               <button
                 type="button"
                 onClick={retomarRascunho}
-                className="rounded-[8px] bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white"
+                className="rounded-ctl bg-accent px-3 py-1.5 text-[11.5px] font-semibold text-white"
               >
                 Retomar
               </button>
               <button
                 type="button"
                 onClick={descartarRascunho}
-                className="rounded-[8px] px-2 py-1.5 text-[11.5px] text-sub hover:text-fg"
+                className="rounded-ctl px-2 py-1.5 text-[11.5px] text-sub hover:text-fg"
               >
                 Descartar
               </button>
@@ -323,7 +323,7 @@ export default function AssistenteConhecimento({
               </div>
 
               {estado.caminhoDeEscrita === "arquivo" && (
-                <div className="mt-3 rounded-[11px] border border-dashed border-line-strong p-4 text-center">
+                <div className="mt-3 rounded-ctl border border-dashed border-line-strong p-4 text-center">
                   <input
                     ref={arquivoRef}
                     type="file"
@@ -334,7 +334,7 @@ export default function AssistenteConhecimento({
                   <button
                     type="button"
                     onClick={() => arquivoRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-[9px] border border-line px-3.5 py-2 text-[12px] font-semibold text-fg hover:bg-surface-hover"
+                    className="inline-flex items-center gap-2 rounded-ctl border border-line px-3.5 py-2 text-[12px] font-semibold text-fg hover:bg-surface-hover"
                   >
                     <FileUp size={15} /> Escolher arquivo
                   </button>
@@ -370,7 +370,7 @@ export default function AssistenteConhecimento({
                           })}
                           rows={modelo?.lista ? 4 : 3}
                           placeholder={modelo?.exemplo || (modelo?.lista ? "Um item por linha" : "")}
-                          className="mt-1.5 w-full resize-y rounded-[9px] border border-line bg-bg p-2.5 text-[12.5px] leading-5 text-fg outline-none focus:border-accent placeholder:text-faint"
+                          className="mt-1.5 w-full resize-y rounded-ctl border border-line bg-bg p-2.5 text-[12.5px] leading-5 text-fg outline-none focus:border-accent placeholder:text-faint"
                         />
                       </label>
                     );
@@ -384,14 +384,14 @@ export default function AssistenteConhecimento({
                   onChange={(e) => mudar({ texto: e.target.value })}
                   rows={10}
                   placeholder="Cole ou escreva aqui. Pode ser texto comum — não precisa saber Markdown."
-                  className="mt-4 w-full resize-y rounded-[10px] border border-line bg-bg p-3 text-[12.5px] leading-5 text-fg outline-none focus:border-accent placeholder:text-faint"
+                  className="mt-4 w-full resize-y rounded-ctl border border-line bg-bg p-3 text-[12.5px] leading-5 text-fg outline-none focus:border-accent placeholder:text-faint"
                 />
               )}
 
               {estado.caminhoDeEscrita === "perguntas" && (
                 <div className="mt-4 grid gap-2.5 border-t border-line pt-4">
                   {estado.perguntas.map((item, indice) => (
-                    <div key={indice} className="rounded-[10px] border border-line p-2.5">
+                    <div key={indice} className="rounded-ctl border border-line p-2.5">
                       <div className="flex items-center gap-2">
                         <input
                           value={item.pergunta}
@@ -406,7 +406,7 @@ export default function AssistenteConhecimento({
                             type="button"
                             aria-label="Remover pergunta"
                             onClick={() => mudar({ perguntas: estado.perguntas.filter((_, i) => i !== indice) })}
-                            className="rounded-[7px] p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
+                            className="rounded-ctl p-1.5 text-faint hover:bg-danger/10 hover:text-danger"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -426,7 +426,7 @@ export default function AssistenteConhecimento({
                   <button
                     type="button"
                     onClick={() => mudar({ perguntas: [...estado.perguntas, { pergunta: "", resposta: "" }] })}
-                    className="inline-flex items-center gap-1.5 self-start rounded-[9px] border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
+                    className="inline-flex items-center gap-1.5 self-start rounded-ctl border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-sub hover:bg-surface-hover hover:text-fg"
                   >
                     <Plus size={14} /> Adicionar pergunta
                   </button>
@@ -470,7 +470,7 @@ export default function AssistenteConhecimento({
                       {colecoes.map((item) => {
                         const marcado = estado.colecoesIds.includes(item.id);
                         return (
-                          <label key={item.id} className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-[9px] border border-line px-3 text-[12px] text-fg hover:bg-surface-hover">
+                          <label key={item.id} className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-ctl border border-line px-3 text-[12px] text-fg hover:bg-surface-hover">
                             <input
                               type="checkbox"
                               checked={marcado}
@@ -492,7 +492,7 @@ export default function AssistenteConhecimento({
                       })}
                     </div>
                   ) : (
-                    <p className="mt-3 flex items-start gap-2 rounded-[9px] bg-warning-soft p-3 text-[11.5px] leading-4 text-warning">
+                    <p className="mt-3 flex items-start gap-2 rounded-ctl bg-warning-soft p-3 text-[11.5px] leading-4 text-warning">
                       <AlertTriangle size={15} className="mt-px flex-none" />
                       Não há nenhuma coleção externa nesta empresa. Dá para salvar como rascunho, mas não para publicar
                       até alguém criar uma na Equipe de IA.
@@ -516,7 +516,7 @@ export default function AssistenteConhecimento({
                 Faça uma pergunta de verdade e veja se este texto responderia.
               </p>
 
-              <div className="mt-4 rounded-[11px] border border-line p-3.5">
+              <div className="mt-4 rounded-ctl border border-line p-3.5">
                 <input
                   ref={tituloRef}
                   value={estado.titulo}
@@ -570,7 +570,7 @@ export default function AssistenteConhecimento({
                         onChange={(e) => mudar({ caminho: e.target.value, caminhoManual: true })}
                         placeholder="empresa/sobre.md"
                         aria-invalid={falha?.campo === "caminho" || undefined}
-                        className={`mt-1 w-full rounded-[7px] border bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent ${
+                        className={`mt-1 w-full rounded-ctl border bg-bg px-2.5 py-1.5 font-mono text-[11px] text-sub outline-none focus:border-accent ${
                           falha?.campo === "caminho" ? "border-danger" : "border-line"
                         }`}
                       />
@@ -591,20 +591,20 @@ export default function AssistenteConhecimento({
                     onChange={(e) => setPergunta(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && testar()}
                     placeholder="Vocês atendem fora de Cuiabá?"
-                    className="min-w-0 flex-1 rounded-[9px] border border-line bg-bg px-3 py-2 text-[12.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
+                    className="min-w-0 flex-1 rounded-ctl border border-line bg-bg px-3 py-2 text-[12.5px] text-fg outline-none focus:border-accent placeholder:text-faint"
                   />
                   <button
                     type="button"
                     onClick={testar}
                     disabled={testando || !pergunta.trim()}
-                    className="inline-flex items-center gap-1.5 rounded-[9px] border border-line px-3 text-[12px] font-semibold text-fg hover:bg-surface-hover disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-ctl border border-line px-3 text-[12px] font-semibold text-fg hover:bg-surface-hover disabled:opacity-40"
                   >
                     {testando ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Testar
                   </button>
                 </div>
 
                 {previa && (
-                  <div className="mt-2.5 rounded-[10px] border border-line bg-surface p-3">
+                  <div className="mt-2.5 rounded-ctl border border-line bg-surface p-3">
                     {previa.erro ? (
                       <p className="text-[11.5px] text-danger">{previa.erro}</p>
                     ) : previa.casou ? (
@@ -644,11 +644,11 @@ export default function AssistenteConhecimento({
 
         <footer className="flex flex-none flex-wrap items-center gap-2 border-t border-line px-5 py-3.5">
           {estado.etapa > 1 && (
-            <button type="button" onClick={() => setEstado(voltar(estado))} className="rounded-[9px] px-3 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
+            <button type="button" onClick={() => setEstado(voltar(estado))} className="rounded-ctl px-3 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg">
               Voltar
             </button>
           )}
-          <button type="button" onClick={pedirFechamento} className="rounded-[9px] px-3 py-2 text-[12.5px] text-faint hover:text-sub">
+          <button type="button" onClick={pedirFechamento} className="rounded-ctl px-3 py-2 text-[12.5px] text-faint hover:text-sub">
             Cancelar
           </button>
           <div className="ml-auto flex items-center gap-2">
@@ -659,7 +659,7 @@ export default function AssistenteConhecimento({
                 onClick={() => setEstado(avancar(estado))}
                 disabled={Boolean(pendencia)}
                 title={pendencia || undefined}
-                className="rounded-[9px] bg-accent px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40"
+                className="rounded-ctl bg-accent px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40"
               >
                 Continuar
               </button>
@@ -670,7 +670,7 @@ export default function AssistenteConhecimento({
                   onClick={() => aoSalvar(documentoDoEstado(estado), false)}
                   disabled={salvando || Boolean(pendencia)}
                   title={pendencia || undefined}
-                  className="rounded-[9px] border border-line px-3.5 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+                  className="rounded-ctl border border-line px-3.5 py-2 text-[12.5px] font-semibold text-sub hover:bg-surface-hover hover:text-fg disabled:opacity-40"
                 >
                   Salvar como rascunho
                 </button>
@@ -679,7 +679,7 @@ export default function AssistenteConhecimento({
                   onClick={() => aoSalvar(documentoDoEstado(estado), true)}
                   disabled={salvando || Boolean(impedimentoParaPublicar)}
                   title={impedimentoParaPublicar || undefined}
-                  className="inline-flex items-center gap-1.5 rounded-[9px] bg-accent px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-ctl bg-accent px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40"
                 >
                   <Sparkles size={14} /> {salvando ? "Salvando…" : "Publicar"}
                 </button>

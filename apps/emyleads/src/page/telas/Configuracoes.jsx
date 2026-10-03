@@ -36,7 +36,7 @@ const CORES_SUGERIDAS = [
 
 function Bloco({ titulo, descricao, children, acao }) {
   return (
-    <section className="rounded-[14px] border border-line bg-bg">
+    <section className="rounded-none border border-line bg-bg">
       <div className="flex items-start gap-4 border-b border-line px-5 py-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-semibold text-fg">{titulo}</h2>
@@ -54,7 +54,7 @@ function Bloco({ titulo, descricao, children, acao }) {
 }
 
 const entrada =
-  "rounded-[8px] border border-line bg-bg px-3 py-1.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent";
+  "rounded-ctl border border-line bg-bg px-3 py-1.5 text-[13.5px] text-fg outline-none transition-colors focus:border-accent";
 
 /* ------------------------------------------------------------------ */
 
@@ -92,7 +92,7 @@ export function AtalhoDoPainel() {
           href={enderecoDoPainel()}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex flex-none items-center gap-1.5 rounded-[9px] bg-accent px-3.5 py-2 text-[12.5px] font-semibold text-white hover:brightness-110"
+          className="inline-flex flex-none items-center gap-1.5 rounded-ctl bg-accent px-3.5 py-2 text-[12.5px] font-semibold text-white hover:brightness-110"
         >
           <ShieldCheck size={15} /> Abrir o painel
         </a>
@@ -188,7 +188,7 @@ function Estagios({ estagios, recarregar }) {
             <span className="w-6 text-[12.5px] tabular-nums text-faint">
               {i + 1}
             </span>
-            <PilulaEstagio nome={e.nome} cor={corDoEstagio(i)} />
+            <PilulaEstagio nome={e.nome} cor={corDoEstagio({ ...e, ordem: i })} />
             <input
               defaultValue={e.nome}
               onBlur={(ev) => renomear(e, ev.target.value)}
@@ -199,7 +199,7 @@ function Estagios({ estagios, recarregar }) {
               onClick={() => mover(i, -1)}
               disabled={i === 0}
               title="Subir"
-              className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-25"
+              className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-25"
             >
               <ArrowUp size={16} />
             </button>
@@ -207,14 +207,14 @@ function Estagios({ estagios, recarregar }) {
               onClick={() => mover(i, 1)}
               disabled={i === ordenados.length - 1}
               title="Descer"
-              className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-25"
+              className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-25"
             >
               <ArrowDown size={16} />
             </button>
             <button
               onClick={() => pedirRemocao(e)}
               title="Remover estágio"
-              className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-danger/10 hover:text-danger"
+              className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 size={16} />
             </button>
@@ -267,7 +267,7 @@ function Estagios({ estagios, recarregar }) {
         />
         <button
           type="submit"
-          className="flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-3 py-1.5 text-[13.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
+          className="flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-3 py-1.5 text-[13.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
         >
           <Plus size={15} /> Adicionar
         </button>
@@ -333,7 +333,7 @@ function Tags({ tags, recarregar }) {
               className="h-7 w-7 cursor-pointer rounded-full border border-line bg-transparent p-0"
             />
             <span
-              className="inline-flex items-center rounded-[8px] px-2.5 py-1 text-[12.5px] font-medium"
+              className="inline-flex items-center rounded-ctl px-2.5 py-1 text-[12.5px] font-medium"
               style={{ color: t.cor, background: `${t.cor}1f` }}
             >
               {t.nome}
@@ -351,7 +351,7 @@ function Tags({ tags, recarregar }) {
             <button
               onClick={() => remover(t)}
               title="Remover tag"
-              className="cursor-pointer rounded-[8px] p-1.5 text-sub transition-colors hover:bg-danger/10 hover:text-danger"
+              className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 size={16} />
             </button>
@@ -371,7 +371,7 @@ function Tags({ tags, recarregar }) {
         />
         <button
           type="submit"
-          className="flex cursor-pointer items-center gap-1.5 rounded-[8px] border border-line px-3 py-1.5 text-[13.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
+          className="flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-3 py-1.5 text-[13.5px] font-medium text-sub transition-colors hover:border-accent hover:text-accent-forte"
         >
           <Plus size={15} /> Adicionar
         </button>
@@ -440,13 +440,13 @@ function Dados({ recarregar }) {
       <div className="flex flex-wrap items-center gap-2 px-5 py-4">
         <button
           onClick={exportar}
-          className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
+          className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
         >
           <Download size={16} /> Exportar backup
         </button>
         {!PLATAFORMA_WEB && <button
           onClick={() => arquivo.current?.click()}
-          className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-line px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
+          className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-3 py-2 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
         >
           <Upload size={16} /> Restaurar
         </button>}
@@ -459,7 +459,7 @@ function Dados({ recarregar }) {
         />
         {!PLATAFORMA_WEB && <button
           onClick={apagar}
-          className="ml-auto cursor-pointer rounded-[8px] border border-line px-3 py-2 text-[13.5px] font-medium text-danger transition-colors hover:border-danger/50"
+          className="ml-auto cursor-pointer rounded-ctl border border-line px-3 py-2 text-[13.5px] font-medium text-danger transition-colors hover:border-danger/50"
         >
           Apagar tudo
         </button>}
@@ -491,7 +491,7 @@ function Build() {
       descricao="Compare com o horário do último build. Se não bater, o Chrome ainda está com o código antigo — recarregue a extensão e, depois, a aba do WhatsApp Web."
     >
       <div className="px-5 py-4">
-        <code className="rounded-[6px] bg-surface-hover px-2.5 py-1.5 text-[12.5px] text-fg">
+        <code className="rounded-ctl bg-surface-hover px-2.5 py-1.5 text-[12.5px] text-fg">
           {carimbo}
         </code>
       </div>

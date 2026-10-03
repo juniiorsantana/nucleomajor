@@ -18,6 +18,8 @@
     "dev:painel": "vite --config vite.painel.config.js"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@supabase/supabase-js": "^2.112.3",
     "@wppconnect/wa-js": "^4.3.1",
     "@xyflow/react": "^12.9.3",
