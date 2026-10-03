@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-react";
+import { ArrowDown, MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { leituraDaConversa } from "../../domain/leituraDaConversa";
 import { DONOS_CURTOS } from "../../ui/atendimento";
@@ -22,7 +22,7 @@ import {
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
-import { conversaDoTelefone } from "./conversas/conversasUtils";
+import { conversaDoTelefone, inicioDeGrupo } from "./conversas/conversasUtils";
 import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
 import { usePareamento } from "./conversas/usePareamento";
@@ -184,7 +184,7 @@ export default function Conversas({
   // A imagem aberta em tela cheia, ou nada.
   const [midiaAberta, setMidiaAberta] = useState(null);
 
-  const { rolagem, aoRolar } = useRolagemConversa(atual, mensagens);
+  const { rolagem, aoRolar, noFim, novas, irParaOFim } = useRolagemConversa(atual, mensagens);
 
   // O WhatsApp está conectado? A lista vazia precisa dizer por quê, e a lista
   // cheia precisa avisar quando a sessão cai.
@@ -491,7 +491,7 @@ export default function Conversas({
           </div>
         ) : (
           <>
-            <header className="flex h-[62px] flex-none items-center gap-2.5 border-b border-line px-3.5">
+            <header className="flex h-[62px] flex-none items-center gap-2.5 border-b border-t-[3px] border-b-conversa-linha border-t-equipe px-3.5">
               <AvatarComDono
                 nome={conversa.nome}
                 foto={conversa.fotoUrl}
@@ -545,30 +545,53 @@ export default function Conversas({
               </span>
             </header>
 
-            {/* Fundo liso: a bolha recebida é o cinza de apoio, e a enviada leva
-                a cor de quem escreveu. O pontilhado do desenho antigo competia
-                com as duas. */}
-            <div
-              ref={rolagem}
-              onScroll={aoRolar}
-              className="scrollbar-fina min-h-0 flex-1 overflow-y-auto bg-bg px-5 pb-4 pt-3"
-            >
-              {mensagens.map((m, i) => {
-                const chave = `${m.tipo}-${i}`;
-                if (m.tipo === "data") return <DivisorData key={chave} texto={m.texto} />;
-                if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
-                if (m.tipo === "sistema")
-                  return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
-                return (
-                  <Bolha
-                    key={chave}
-                    mensagem={m}
-                    nomeProprio={eu}
-                    aoReenviar={reenviar}
-                    aoAbrirMidia={setMidiaAberta}
-                  />
-                );
-              })}
+            {/* O fundo da conversa (direção A, 03/10/2026): azul-acinzentado com
+                uma malha de pontos bem leve. A bolha do cliente é branca e salta
+                dele sem sombra; a da equipe é o azul profundo. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div
+                ref={rolagem}
+                onScroll={aoRolar}
+                className="fundo-conversa scrollbar-fina min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-3"
+              >
+                {mensagens.map((m, i) => {
+                  const chave = `${m.tipo}-${i}`;
+                  if (m.tipo === "data") return <DivisorData key={chave} texto={m.texto} />;
+                  if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
+                  if (m.tipo === "sistema")
+                    return <PilulaSistema key={chave} dono={m.dono} texto={m.texto} hora={m.hora} />;
+                  return (
+                    <Bolha
+                      key={chave}
+                      mensagem={m}
+                      nomeProprio={eu}
+                      aoReenviar={reenviar}
+                      aoAbrirMidia={setMidiaAberta}
+                      inicioDoGrupo={inicioDeGrupo(mensagens[i - 1], m)}
+                    />
+                  );
+                })}
+              </div>
+              {/* Quem subiu para ler o histórico não é puxado de volta quando
+                  chega mensagem; ganha este botão, com quantas chegaram. */}
+              {!noFim && (
+                <button
+                  type="button"
+                  onClick={irParaOFim}
+                  aria-label={novas ? `Ir para o fim: ${novas} novas` : "Ir para o fim"}
+                  className="absolute bottom-3 right-5 flex h-[34px] cursor-pointer items-center gap-1.5 rounded-full bg-equipe px-3 text-[12px] font-medium text-on-equipe transition-all hover:brightness-110"
+                >
+                  <ArrowDown size={14} strokeWidth={2.2} />
+                  {novas > 0 ? (
+                    <>
+                      <span className="rounded-full bg-signal px-1.5 font-mono font-semibold tabular-nums text-on-signal">{novas}</span>
+                      {novas === 1 ? "nova" : "novas"}
+                    </>
+                  ) : (
+                    "Ir para o fim"
+                  )}
+                </button>
+              )}
             </div>
 
             {aba === "modelos" && (

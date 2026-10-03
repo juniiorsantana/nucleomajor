@@ -68,6 +68,22 @@
   --el-warning-soft: #f7f0e1;
   --el-danger: #b3261e;
   --el-danger-soft: #f9eae9;
+
+  /* A tela de conversa tem identidade própria (03/10/2026, "direção A"):
+     o azul profundo é a cor da casa na bolha da equipe, no play e nas ondas;
+     o fundo azul-acinzentado com pontos separa a conversa do resto e deixa a
+     bolha do cliente, branca, saltar sem sombra. Violeta continua sendo a IA
+     e o azul de sinal continua sendo "novo". No escuro, a "direção B". */
+  --el-conversa-fundo: #eef2f8;
+  --el-conversa-ponto: rgba(15, 33, 71, 0.07);
+  --el-conversa-linha: #dce3ee;
+  --el-conversa-sub: #4b5a78;
+  --el-conversa-faint: #6b7894;
+  --el-bolha-entra: #ffffff;
+  --el-equipe: #0f2147;
+  --el-on-equipe: #ffffff;
+  --el-equipe-sub: #9fb4e6;
+  --el-equipe-trilho: #c5cfe0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -108,6 +124,17 @@
     --el-warning-soft: #2a2213;
     --el-danger: #ec7b72;
     --el-danger-soft: #2c1615;
+
+    --el-conversa-fundo: #0b1730;
+    --el-conversa-ponto: rgba(255, 255, 255, 0.055);
+    --el-conversa-linha: #22365f;
+    --el-conversa-sub: #9fb0d4;
+    --el-conversa-faint: #7d8fb6;
+    --el-bolha-entra: #16274a;
+    --el-equipe: #e7edfa;
+    --el-on-equipe: #0f2147;
+    --el-equipe-sub: #2f5bea;
+    --el-equipe-trilho: #3a4d75;
   }
 }
 
@@ -137,6 +164,15 @@
   --color-warning-soft: var(--el-warning-soft);
   --color-danger: var(--el-danger);
   --color-danger-soft: var(--el-danger-soft);
+  --color-conversa-fundo: var(--el-conversa-fundo);
+  --color-conversa-linha: var(--el-conversa-linha);
+  --color-conversa-sub: var(--el-conversa-sub);
+  --color-conversa-faint: var(--el-conversa-faint);
+  --color-bolha-entra: var(--el-bolha-entra);
+  --color-equipe: var(--el-equipe);
+  --color-on-equipe: var(--el-on-equipe);
+  --color-equipe-sub: var(--el-equipe-sub);
+  --color-equipe-trilho: var(--el-equipe-trilho);
 
   --font-sans: "Geist Variable", -apple-system, "SF Pro Text", "Segoe UI Variable", system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
@@ -147,6 +183,17 @@
   --radius-ctl: 2px;
   --radius-el: 2px;
   --radius-el-lg: 2px;
+  /* A exceção da conversa: a bolha tem canto de 10px (e a ponta do grupo,
+     zero), como o desenho da direção A. */
+  --radius-bolha: 10px;
+}
+
+/* O fundo da conversa: o azul-acinzentado com a malha de pontos. Os pontos
+   saem de um token, então o tema escuro troca os dois juntos. */
+.fundo-conversa {
+  background-color: var(--el-conversa-fundo);
+  background-image: radial-gradient(var(--el-conversa-ponto) 1px, transparent 1.2px);
+  background-size: 18px 18px;
 }
 
 /* Shared product controls and mobile navigation. */

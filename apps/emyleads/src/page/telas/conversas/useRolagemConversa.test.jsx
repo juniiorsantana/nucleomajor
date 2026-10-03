@@ -87,4 +87,34 @@ describe("rolagem da conversa", () => {
 
     expect(caixa.scrollTop).toBe(700);
   });
+
+  it("conta as novas que chegaram depois que a pessoa subiu, e volta ao fim", () => {
+    renderizar("conversa-1", [{ id: "m1" }, { id: "m2" }]);
+    const caixa = { ...caixaDeRolagem({ topo: 100 }), scrollTo: ({ top }) => { caixa.scrollTop = top; } };
+    controle.rolagem.current = caixa;
+    act(() => controle.aoRolar());
+    expect(controle.noFim).toBe(false);
+    expect(controle.novas).toBe(0);
+
+    renderizar("conversa-1", [{ id: "m1" }, { id: "m2" }, { tipo: "data" }, { tipo: "mensagem" }, { tipo: "mensagem" }]);
+    expect(controle.novas).toBe(2);
+
+    act(() => controle.irParaOFim());
+    expect(caixa.scrollTop).toBe(500);
+    expect(controle.noFim).toBe(true);
+    expect(controle.novas).toBe(0);
+  });
+
+  it("trocar de conversa zera o contador", () => {
+    renderizar("conversa-1", [{ id: "m1" }]);
+    const caixa = caixaDeRolagem({ topo: 100 });
+    controle.rolagem.current = caixa;
+    act(() => controle.aoRolar());
+    renderizar("conversa-1", [{ id: "m1" }, { id: "m2" }]);
+    expect(controle.novas).toBe(1);
+
+    renderizar("conversa-2", [{ id: "x" }]);
+    expect(controle.noFim).toBe(true);
+    expect(controle.novas).toBe(0);
+  });
 });

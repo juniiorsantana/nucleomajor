@@ -27,6 +27,8 @@ import {
   textoDoMotivoDeEnvio,
 } from "../../../ui/atendimento";
 import { Iniciais } from "../../ui";
+import { OndaAoVivo, PlayerDeAudio } from "./audio";
+import { TextoFormatado } from "./TextoFormatado";
 
 /**
  * As peças da conversa.
@@ -51,14 +53,17 @@ export const ICONE_DO_DONO = { bot: Bot, ia: Sparkles, humano: Headset };
 // passa de 4,5:1 nas duas pontas (o ator escuro no claro, o claro no escuro).
 const FUNDO_DO_DONO = { bot: "bg-flow", ia: "bg-ia", humano: "bg-fg" };
 const TEXTO_DO_DONO = { bot: "text-flow", ia: "text-ia", humano: "text-fg" };
-const TOM_DO_AUTOR = { bot: "text-flow", ia: "text-ia", humano: "text-bg/75" };
-// A bolha que SAI tem a cor de quem escreveu: pessoa é grafite cheio, IA e
-// fluxo são o fundo suave do ator. Sem `tom` (mensagem antiga), é pessoa.
+const TOM_DO_AUTOR = { bot: "text-flow", ia: "text-ia", humano: "text-equipe-sub" };
+// A bolha que SAI tem a cor de quem escreveu: a pessoa é o azul profundo da
+// conversa (direção A, 03/10/2026), IA e fluxo são o fundo suave do ator.
+// Sem `tom` (mensagem antiga), é pessoa.
 const BOLHA_DO_AUTOR = {
   bot: "bg-flow-soft text-fg",
   ia: "bg-ia-soft text-fg",
-  humano: "bg-fg text-bg",
+  humano: "bg-equipe text-on-equipe",
 };
+// O player dentro de cada bolha usa as cores dela.
+const TOM_DO_PLAYER = { bot: "bot", ia: "ia", humano: "equipe" };
 
 export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho = 46 }) {
   const [fotoCarregavel, setFotoCarregavel] = useState(Boolean(foto));
@@ -102,7 +107,7 @@ export function AvatarComDono({ nome, foto = null, dono, grupo = false, tamanho 
  * sinal claro (`signal-soft`) é o que contrasta nos dois temas.
  */
 export function Ticks({ lido, sobreGrafite = false }) {
-  const tom = sobreGrafite ? (lido ? "text-signal-soft" : "text-bg/55") : lido ? "text-signal" : "text-faint";
+  const tom = sobreGrafite ? (lido ? "text-equipe-sub" : "text-on-equipe/55") : lido ? "text-signal" : "text-faint";
   return <CheckCheck size={15} strokeWidth={2} className={`flex-none ${tom}`} />;
 }
 
@@ -159,7 +164,9 @@ export function LinhaConversa({ conversa, ativa, aoAbrir }) {
 export function DivisorData({ texto }) {
   return (
     <div className="mb-1 mt-4 flex justify-center">
-      <span className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-faint">{texto}</span>
+      <span className="rounded-full border border-conversa-linha bg-bolha-entra px-2.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[.06em] text-conversa-sub">
+        {texto}
+      </span>
     </div>
   );
 }
@@ -180,16 +187,16 @@ export function PilulaSistema({ dono, texto, hora }) {
   const Icone = ICONE_DO_DONO[dono] || Bot;
   return (
     <div className="mb-1 mt-3 flex items-center gap-2.5">
-      <span className="h-px min-w-3 flex-1 bg-line" />
-      <span className="inline-flex max-w-[80%] items-center gap-1.5 text-[11px] text-sub">
+      <span className="h-px min-w-3 flex-1 bg-conversa-linha" />
+      <span className="inline-flex max-w-[80%] items-center gap-1.5 rounded-full bg-bolha-entra/85 px-2.5 py-0.5 text-[11px] text-conversa-sub">
         <Icone size={12} strokeWidth={2} className={`flex-none ${TEXTO_DO_DONO[dono] || "text-sub"}`} />
         {texto}
         {/* A hora fica ao lado, e não em linha própria: a pílula existe para
             ser lida de relance no meio da conversa, e duas linhas a
             transformariam num aviso. */}
-        {hora && <span className="flex-none tabular-nums text-faint">· {hora}</span>}
+        {hora && <span className="flex-none tabular-nums text-conversa-faint">· {hora}</span>}
       </span>
-      <span className="h-px min-w-3 flex-1 bg-line" />
+      <span className="h-px min-w-3 flex-1 bg-conversa-linha" />
     </div>
   );
 }
@@ -272,7 +279,7 @@ const ROTULO_DA_MIDIA = { audio: "🎤 Áudio", imagem: "📎 Imagem", outro: "�
  */
 function TranscricaoDoAudio({ mensagem }) {
   return (
-    <span className={`block ${mensagem.midia ? "mt-1" : ""}`}>
+    <span className={`block ${mensagem.midia ? "mt-1.5 border-t border-current/15 pt-1.5" : ""}`}>
       <span className="block text-[10.5px] font-semibold opacity-70">
         {mensagem.midia ? "Transcrição automática" : "🎤 Áudio · transcrição automática"}
       </span>
@@ -281,23 +288,15 @@ function TranscricaoDoAudio({ mensagem }) {
   );
 }
 
-function MidiaDaBolha({ midia, aoAbrir }) {
+function MidiaDaBolha({ midia, aoAbrir, tom = "entra" }) {
   if (!midia) return null;
   if (!midia.url) {
     return <span className="block">{ROTULO_DA_MIDIA[midia.tipo] || ROTULO_DA_MIDIA.outro}</span>;
   }
   if (midia.tipo === "audio") {
-    return (
-      // `preload="none"`: uma conversa com trinta áudios não baixa trinta
-      // arquivos ao abrir. O navegador busca quando alguém aperta play.
-      <audio
-        controls
-        preload="none"
-        src={midia.url}
-        className="my-0.5 block h-9 w-[260px] max-w-full"
-        aria-label={midia.nome || "Áudio"}
-      />
-    );
+    // `preload="none"` dentro do player: uma conversa com trinta áudios não
+    // baixa trinta arquivos ao abrir. O navegador busca quando alguém aperta play.
+    return <PlayerDeAudio url={midia.url} nome={midia.nome} tom={tom} largura="w-full" />;
   }
   if (midia.tipo === "imagem") {
     return (
@@ -364,7 +363,15 @@ export function Lightbox({ midia, aoFechar }) {
   );
 }
 
-export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
+/**
+ * Uma mensagem.
+ *
+ * `inicioDoGrupo`: mensagens seguidas da mesma pessoa andam juntas (03/10/2026).
+ * Só a primeira do grupo mostra o nome e tem a ponta recortada, do lado de quem
+ * falou; as seguintes encostam nela. É o que faz a conversa ler como conversa,
+ * e não como uma pilha de cartões iguais.
+ */
+export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia, inicioDoGrupo = true }) {
   const saiu = mensagem.direcao === "sai";
   // A bolha que ainda não voltou do WhatsApp foi escrita AQUI, agora, por quem
   // está olhando: é o único caso em que o nome de quem vê é o nome de quem
@@ -376,33 +383,46 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
     mensagem.autor ||
     (saiu && provisoria && mensagem.tom === "humano" ? nomeProprio : null);
   const tom = BOLHA_DO_AUTOR[mensagem.tom] ? mensagem.tom : "humano";
+  // `sobreGrafite` ficou com o nome antigo: é a bolha cheia da equipe, que hoje
+  // é azul profundo. Dentro dela os tons claros são os que contrastam.
   const sobreGrafite = saiu && tom === "humano";
+  // Os quatro cantos um a um: no Tailwind 4 o `rounded-bolha` geral vence o
+  // `rounded-tl-none`, e a ponta recortada sumia.
+  const cantos = inicioDoGrupo
+    ? saiu
+      ? "rounded-tl-bolha rounded-tr-none rounded-br-bolha rounded-bl-bolha"
+      : "rounded-tl-none rounded-tr-bolha rounded-br-bolha rounded-bl-bolha"
+    : "rounded-bolha";
+  const temAudio = mensagem.midia?.tipo === "audio" && mensagem.midia?.url;
   return (
-    <div className={`mt-1.5 flex ${saiu ? "justify-end" : ""}`} data-message-id={mensagem.messageId || undefined}>
+    <div
+      className={`flex ${inicioDoGrupo ? "mt-3" : "mt-0.5"} ${saiu ? "justify-end" : ""}`}
+      data-message-id={mensagem.messageId || undefined}
+    >
       <div
-        className={`relative max-w-[78%] rounded-none px-2.5 py-[7px] text-[13px] leading-[19px] ${
-          saiu ? BOLHA_DO_AUTOR[tom] : "bg-surface text-fg"
-        }`}
+        className={`relative max-w-[78%] px-3 py-2 text-[13.5px] leading-[20px] ${cantos} ${
+          saiu ? BOLHA_DO_AUTOR[tom] : "border border-conversa-linha bg-bolha-entra text-fg"
+        } ${temAudio ? "min-w-[min(320px,100%)]" : ""}`}
       >
-        {autor && (
-          <span className={`block text-[10.5px] font-semibold ${saiu ? TOM_DO_AUTOR[tom] : "text-sub"}`}>
+        {autor && inicioDoGrupo && (
+          <span className={`block text-[11px] font-semibold ${saiu ? TOM_DO_AUTOR[tom] : "text-conversa-sub"}`}>
             {autor}
           </span>
         )}
         {mensagem.cita && (
-          <span className={`mb-1 block rounded-none border-l-2 border-signal px-2 py-1 ${sobreGrafite ? "bg-bg/10" : "bg-bg/60"}`}>
-            <span className={`block text-[10.5px] font-semibold ${sobreGrafite ? "text-signal-soft" : "text-signal"}`}>
+          <span className={`mb-1 block rounded-[6px] border-l-2 border-signal px-2 py-1 ${sobreGrafite ? "bg-on-equipe/10" : "bg-conversa-fundo/70"}`}>
+            <span className={`block text-[10.5px] font-semibold ${sobreGrafite ? "text-equipe-sub" : "text-signal"}`}>
               {mensagem.cita.quem}
             </span>
-            <span className={`block truncate text-[11.5px] ${sobreGrafite ? "text-bg/70" : "text-sub"}`}>{mensagem.cita.texto}</span>
+            <span className={`block truncate text-[11.5px] ${sobreGrafite ? "text-on-equipe/70" : "text-sub"}`}>{mensagem.cita.texto}</span>
           </span>
         )}
-        <MidiaDaBolha midia={mensagem.midia} aoAbrir={aoAbrirMidia} />
+        <MidiaDaBolha midia={mensagem.midia} aoAbrir={aoAbrirMidia} tom={saiu ? TOM_DO_PLAYER[tom] : "entra"} />
         {mensagem.texto && mensagem.transcricao && <TranscricaoDoAudio mensagem={mensagem} />}
-        {mensagem.texto && !mensagem.transcricao && <span className="whitespace-pre-wrap">{mensagem.texto}</span>}
+        {mensagem.texto && !mensagem.transcricao && <TextoFormatado texto={mensagem.texto} />}
         {/* Espaço reservado para a hora não sentar em cima da última palavra. */}
         <span className={`inline-block h-px ${saiu ? "w-[58px]" : "w-10"}`} />
-        <span className={`absolute bottom-1.5 right-2.5 flex items-center gap-[3px] text-[10.5px] tabular-nums ${sobreGrafite ? "text-bg/60" : "text-faint"}`}>
+        <span className={`absolute bottom-1.5 right-2.5 flex items-center gap-[3px] font-mono text-[10.5px] tabular-nums ${sobreGrafite ? "text-on-equipe/60" : "text-conversa-faint"}`}>
           {mensagem.hora}
           {/* Três estados, e não dois. Entre "escrevi" e "chegou" existe a fila
               do runtime, e ela dura segundos: sem o relógio, quem escreveu não
@@ -417,7 +437,7 @@ export function Bolha({ mensagem, nomeProprio, aoReenviar, aoAbrirMidia }) {
             />
           )}
           {saiu && mensagem.enviando && (
-            <Clock3 size={13} strokeWidth={2.2} className={`flex-none ${sobreGrafite ? "text-bg/60" : "text-faint"}`} />
+            <Clock3 size={13} strokeWidth={2.2} className={`flex-none ${sobreGrafite ? "text-on-equipe/60" : "text-faint"}`} />
           )}
           {saiu && !mensagem.enviando && !mensagem.falhou && <Ticks lido={mensagem.lido} sobreGrafite={sobreGrafite} />}
         </span>
@@ -468,7 +488,7 @@ function useFechaFora(aberto, fechar) {
  * botão e recusar depois seria pior que não oferecer.
  */
 // O ator escolhido aparece cheio da cor dele; a pessoa é o grafite cheio.
-const ATIVO_DO_DONO = { bot: "bg-flow-soft text-flow", ia: "bg-ia-soft text-ia", humano: "bg-fg text-bg" };
+const ATIVO_DO_DONO = { bot: "bg-flow-soft text-flow", ia: "bg-ia-soft text-ia", humano: "bg-equipe text-on-equipe" };
 
 export function FaixaAtendimento({ dono, atendenteNome, equipe = [], grupo = false, aoTrocar }) {
   const [menu, setMenu] = useState(false);
@@ -620,6 +640,8 @@ export function Composer({
   const [anexo, setAnexo] = useState(null);
   // A gravação em curso: { segundos }.
   const [gravacao, setGravacao] = useState(null);
+  // O fluxo do microfone, para a onda ao vivo. Vive enquanto grava.
+  const [fluxo, setFluxo] = useState(null);
   const [erroLocal, setErroLocal] = useState("");
   const [enviando, setEnviando] = useState(false);
   const entradaDeArquivo = useRef(null);
@@ -695,6 +717,7 @@ export function Composer({
     };
     gravador.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
+      setFluxo(null);
       window.clearInterval(gravador.cronometro);
       gravadorRef.current = null;
       setGravacao(null);
@@ -707,6 +730,7 @@ export function Composer({
       setAnexo({ arquivo, tipo: "audio", url: urlLocal(arquivo), nome: arquivo.name });
     };
     gravadorRef.current = gravador;
+    setFluxo(stream);
     gravador.start(250);
     const inicio = Date.now();
     gravador.cronometro = window.setInterval(() => {
@@ -776,11 +800,11 @@ export function Composer({
   const rodape = erroLocal || aviso;
 
   return (
-    <div className="flex-none bg-bg px-3.5 pb-3.5 pt-2.5">
+    <div className="fundo-conversa flex-none px-3.5 pb-3.5 pt-2.5">
       {anexo && (
         <div
           data-testid="anexo"
-          className="mb-1.5 flex items-center gap-2.5 rounded-none border border-line bg-surface px-2.5 py-2"
+          className="mb-1.5 flex items-center gap-2.5 rounded-[12px] border border-conversa-linha bg-bolha-entra px-2.5 py-2"
         >
           {anexo.tipo === "imagem" ? (
             <img
@@ -789,14 +813,9 @@ export function Composer({
               className="h-14 w-14 flex-none rounded-ctl object-cover"
             />
           ) : (
-            <audio
-              controls
-              src={anexo.url || undefined}
-              className="h-9 min-w-0 flex-1"
-              aria-label="Áudio gravado"
-            />
+            <PlayerDeAudio url={anexo.url || undefined} nome="Áudio gravado" preload="metadata" largura="min-w-0 flex-1" />
           )}
-          <span className="min-w-0 flex-1 truncate text-[12px] text-sub">
+          <span className={`truncate text-[12px] text-conversa-sub ${anexo.tipo === "imagem" ? "min-w-0 flex-1" : "flex-none"}`}>
             {anexo.tipo === "imagem" ? anexo.nome : "Ouça antes de enviar"}
           </span>
           <button
@@ -809,7 +828,7 @@ export function Composer({
           </button>
         </div>
       )}
-      <div className="flex items-end gap-1.5 rounded-none border border-line bg-bg px-1.5 py-1 ">
+      <div className="flex items-end gap-1.5 rounded-[12px] border-[1.5px] border-conversa-linha bg-bolha-entra px-1.5 py-1 transition-colors focus-within:border-equipe">
         <input
           ref={entradaDeArquivo}
           type="file"
@@ -834,11 +853,11 @@ export function Composer({
         {gravacao ? (
           <div
             data-testid="gravando"
-            className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-2 text-[13px] text-fg"
+            className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-[13px] text-fg"
           >
             <span className="h-2.5 w-2.5 flex-none animate-pulse rounded-full bg-danger" />
-            <span className="tabular-nums">{relogio(gravacao.segundos)}</span>
-            <span className="truncate text-sub">Gravando…</span>
+            <span className="w-10 flex-none font-mono tabular-nums">{relogio(gravacao.segundos)}</span>
+            {fluxo ? <OndaAoVivo stream={fluxo} /> : <span className="truncate text-sub">Gravando…</span>}
           </div>
         ) : (
           <textarea
@@ -871,9 +890,10 @@ export function Composer({
               type="button"
               onClick={() => pararGravacao(false)}
               title="Parar gravação"
-              className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-danger text-white transition-all hover:brightness-110"
+              className="flex h-[38px] flex-none cursor-pointer items-center justify-center gap-1.5 rounded-full bg-equipe px-3.5 text-[12.5px] font-medium text-on-equipe transition-all hover:brightness-110"
             >
-              <Square size={16} strokeWidth={2.2} />
+              <Square size={12} strokeWidth={2.2} fill="currentColor" />
+              Parar
             </button>
           </>
         ) : mostrarEnviar ? (
@@ -881,7 +901,7 @@ export function Composer({
             onClick={mandar}
             disabled={enviando}
             title="Enviar"
-            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-on-accent transition-all hover:brightness-110 disabled:opacity-60"
+            className="flex h-[38px] w-[38px] flex-none cursor-pointer items-center justify-center rounded-full bg-equipe text-on-equipe transition-all hover:brightness-110 disabled:opacity-60"
           >
             <SendHorizontal size={17} strokeWidth={2} />
           </button>
@@ -899,12 +919,13 @@ export function Composer({
           </button>
         )}
       </div>
-      <div className="mt-[7px] flex items-center gap-1.5 pl-1 text-[10.5px] text-faint">
+      <div className="mt-[7px] flex items-center gap-1.5 pl-1 text-[10.5px] text-conversa-faint">
         {rodape || (
           <>
-            <strong className="font-semibold text-sub">Enter</strong> envia ·{" "}
-            <strong className="font-semibold text-sub">Shift+Enter</strong> quebra linha ·{" "}
-            <strong className="font-semibold text-sub">/</strong> abre as mensagens padrão
+            <strong className="font-semibold text-conversa-sub">Enter</strong> envia ·{" "}
+            <strong className="font-semibold text-conversa-sub">Shift+Enter</strong> quebra linha ·{" "}
+            <strong className="font-semibold text-conversa-sub">/</strong> abre as mensagens padrão ·{" "}
+            <strong className="font-semibold text-conversa-sub">*negrito*</strong>
           </>
         )}
       </div>
