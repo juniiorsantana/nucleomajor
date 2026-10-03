@@ -4,8 +4,8 @@ import { api } from "../../../data/client";
 import { Chip, SeletorContato, Segmentado } from "./componentes";
 import { ROTULOS_STATUS_AVISO } from "./agendaUtils";
 
-const entrada = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none focus:border-accent md:min-h-10 md:text-[13px]";
-const botaoPrimario = "min-h-11 cursor-pointer rounded-ctl bg-accent px-4 text-[14px] font-semibold text-white hover:brightness-110 disabled:opacity-40 md:min-h-9 md:text-[12.5px]";
+const entrada = "min-h-11 w-full rounded-ctl border border-line bg-bg px-3 text-[15px] text-fg outline-none focus:border-signal md:min-h-10 md:text-[13px]";
+const botaoPrimario = "min-h-11 cursor-pointer rounded-ctl bg-accent px-4 text-[14px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-40 md:min-h-9 md:text-[12.5px]";
 const tituloSecao = "text-[15px] font-semibold text-fg md:text-[13px]";
 const textoAjuda = "mt-1 text-[13px] leading-5 text-sub md:text-[11.5px] md:leading-4";
 
@@ -58,7 +58,7 @@ export function PainelNotificacoes({ contexto, notificacoes, aoAtualizar, aoMarc
               <button key={item.id} type="button" onClick={() => aoMarcarLida(item)} className={`relative w-full cursor-pointer rounded-none border p-3 pl-4 text-left ${naoLida ? "border-accent/35 bg-accent-soft/45" : "border-line"}`}>
                 {naoLida && <span className="absolute left-1.5 top-4 h-1.5 w-1.5 rounded-full bg-accent" aria-label="Não lido" />}
                 {atribuicao && (
-                  <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-forte md:text-[10px]">
+                  <span className="mb-1 inline-flex items-center gap-1 rounded-ctl bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-forte md:text-[10px]">
                     <UserRound size={11} />Colocaram você numa tarefa
                   </span>
                 )}
@@ -122,7 +122,7 @@ export function PainelSolicitacoes({ solicitacoes, ocupado, aoDecidir }) {
           <p className="mt-1 text-[13px] text-sub md:text-[11px]">{item.customer_name || "Cliente"} · {item.responsible_name || "Profissional"}</p>
           <p className="mt-0.5 text-[13px] text-faint md:text-[11px]">{formatarDataHora(item.starts_at)} até {formatarDataHora(item.ends_at)}</p>
         </div>
-        <span className={`flex-none rounded-full px-2 py-1 text-[11px] font-semibold md:text-[10px] ${item.status === "awaiting_team_approval" ? "bg-warning/10 text-warning" : item.status === "completed" ? "bg-success-soft text-success" : "bg-surface text-sub"}`}>
+        <span className={`flex-none rounded-ctl px-2 py-1 text-[11px] font-semibold md:text-[10px] ${item.status === "awaiting_team_approval" ? "bg-warning/10 text-warning" : item.status === "completed" ? "bg-success-soft text-success" : "bg-surface text-sub"}`}>
           {ROTULOS_SOLICITACAO[item.status] || item.status}
         </span>
       </div>
@@ -136,7 +136,7 @@ export function PainelSolicitacoes({ solicitacoes, ocupado, aoDecidir }) {
             placeholder="Motivo, se for recusar (opcional)"
           />
           <div className="mt-2 flex gap-2">
-            <button type="button" disabled={ocupado === item.id} onClick={() => aoDecidir(item, "approve", "")} className="min-h-11 flex-1 cursor-pointer rounded-ctl bg-success px-3 text-[14px] font-semibold text-white disabled:opacity-40 md:min-h-9 md:text-[12px]">Aprovar</button>
+            <button type="button" disabled={ocupado === item.id} onClick={() => aoDecidir(item, "approve", "")} className="min-h-11 flex-1 cursor-pointer rounded-ctl bg-success px-3 text-[14px] font-semibold text-bg disabled:opacity-40 md:min-h-9 md:text-[12px]">Aprovar</button>
             <button type="button" disabled={ocupado === item.id} onClick={() => aoDecidir(item, "reject", motivos[item.id] || "")} className="min-h-11 flex-1 cursor-pointer rounded-ctl border border-danger/30 px-3 text-[14px] font-semibold text-danger disabled:opacity-40 md:min-h-9 md:text-[12px]">Recusar</button>
           </div>
         </div>
@@ -186,7 +186,7 @@ export function PainelPreferencias({ contexto, visualizacao, aoSalvar, aoSalvarC
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [novaCategoria, setNovaCategoria] = useState("");
-  const [novaCor, setNovaCor] = useState("#8B7CFF");
+  const [novaCor, setNovaCor] = useState("var(--el-faint)");
   const enviar = async (e) => {
     e.preventDefault(); setSalvando(true); setMensagem("");
     try { await aoSalvar({ ...form, lembretes: preferencia.defaultReminderMinutes || [30] }); setMensagem("Preferências salvas."); }
@@ -233,7 +233,7 @@ export function PainelPreferencias({ contexto, visualizacao, aoSalvar, aoSalvarC
           <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
             <input type="color" aria-label="Cor da nova categoria" value={novaCor} onChange={(e) => setNovaCor(e.target.value.toUpperCase())} className="h-11 w-11 flex-none cursor-pointer rounded-ctl border border-line bg-bg p-1 md:h-9 md:w-10" />
             <input value={novaCategoria} maxLength={60} onChange={(e) => setNovaCategoria(e.target.value)} placeholder="Nova categoria" className={`${entrada} min-w-0 flex-1`} />
-            <button type="button" aria-label="Adicionar categoria" disabled={!novaCategoria.trim()} onClick={() => salvarCategoria({ nome: novaCategoria, cor: novaCor })} className="flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-white disabled:opacity-40 md:h-9 md:w-9"><Plus size={16} /></button>
+            <button type="button" aria-label="Adicionar categoria" disabled={!novaCategoria.trim()} onClick={() => salvarCategoria({ nome: novaCategoria, cor: novaCor })} className="flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-ctl bg-accent text-on-accent disabled:opacity-40 md:h-9 md:w-9"><Plus size={16} /></button>
           </div>
         </section>
       )}

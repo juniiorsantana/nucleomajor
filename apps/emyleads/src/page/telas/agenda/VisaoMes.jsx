@@ -29,7 +29,7 @@ export default function VisaoMes({ dias, referencia, eventos, aoAbrir, aoCriar, 
                     só queria olhar a terça ganhava um formulário. Marcar ficou
                     no "+", que aparece ao passar o mouse. */}
                 <div className="mb-1.5 flex items-center">
-                  <button type="button" onClick={() => aoVerDia(dia)} title="Ver o dia" className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[12px] font-semibold ${chaveDia(dia) === hoje ? "bg-accent text-white" : atual ? "text-fg hover:bg-surface-hover" : "text-faint hover:bg-surface-hover"}`}>{dia.getDate()}</button>
+                  <button type="button" onClick={() => aoVerDia(dia)} title="Ver o dia" className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-[12px] font-semibold ${chaveDia(dia) === hoje ? "bg-accent text-on-accent" : atual ? "text-fg hover:bg-surface-hover" : "text-faint hover:bg-surface-hover"}`}>{dia.getDate()}</button>
                   <button type="button" onClick={() => aoCriar(dia)} aria-label="Marcar compromisso neste dia" className="ml-auto flex h-7 w-7 cursor-pointer items-center justify-center rounded-ctl text-sub opacity-0 hover:bg-surface-hover hover:text-fg focus:opacity-100 group-hover/dia:opacity-100"><Plus size={15} /></button>
                 </div>
                 <div className="space-y-1">
@@ -45,7 +45,7 @@ export default function VisaoMes({ dias, referencia, eventos, aoAbrir, aoCriar, 
                         key={`${evento.sourceType}-${evento.id}`}
                         type="button"
                         onClick={() => aoAbrir(evento)}
-                        className="flex w-full cursor-pointer items-center gap-1.5 truncate rounded-ctl border-l-[3px] px-1.5 py-1 text-left text-[11px] font-medium text-fg"
+                        className="flex w-full cursor-pointer items-center gap-1.5 truncate rounded-ctl border-l-2 px-1.5 py-1 text-left text-[11px] font-medium text-fg"
                         style={{ background: fundoDoEvento(cor), borderLeftColor: cor }}
                         title={`${evento.titulo} · ${evento.ownerName || "Sem responsável"}`}
                       >

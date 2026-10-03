@@ -151,7 +151,7 @@ function BlocoEvento({
       draggable={editavel}
       onDragStart={(e) => aoDragStart(e, evento)}
       onClick={(e) => { e.stopPropagation(); aoAbrir(evento); }}
-      className={`group absolute flex flex-col overflow-hidden rounded-ctl border-l-[3px] px-2 py-1 text-left text-fg  transition-[box-shadow,transform] hover:z-[20]  ${Z_CASCATA[indiceCascata] || "z-[2]"} ${tarefa ? "border-dashed" : ""} ${editavel ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+      className={`group absolute flex flex-col overflow-hidden rounded-ctl border-l-2 px-2 py-1 text-left text-fg  transition-[box-shadow,transform] hover:z-[20]  ${Z_CASCATA[indiceCascata] || "z-[2]"} ${tarefa ? "border-dashed" : ""} ${editavel ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
       style={{
         top: topo,
         height: altura,
@@ -193,7 +193,7 @@ function BlocoEvento({
           {densidade === "completa" && (
             <span className="mt-auto flex min-w-0 items-center gap-1.5 text-[10px] leading-[13px] text-sub">
               {evento.categoryName && (
-                <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ backgroundColor: evento.categoryColor || "#8B7CFF" }} />
+                <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ backgroundColor: evento.categoryColor || "var(--el-faint)" }} />
               )}
               <span className="truncate">
                 {[evento.categoryName, evento.local].filter(Boolean).join(" · ") || evento.ownerName}
@@ -489,7 +489,7 @@ export default function GradeAgenda({
                       key={`${evento.sourceType}-${evento.id}`}
                       type="button"
                       onClick={() => aoAbrir(evento)}
-                      className="mb-1 block w-full cursor-pointer truncate rounded-ctl border-l-[3px] px-2 py-1 text-left text-[10.5px] font-semibold text-fg"
+                      className="mb-1 block w-full cursor-pointer truncate rounded-ctl border-l-2 px-2 py-1 text-left text-[10.5px] font-semibold text-fg"
                       style={{ background: fundoDoEvento(cor), borderLeftColor: cor }}
                     >
                       {evento.titulo}
@@ -561,7 +561,7 @@ export default function GradeAgenda({
                 ))}
                 {selecionando && (
                   <div
-                    className="pointer-events-none absolute inset-x-1 z-[3] rounded-ctl border border-accent bg-accent-soft/80"
+                    className="pointer-events-none absolute inset-x-1 z-[3] rounded-none border border-signal bg-signal-soft/80"
                     style={{
                       top: (Math.min(selecao.inicio, selecao.fim) - inicioMinuto) * alturaPorMinuto,
                       height: Math.max(passo, Math.abs(selecao.fim - selecao.inicio)) * alturaPorMinuto,
@@ -573,8 +573,8 @@ export default function GradeAgenda({
                   </div>
                 )}
                 {coluna.hoje && minutosAgora >= inicioMinuto && minutosAgora <= fimMinuto && (
-                  <div className="pointer-events-none absolute inset-x-0 z-[5] border-t border-accent" style={{ top: (minutosAgora - inicioMinuto) * alturaPorMinuto }}>
-                    <span className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-accent" />
+                  <div className="pointer-events-none absolute inset-x-0 z-[5] border-t border-signal" style={{ top: (minutosAgora - inicioMinuto) * alturaPorMinuto }}>
+                    <span className="absolute -left-1 -top-1.5 h-3 w-3 rounded-full bg-signal" />
                   </div>
                 )}
                 {agruparParaCascata(visiveis, maxCascata).map(({ chave, mostrados, excedente }) => (

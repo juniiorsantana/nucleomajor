@@ -56,7 +56,7 @@ export default function MiniCalendario({ mes, selecionado, marcas = new Map(), a
               className={`relative flex cursor-pointer flex-col items-center justify-center tabular-nums ${celula} ${naSemana && !ehEscolhido ? "bg-accent-soft/60" : ""}`}
             >
               <span className={`flex items-center justify-center rounded-full ${grande ? "h-9 w-9" : "h-7 w-7"} ${
-                ehEscolhido ? "bg-accent font-bold text-white"
+                ehEscolhido ? "bg-accent font-bold text-on-accent"
                   : ehHoje ? "font-bold text-accent-forte ring-1 ring-accent"
                     : doMes ? "font-medium text-fg hover:bg-surface-hover" : "text-faint hover:bg-surface-hover"
               }`}

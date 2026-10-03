@@ -85,7 +85,7 @@ function LinhaTarefa({
             type="button"
             onClick={() => aoAbrirContato?.(contato)}
             title={`Abrir a ficha de ${contato.nome || "contato"}`}
-            className="hidden max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-line px-2 py-1 text-[11.5px] text-sub hover:border-accent hover:text-accent-forte sm:flex"
+            className="hidden max-w-[180px] cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-2 py-1 text-[11.5px] text-sub hover:border-accent hover:text-accent-forte sm:flex"
           >
             <Iniciais nome={contato.nome} tamanho={16} />
             <span className="truncate">{contato.nome || "Contato sem nome"}</span>
@@ -108,7 +108,7 @@ function LinhaTarefa({
           {precisoResponder && (
             <>
               <span className="text-[12px] font-medium text-accent-forte md:text-[11px]">Colocaram você nesta tarefa.</span>
-              <button type="button" onClick={() => aoAssumir(tarefa)} className="flex min-h-10 cursor-pointer items-center gap-1 rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-white hover:brightness-110 md:min-h-8 md:text-[12px]">
+              <button type="button" onClick={() => aoAssumir(tarefa)} className="flex min-h-10 cursor-pointer items-center gap-1 rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-on-accent hover:brightness-110 md:min-h-8 md:text-[12px]">
                 <Check size={14} strokeWidth={2.6} />Assumir
               </button>
               <button type="button" onClick={() => aoRecusar(tarefa)} className="min-h-10 cursor-pointer rounded-ctl border border-line px-3.5 text-[14px] font-medium text-sub hover:border-line-strong hover:text-fg md:min-h-8 md:text-[12px]">
@@ -362,7 +362,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
                   className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-faint md:min-h-9 md:text-[13.5px]"
                 />
                 {rapida.trim() && (
-                  <button type="submit" disabled={criando} className="min-h-10 flex-none cursor-pointer rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-white disabled:opacity-40 md:min-h-8 md:text-[12px]">
+                  <button type="submit" disabled={criando} className="min-h-10 flex-none cursor-pointer rounded-ctl bg-accent px-3.5 text-[14px] font-semibold text-on-accent disabled:opacity-40 md:min-h-8 md:text-[12px]">
                     {criando ? "Criando…" : "Adicionar"}
                   </button>
                 )}
@@ -428,7 +428,7 @@ export default function Tarefas({ dados, recarregar, aoAbrirContato, comando, ao
         type="button"
         onClick={() => setEditando(null)}
         aria-label="Nova tarefa"
-        className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-white  active:scale-95"
+        className="botao-novo-flutuante h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-accent text-on-accent  active:scale-95"
       >
         <Plus size={26} strokeWidth={2.4} />
       </button>
