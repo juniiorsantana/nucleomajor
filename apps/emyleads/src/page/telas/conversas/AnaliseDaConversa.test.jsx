@@ -184,7 +184,7 @@ describe("Analysis Schema v1 no diálogo", () => {
     await clicar(botao("Analisar · usa 1 crédito"));
     await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
     await act(async () => {});
-    expect(document.body.textContent).toContain("Atendimento Score");
+    expect(document.body.textContent).toContain("Nota do atendimento");
     expect(document.body.textContent).toContain("62/100 — 55% dos critérios avaliados");
     expect(document.body.textContent).toContain("Conduziu bem, falta o próximo passo.");
     expect(document.body.textContent).not.toContain("Sugestões");
@@ -213,6 +213,6 @@ describe("Analysis Schema v1 no diálogo", () => {
     await clicar([...container.querySelectorAll("button")][0]);
     await act(async () => {});
     expect(document.body.textContent).toContain("Propor o diagnóstico com dois horários.");
-    expect(document.body.textContent).not.toContain("Atendimento Score");
+    expect(document.body.textContent).not.toContain("Nota do atendimento");
   });
 });

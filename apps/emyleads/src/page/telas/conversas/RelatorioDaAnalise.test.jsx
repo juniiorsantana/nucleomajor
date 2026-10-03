@@ -36,7 +36,7 @@ const RELATORIO = {
     criteria: [
       { key: "responsiveness", name: "Responsividade contextual", weight: 10, status: "nao_avaliado", points_awarded: null },
       { key: "discovery", name: "Descoberta da necessidade", weight: 15, status: "bom", points_awarded: 15 },
-      { key: "next_step", name: "Próximo passo", weight: 15, status: "critico", points_awarded: 0, reason: "Terminou sem ação definida." },
+      { key: "next_step", name: "Próximo passo", weight: 15, status: "critico", points_awarded: 0, reason: "Terminou sem ação definida.", evidence_message_ids: ["m6", "m7"] },
     ],
   },
   diagnosis: {
@@ -73,31 +73,45 @@ describe("o relatório v1", () => {
   it("mostra a nota parcial, o resumo, o gargalo, o porquê e o que fazer, sem Lead Score", async () => {
     await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} />);
     const texto = container.textContent;
-    expect(texto).toContain("Atendimento Score");
+    expect(texto).toContain("Nota do atendimento");
     expect(texto).toContain("47/100 — 55% dos critérios avaliados");
+    expect(texto).toContain("2 de 3 critérios avaliados");
+    expect(texto).toContain("15 dos 55 pontos");
     expect(texto).toContain("Nota até aqui");
     expect(texto).not.toContain("não é conclusiva");
     expect(texto).toContain("Boa descoberta, mas a conversa ficou sem próximo passo.");
     expect(texto).toContain("Principal gargalo");
-    expect(texto).toContain("Por que essa nota?");
+    expect(texto).toContain("Próximo passo · 0 de 15");
+    expect(texto).toContain("Por que essa nota");
+    expect(texto).toContain("15 ÷ 55 = 47");
     expect(texto).toContain("O que fazer agora");
     expect(texto).toContain("Conversa ficou em aberto");
     expect(texto).toContain("não descontam da nota");
-    expect(texto).not.toMatch(/Lead Score/);
+    // Sem esquema de lead: "em breve", nunca um número.
+    expect(texto).toContain("Lead Scorechance de fecharem breve");
   });
 
-  it("detalhamento: não avaliado aparece como traço, nunca como zero", async () => {
+  it("não inventa faixa de qualidade para a nota", async () => {
     await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} />);
-    expect(container.querySelector("table")).toBeNull();
-    await clicar(botao("Ver critérios"));
-    const linhas = [...container.querySelectorAll("tr")].map((tr) => tr.textContent);
-    expect(linhas[0]).toContain("Responsividade contextual");
-    expect(linhas[0]).toContain("Ainda não avaliável");
-    expect(linhas[0]).toContain("—");
-    expect(linhas[0]).not.toContain("0/10");
-    expect(linhas[1]).toContain("15/15");
-    expect(linhas[2]).toContain("0/15");
-    expect(linhas[2]).toContain("Terminou sem ação definida.");
+    const nota = container.querySelector('[aria-label="Atendimento Score"]').textContent;
+    expect(nota).not.toMatch(/Atenção|Bom|Ruim|Regular|Excelente/);
+  });
+
+  it("critérios: quem mais perdeu primeiro; não avaliado no fim, como traço, nunca zero", async () => {
+    await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} />);
+    const linhas = [...container.querySelectorAll('[role="table"] [role="row"]')].slice(1).map((linha) => linha.textContent);
+    expect(linhas).toHaveLength(3);
+    expect(linhas[0]).toContain("Próximo passo");
+    expect(linhas[0]).toContain("Crítico");
+    expect(linhas[0]).toContain("0 / 15");
+    expect(linhas[0]).toContain("Terminou sem ação definida.");
+    expect(linhas[1]).toContain("Descoberta");
+    expect(linhas[1]).toContain("15 / 15");
+    expect(linhas[2]).toContain("Responsividade");
+    expect(linhas[2]).toContain("Não avaliado");
+    expect(linhas[2]).toContain("—");
+    expect(linhas[2]).toContain("Fica fora da v1");
+    expect(linhas[2]).not.toContain("0/10");
   });
 
   it("sem nota: ainda não avaliável", async () => {
@@ -111,8 +125,9 @@ describe("o relatório v1", () => {
     const aoUsarMensagem = vi.fn();
     const aoFechar = vi.fn();
     await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} aoUsarMensagem={aoUsarMensagem} aoFechar={aoFechar} />);
-    const usar = [...container.querySelectorAll("button")].filter((b) => b.textContent.includes("Usar mensagem sugerida"));
-    expect(usar.length).toBe(2);
+    expect(container.textContent).toContain("Mensagem sugerida");
+    const usar = [...container.querySelectorAll("button")].filter((b) => b.textContent.includes("Usar na conversa"));
+    expect(usar.length).toBe(1);
     await clicar(usar[0]);
     expect(aoUsarMensagem).toHaveBeenCalledWith("Podemos marcar o diagnóstico para quarta?");
     expect(aoFechar).toHaveBeenCalled();
@@ -165,7 +180,7 @@ describe("o relatório v1", () => {
     await clicar(botao("Ver evidência"));
     expect(aoVerMensagem).toHaveBeenCalledWith("m6");
     expect(aoFechar).toHaveBeenCalledTimes(1);
-    await clicar(botao("Ver evidência 2"));
+    await clicar([...container.querySelectorAll("button")].find((b) => b.textContent === "Ver evidência 2"));
     expect(aoFechar).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[role="status"]').textContent).toContain("não está entre as carregadas");
   });
@@ -177,7 +192,7 @@ describe("ajustes da v1: cobertura e números internos", () => {
     await render(<RelatorioDaAnalise analise={baixa} podeAgir contato={contato} />);
     expect(container.textContent).toContain("100/100 — 10% dos critérios avaliados");
     expect(container.textContent).toContain("Poucos critérios avaliados: a nota ainda não é conclusiva.");
-    expect(container.querySelector('[aria-label="Atendimento Score"] p').className).toContain("text-sub");
+    expect(container.querySelector('[aria-label="Atendimento Score"] [data-nota]').className).toContain("text-sub");
   });
 
   it("os números internos das mensagens não aparecem no texto, só nos links", async () => {
@@ -197,6 +212,68 @@ describe("ajustes da v1: cobertura e números internos", () => {
     expect(container.textContent).toContain("Sem fechamento");
     expect(container.textContent).not.toMatch(/#\d/);
     expect(botao("Ver evidência")).toBeTruthy();
+  });
+});
+
+describe("o relatório visual", () => {
+  const em = (minutos) => new Date(Date.UTC(2026, 8, 26, 13, 0) + minutos * 60 * 1000).toISOString();
+  const comLinha = {
+    ...analise,
+    concluidaEm: em(5000),
+    linhaDoTempo: {
+      until: em(5000),
+      messages: [
+        { id: "m5", at: em(0), fromMe: false, author: "contato", snippet: "Quanto custa?" },
+        { id: "m6", at: em(200), fromMe: true, author: "humano", snippet: "Fico à disposição" },
+      ],
+    },
+    relatorio: {
+      ...RELATORIO,
+      diagnosis: { ...RELATORIO.diagnosis, red_flags: [{ code: "conversation_left_open", evidence_message_ids: ["m6"] }] },
+      red_flags: [{ code: "conversation_left_open", reason: "", evidence_message_ids: ["m6"] }],
+    },
+  };
+
+  it("linha do tempo: período, pausa, parada e legendas; clicar no ponto leva à mensagem", async () => {
+    const aoVerMensagem = vi.fn(() => true);
+    await render(<RelatorioDaAnalise analise={comLinha} podeAgir contato={contato} aoVerMensagem={aoVerMensagem} aoFechar={() => {}} />);
+    const texto = container.textContent;
+    expect(texto).toContain("2 mensagens, em 26/09");
+    expect(texto).toContain("Onde aconteceu na conversa");
+    expect(texto).toContain("3h20 até a equipe responder");
+    expect(texto).toContain("parada");
+    expect(texto).toContain("“Quanto custa?”");
+    const ponto = container.querySelector('button[aria-label^="Equipe, 26/09"]');
+    expect(ponto.getAttribute("aria-label")).toContain("Conversa ficou em aberto");
+    await clicar(ponto);
+    expect(aoVerMensagem).toHaveBeenCalledWith("m6");
+  });
+
+  it("sem linha do tempo (banco antes da migration), a seção não aparece", async () => {
+    await render(<RelatorioDaAnalise analise={analise} podeAgir contato={contato} />);
+    expect(container.textContent).not.toContain("Onde aconteceu na conversa");
+  });
+
+  it("ver mapa: as etapas, o gargalo e a volta ao relatório", async () => {
+    await render(<RelatorioDaAnalise analise={comLinha} nome="Mariana" podeAgir contato={contato} />);
+    await clicar([...container.querySelectorAll("button")].find((b) => b.textContent.includes("Ver mapa")));
+    const mapa = container.querySelector('[aria-label="Mapa da conversa"]');
+    expect(mapa.textContent).toContain("Mapa da conversa · Mariana");
+    expect(mapa.textContent).toContain("Próximo passo");
+    expect(mapa.textContent).toContain("o gargalo está aqui");
+    expect(mapa.textContent).toContain("Fazer agora");
+    expect(mapa.textContent).toContain("47/100");
+    await clicar(botao("Voltar ao relatório"));
+    expect(container.querySelector('[aria-label="Mapa da conversa"]')).toBeNull();
+  });
+
+  it("copiar resumo põe o texto na área de transferência e avisa", async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await render(<RelatorioDaAnalise analise={comLinha} nome="Mariana" podeAgir contato={contato} />);
+    await clicar([...container.querySelectorAll("button")].find((b) => b.textContent.includes("Copiar resumo")));
+    expect(writeText.mock.calls[0][0]).toContain("Nota: 47/100 — 55% dos critérios avaliados");
+    expect(container.querySelector('[role="status"]').textContent).toBe("Resumo copiado.");
   });
 });
 

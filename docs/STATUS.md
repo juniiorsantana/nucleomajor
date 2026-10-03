@@ -239,6 +239,16 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261005100000_linha_do_tempo_da_analise.sql` aplicada em 02/10/2026 pelo
+  SQL Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
+  arquivo) e conferida pelo catálogo: `private.linha_do_tempo_da_analise` e a
+  nova `conversation_analysis_status` idênticas ao repo (md5), security
+  definer com `search_path`, sem execução por `authenticated` na função
+  privada nem por `anon` na consulta; a última análise pronta devolve as 80
+  mensagens da janela. Backup: a consulta de andamento substituída era
+  idêntica à de 20261004100000 (md5 `ef52c21e…`); rollback em
+  `scripts/sql/rollback-20261005100000-linha-do-tempo-da-analise.sql`, provado
+  no PGlite (19 PASS). Portal do relatório visual no PR #27.
 - `20261004100000_atendimento_score_v1.sql` aplicada em 02/10/2026 pelo SQL
   Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
   arquivo) e conferida pelo catálogo: `atendimento.v1` publicado (padrão da
