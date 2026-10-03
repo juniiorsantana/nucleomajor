@@ -477,7 +477,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                     <td className="px-4 py-3">
                       <PilulaEstagio
                         nome={estagio?.nome}
-                        cor={corDoEstagio(estagio?.ordem)}
+                        cor={corDoEstagio(estagio)}
                       />
                     </td>
                     <td className="px-4 py-3 text-[13.5px] text-sub">
