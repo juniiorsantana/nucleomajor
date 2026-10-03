@@ -69,13 +69,25 @@ const maiuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
  */
 const FILTROS = [
   { id: "tudo", rotulo: "Tudo" },
+  { id: "precisa", rotulo: "Precisa de você" },
   { id: "naolidas", rotulo: "Não lidas" },
   { id: "humano", rotulo: maiuscula(DONOS_CURTOS.humano) },
   { id: "ia", rotulo: maiuscula(DONOS_CURTOS.ia) },
   { id: "bot", rotulo: maiuscula(DONOS_CURTOS.bot) },
 ];
 
+/**
+ * "Precisa de você": não lida E com gente no atendimento. As não lidas que
+ * estão com a IA ou com um fluxo têm quem responda; estas não têm, e são as
+ * que viram lead perdido se ninguém olhar. Grupo fica de fora pelo mesmo
+ * motivo dos filtros de dono.
+ */
+export function precisaDeVoce(conversa) {
+  return !conversa.grupo && conversa.naoLidas > 0 && conversa.dono === "humano";
+}
+
 export function passaFiltro(conversa, filtro) {
+  if (filtro === "precisa") return precisaDeVoce(conversa);
   if (filtro === "naolidas") return conversa.naoLidas > 0;
   if (filtro === "tudo") return true;
   // Grupo não tem dono de atendimento: ele sobe com o dono padrão da conexão,
@@ -117,8 +129,8 @@ export function mostrarMensagem(container, messageId) {
   if (!alvo) return false;
   alvo.scrollIntoView?.({ block: "center", behavior: "smooth" });
   const bolha = alvo.firstElementChild || alvo;
-  bolha.classList.add("outline", "outline-2", "outline-accent");
-  setTimeout(() => bolha.classList.remove("outline", "outline-2", "outline-accent"), 2500);
+  bolha.classList.add("outline", "outline-2", "outline-signal");
+  setTimeout(() => bolha.classList.remove("outline", "outline-2", "outline-signal"), 2500);
   return true;
 }
 
@@ -211,6 +223,14 @@ export default function Conversas({
     }),
     [conversas]
   );
+  // Quantas conversas cada filtro mostra, para a aba dizer antes do clique.
+  // "Tudo" não ganha número: o total já está ao lado do título.
+  const porFiltro = useMemo(() => {
+    const contatos = (conversas || []).filter((c) => !c.grupo);
+    return Object.fromEntries(
+      FILTROS.filter((f) => f.id !== "tudo").map((f) => [f.id, contatos.filter((c) => passaFiltro(c, f.id)).length])
+    );
+  }, [conversas]);
   const conversa = (conversas || []).find((c) => c.id === atual) || null;
 
   /**
@@ -338,9 +358,7 @@ export default function Conversas({
         <div className="flex-none px-3.5 pb-2.5 pt-3.5">
           <div className="flex items-center gap-2">
             <h1 className="text-[19px] font-semibold tracking-tight text-fg">Conversas</h1>
-            <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10.5px] font-semibold text-sub">
-              {visiveis.length}
-            </span>
+            <span className="text-[12px] font-medium tabular-nums text-faint">{visiveis.length}</span>
             <button
               onClick={() => setNovaConversa(true)}
               title="Nova conversa"
@@ -360,7 +378,7 @@ export default function Conversas({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar conversa ou contato"
-              className="w-full rounded-ctl border border-line bg-bg py-2 pl-9 pr-3 text-[12.5px] text-fg outline-none transition-colors placeholder:text-faint focus:border-accent"
+              className="w-full rounded-ctl border border-line bg-bg py-2 pl-9 pr-3 text-[12.5px] text-fg outline-none transition-colors placeholder:text-faint focus:border-signal"
             />
           </div>
 
@@ -391,20 +409,33 @@ export default function Conversas({
             ))}
           </div>
 
-          {tipoLista === "contatos" && <div className="scrollbar-fina mt-2.5 flex gap-1.5 overflow-x-auto pb-0.5">
-            {FILTROS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFiltro(f.id)}
-                className={`cursor-pointer whitespace-nowrap rounded-full border px-2.5 py-1 text-[11.5px] transition-colors ${
-                  filtro === f.id
-                    ? "border-accent bg-accent-soft font-semibold text-accent-forte"
-                    : "border-line bg-bg font-medium text-sub hover:border-line-strong hover:text-fg"
-                }`}
-              >
-                {f.rotulo}
-              </button>
-            ))}
+          {/* Abas, e não pílulas: régua embaixo, o ativo sublinhado em azul de
+              sinal e a contagem ao lado. "Precisa de você" pinta o número em
+              azul quando há o que responder. */}
+          {tipoLista === "contatos" && <div className="sem-barra -mx-3.5 mt-2 flex gap-4 overflow-x-auto border-b border-line px-3.5" role="tablist" aria-label="Filtrar conversas">
+            {FILTROS.map((f) => {
+              const ativo = filtro === f.id;
+              const total = porFiltro[f.id];
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={ativo}
+                  onClick={() => setFiltro(f.id)}
+                  className={`-mb-px flex cursor-pointer items-baseline gap-1 whitespace-nowrap border-b-2 pb-2 pt-1 text-[12px] transition-colors ${
+                    ativo ? "border-signal font-semibold text-fg" : "border-transparent font-medium text-sub hover:text-fg"
+                  }`}
+                >
+                  {f.rotulo}
+                  {total > 0 && (
+                    <span className={`text-[10.5px] tabular-nums ${f.id === "precisa" || ativo ? "font-semibold text-signal" : "text-faint"}`}>
+                      {total}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>}
         </div>
 
@@ -514,16 +545,13 @@ export default function Conversas({
               </span>
             </header>
 
-            {/* O fundo pontilhado é o do desenho, feito com o token de linha —
-                assim ele acompanha o tema escuro em vez de ficar claro nele. */}
+            {/* Fundo liso: a bolha recebida é o cinza de apoio, e a enviada leva
+                a cor de quem escreveu. O pontilhado do desenho antigo competia
+                com as duas. */}
             <div
               ref={rolagem}
               onScroll={aoRolar}
-              className="scrollbar-fina min-h-0 flex-1 overflow-y-auto bg-surface px-4 pb-4 pt-3"
-              style={{
-                backgroundImage: "radial-gradient(var(--el-line) 1px, transparent 1px)",
-                backgroundSize: "22px 22px",
-              }}
+              className="scrollbar-fina min-h-0 flex-1 overflow-y-auto bg-bg px-5 pb-4 pt-3"
             >
               {mensagens.map((m, i) => {
                 const chave = `${m.tipo}-${i}`;
