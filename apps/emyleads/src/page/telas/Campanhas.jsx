@@ -77,7 +77,7 @@ function PrimeiraMensagem({ fluxo, aoAbrirChatbots }) {
         </span>
         {aoAbrirChatbots && (
           <button type="button" onClick={aoAbrirChatbots} className="flex-none cursor-pointer font-medium text-accent-forte hover:underline">
-            Ver em Chatbots
+            Ver em Fluxos
           </button>
         )}
       </div>
