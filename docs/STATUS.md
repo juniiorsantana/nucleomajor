@@ -239,6 +239,20 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261008100000_avaliacao_do_vendedor_v2.sql` aplicada em 03/10/2026 pelo
+  SQL Editor, a pedido do dono (ensaio com `raise` antes, sem resto no banco).
+  Antes: as 5 funções que ela substitui (`avaliar_conversa`,
+  `playbook_efetivo`, `playbook_para_o_jev`, `relatorio_da_analise`,
+  `linha_do_tempo_da_analise`) conferidas idênticas ao repo (md5), então o
+  rollback por recorte as devolve exatamente. Depois, pelo catálogo: modelo
+  `atendimento.v2` como rascunho e a v1 ainda o padrão publicado (régua da
+  Adriani e playbook dela com `regua = atendimento.v1`); 7 funções novas;
+  `fatos_do_vendedor`, `relatorio_da_analise` e `relatorio_do_vendedor`
+  idênticas ao repo (md5); sem execução por `authenticated` em
+  `ligar_regua`; `minutos_uteis` de sábado 19h50 a segunda 8h10 = 20; fatos
+  v3 nas análises da Adriani com "Equipe · pelo celular". A troca do padrão
+  (`private.trocar_regua_padrao('atendimento.v2')`) fica para depois do
+  runtime. PR #41.
 - `20261005100000_linha_do_tempo_da_analise.sql` aplicada em 02/10/2026 pelo
   SQL Editor (ensaio com `raise` antes; conteúdo conferido por sha256 contra o
   arquivo) e conferida pelo catálogo: `private.linha_do_tempo_da_analise` e a
