@@ -1,0 +1,1226 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index 06d47f2..27fdf6c 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -55,7 +55,9 @@ SISTEMA = (
+     "pelo sistema a partir dos fatos e do classificador, e vem pronto. Seu papel é explicar a "
+     "nota, apontar o principal gargalo, dizer o que fazer agora e sugerir a próxima mensagem. "
+     "Use só o que está na conversa e nos dados: não invente fatos, valores, nomes ou datas. "
+-    "Aponte as mensagens que comprovam cada conclusão pelo número (#N). Responda SOMENTE com um "
++    "Aponte as mensagens que comprovam cada conclusão pelo número (#N). O texto depois de [áudio] "
++    "é a transcrição automática do áudio e pode ter pequenos erros de reconhecimento; [áudio] "
++    "sozinho é um áudio sem transcrição. Responda SOMENTE com um "
+     "objeto JSON válido, sem texto antes ou depois e sem bloco de código."
+ )
+ 
+@@ -510,6 +512,7 @@ class Analista:
+         modelo: Optional[str] = None,
+         timeout: int = TIMEOUT,
+         jev=None,
++        transcritor=None,
+     ) -> None:
+         self.verifier = verifier
+         self.executar = executar
+@@ -521,6 +524,10 @@ class Analista:
+         # O Jev da análise (o mesmo modelo do coordenador, cliente próprio).
+         # Sem ele, a análise usa a leitura e a nota que vieram no pedido.
+         self.jev = jev
++        # O transcritor (desde 02/10/2026): antes de analisar, transcreve os
++        # áudios antigos da conversa que ainda estão sem texto. Sem ele, eles
++        # seguem como "[áudio]". Ver transcritor.py.
++        self.transcritor = transcritor
+         self.fila: "queue.Queue[Optional[dict]]" = queue.Queue(maxsize=50)
+         self._thread: Optional[threading.Thread] = None
+ 
+@@ -569,6 +576,12 @@ class Analista:
+             audit.log("analysis.failed", analysis_id=analise, error_code="analysis_account_missing")
+             return "failed"
+         self._gravar(analise, "running")
++        if self.transcritor is not None:
++            try:
++                carga = self.transcritor.completar(carga)
++            except Exception as exc:  # a análise segue sem os áudios antigos
++                audit.log("analysis.transcript_failed", analysis_id=analise, error_code="unexpected",
++                          error=type(exc).__name__)
+         carga = self._classificar(analise, carga)
+         inicio = time.monotonic()
+         resposta = None
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 873da46..8714d27 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -193,6 +193,12 @@ class Config:
+     analysis_enabled: bool = False
+     analysis_claude_config_dir: Optional[Path] = None
+     analysis_model: str = "sonnet"
++    # O transcritor (desde 02/10/2026): todo áudio de conversa direta vira texto
++    # na própria mensagem do espelho, para a análise, o Jev e o portal lerem.
++    # Desligado por padrão. `transcription_model` é o tamanho do faster-whisper
++    # (medido na VPS: `small` = ~0,4 s por segundo de áudio). Ver transcritor.py.
++    transcription_enabled: bool = False
++    transcription_model: str = "small"
+ 
+     @classmethod
+     def from_env(cls) -> "Config":
+@@ -344,6 +350,8 @@ class Config:
+                 else None
+             ),
+             analysis_model=_env_str("NUCLEO_ANALYSIS_MODEL", "sonnet") or "sonnet",
++            transcription_enabled=_env_str("NUCLEO_TRANSCRIBE", "0") == "1",
++            transcription_model=_env_str("NUCLEO_TRANSCRIBE_MODEL", "small") or "small",
+         )
+ 
+ 
+diff --git a/whatsapp-assistant/coordenador.py b/whatsapp-assistant/coordenador.py
+index ed02bde..d0303f9 100644
+--- a/whatsapp-assistant/coordenador.py
++++ b/whatsapp-assistant/coordenador.py
+@@ -49,8 +49,9 @@ TEXTO_MAXIMO = 60000
+ 
+ CONTEXTO = (
+     "Conversa de WhatsApp entre um contato (Lead) e uma empresa. As mensagens da "
+-    "empresa podem ser da equipe, de um agente de IA ou automáticas. [áudio] e "
+-    "[imagem] marcam mídias cujo conteúdo não está disponível."
++    "empresa podem ser da equipe, de um agente de IA ou automáticas. O texto depois "
++    "de [áudio] é a transcrição automática do áudio; [áudio] sozinho e [imagem] marcam "
++    "mídias cujo conteúdo não está disponível."
+ )
+ 
+ ROTULO_MIDIA = {
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index 51d1494..6563497 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -152,6 +152,22 @@ def main() -> int:
+         import coordenador
+ 
+         jev_client = coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path))
++    # O transcritor: áudio de conversa direta vira texto no espelho (desde
++    # 02/10/2026). O novo, quando chega; o antigo, na análise. Ver transcritor.py.
++    transcritor_de_audios = None
++    if cfg.transcription_enabled and verifier is not None:
++        import transcritor
++
++        transcritor_de_audios = transcritor.Transcritor(
++            verifier=verifier,
++            cache=transcritor.Cache(transcritor.caminho_do_cache()),
++            modelo=cfg.transcription_model,
++            idioma=cfg.whisper_language,
++            api_base_url=cfg.api_base_url,
++            token_loader=load_api_token,
++            messages_db=messages.configured_messages_db(),
++        )
++        transcritor_de_audios.start()
+     # O Agente Analista: a análise do botão, numa fila própria. Ver analista.py.
+     analista = None
+     if cfg.analysis_enabled and verifier is not None:
+@@ -171,6 +187,7 @@ def main() -> int:
+                 coordenador.JevClient(lambda: coordenador.ler_chave(cfg.insights_key_path))
+                 if jev_client is not None else None
+             ),
++            transcritor=transcritor_de_audios,
+         )
+         analista.start()
+     command_poller = None
+@@ -217,6 +234,7 @@ def main() -> int:
+                 api_base_url=cfg.api_base_url,
+                 token_loader=load_api_token,
+                 state_path=messages.configured_messages_db().with_name("media_mirror_state.json"),
++                transcritor=transcritor_de_audios,
+             )
+         conversation_syncer = conversation_sync.ConversationSync(
+             verifier=verifier,
+@@ -323,6 +341,9 @@ def main() -> int:
+         # da empresa no painel) só o banco sabe; o journal mostra
+         # `insights.disabled` quando é ela que está desligada.
+         insights_enabled=coordenador_de_leituras is not None,
++        # E se os áudios estão virando texto. "A análise só vê [áudio]" se
++        # confere aqui primeiro.
++        transcription=cfg.transcription_model if transcritor_de_audios is not None else None,
+     )
+ 
+     return _wait_forever(
+@@ -337,6 +358,7 @@ def main() -> int:
+         flow_executor,
+         coordenador_de_leituras,
+         analista,
++        transcritor_de_audios,
+     )
+ 
+ 
+@@ -352,6 +374,7 @@ def _wait_forever(
+     flow_executor=None,
+     coordenador_de_leituras=None,
+     analista=None,
++    transcritor_de_audios=None,
+ ) -> int:
+     done = threading.Event()
+ 
+@@ -367,6 +390,8 @@ def _wait_forever(
+     httpd.shutdown()
+     if analista is not None:
+         analista.stop()
++    if transcritor_de_audios is not None:
++        transcritor_de_audios.stop()
+     if coordenador_de_leituras is not None:
+         coordenador_de_leituras.stop()
+     if flow_executor is not None:
+diff --git a/whatsapp-assistant/media_mirror.py b/whatsapp-assistant/media_mirror.py
+index 0d12a41..c9f053e 100644
+--- a/whatsapp-assistant/media_mirror.py
++++ b/whatsapp-assistant/media_mirror.py
+@@ -107,8 +107,12 @@ class MediaMirror:
+         state_path: Path,
+         orcamento: int = ORCAMENTO_POR_CICLO,
+         relogio: Callable[[], float] = time.time,
++        transcritor=None,
+     ) -> None:
+         self.verifier = verifier
++        # O transcritor (desde 02/10/2026): o áudio de conversa direta, depois
++        # de subir, vai para ele em vez de ser apagado. Ver transcritor.py.
++        self.transcritor = transcritor
+         self.api_base_url = str(api_base_url or "").rstrip("/")
+         self.token_loader = token_loader
+         self.state_path = Path(state_path)
+@@ -284,6 +288,13 @@ class MediaMirror:
+         caminho = f"{prefixo}/{pasta}/{identificador}.{extensao}"
+         self.verifier.storage_upload(BUCKET, caminho, dados, mime)
+ 
++        # Áudio de conversa direta: a cópia local vira texto antes de sumir. É
++        # o transcritor quem apaga; fila cheia, apaga aqui e o áudio fica para
++        # a próxima análise da conversa.
++        if self.transcritor is not None and _vai_para_o_transcritor(linha):
++            if self.transcritor.submit(str(linha["id"]), str(caminho_local)):
++                return caminho, mime
++
+         # O arquivo já vive no bucket; a cópia local só ocuparia disco. Se a
+         # transcrição para a IA precisar dele de novo, o Bridge baixa outra vez.
+         try:
+@@ -346,6 +357,13 @@ class MediaMirror:
+         return apagados
+ 
+ 
++def _vai_para_o_transcritor(linha) -> bool:
++    from transcritor import TIPOS_DE_AUDIO, conversa_direta
++
++    tipo = str(linha["media_type"] or "").strip().lower()
++    return tipo in TIPOS_DE_AUDIO and conversa_direta(linha["chat_jid"])
++
++
+ def _prefixo(connection) -> str:
+     """`<org>/<conexão>`, ou vazio quando a conexão não tem os dois ids."""
+     organizacao = str(getattr(connection, "organization_id", "") or "").strip()
+diff --git a/whatsapp-assistant/messages.py b/whatsapp-assistant/messages.py
+index d481fff..82964c1 100644
+--- a/whatsapp-assistant/messages.py
++++ b/whatsapp-assistant/messages.py
+@@ -183,6 +183,15 @@ def _transcribe(message_id: str, chat_jid: str, cfg: Config) -> str:
+     no placeholder generico de midia, nunca quebra o processamento da
+     mensagem por causa disso."""
+     from config import load_api_token
++    import transcritor
++
++    # O transcritor pode ter chegado antes (e o atendente, depois dele, não
++    # transcreve de novo); e o que o atendente transcreve fica para o
++    # transcritor só gravar no espelho. Ver transcritor.py.
++    cache = transcritor.Cache(transcritor.caminho_do_cache())
++    pronto = cache.ler(message_id)
++    if pronto:
++        return pronto
+ 
+     try:
+         token = load_api_token()
+@@ -195,4 +204,6 @@ def _transcribe(message_id: str, chat_jid: str, cfg: Config) -> str:
+         return ""
+ 
+     audit.log("audio.transcribed", message_id=message_id, transcript_len=len(text))
++    if transcritor.conversa_direta(chat_jid):
++        cache.guardar(message_id, text.strip()[: transcritor.TETO_TEXTO])
+     return text
+diff --git a/whatsapp-assistant/operator_verification.py b/whatsapp-assistant/operator_verification.py
+index 4a54545..a4ac5ab 100644
+--- a/whatsapp-assistant/operator_verification.py
++++ b/whatsapp-assistant/operator_verification.py
+@@ -561,6 +561,26 @@ class OperatorVerifier:
+             "classificação da análise",
+         )
+ 
++    def transcript_record(self, payload: dict[str, Any]) -> dict[str, Any]:
++        """Grava a transcrição de áudios no espelho. Ver transcritor.py."""
++        if not isinstance(payload, dict):
++            raise OperatorVerificationError("transcrição possui formato inválido")
++        return self._rpc(
++            "nucleo_message_transcript_record",
++            {"transcript_payload": payload},
++            "gravação da transcrição",
++        )
++
++    def transcript_pending(self, payload: dict[str, Any]) -> dict[str, Any]:
++        """Dentre os ids pedidos, os áudios que ainda faltam transcrever."""
++        if not isinstance(payload, dict):
++            raise OperatorVerificationError("consulta de transcrição possui formato inválido")
++        return self._rpc(
++            "nucleo_message_transcript_pending",
++            {"transcript_payload": payload},
++            "consulta de áudios sem transcrição",
++        )
++
+     def _rpc(self, name: str, body: dict[str, Any], label: str) -> dict[str, Any]:
+         response = self._chamar(
+             "POST", f"/rest/v1/rpc/{name}", label, json=body,
+diff --git a/whatsapp-assistant/test_media_mirror.py b/whatsapp-assistant/test_media_mirror.py
+index a33b378..b9d0ec8 100644
+--- a/whatsapp-assistant/test_media_mirror.py
++++ b/whatsapp-assistant/test_media_mirror.py
+@@ -158,6 +158,51 @@ class MediaMirrorTests(unittest.TestCase):
+         # A cópia local não fica: o arquivo já vive no bucket.
+         self.assertFalse((self.raiz / "store" / CLIENTE / "wa-1.ogg").exists())
+ 
++    # ------------------------------------------------- o transcritor (02/10/2026)
++
++    @staticmethod
++    def _agora():
++        # Recente de verdade: a janela inicial da sincronia é de 30 dias.
++        return (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S+00:00")
++
++    def _transcritor(self, aceita=True):
++        transcritor = mock.Mock()
++        transcritor.submit.return_value = aceita
++        return transcritor
++
++    def test_audio_de_conversa_direta_vai_para_o_transcritor_sem_ser_apagado(self):
++        self.mensagem("wa-1", quando=self._agora())
++        transcritor = self._transcritor()
++
++        self.sincronia(self.espelho(transcritor=transcritor)).poll_once()
++
++        local = self.raiz / "store" / CLIENTE / "wa-1.ogg"
++        transcritor.submit.assert_called_once_with("wa-1", str(local))
++        # Quem apaga agora é o transcritor, depois de transcrever.
++        self.assertTrue(local.exists())
++        self.assertEqual(len(self.verifier.uploads), 1)
++
++    def test_transcritor_cheio_apaga_aqui(self):
++        self.mensagem("wa-1", quando=self._agora())
++        transcritor = self._transcritor(aceita=False)
++
++        self.sincronia(self.espelho(transcritor=transcritor)).poll_once()
++
++        transcritor.submit.assert_called_once()
++        self.assertFalse((self.raiz / "store" / CLIENTE / "wa-1.ogg").exists())
++
++    def test_imagem_e_audio_de_grupo_nao_vao_para_o_transcritor(self):
++        grupo = "120363000000000001@g.us"
++        self.mensagem("wa-1", quando=self._agora(), tipo="image", arquivo="image_1.jpg")
++        self.mensagem("wa-2", quando=self._agora(), jid=grupo)
++        transcritor = self._transcritor()
++
++        self.sincronia(self.espelho(transcritor=transcritor)).poll_once()
++
++        # Os dois subiram para o bucket; nenhum foi transcrito.
++        self.assertEqual(sorted(u[1].rsplit("/", 1)[-1] for u in self.verifier.uploads), ["wa-1.jpg", "wa-2.ogg"])
++        transcritor.submit.assert_not_called()
++
+     def test_a_mensagem_sobe_uma_vez_so_e_ja_com_o_caminho(self):
+         self.mensagem("wa-1")
+ 
+diff --git a/whatsapp-assistant/test_transcritor.py b/whatsapp-assistant/test_transcritor.py
+new file mode 100644
+index 0000000..146798a
+--- /dev/null
++++ b/whatsapp-assistant/test_transcritor.py
+@@ -0,0 +1,419 @@
++import sqlite3
++import tempfile
++import unittest
++from pathlib import Path
++from unittest import mock
++
++import media
++import transcribe
++import transcritor
++from operator_verification import OperatorVerificationError
++
++
++class VerificadorFalso:
++    def __init__(self, pendentes=None, falhar_gravacao=False, arquivos=None):
++        self.pendentes = pendentes or []
++        self.falhar_gravacao = falhar_gravacao
++        self.arquivos = arquivos or {}
++        self.gravados = []
++        self.perguntas = []
++        self.baixados = []
++
++    def transcript_pending(self, payload):
++        self.perguntas.append(payload)
++        return {"items": self.pendentes}
++
++    def transcript_record(self, payload):
++        if self.falhar_gravacao:
++            raise OperatorVerificationError("fora do ar")
++        self.gravados.extend(payload["items"])
++        return {"recorded": len(payload["items"])}
++
++    def storage_download(self, bucket, path):
++        self.baixados.append((bucket, path))
++        return self.arquivos[path]
++
++
++class Base(unittest.TestCase):
++    def setUp(self):
++        self.pasta = Path(tempfile.mkdtemp())
++        self.cache = transcritor.Cache(self.pasta / "transcricoes.db")
++        self.transcritos = []
++
++    def transcrever(self, caminho, model_size, language):
++        self.transcritos.append((Path(caminho).read_bytes(), model_size, language))
++        return f"  texto de {Path(caminho).read_bytes().decode()}  "
++
++    def novo(self, verifier, **kw):
++        return transcritor.Transcritor(verifier=verifier, cache=self.cache, transcrever=self.transcrever, **kw)
++
++    def arquivo(self, nome, conteudo):
++        caminho = self.pasta / nome
++        caminho.write_bytes(conteudo.encode())
++        return caminho
++
++
++class ConversaDiretaTests(unittest.TestCase):
++    def test_so_telefone_e_lid(self):
++        self.assertTrue(transcritor.conversa_direta("5565999990000@s.whatsapp.net"))
++        self.assertTrue(transcritor.conversa_direta("185474454974600@lid"))
++        self.assertFalse(transcritor.conversa_direta("120363000000000001@g.us"))
++        self.assertFalse(transcritor.conversa_direta("status@broadcast"))
++        self.assertFalse(transcritor.conversa_direta(""))
++
++
++class CacheTests(Base):
++    def test_guarda_e_le(self):
++        self.assertIsNone(self.cache.ler("m1"))
++        self.cache.guardar("m1", "oi")
++        self.assertEqual(self.cache.ler("m1"), "oi")
++
++    def test_texto_vazio_e_resposta(self):
++        # Áudio sem fala: vazio é resposta, não ausência — não transcreve de novo.
++        self.cache.guardar("m1", "")
++        self.assertEqual(self.cache.ler("m1"), "")
++
++    def test_poda_o_que_passou_da_janela(self):
++        self.cache.guardar("velho", "x")
++        with sqlite3.connect(self.cache.caminho) as c:
++            c.execute("UPDATE transcricoes SET quando = 0")
++        self.cache._podado_em = 0
++        self.cache.guardar("novo", "y")
++        self.assertIsNone(self.cache.ler("velho"))
++        self.assertEqual(self.cache.ler("novo"), "y")
++
++
++class FilaTests(Base):
++    def test_audio_novo_vira_texto_gravado_e_o_arquivo_some(self):
++        verifier = VerificadorFalso()
++        t = self.novo(verifier, modelo="small", idioma="pt")
++        caminho = self.arquivo("a.ogg", "a1")
++        self.assertTrue(t.submit("a1", str(caminho)))
++        t.start()
++        t.stop()
++        self.assertEqual(verifier.gravados, [{"id": "a1", "text": "texto de a1"}])
++        self.assertEqual(self.transcritos, [(b"a1", "small", "pt")])
++        self.assertFalse(caminho.exists())
++        self.assertEqual(self.cache.ler("a1"), "texto de a1")
++
++    def test_ja_no_cache_so_grava(self):
++        self.cache.guardar("a1", "o atendente já transcreveu")
++        verifier = VerificadorFalso()
++        t = self.novo(verifier)
++        caminho = self.arquivo("a.ogg", "a1")
++        t.submit("a1", str(caminho))
++        t.start()
++        t.stop()
++        self.assertEqual(self.transcritos, [])
++        self.assertEqual(verifier.gravados, [{"id": "a1", "text": "o atendente já transcreveu"}])
++        self.assertFalse(caminho.exists())
++
++    def test_falha_na_transcricao_nao_grava_e_apaga(self):
++        def falha(*a, **k):
++            raise transcribe.TranscribeError("arquivo torto")
++
++        verifier = VerificadorFalso()
++        t = transcritor.Transcritor(verifier=verifier, cache=self.cache, transcrever=falha)
++        caminho = self.arquivo("a.ogg", "a1")
++        t.submit("a1", str(caminho))
++        with mock.patch("audit.log") as log:
++            t.start()
++            t.stop()
++        self.assertEqual(verifier.gravados, [])
++        self.assertFalse(caminho.exists())
++        self.assertIn("audio.transcript_failed", [c.args[0] for c in log.call_args_list])
++
++    def test_banco_fora_do_ar_deixa_o_texto_no_cache(self):
++        verifier = VerificadorFalso(falhar_gravacao=True)
++        t = self.novo(verifier)
++        t.submit("a1", str(self.arquivo("a.ogg", "a1")))
++        with mock.patch("audit.log") as log:
++            t.start()
++            t.stop()
++        self.assertEqual(self.cache.ler("a1"), "texto de a1")
++        self.assertIn("audio.transcript_record_failed", [c.args[0] for c in log.call_args_list])
++
++    def test_fila_cheia_devolve_o_arquivo(self):
++        with mock.patch.object(transcritor, "FILA_MAXIMA", 1):
++            t = self.novo(VerificadorFalso())
++        self.assertTrue(t.submit("a1", "x"))
++        with mock.patch("audit.log"):
++            self.assertFalse(t.submit("a2", "y"))
++
++    def test_o_texto_nao_vai_para_o_log(self):
++        verifier = VerificadorFalso()
++        t = self.novo(verifier)
++        t.submit("a1", str(self.arquivo("a.ogg", "segredo")))
++        with mock.patch("audit.log") as log:
++            t.start()
++            t.stop()
++        self.assertNotIn("segredo", repr(log.call_args_list))
++
++
++class CompletarTests(Base):
++    def carga(self):
++        return {
++            "analysisId": "an1",
++            "messages": [
++                {"id": "t1", "mediaType": "", "content": "oi"},
++                {"id": "a1", "mediaType": "ptt", "content": ""},
++                {"id": "a2", "mediaType": "audio", "content": ""},
++                {"id": "a3", "mediaType": "audio", "content": "legenda"},
++                {"id": "i1", "mediaType": "image", "content": ""},
++            ],
++        }
++
++    def test_transcreve_do_bucket_grava_e_preenche_a_carga(self):
++        verifier = VerificadorFalso(
++            pendentes=[{"id": "a2", "mediaPath": "org/con/5565/a2.ogg"}, {"id": "a1", "mediaPath": "org/con/5565/a1.ogg"}],
++            arquivos={"org/con/5565/a1.ogg": b"um", "org/con/5565/a2.ogg": b"dois"},
++        )
++        t = self.novo(verifier)
++        with mock.patch("audit.log"):
++            carga = t.completar(self.carga())
++        self.assertEqual(verifier.perguntas, [{"ids": ["a1", "a2"]}])
++        conteudo = {m["id"]: m["content"] for m in carga["messages"]}
++        self.assertEqual(conteudo["a1"], "texto de um")
++        self.assertEqual(conteudo["a2"], "texto de dois")
++        self.assertEqual(conteudo["a3"], "legenda")
++        self.assertEqual(conteudo["i1"], "")
++        self.assertEqual(sorted(g["id"] for g in verifier.gravados), ["a1", "a2"])
++        self.assertEqual({b for b, _ in verifier.baixados}, {"whatsapp-media"})
++
++    def test_temporario_do_bucket_e_apagado(self):
++        verifier = VerificadorFalso(pendentes=[{"id": "a1", "mediaPath": "o/c/5/a1.ogg"}], arquivos={"o/c/5/a1.ogg": b"um"})
++        caminhos = []
++
++        def transcrever(caminho, model_size, language):
++            caminhos.append(Path(caminho))
++            return "ok"
++
++        t = transcritor.Transcritor(verifier=verifier, cache=self.cache, transcrever=transcrever)
++        with mock.patch("audit.log"):
++            t.completar(self.carga())
++        self.assertEqual(len(caminhos), 1)
++        self.assertFalse(caminhos[0].exists())
++
++    def test_o_que_o_banco_nao_lista_nao_e_transcrito(self):
++        # Grupo ou já transcrito: o banco não devolve, e nada é feito.
++        verifier = VerificadorFalso(pendentes=[])
++        t = self.novo(verifier)
++        with mock.patch("audit.log"):
++            carga = t.completar(self.carga())
++        self.assertEqual(self.transcritos, [])
++        self.assertEqual(verifier.gravados, [])
++        self.assertEqual([m["content"] for m in carga["messages"]], ["oi", "", "", "legenda", ""])
++
++    def test_sem_audio_nem_pergunta(self):
++        verifier = VerificadorFalso()
++        t = self.novo(verifier)
++        t.completar({"messages": [{"id": "t1", "mediaType": "", "content": "oi"}]})
++        self.assertEqual(verifier.perguntas, [])
++
++    def test_sem_caminho_baixa_pelo_bridge(self):
++        banco = self.pasta / "messages.db"
++        with sqlite3.connect(banco) as c:
++            c.execute("CREATE TABLE messages (id TEXT, chat_jid TEXT)")
++            c.execute("INSERT INTO messages VALUES ('a1', '5565999990000@s.whatsapp.net'), ('a2', '120363@g.us')")
++        local = self.arquivo("bridge.ogg", "do bridge")
++        verifier = VerificadorFalso(pendentes=[{"id": "a1", "mediaPath": ""}, {"id": "a2", "mediaPath": ""}])
++        t = self.novo(verifier, messages_db=banco, api_base_url="http://127.0.0.1:8080/api", token_loader=lambda: "tk")
++        with mock.patch.object(media, "download_media", return_value=str(local)) as baixar, mock.patch("audit.log"):
++            carga = t.completar(self.carga())
++        baixar.assert_called_once_with("http://127.0.0.1:8080/api", "tk", "a1", "5565999990000@s.whatsapp.net")
++        self.assertEqual({m["id"]: m["content"] for m in carga["messages"]}["a1"], "texto de do bridge")
++        self.assertFalse(local.exists())
++        self.assertEqual([g["id"] for g in verifier.gravados], ["a1"])
++
++    def test_prazo_estourado_segue_com_o_que_tiver(self):
++        verifier = VerificadorFalso(
++            pendentes=[{"id": "a2", "mediaPath": "o/c/5/a2.ogg"}, {"id": "a1", "mediaPath": "o/c/5/a1.ogg"}],
++            arquivos={"o/c/5/a1.ogg": b"um", "o/c/5/a2.ogg": b"dois"},
++        )
++        relogio = iter([0.0, 0.0, 1.0, 2.0, 500.0, 500.0, 500.0, 500.0])
++        t = self.novo(verifier, relogio=lambda: next(relogio))
++        with mock.patch("audit.log") as log:
++            carga = t.completar(self.carga(), prazo=420.0)
++        conteudo = {m["id"]: m["content"] for m in carga["messages"]}
++        self.assertEqual(conteudo["a2"], "texto de dois")
++        self.assertEqual(conteudo["a1"], "")
++        resumo = [c for c in log.call_args_list if c.args[0] == "analysis.transcribed"][0].kwargs
++        self.assertEqual(resumo["skipped_deadline"], 1)
++        self.assertEqual(resumo["analysis_id"], "an1")
++
++    def test_banco_fora_do_ar_na_pergunta_segue_sem_transcrever(self):
++        class Fora(VerificadorFalso):
++            def transcript_pending(self, payload):
++                raise OperatorVerificationError("fora")
++
++        t = self.novo(Fora())
++        with mock.patch("audit.log"):
++            carga = t.completar(self.carga())
++        self.assertEqual(self.transcritos, [])
++        self.assertEqual(carga["messages"][1]["content"], "")
++
++    def test_reaproveita_o_cache(self):
++        self.cache.guardar("a1", "do cache")
++        verifier = VerificadorFalso(pendentes=[{"id": "a1", "mediaPath": "o/c/5/a1.ogg"}], arquivos={})
++        t = self.novo(verifier)
++        with mock.patch("audit.log"):
++            carga = t.completar(self.carga())
++        self.assertEqual(verifier.baixados, [])
++        self.assertEqual(carga["messages"][1]["content"], "do cache")
++
++
++class AnalistaComTranscritorTests(unittest.TestCase):
++    """O analista transcreve os áudios antigos ANTES do Jev e do Claude."""
++
++    def setUp(self):
++        import test_analista
++
++        self.ta = test_analista
++        self.pasta = Path(tempfile.mkdtemp())
++        self.conta = self.pasta / "analise"
++        self.conta.mkdir()
++        (self.conta / ".credentials.json").write_text("{}", encoding="utf-8")
++        patcher = mock.patch("audit.log")
++        self.log = patcher.start()
++        self.addCleanup(patcher.stop)
++
++    def carga(self):
++        import copy
++
++        carga = copy.deepcopy(self.ta.CARGA)
++        carga["messages"].append({"id": "aud1", "sentAt": "2026-10-01T12:10:00Z", "fromMe": False,
++                                  "authorKind": "", "mediaType": "ptt", "content": ""})
++        return carga
++
++    def analisar(self, transcritor, jev=None):
++        import analista
++
++        recebido = {}
++
++        def executar(prompt, *a, **k):
++            recebido["prompt"] = prompt
++            return self.ta.resposta_ok()
++
++        a = analista.Analista(
++            verifier=self.ta.FakeVerifier(), executar=executar, claude_bin="claude", vault=self.pasta,
++            config_dir=self.conta, modelo="sonnet", jev=jev, transcritor=transcritor,
++        )
++        return a.analisar(self.carga()), recebido
++
++    def test_o_audio_transcrito_chega_ao_jev_e_ao_claude(self):
++        class Transcritor:
++            def completar(self, carga):
++                for m in carga["messages"]:
++                    if m.get("id") == "aud1":
++                        m["content"] = "quero fechar semana que vem"
++                return carga
++
++        jev = self.ta.FakeJev()
++        situacao, recebido = self.analisar(Transcritor(), jev=jev)
++        self.assertEqual(situacao, "done")
++        self.assertIn("[áudio] quero fechar semana que vem", recebido["prompt"])
++        self.assertIn("[áudio] quero fechar semana que vem", jev.textos[0])
++
++    def test_transcritor_quebrado_nao_derruba_a_analise(self):
++        class Quebrado:
++            def completar(self, carga):
++                raise RuntimeError("whisper caiu")
++
++        situacao, recebido = self.analisar(Quebrado())
++        self.assertEqual(situacao, "done")
++        self.assertIn("[áudio]", recebido["prompt"])
++        self.assertIn("analysis.transcript_failed", [c.args[0] for c in self.log.call_args_list])
++
++    def test_o_claude_sabe_que_e_transcricao(self):
++        import analista
++        import coordenador
++
++        self.assertIn("transcrição automática", analista.SISTEMA)
++        self.assertIn("transcrição automática", coordenador.CONTEXTO)
++
++
++class AtendenteTests(Base):
++    def test_o_atendente_usa_o_cache_e_guarda_o_que_transcreve(self):
++        import messages
++
++        cfg = mock.Mock(api_base_url="http://x", whisper_model="medium", whisper_language="pt")
++        caminho = self.pasta / "transcricoes.db"
++        with mock.patch.object(transcritor, "caminho_do_cache", return_value=caminho),                 mock.patch("config.load_api_token", return_value="tk"),                 mock.patch.object(media, "download_media", return_value="a.ogg") as baixar,                 mock.patch.object(transcribe, "transcribe_audio", return_value=" do atendente ") as transcrever,                 mock.patch("audit.log"):
++            primeiro = messages._transcribe("m1", "5565999990000@s.whatsapp.net", cfg)
++            segundo = messages._transcribe("m1", "5565999990000@s.whatsapp.net", cfg)
++            messages._transcribe("g1", "120363@g.us", cfg)
++        self.assertEqual(primeiro, " do atendente ")
++        self.assertEqual(segundo, "do atendente")
++        self.assertEqual(transcrever.call_count, 2)  # m1 uma vez só; g1 uma
++        self.assertEqual(baixar.call_count, 2)
++        cache = transcritor.Cache(caminho)
++        self.assertEqual(cache.ler("m1"), "do atendente")
++        self.assertIsNone(cache.ler("g1"))
++
++
++class ConfigEMainTests(unittest.TestCase):
++    def test_config(self):
++        import os
++        from config import Config
++
++        base = {"ASSISTANT_VAULT": "/tmp/v", "ASSISTANT_OWNER": "556500000000", "ASSISTANT_STATE_DB": "/tmp/a.db"}
++        with mock.patch.dict(os.environ, base, clear=False):
++            for nome in ("NUCLEO_TRANSCRIBE", "NUCLEO_TRANSCRIBE_MODEL"):
++                os.environ.pop(nome, None)
++            cfg = Config.from_env()
++        self.assertFalse(cfg.transcription_enabled)
++        self.assertEqual(cfg.transcription_model, "small")
++        with mock.patch.dict(os.environ, {**base, "NUCLEO_TRANSCRIBE": "1", "NUCLEO_TRANSCRIBE_MODEL": "base"}, clear=False):
++            cfg = Config.from_env()
++        self.assertTrue(cfg.transcription_enabled)
++        self.assertEqual(cfg.transcription_model, "base")
++
++    def test_main_liga_e_desliga_o_transcritor(self):
++        import inspect
++
++        import analista
++        import main
++        from media_mirror import MediaMirror
++
++        self.assertIn("transcritor_de_audios", inspect.signature(main._wait_forever).parameters)
++        self.assertIn("transcritor", inspect.signature(analista.Analista).parameters)
++        self.assertIn("transcritor", inspect.signature(MediaMirror).parameters)
++
++
++class TravaTests(unittest.TestCase):
++    def test_modelos_diferentes_convivem(self):
++        criados = []
++
++        class Modelo:
++            def __init__(self, tamanho, **kw):
++                criados.append(tamanho)
++
++        falso = mock.MagicMock(WhisperModel=Modelo)
++        with mock.patch.dict("sys.modules", {"faster_whisper": falso}), mock.patch.dict(transcribe._models, clear=True):
++            a = transcribe._get_model("small")
++            b = transcribe._get_model("medium")
++            self.assertIs(transcribe._get_model("small"), a)
++            self.assertIsNot(a, b)
++        self.assertEqual(criados, ["small", "medium"])
++
++    def test_transcreve_dentro_da_trava(self):
++        dentro = []
++
++        class Segmento:
++            text = " oi "
++
++        class Modelo:
++            def transcribe(self, caminho, language, vad_filter):
++                def segmentos():
++                    dentro.append(transcribe._thread_lock.locked())
++                    yield Segmento()
++                return segmentos(), None
++
++        with mock.patch.object(transcribe, "_get_model", return_value=Modelo()), \
++                mock.patch.dict("os.environ", {"NUCLEO_WHISPER_LOCK": str(Path(tempfile.mkdtemp()) / "w.lock")}):
++            self.assertEqual(transcribe.transcribe_audio("x.ogg"), "oi")
++        self.assertEqual(dentro, [True])
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/whatsapp-assistant/transcribe.py b/whatsapp-assistant/transcribe.py
+index 99b25f1..3a69e97 100644
+--- a/whatsapp-assistant/transcribe.py
++++ b/whatsapp-assistant/transcribe.py
+@@ -5,16 +5,36 @@ e no primeiro uso, quando o faster-whisper baixa o peso do modelo do Hugging
+ Face e guarda em cache (~/.cache/huggingface) - depois disso, offline.
+ 
+ O modelo carrega uma vez e fica em memoria entre mensagens: carregar de novo a
+-cada audio custaria segundos por mensagem a toa, e o worker e a mesma thread a
+-vida toda.
++cada audio custaria segundos por mensagem a toa (medido na VPS em 02/10/2026:
++19 s o `small`, 68 s o `medium`). Desde o transcritor ha mais de um usuario no
++mesmo processo (o atendente e o transcritor), entao cada tamanho fica no seu
++lugar: pedir outro tamanho nao derruba o que ja estava carregado.
++
++UM AUDIO POR VEZ NA VPS INTEIRA. A VPS tem 2 processadores e roda uma instancia
++por conexao; cada uma tem atendente e transcritor. Sem trava, duas
++transcricoes ao mesmo tempo dividiriam os processadores e as duas ficariam
++lentas - inclusive a do atendente, que tem um cliente esperando. A trava e um
++arquivo com `flock`, que vale entre processos; onde nao ha `fcntl` (Windows,
++nos testes), vira so a trava da thread.
+ """
+ 
++import os
+ import threading
+-from typing import Optional
++from contextlib import contextmanager
++from pathlib import Path
++from typing import Dict, Optional
+ 
+-_model = None
++try:  # pragma: no cover - depende do sistema
++    import fcntl
++except ImportError:  # pragma: no cover - Windows
++    fcntl = None
++
++_models: Dict[str, object] = {}
+ _model_lock = threading.Lock()
+-_loaded_size: Optional[str] = None
++# A trava entre threads do mesmo processo; a de arquivo cobre os outros.
++_thread_lock = threading.Lock()
++
++TRAVA_PADRAO = Path("~/.local/state/nucleo-major/whisper.lock")
+ 
+ 
+ class TranscribeError(RuntimeError):
+@@ -22,11 +42,9 @@ class TranscribeError(RuntimeError):
+ 
+ 
+ def _get_model(model_size: str):
+-    global _model, _loaded_size
+-
+     with _model_lock:
+-        if _model is not None and _loaded_size == model_size:
+-            return _model
++        if model_size in _models:
++            return _models[model_size]
+ 
+         try:
+             from faster_whisper import WhisperModel
+@@ -38,12 +56,43 @@ def _get_model(model_size: str):
+         try:
+             # CPU com int8: sem GPU, mais leve que float32, boa relacao
+             # velocidade/qualidade para audio curto de WhatsApp.
+-            _model = WhisperModel(model_size, device="cpu", compute_type="int8")
+-            _loaded_size = model_size
++            _models[model_size] = WhisperModel(model_size, device="cpu", compute_type="int8")
+         except Exception as e:
+             raise TranscribeError(f"falha ao carregar modelo whisper '{model_size}': {e}") from e
+ 
+-    return _model
++    return _models[model_size]
++
++
++def _caminho_da_trava() -> Path:
++    return Path(os.environ.get("NUCLEO_WHISPER_LOCK") or TRAVA_PADRAO).expanduser()
++
++
++@contextmanager
++def _uma_por_vez():
++    with _thread_lock:
++        if fcntl is None:
++            yield
++            return
++        arquivo = None
++        try:
++            caminho = _caminho_da_trava()
++            caminho.parent.mkdir(parents=True, exist_ok=True)
++            arquivo = open(caminho, "a+")
++            fcntl.flock(arquivo.fileno(), fcntl.LOCK_EX)
++        except OSError:
++            # Sem a trava de arquivo, transcreve assim mesmo: mais lento quando
++            # coincidir, nunca parado.
++            if arquivo is not None:
++                arquivo.close()
++            arquivo = None
++        try:
++            yield
++        finally:
++            if arquivo is not None:
++                try:
++                    fcntl.flock(arquivo.fileno(), fcntl.LOCK_UN)
++                finally:
++                    arquivo.close()
+ 
+ 
+ def transcribe_audio(path: str, model_size: str = "small", language: Optional[str] = "pt") -> str:
+@@ -56,12 +105,15 @@ def transcribe_audio(path: str, model_size: str = "small", language: Optional[st
+     model = _get_model(model_size)
+ 
+     try:
+-        segments, _info = model.transcribe(
+-            path,
+-            language=language or None,
+-            vad_filter=True,  # corta silencio; audio de WhatsApp costuma ter sobra no fim
+-        )
+-        text = " ".join(segment.text.strip() for segment in segments).strip()
++        with _uma_por_vez():
++            segments, _info = model.transcribe(
++                path,
++                language=language or None,
++                vad_filter=True,  # corta silencio; audio de WhatsApp costuma ter sobra no fim
++            )
++            # `segments` e um gerador: o trabalho de verdade acontece aqui,
++            # entao a juncao fica dentro da trava.
++            text = " ".join(segment.text.strip() for segment in segments).strip()
+     except Exception as e:
+         raise TranscribeError(f"falha ao transcrever: {e}") from e
+ 
+diff --git a/whatsapp-assistant/transcritor.py b/whatsapp-assistant/transcritor.py
+new file mode 100644
+index 0000000..5e6a10f
+--- /dev/null
++++ b/whatsapp-assistant/transcritor.py
+@@ -0,0 +1,340 @@
++"""O transcritor: todo áudio de conversa direta vira texto no espelho.
++
++Até 02/10/2026 a VPS transcrevia áudio só para o atendente responder, e jogava
++o texto fora. Quem lia a conversa pelo banco — o Agente Analista, o Jev, a
++linha do tempo do relatório, a equipe no portal — via só "[áudio]". Medido na
++Adriani: 22% do que a empresa manda é áudio. A análise julgava o atendimento
++sem ouvir um quinto dele.
++
++Decisões do dono (02/10/2026):
++
++  * só conversa direta — grupo não, porque ninguém lê grupo pelo banco hoje;
++  * o áudio NOVO é transcrito quando chega: o `media_mirror` já baixa cada um
++    para subir ao bucket, e em vez de apagar a cópia local entrega a ela;
++  * o áudio ANTIGO só quando alguém pede a análise daquela conversa: o
++    analista chama `completar` antes de analisar, e ela transcreve o que o
++    banco disser que falta (`nucleo_message_transcript_pending`), baixando do
++    bucket — que não depende de o WhatsApp ainda ter a mídia.
++
++O texto vai para o `content` da própria mensagem
++(`nucleo_message_transcript_record`, migration 20261007100000), e só onde ele
++está vazio. O analista e o Jev já montam "[áudio] <texto>", então passam a
++ouvir o áudio sem mudar.
++
++O CACHE LOCAL. Cada texto também fica num SQLite ao lado do `messages.db`,
++pelo id da mensagem. É ele que evita transcrever duas vezes: o atendente
++transcreve o áudio do cliente para responder antes de o espelho chegar a ele
++(e guarda aqui), e o transcritor, quando chega a vez, só grava o que já está
++pronto. Se a gravação no banco falhar, o texto continua no cache e a próxima
++análise da conversa grava sem transcrever de novo.
++
++O texto transcrito nunca vai para log: só id, tamanho e tempo.
++"""
++
++from __future__ import annotations
++
++import queue
++import sqlite3
++import tempfile
++import threading
++import time
++from pathlib import Path
++from typing import Any, Callable, Optional
++
++import audit
++import media
++import transcribe
++from operator_verification import OperatorVerificationError
++
++BUCKET = "whatsapp-media"
++TIPOS_DE_AUDIO = frozenset({"audio", "ptt"})
++# Conversa direta no Bridge: telefone ou LID. Grupo é `@g.us`; canal, lista e
++# status são outros sufixos, e nenhum deles entra.
++SUFIXOS_DIRETOS = ("@s.whatsapp.net", "@lid")
++
++FILA_MAXIMA = 500
++# Quanto a análise espera pela transcrição dos áudios antigos antes de seguir
++# com o que tiver. O pedido expira em 15 minutos; sobra folga para o Jev e
++# para o Claude (até 4 minutos).
++PRAZO_DA_ANALISE = 420.0
++# O mesmo teto do `content` na sincronia e na RPC.
++TETO_TEXTO = 8000
++RETENCAO_DO_CACHE = 90 * 24 * 3600.0
++
++
++def conversa_direta(chat_jid: Any) -> bool:
++    return str(chat_jid or "").strip().endswith(SUFIXOS_DIRETOS)
++
++
++def caminho_do_cache() -> Path:
++    import messages
++
++    return messages.configured_messages_db().with_name("transcricoes.db")
++
++
++class Cache:
++    """Texto por id de mensagem, num SQLite da instância.
++
++    Uma conexão por operação: o atendente, o transcritor e o analista vivem em
++    threads diferentes, e o SQLite não divide conexão entre threads.
++    """
++
++    def __init__(self, caminho: Path) -> None:
++        self.caminho = Path(caminho)
++        self._podado_em = 0.0
++
++    def _abrir(self) -> sqlite3.Connection:
++        conexao = sqlite3.connect(self.caminho, timeout=5)
++        conexao.execute(
++            "CREATE TABLE IF NOT EXISTS transcricoes ("
++            " message_id TEXT PRIMARY KEY, texto TEXT NOT NULL, quando REAL NOT NULL)"
++        )
++        return conexao
++
++    def ler(self, message_id: str) -> Optional[str]:
++        if not message_id:
++            return None
++        try:
++            conexao = self._abrir()
++        except sqlite3.Error:
++            return None
++        try:
++            linha = conexao.execute(
++                "SELECT texto FROM transcricoes WHERE message_id = ?", (message_id,)
++            ).fetchone()
++        except sqlite3.Error:
++            return None
++        finally:
++            conexao.close()
++        return None if linha is None else str(linha[0])
++
++    def guardar(self, message_id: str, texto: str) -> None:
++        if not message_id:
++            return
++        agora = time.time()
++        try:
++            conexao = self._abrir()
++        except sqlite3.Error as exc:
++            audit.log("audio.transcript_cache_failed", error=type(exc).__name__)
++            return
++        try:
++            with conexao:
++                conexao.execute(
++                    "INSERT OR REPLACE INTO transcricoes (message_id, texto, quando) VALUES (?, ?, ?)",
++                    (message_id, texto, agora),
++                )
++                # A janela do espelho. Uma vez por dia basta.
++                if agora - self._podado_em > 24 * 3600:
++                    conexao.execute(
++                        "DELETE FROM transcricoes WHERE quando < ?", (agora - RETENCAO_DO_CACHE,)
++                    )
++                    self._podado_em = agora
++        except sqlite3.Error as exc:
++            audit.log("audio.transcript_cache_failed", error=type(exc).__name__)
++        finally:
++            conexao.close()
++
++
++class Transcritor:
++    def __init__(
++        self,
++        *,
++        verifier,
++        cache: Cache,
++        modelo: str = "small",
++        idioma: Optional[str] = "pt",
++        api_base_url: str = "",
++        token_loader: Callable[[], Optional[str]] = lambda: None,
++        messages_db: Optional[Path] = None,
++        transcrever: Callable[..., str] = transcribe.transcribe_audio,
++        relogio: Callable[[], float] = time.monotonic,
++    ) -> None:
++        self.verifier = verifier
++        self.cache = cache
++        self.modelo = modelo
++        self.idioma = idioma
++        self.api_base_url = str(api_base_url or "").rstrip("/")
++        self.token_loader = token_loader
++        self.messages_db = Path(messages_db) if messages_db else None
++        self._transcrever = transcrever
++        self._relogio = relogio
++        self.fila: "queue.Queue[Optional[tuple[str, str]]]" = queue.Queue(maxsize=FILA_MAXIMA)
++        self._thread: Optional[threading.Thread] = None
++
++    # ------------------------------------------------------------ a fila
++
++    def submit(self, message_id: str, caminho_local: str) -> bool:
++        """Entrega um áudio novo, já baixado. O arquivo passa a ser daqui: é
++        apagado depois de transcrito. Fila cheia devolve False e o arquivo
++        continua de quem chamou."""
++        if not message_id or not caminho_local:
++            return False
++        try:
++            self.fila.put_nowait((str(message_id), str(caminho_local)))
++            return True
++        except queue.Full:
++            audit.log("audio.transcript_queue_full")
++            return False
++
++    def start(self) -> None:
++        if self._thread and self._thread.is_alive():
++            return
++        self._thread = threading.Thread(target=self._run, name="transcritor", daemon=True)
++        self._thread.start()
++
++    def stop(self) -> None:
++        try:
++            self.fila.put_nowait(None)
++        except queue.Full:
++            pass
++        if self._thread:
++            self._thread.join(timeout=5)
++
++    def _run(self) -> None:
++        while True:
++            item = self.fila.get()
++            if item is None:
++                return
++            message_id, caminho = item
++            try:
++                texto = self._texto(message_id, lambda: caminho)
++                if texto is not None:
++                    self._gravar({message_id: texto})
++            except Exception as exc:  # pragma: no cover - última barreira de um daemon
++                audit.log("audio.transcript_failed", message_id=message_id, error_code="unexpected",
++                          error=type(exc).__name__)
++            finally:
++                _apagar(caminho)
++
++    # ------------------------------------------------------------ o trabalho
++
++    def _texto(self, message_id: str, obter_arquivo: Callable[[], Optional[str]]) -> Optional[str]:
++        """O texto do áudio: do cache, ou transcrevendo o arquivo. None quando
++        não deu (falha já registrada no log)."""
++        pronto = self.cache.ler(message_id)
++        if pronto is not None:
++            return pronto
++        inicio = self._relogio()
++        try:
++            caminho = obter_arquivo()
++            if not caminho:
++                audit.log("audio.transcript_failed", message_id=message_id, error_code="no_file")
++                return None
++            texto = self._transcrever(caminho, model_size=self.modelo, language=self.idioma)
++        except (transcribe.TranscribeError, media.MediaError, OperatorVerificationError, OSError) as exc:
++            audit.log("audio.transcript_failed", message_id=message_id, error_code=type(exc).__name__)
++            return None
++        texto = str(texto or "").strip()[:TETO_TEXTO]
++        self.cache.guardar(message_id, texto)
++        audit.log("audio.transcribed", message_id=message_id, transcript_len=len(texto),
++                  latency_ms=int((self._relogio() - inicio) * 1000), source="transcritor")
++        return texto
++
++    def _gravar(self, textos: dict[str, str]) -> int:
++        if not textos:
++            return 0
++        itens = [{"id": chave, "text": valor} for chave, valor in textos.items()]
++        gravadas = 0
++        try:
++            for inicio in range(0, len(itens), 50):
++                resposta = self.verifier.transcript_record({"items": itens[inicio : inicio + 50]})
++                gravadas += int((resposta or {}).get("recorded") or 0)
++        except OperatorVerificationError as exc:
++            # O texto ficou no cache: a próxima análise da conversa grava.
++            audit.log("audio.transcript_record_failed", count=len(itens), error=str(exc)[:120])
++        return gravadas
++
++    # ------------------------------------------------------------ na análise
++
++    def completar(self, carga: dict, prazo: float = PRAZO_DA_ANALISE) -> dict:
++        """Transcreve os áudios sem texto da carga de uma análise e devolve a
++        carga com o texto no lugar. O que não couber no prazo segue como
++        "[áudio]"."""
++        mensagens = carga.get("messages") if isinstance(carga.get("messages"), list) else []
++        candidatas = [
++            str(m.get("id") or "")
++            for m in mensagens
++            if isinstance(m, dict)
++            and str(m.get("mediaType") or "").strip().lower() in TIPOS_DE_AUDIO
++            and not str(m.get("content") or "").strip()
++            and m.get("id")
++        ]
++        if not candidatas:
++            return carga
++        inicio = self._relogio()
++        try:
++            resposta = self.verifier.transcript_pending({"ids": candidatas[:80]})
++        except OperatorVerificationError as exc:
++            audit.log("analysis.transcript_failed", error_code="control_plane_unavailable", error=str(exc)[:120])
++            return carga
++        pendentes = [
++            item for item in (resposta or {}).get("items") or []
++            if isinstance(item, dict) and item.get("id")
++        ]
++        textos: dict[str, str] = {}
++        sem_prazo = 0
++        for item in pendentes:
++            if self._relogio() - inicio > prazo:
++                sem_prazo += 1
++                continue
++            message_id = str(item["id"])
++            caminho_no_bucket = str(item.get("mediaPath") or "").strip()
++            baixado: list[str] = []
++
++            def obter(message_id=message_id, caminho_no_bucket=caminho_no_bucket, baixado=baixado):
++                caminho = self._baixar(message_id, caminho_no_bucket)
++                if caminho:
++                    baixado.append(caminho)
++                return caminho
++
++            try:
++                texto = self._texto(message_id, obter)
++            finally:
++                for caminho in baixado:
++                    _apagar(caminho)
++            if texto is not None:
++                textos[message_id] = texto
++        gravadas = self._gravar(textos)
++        for m in mensagens:
++            if isinstance(m, dict) and str(m.get("id") or "") in textos:
++                m["content"] = textos[str(m["id"])]
++        audit.log("analysis.transcribed", analysis_id=str(carga.get("analysisId") or ""), pending=len(pendentes), transcribed=len(textos),
++                  recorded=gravadas, skipped_deadline=sem_prazo,
++                  latency_ms=int((self._relogio() - inicio) * 1000))
++        return carga
++
++    def _baixar(self, message_id: str, caminho_no_bucket: str) -> Optional[str]:
++        """O arquivo do áudio no disco: do bucket quando o espelho já o subiu
++        (num temporário), senão pelo Bridge. Quem chama apaga."""
++        if caminho_no_bucket:
++            dados = self.verifier.storage_download(BUCKET, caminho_no_bucket)
++            extensao = caminho_no_bucket.rsplit(".", 1)[-1] if "." in caminho_no_bucket else "ogg"
++            with tempfile.NamedTemporaryFile(suffix=f".{extensao}", delete=False) as arquivo:
++                arquivo.write(dados)
++            return arquivo.name
++        chat = self._chat_da_mensagem(message_id)
++        if not chat or not conversa_direta(chat):
++            return None
++        return media.download_media(self.api_base_url, self.token_loader() or "", message_id, chat)
++
++    def _chat_da_mensagem(self, message_id: str) -> str:
++        if self.messages_db is None:
++            return ""
++        try:
++            conexao = sqlite3.connect(f"file:{self.messages_db}?mode=ro", uri=True)
++        except sqlite3.Error:
++            return ""
++        try:
++            linha = conexao.execute("SELECT chat_jid FROM messages WHERE id = ? LIMIT 1", (message_id,)).fetchone()
++        except sqlite3.Error:
++            return ""
++        finally:
++            conexao.close()
++        return str(linha[0] or "") if linha else ""
++
++
++def _apagar(caminho: Any) -> None:
++    try:
++        Path(str(caminho)).unlink()
++    except OSError:
++        pass
