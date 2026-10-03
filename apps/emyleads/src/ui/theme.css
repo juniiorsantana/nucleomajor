@@ -56,6 +56,16 @@
   --el-st-4: #6888f0;
   --el-st-5: #4b71ed;
   --el-st-6: #2f5bea;
+  /* Agentes: oito cores de identidade (símbolo quadrado). Escolhida em
+     appearance.cor, ou derivada do id do agente. */
+  --el-ag-1: #6b4fd8;
+  --el-ag-2: #3b4fc4;
+  --el-ag-3: #1f7a63;
+  --el-ag-4: #4d7a2a;
+  --el-ag-5: #9a6500;
+  --el-ag-6: #b14a2a;
+  --el-ag-7: #a8327a;
+  --el-ag-8: #2b2c30;
   --el-control-height: 44px;
   --el-radius-control: 2px;
   --el-radius-panel: 0px;
@@ -102,6 +112,14 @@
     --el-st-4: #4f6dc4;
     --el-st-5: #6584e6;
     --el-st-6: #7c9cff;
+    --el-ag-1: #a996ff;
+    --el-ag-2: #8e9dff;
+    --el-ag-3: #5fcfae;
+    --el-ag-4: #a3d17a;
+    --el-ag-5: #e0b25c;
+    --el-ag-6: #f09a7a;
+    --el-ag-7: #f08cc9;
+    --el-ag-8: #ececee;
     --el-success: #6cc28f;
     --el-success-soft: #16261c;
     --el-warning: #d9a441;
