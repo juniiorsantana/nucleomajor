@@ -1,6 +1,6 @@
 # Deploy: a análise tenta de novo e diz o motivo da falha
 
-> **Estado em 03/10/2026, ao fechar o roteiro:** nada aplicado.
+> **Estado em 03/10/2026:** publicado na VPS (ver o registro no fim).
 > - Base: a release ativa **`transcricao-de-audios`**. Os 4 arquivos que o
 >   patch altera batem por sha256 com a cópia baixada da VPS nesse dia.
 > - Patch `runtime-analise-tenta-de-novo.patch`: 4 arquivos, 160 linhas a mais
@@ -79,4 +79,10 @@ done
 ## 4. Registro do que já rodou
 
 - 03/10/2026: base baixada da VPS (`transcricao-de-audios`), patch e testes
-  nesta máquina.
+  nesta máquina (1059 OK, com a janela da data ampliada).
+- 03/10/2026, 09:40: base conferida pelos 4 hashes e o do patch; release
+  `analise-tenta-de-novo` criada, `git apply` limpo, 369 testes (runner,
+  analista, transcritor, worker) OK na VPS; symlink virado; Major e Adriani
+  reiniciadas: `active`, `NRestarts=0`, sem erro. Rollback:
+  `transcricao-de-audios`. A conta do atendimento, que estava em "session
+  limit" na noite anterior, respondia de novo às 09:42.
