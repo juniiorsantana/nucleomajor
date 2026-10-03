@@ -312,6 +312,80 @@ describe("conversas.listar", () => {
   });
 });
 
+describe("conversas.mensagens com a transcrição do áudio", () => {
+  const AUDIO_TRANSCRITO = {
+    message_id: "wa-9",
+    content: "  queria saber do consórcio  ",
+    sent_at: "2026-09-01T14:00:00.000Z",
+    is_from_me: false,
+    media_type: "ptt",
+    media_filename: "audio.ogg",
+    media_path: `${ORGANIZATION_ID}/${CONNECTION_ID}/5511987654321/wa-9.ogg`,
+    media_mime: "audio/ogg",
+    author_kind: "contato",
+    author_name: "",
+    transcribed_at: "2026-09-01T14:00:20.000Z",
+  };
+
+  it("pede a marca e entrega o texto como transcrição, junto do player", async () => {
+    const { operacoes, chamadas } = bancada({ mensagens: [AUDIO_TRANSCRITO] });
+    const linhas = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+
+    expect(consultaDe(chamadas, "whatsapp_messages").campos).toContain("transcribed_at");
+    const bolha = linhas.find((l) => l.tipo === "mensagem");
+    expect(bolha).toMatchObject({ texto: "queria saber do consórcio", transcricao: true });
+    expect(bolha.midia).toMatchObject({ tipo: "audio" });
+  });
+
+  it("sem arquivo, o texto vem sem o rótulo: a bolha marca que era áudio", async () => {
+    const { operacoes } = bancada({ mensagens: [{ ...AUDIO_TRANSCRITO, media_path: "" }] });
+    const linhas = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    const bolha = linhas.find((l) => l.tipo === "mensagem");
+    expect(bolha).toMatchObject({ texto: "queria saber do consórcio", transcricao: true, midia: null });
+  });
+
+  it("legenda de áudio sem a marca continua legenda", async () => {
+    const { operacoes } = bancada({ mensagens: [{ ...AUDIO_TRANSCRITO, transcribed_at: null }] });
+    const linhas = await operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` });
+    expect(linhas.find((l) => l.tipo === "mensagem").transcricao).toBe(false);
+  });
+
+  it("antes da migration, refaz sem a coluna e as próximas já vão sem", async () => {
+    const { operacoes, chamadas, supabase } = bancada({ mensagens: MENSAGENS });
+    const original = supabase.from.getMockImplementation();
+    supabase.from.mockImplementation((tabela) => {
+      const consulta = original(tabela);
+      if (tabela !== "whatsapp_messages") return consulta;
+      const select = consulta.select;
+      consulta.select = vi.fn((campos) => {
+        select(campos);
+        if (campos.includes("transcribed_at")) {
+          consulta.then = (resolver) =>
+            resolver({ data: null, error: { code: "42703", message: "column whatsapp_messages.transcribed_at does not exist" } });
+        }
+        return consulta;
+      });
+      return consulta;
+    });
+
+    const id = `${CONNECTION_ID}:5511987654321`;
+    const linhas = await operacoes["conversas.mensagens"]({ id });
+    expect(linhas.filter((l) => l.tipo === "mensagem")).toHaveLength(MENSAGENS.length);
+    await operacoes["conversas.mensagens"]({ id });
+
+    const pedidos = chamadas.filter((c) => c.tabela === "whatsapp_messages").map((c) => c.campos.includes("transcribed_at"));
+    expect(pedidos).toEqual([true, false, false]);
+  });
+
+  it("outro erro do banco não é confundido com a coluna faltando", async () => {
+    const { operacoes, supabase } = bancada();
+    supabase.from.mockImplementation((tabela) =>
+      criarConsulta(tabela, { data: null, error: { code: "42501", message: "permission denied" } }, [])
+    );
+    await expect(operacoes["conversas.mensagens"]({ id: `${CONNECTION_ID}:5511987654321` })).rejects.toThrow("permission denied");
+  });
+});
+
 describe("conversas.mensagens", () => {
   it("separa os dias e rotula a mídia que ficou na VPS", async () => {
     const { operacoes } = bancada();
