@@ -1,0 +1,259 @@
+diff --git a/whatsapp-assistant/analista.py b/whatsapp-assistant/analista.py
+index 27fdf6c..66f6715 100644
+--- a/whatsapp-assistant/analista.py
++++ b/whatsapp-assistant/analista.py
+@@ -48,6 +48,15 @@ from operator_verification import OperatorVerificationError
+ FUSO = ZoneInfo("America/Sao_Paulo")
+ TIMEOUT = 240
+ 
++# Uma segunda chamada, e só uma, quando a primeira cai na hora com erro
++# genérico. Em 02/10/2026 uma análise caiu em 0,2 s no exato minuto em que o
++# acesso da conta de análise venceu (dura 8 h); 47 s depois a mesma chamada
++# renovou o login e respondeu. Limite de uso e de taxa não entram: repetir em
++# 20 s não muda nada neles, e só atrasaria o aviso.
++RETENTAVEIS = frozenset({"model_unavailable", "model_auth_unavailable"})
++FALHA_RAPIDA = 10.0
++ESPERA_PARA_REPETIR = 20.0
++
+ SISTEMA = (
+     "Você é o Agente Analista do Núcleo Major. Você lê uma conversa de WhatsApp entre uma "
+     "empresa e um lead e escreve um diagnóstico curto e acionável para o dono da empresa, em "
+@@ -513,6 +522,7 @@ class Analista:
+         timeout: int = TIMEOUT,
+         jev=None,
+         transcritor=None,
++        dormir: Callable[[float], None] = time.sleep,
+     ) -> None:
+         self.verifier = verifier
+         self.executar = executar
+@@ -528,6 +538,7 @@ class Analista:
+         # áudios antigos da conversa que ainda estão sem texto. Sem ele, eles
+         # seguem como "[áudio]". Ver transcritor.py.
+         self.transcritor = transcritor
++        self._dormir = dormir
+         self.fila: "queue.Queue[Optional[dict]]" = queue.Queue(maxsize=50)
+         self._thread: Optional[threading.Thread] = None
+ 
+@@ -585,9 +596,11 @@ class Analista:
+         carga = self._classificar(analise, carga)
+         inicio = time.monotonic()
+         resposta = None
+-        try:
+-            resposta = self.executar(
+-                montar_prompt(carga),
++        prompt = montar_prompt(carga)
++
++        def chamar():
++            return self.executar(
++                prompt,
+                 self.claude_bin,
+                 self.vault,
+                 self.timeout,
+@@ -598,6 +611,17 @@ class Analista:
+                 system_prompt=SISTEMA,
+                 claude_config_dir=self.config_dir,
+             )
++
++        try:
++            try:
++                resposta = chamar()
++            except runner.RunnerError as exc:
++                if exc.code not in RETENTAVEIS or time.monotonic() - inicio > FALHA_RAPIDA:
++                    raise
++                audit.log("analysis.retry", analysis_id=analise, error_code=exc.code,
++                          cli_error=getattr(exc, "detalhe", "") or None)
++                self._dormir(ESPERA_PARA_REPETIR)
++                resposta = chamar()
+             resultado = ler_resultado(getattr(resposta, "reply", ""), carga)
+             resultado, descartes = conferir_com_os_estados(resultado, carga.get("scores"))
+             if any(descartes.values()):
+@@ -606,6 +630,7 @@ class Analista:
+         except runner.RunnerError as exc:
+             self._gravar(analise, "failed", erro=exc.code)
+             audit.log("analysis.failed", analysis_id=analise, error_code=exc.code,
++                      cli_error=getattr(exc, "detalhe", "") or None,
+                       **self._diagnostico(inicio, None))
+             return "failed"
+         except AnaliseInvalida as exc:
+diff --git a/whatsapp-assistant/runner.py b/whatsapp-assistant/runner.py
+index 1716a7a..a3fdf2d 100644
+--- a/whatsapp-assistant/runner.py
++++ b/whatsapp-assistant/runner.py
+@@ -183,9 +183,32 @@ DENIED_TOOLS = ["Bash", "WebFetch", "Task"]
+ class RunnerError(RuntimeError):
+     """Falha para a qual nao existe resposta a enviar."""
+ 
+-    def __init__(self, message: str, *, code: str = "model_unavailable") -> None:
++    def __init__(self, message: str, *, code: str = "model_unavailable", detalhe: str = "") -> None:
+         super().__init__(message)
+         self.code = code
++        # A mensagem de erro que a CLI devolveu no JSON (`result` com
++        # `is_error`), curta. É o texto da API ("You've hit your session
++        # limit..."), nunca o da conversa — ver `_erro_da_cli`.
++        self.detalhe = detalhe
++
++
++def _erro_da_cli(stdout: str) -> str:
++    """O texto de erro que a CLI põe no JSON quando a chamada falha.
++
++    Em 02/10/2026 uma análise falhou como `model_unavailable` sem pista
++    nenhuma, e a mensagem certa ("You've hit your session limit · resets
++    12:10am") estava no `result` do stdout, que ninguém lia. Só sai quando a
++    própria CLI marca `is_error`: nesse caso o `result` é o erro, e não uma
++    resposta do modelo.
++    """
++    try:
++        payload = json.loads(stdout or "")
++    except (ValueError, TypeError):
++        return ""
++    if not isinstance(payload, dict) or payload.get("is_error") is not True:
++        return ""
++    texto = " ".join(str(payload.get("result") or "").split())
++    return texto[:160]
+ 
+ 
+ def _classify_process_error(stderr: str, stdout: str = "") -> str:
+@@ -201,6 +224,10 @@ def _classify_process_error(stderr: str, stdout: str = "") -> str:
+         "limit reached",
+         "you've hit your limit",
+         "you have hit your limit",
++        # A janela de 5 horas e a semanal da assinatura (02/10/2026: "You've
++        # hit your session limit · resets 12:10am").
++        "session limit",
++        "weekly limit",
+         "credit balance",
+         "insufficient credit",
+         "insufficient balance",
+@@ -519,6 +546,7 @@ def run(
+         raise RunnerError(
+             f"claude saiu com {proc.returncode} ({len(proc.stderr or '')} bytes em stderr)",
+             code=_classify_process_error(proc.stderr or "", proc.stdout or ""),
++            detalhe=_erro_da_cli(proc.stdout or ""),
+         )
+ 
+     try:
+diff --git a/whatsapp-assistant/test_analista.py b/whatsapp-assistant/test_analista.py
+index 6cd125c..3707488 100644
+--- a/whatsapp-assistant/test_analista.py
++++ b/whatsapp-assistant/test_analista.py
+@@ -403,6 +403,70 @@ class AnalistaTests(unittest.TestCase):
+         self.assertEqual(a.analisar(CARGA), "done")
+         self.assertEqual(self.eventos("analysis.classify_failed")[-1]["error_code"], "control_plane_unavailable")
+ 
++    def test_falha_rapida_e_generica_tenta_mais_uma_vez(self):
++        chamadas, esperas = [], []
++
++        def executar(*a, **k):
++            chamadas.append(1)
++            if len(chamadas) == 1:
++                raise runner.RunnerError("saiu com 1", code="model_unavailable", detalhe="OAuth token has expired.")
++            return resposta_ok()
++
++        a = self.novo(executar)
++        a._dormir = esperas.append
++        self.assertEqual(a.analisar(CARGA), "done")
++        self.assertEqual(len(chamadas), 2)
++        self.assertEqual(esperas, [analista.ESPERA_PARA_REPETIR])
++        tentativa = self.eventos("analysis.retry")[0]
++        self.assertEqual((tentativa["error_code"], tentativa["cli_error"]), ("model_unavailable", "OAuth token has expired."))
++
++    def test_so_uma_tentativa_a_mais_e_o_erro_vai_para_o_log(self):
++        chamadas = []
++
++        def executar(*a, **k):
++            chamadas.append(1)
++            raise runner.RunnerError("saiu com 1", code="model_auth_unavailable", detalhe="Please run /login")
++
++        a = self.novo(executar)
++        a._dormir = lambda s: None
++        self.assertEqual(a.analisar(CARGA), "failed")
++        self.assertEqual(len(chamadas), 2)
++        self.assertEqual(self.verifier.gravadas[-1]["errorCode"], "model_auth_unavailable")
++        self.assertEqual(self.eventos("analysis.failed")[-1]["cli_error"], "Please run /login")
++
++    def test_limite_de_uso_nao_tenta_de_novo(self):
++        chamadas = []
++
++        def executar(*a, **k):
++            chamadas.append(1)
++            raise runner.RunnerError("limite", code="model_quota_exhausted", detalhe="You've hit your session limit")
++
++        a = self.novo(executar)
++        a._dormir = lambda s: self.fail("não devia esperar")
++        self.assertEqual(a.analisar(CARGA), "failed")
++        self.assertEqual(len(chamadas), 1)
++        self.assertEqual(self.eventos("analysis.retry"), [])
++
++    def test_falha_lenta_nao_tenta_de_novo(self):
++        chamadas = []
++
++        def executar(*a, **k):
++            chamadas.append(1)
++            raise runner.RunnerError("saiu", code="model_unavailable")
++
++        a = self.novo(executar)
++        a._dormir = lambda s: self.fail("não devia esperar")
++        # A primeira leitura é o início; a falha chega 100 s depois.
++        leituras = []
++
++        def relogio():
++            leituras.append(1)
++            return 0.0 if len(leituras) == 1 else 100.0
++
++        with patch.object(analista.time, "monotonic", relogio):
++            self.assertEqual(a.analisar(CARGA), "failed")
++        self.assertEqual(len(chamadas), 1)
++
+     def test_erro_do_claude_e_resposta_torta_viram_falha(self):
+         def limite(*a, **k):
+             raise runner.RunnerError("limite", code="model_quota_exhausted")
+diff --git a/whatsapp-assistant/test_runner.py b/whatsapp-assistant/test_runner.py
+index 2768775..72e0ca0 100644
+--- a/whatsapp-assistant/test_runner.py
++++ b/whatsapp-assistant/test_runner.py
+@@ -532,6 +532,45 @@ class RunTest(unittest.TestCase):
+         self.assertEqual(ctx.exception.code, "model_auth_unavailable")
+         self.assertNotIn("OAuth", str(ctx.exception), "o texto bruto não vai para o log")
+ 
++    def test_limite_de_sessao_e_limite_de_uso(self):
++        # 02/10/2026: a janela de 5 horas da assinatura caiu no genérico.
++        for texto in (
++            "You've hit your session limit · resets 12:10am (America/Sao_Paulo)",
++            "You've hit your weekly limit · resets Mon 9am",
++        ):
++            with self.subTest(texto=texto[:30]):
++                self.assertEqual(
++                    runner._classify_process_error("", '{"is_error":true,"result":"%s"}' % texto),
++                    "model_quota_exhausted",
++                )
++
++    def test_o_erro_da_cli_vem_curto_e_so_quando_e_erro(self):
++        import json
++
++        erro = json.dumps({"is_error": True, "result": "You've hit your session limit\n · resets 12:10am"})
++        self.assertEqual(runner._erro_da_cli(erro), "You've hit your session limit · resets 12:10am")
++        longo = json.dumps({"is_error": True, "result": "x" * 500})
++        self.assertEqual(len(runner._erro_da_cli(longo)), 160)
++        # Resposta do modelo não é erro: não sai.
++        self.assertEqual(runner._erro_da_cli(json.dumps({"is_error": False, "result": "texto da conversa"})), "")
++        self.assertEqual(runner._erro_da_cli("não é json"), "")
++
++    def test_o_erro_da_cli_acompanha_a_falha_do_binario(self):
++        import tempfile
++
++        with tempfile.TemporaryDirectory() as tmp:
++            tmpdir = Path(tmp)
++            binario = self._fake_claude(
++                tmpdir,
++                '{"is_error":true,"result":"You have hit your session limit"}',
++                exit_code=1,
++            )
++            with self.assertRaises(runner.RunnerError) as ctx:
++                runner.run("oi", binario, tmpdir, timeout=10)
++        self.assertEqual(ctx.exception.code, "model_quota_exhausted")
++        self.assertEqual(ctx.exception.detalhe, "You have hit your session limit")
++        self.assertNotIn("session", str(ctx.exception))
++
+     def test_falha_desconhecida_continua_generica(self):
+         self.assertEqual(
+             runner._classify_process_error("", '{"is_error":true,"result":"algo novo"}'),
