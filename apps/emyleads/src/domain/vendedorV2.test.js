@@ -9,6 +9,8 @@ import {
   resumoDoVendedorParaCopiar,
   rotuloDoPonto,
   velocidadeEmTexto,
+  duracaoUtil,
+  linhaDoVendedor,
   vendedorEmTexto,
 } from "./vendedorV2.js";
 
@@ -56,7 +58,12 @@ describe("vendedorV2", () => {
     expect(vendedorEmTexto(null).nome).toBe("Sem resposta da empresa");
     expect(velocidadeEmTexto({ firstResponseBusinessMinutes: 12 })).toBe("Primeira resposta em 12 min de horário comercial.");
     expect(velocidadeEmTexto({ firstResponseBusinessMinutes: 0 })).toBe("Primeira resposta em menos de 1 minuto.");
-    expect(velocidadeEmTexto({ firstResponseBusinessMinutes: null, waitingBusinessMinutes: 241 })).toContain("espera a primeira resposta há 241 min");
+    expect(velocidadeEmTexto({ firstResponseBusinessMinutes: null, waitingBusinessMinutes: 330, state: "critico" })).toBe("O cliente espera a primeira resposta há 5 h 30 min de horário comercial.");
+    expect(velocidadeEmTexto({ firstResponseBusinessMinutes: 720, state: "critico" })).toBe("Primeira resposta em 12 h de horário comercial.");
+    // Análises de antes de 20261009100000: 241 era o teto, não o tempo.
+    expect(velocidadeEmTexto({ firstResponseBusinessMinutes: 241, state: "critico" })).toBe("Primeira resposta depois de mais de 4 h de horário comercial.");
+    expect(velocidadeEmTexto({ waitingBusinessMinutes: 241, state: "critico" })).toContain("há mais de 4 h");
+    expect([duracaoUtil(0), duracaoUtil(59), duracaoUtil(60), duracaoUtil(125)]).toEqual(["0 min", "59 min", "1 h", "2 h 5 min"]);
   });
 
   it("resumo para copiar", () => {
@@ -88,5 +95,16 @@ describe("vendedorV2", () => {
       "",
       "O que fazer agora: Retomar com o casal",
     ].join("\n"));
+  });
+
+  it("linha do tempo: legenda só no que custou a venda, no gargalo e nos alertas", () => {
+    const timeline = { until: "x", messages: ["m1", "m2", "m3", "m4", "m5"].map((id) => ({ id, snippet: "texto " + id })) };
+    const linha = linhaDoVendedor(timeline, {
+      cost_the_sale: [{ evidence_message_ids: ["m2"] }],
+      did_well: [{ evidence_message_ids: ["m1"] }],
+      main_bottleneck: { evidence_message_ids: ["m3"] },
+    }, [{ evidence_message_ids: ["m4"] }]);
+    expect(linha.messages.filter((m) => m.snippet).map((m) => m.id)).toEqual(["m2", "m3", "m4"]);
+    expect(linhaDoVendedor(null, {})).toBeNull();
   });
 });

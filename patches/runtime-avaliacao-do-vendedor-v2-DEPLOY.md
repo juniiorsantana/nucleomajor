@@ -1,6 +1,7 @@
 # Deploy: a Avaliação do vendedor v2 no runtime
 
-> **Estado em 03/10/2026:** pronto, NÃO publicado.
+> **Estado em 03/10/2026:** publicado na VPS, e a v2 já é o padrão (ver o
+> registro no fim).
 > - Base: a release ativa **`analise-binario-proprio`**, remontada nesta
 >   máquina a partir da base anterior mais os três patches de 02–03/10 e
 >   conferida pelos hashes registrados no deploy anterior.
@@ -113,3 +114,18 @@ done
   deploy anterior; patch aplicado de novo numa cópia limpa e igual ao que foi
   testado; testes da v2, do Atendimento Score v1, do Analista e do
   coordenador OK.
+- 03/10/2026, noite: base conferida na VPS pelos 4 hashes e o do patch;
+  release `avaliacao-do-vendedor-v2` criada, `git apply` limpo, 185 testes
+  (vendedor_v2, atendimento_v1, analista, coordenador, runner, transcritor,
+  config) OK lá; symlink virado; Major e Adriani reiniciadas: `active`,
+  `NRestarts=0`, rodando da release nova, início limpo. Rollback:
+  `analise-binario-proprio`.
+- 03/10/2026, 23:42 UTC: `private.trocar_regua_padrao('atendimento.v2')`
+  rodado pelo SQL Editor; conferido: v2 publicada como padrão, v1 aposentada,
+  Major e Adriani na v2. Teste de ponta a ponta na conversa do dono (8164):
+  `analysis.classified` com `schema_version` 2 e 33 respostas,
+  `analysis.done` com `report=analysis_report.v2`, Claude em 56 s
+  (`reply_chars` 4657; na v1 eram cerca de 14 s). Achados do teste,
+  corrigidos em seguida: a velocidade parava de contar em 241 minutos
+  (migration `20261009100000`) e as legendas da linha do tempo se
+  atropelavam.

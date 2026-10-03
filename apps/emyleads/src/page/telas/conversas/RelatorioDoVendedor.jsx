@@ -7,6 +7,7 @@ import {
   contaDoVendedor,
   criticaDoPonto,
   faixaDaNota,
+  linhaDoVendedor,
   nomeDoPonto,
   pontosEmOrdem,
   pontosEmTexto,
@@ -39,7 +40,10 @@ export function RelatorioDoVendedor({ analise, nome = "", podeAgir, contato, neg
   const alertas = relatorio.red_flags || [];
   const acoes = diagnostico.what_to_do_now || [];
   const sugerida = diagnostico.suggested_message?.applicable ? diagnostico.suggested_message.text : null;
-  const linha = useMemo(() => linhaDoTempo(analise.linhaDoTempo, alertas), [analise.linhaDoTempo, alertas]);
+  const linha = useMemo(
+    () => linhaDoTempo(linhaDoVendedor(analise.linhaDoTempo, diagnostico, alertas), alertas),
+    [analise.linhaDoTempo, diagnostico, alertas]
+  );
   const [aviso, setAviso] = useState("");
 
   const verEvidencia = aoVerMensagem
