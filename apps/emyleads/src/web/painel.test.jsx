@@ -13,11 +13,17 @@ const memoria = () => {
 };
 
 describe("a escolha do painel", () => {
-  it("sem escolha abre o antigo; a escolha guardada vale", () => {
+  it("sem escolha abre o novo; a escolha guardada vale", () => {
     const armazenamento = memoria();
-    expect(painelEscolhido({ url: "https://nucleomajor.com/app/conversas", armazenamento })).toBe("antigo");
-    guardarPainel("novo", armazenamento);
     expect(painelEscolhido({ url: "https://nucleomajor.com/app/conversas", armazenamento })).toBe("novo");
+    guardarPainel("antigo", armazenamento);
+    expect(painelEscolhido({ url: "https://nucleomajor.com/app/conversas", armazenamento })).toBe("antigo");
+  });
+
+  it("o \"antigo\" guardado antes da troca de padrão não prende ninguém", () => {
+    const armazenamento = memoria();
+    armazenamento.setItem("nucleo.painel", "antigo");
+    expect(painelEscolhido({ url: "https://nucleomajor.com/app/", armazenamento })).toBe("novo");
   });
 
   it("?painel= na URL escolhe e guarda; valor estranho é ignorado", () => {
@@ -26,13 +32,13 @@ describe("a escolha do painel", () => {
     expect(armazenamento.getItem(CHAVE_DO_PAINEL)).toBe("novo");
     expect(painelEscolhido({ url: "https://nucleomajor.com/app/?painel=azul", armazenamento })).toBe("novo");
     guardarPainel("qualquer", armazenamento);
-    expect(painelEscolhido({ url: "https://nucleomajor.com/app/", armazenamento })).toBe("antigo");
+    expect(painelEscolhido({ url: "https://nucleomajor.com/app/", armazenamento })).toBe("novo");
   });
 
   it("navegador que não guarda nada continua abrindo", () => {
     const quebrado = { getItem: () => { throw new Error("bloqueado"); }, setItem: () => { throw new Error("bloqueado"); } };
-    expect(painelEscolhido({ url: "https://nucleomajor.com/app/", armazenamento: quebrado })).toBe("antigo");
-    expect(painelEscolhido({ url: "https://nucleomajor.com/app/?painel=novo", armazenamento: quebrado })).toBe("novo");
+    expect(painelEscolhido({ url: "https://nucleomajor.com/app/", armazenamento: quebrado })).toBe("novo");
+    expect(painelEscolhido({ url: "https://nucleomajor.com/app/?painel=antigo", armazenamento: quebrado })).toBe("antigo");
     expect(outroPainel("novo")).toBe("antigo");
     expect(outroPainel("antigo")).toBe("novo");
   });
