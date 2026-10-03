@@ -239,6 +239,11 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- Avaliação do vendedor v2 virou o padrão em 03/10/2026, 23:42 UTC
+  (`private.trocar_regua_padrao('atendimento.v2')`, pelo SQL Editor, depois da
+  release `avaliacao-do-vendedor-v2` na VPS). Conferido: v2 publicada como
+  padrão, v1 aposentada; Major e Adriani na v2; análise de teste saiu na v2 de
+  ponta a ponta. Voltar: `private.trocar_regua_padrao('atendimento.v1')`.
 - `20261008100000_avaliacao_do_vendedor_v2.sql` aplicada em 03/10/2026 pelo
   SQL Editor, a pedido do dono (ensaio com `raise` antes, sem resto no banco).
   Antes: as 5 funções que ela substitui (`avaliar_conversa`,

@@ -122,13 +122,54 @@ export function vendedorEmTexto(vendedor) {
   return { nome: vendedor.label, nota: "" };
 }
 
-/** A velocidade da primeira resposta, em minutos de horário comercial. */
+// Até 03/10/2026 (20261009100000) o banco parava de contar em 241 minutos:
+// nas análises dessa época, 241 em estado crítico quer dizer "mais de 4 h".
+const TETO_ANTIGO = 241;
+
+/** "12 min", "4 h", "12 h 30 min" (minutos de horário comercial). */
+export function duracaoUtil(minutos) {
+  const total = Math.max(0, Math.round(Number(minutos) || 0));
+  if (total < 60) return `${total} min`;
+  const horas = Math.floor(total / 60);
+  const resto = total % 60;
+  return resto ? `${horas} h ${resto} min` : `${horas} h`;
+}
+
+/** A velocidade da primeira resposta, em tempo de horário comercial. */
 export function velocidadeEmTexto(velocidade) {
   if (!velocidade) return "";
+  const antigo = (m) => m === TETO_ANTIGO && velocidade.state === "critico";
   const minutos = velocidade.firstResponseBusinessMinutes;
-  if (minutos != null) return minutos < 1 ? "Primeira resposta em menos de 1 minuto." : `Primeira resposta em ${minutos} min de horário comercial.`;
-  if (velocidade.waitingBusinessMinutes != null) return `O cliente espera a primeira resposta há ${velocidade.waitingBusinessMinutes} min de horário comercial.`;
+  if (minutos != null) {
+    if (minutos < 1) return "Primeira resposta em menos de 1 minuto.";
+    if (antigo(minutos)) return "Primeira resposta depois de mais de 4 h de horário comercial.";
+    return `Primeira resposta em ${duracaoUtil(minutos)} de horário comercial.`;
+  }
+  const espera = velocidade.waitingBusinessMinutes;
+  if (espera != null) {
+    return antigo(espera)
+      ? "O cliente espera a primeira resposta há mais de 4 h de horário comercial."
+      : `O cliente espera a primeira resposta há ${duracaoUtil(espera)} de horário comercial.`;
+  }
   return "";
+}
+
+/**
+ * A linha do tempo com legenda só no que mais importa: o que custou a venda,
+ * o principal gargalo e os alertas. A v2 cita muitas mensagens (uma por ponto,
+ * mais o que fez bem); com legenda em todas, os textos se atropelam. O ponto
+ * de cada mensagem continua lá, clicável.
+ */
+export function linhaDoVendedor(timeline, diagnostico, alertas = []) {
+  if (!timeline?.messages) return timeline;
+  const ids = new Set(
+    [
+      ...(diagnostico?.cost_the_sale || []).flatMap((item) => item.evidence_message_ids || []),
+      ...(diagnostico?.main_bottleneck?.evidence_message_ids || []),
+      ...alertas.flatMap((alerta) => alerta.evidence_message_ids || []),
+    ].filter(Boolean)
+  );
+  return { ...timeline, messages: timeline.messages.map((m) => (m.snippet && !ids.has(m.id) ? { ...m, snippet: null } : m)) };
 }
 
 /** O que a tela diz de um ponto sem crítica do Analista. */
