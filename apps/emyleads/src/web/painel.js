@@ -2,18 +2,23 @@
  * A chave entre o painel antigo e o painel novo (Sistema Grafite).
  *
  * Cada pessoa escolhe no próprio navegador; a escolha fica guardada e vale
- * até ela trocar de novo. Sem escolha, abre o antigo: o novo é um convite,
- * não uma troca forçada. `?painel=novo` (ou `antigo`) na URL escolhe também,
+ * até ela trocar de novo. `?painel=novo` (ou `antigo`) na URL escolhe também,
  * para mandar o link de teste a alguém.
+ *
+ * Desde 03/10/2026 (etapa A) o padrão é o NOVO, e o antigo virou a rede de
+ * segurança do botão "Voltar ao painel antigo". A chave mudou de nome junto:
+ * quem tinha guardado "antigo" na chave de antes (`nucleo.painel`) também
+ * passa para o novo, em vez de ficar preso no antigo sem saber que o padrão
+ * mudou. Etapa B: apagar o painel antigo, esta chave e o botão.
  *
  * O painel antigo é a cópia congelada do portal de 02/10/2026
  * (src/page-classico). Correção nova vai só no painel novo; quando todos
  * migrarem, apaga-se a pasta e esta chave.
  */
 
-export const CHAVE_DO_PAINEL = "nucleo.painel";
+export const CHAVE_DO_PAINEL = "nucleo.painel.v2";
 export const PAINEIS = ["antigo", "novo"];
-export const PAINEL_PADRAO = "antigo";
+export const PAINEL_PADRAO = "novo";
 
 const valido = (valor) => (PAINEIS.includes(valor) ? valor : null);
 
