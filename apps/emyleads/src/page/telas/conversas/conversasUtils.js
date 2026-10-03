@@ -19,9 +19,14 @@
  * despercebida até a próxima chegar, e hoje nada as altera, porque o espelho
  * grava com `on conflict do nothing`.
  */
+const transcritas = (lista) => lista.reduce((n, m) => n + (m.transcricao ? 1 : 0), 0);
+
 export function mesmaConversa(antes, depois) {
   if (!antes || !depois) return false;
   if (antes.length !== depois.length) return false;
+  // A exceção ao "nada muda no meio": a transcrição do áudio (desde 02/10/2026)
+  // chega segundos depois dele, e ele pode já não ser o último.
+  if (transcritas(antes) !== transcritas(depois)) return false;
   if (!antes.length) return true;
   const a = antes[antes.length - 1];
   const b = depois[depois.length - 1];
