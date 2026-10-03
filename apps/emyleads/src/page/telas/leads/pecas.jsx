@@ -29,10 +29,12 @@ export function AvatarDoLead({ contato, conversa, tamanho = 36 }) {
   return <Iniciais nome={contato?.nome || conversa?.nome || ""} tamanho={tamanho} />;
 }
 
+// "Respondeu": o lead escreveu por último, é a vez da equipe, e por isso o
+// azul de sinal. "Aguardando": a última foi nossa, nada a fazer agora.
 const TOM = {
-  [SITUACOES.respondeu]: "bg-success-soft text-success",
-  [SITUACOES.aguardando]: "bg-accent-soft text-accent-forte",
-  [SITUACOES.semConversa]: "bg-surface text-sub",
+  [SITUACOES.respondeu]: "bg-signal-soft text-signal",
+  [SITUACOES.aguardando]: "border border-line-strong text-sub",
+  [SITUACOES.semConversa]: "text-faint",
 };
 
 /** "Respondeu · 14:32", com a prévia da última mensagem no título. */
@@ -40,7 +42,7 @@ export function SituacaoDaConversa({ conversa }) {
   const situacao = situacaoDaConversa(conversa);
   return (
     <span className="flex min-w-0 items-center gap-2" title={conversa?.previa || undefined}>
-      <span className={`flex-none rounded-full px-2 py-0.5 text-[11.5px] font-medium ${TOM[situacao]}`}>
+      <span className={`flex-none rounded-ctl px-1.5 py-0.5 text-[11.5px] font-medium ${TOM[situacao]}`}>
         {ROTULOS_DA_SITUACAO[situacao]}
       </span>
       {situacao !== SITUACOES.semConversa && conversa?.hora && (

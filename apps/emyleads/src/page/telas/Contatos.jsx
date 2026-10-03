@@ -19,7 +19,7 @@ import {
   BotaoPrimario,
   CabecalhoTela,
   CampoBusca,
-  CartaoIndicador,
+  FaixaDeNumeros,
   Caixa,
   Iniciais,
   Paginacao,
@@ -298,17 +298,11 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
       />
 
       <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        <h2 className="mb-4 text-[19px] font-semibold tracking-tight text-fg">
-          Visão geral
-        </h2>
+        <FaixaDeNumeros itens={indicadores} />
 
-        <div className="flex gap-4">
-          {indicadores.map((i) => (
-            <CartaoIndicador key={i.rotulo} {...i} />
-          ))}
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-none border border-line bg-bg p-4">
+        {/* Filtros numa linha, sem caixa: a caixa só separava a régua de
+            cima da tabela de baixo, que já têm borda própria. */}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {separaLead && (
             <div className="flex rounded-ctl border border-line p-0.5" role="group" aria-label="Quem mostrar">
               {[
@@ -321,7 +315,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                   aria-pressed={mostrar === id}
                   onClick={() => setMostrar(id)}
                   className={`cursor-pointer rounded-ctl px-3 py-2 text-[13px] font-medium transition-colors ${
-                    mostrar === id ? "bg-accent-soft text-accent-forte" : "text-sub hover:text-fg"
+                    mostrar === id ? "bg-fg text-bg" : "text-sub hover:text-fg"
                   }`}
                 >
                   {rotulo}
@@ -357,8 +351,8 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
             onClick={() => setMaisFiltros(!maisFiltros)}
             className={`flex cursor-pointer items-center gap-2 rounded-ctl border px-4 py-2.5 text-[13.5px] font-medium transition-colors ${
               maisFiltros
-                ? "border-accent text-accent-forte"
-                : "border-line text-sub hover:border-line-strong hover:text-fg"
+                ? "border-fg text-fg"
+                : "border-line-strong text-sub hover:border-faint hover:text-fg"
             }`}
           >
             <SlidersHorizontal size={16} />
@@ -377,14 +371,14 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
             {temFiltro && (
               <button
                 onClick={limpar}
-                className="cursor-pointer text-[13.5px] font-medium text-accent-forte hover:underline"
+                className="cursor-pointer text-[13.5px] font-medium text-signal hover:underline"
               >
                 Limpar filtros
               </button>
             )}
             <button
               onClick={exportar}
-              className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line px-4 py-2.5 text-[13.5px] font-medium text-sub transition-colors hover:border-line-strong hover:text-fg"
+              className="flex cursor-pointer items-center gap-2 rounded-ctl border border-line-strong px-4 py-2.5 text-[13.5px] font-medium text-sub transition-colors hover:border-faint hover:text-fg"
             >
               <Download size={16} />
               Exportar
@@ -399,7 +393,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
           )}
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-none border border-line bg-bg">
+        <div className="mt-4 overflow-hidden rounded-none border border-line bg-bg">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-line">
@@ -449,11 +443,11 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                         <AvatarDoLead contato={c} conversa={conversa} />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-[14px] font-medium text-fg hover:text-accent-forte">
+                            <span className="truncate text-[14px] font-medium text-fg hover:underline">
                               {c.nome || conversa?.nome || "Sem nome"}
                             </span>
                             {!ehLead(c) && (
-                              <span className="flex-none rounded-full bg-surface px-2 py-0.5 text-[10.5px] font-medium text-sub" title="Contato ainda não marcado como lead">
+                              <span className="flex-none rounded-ctl border border-line-strong px-1.5 py-px text-[10.5px] font-medium text-sub" title="Contato ainda não marcado como lead">
                                 Contato
                               </span>
                             )}
@@ -511,7 +505,7 @@ export default function Contatos({ dados, recarregar, aoAbrirContato, aoAbrirCon
                             title={conversa ? "Abrir conversa" : "Começar conversa"}
                             aria-label={conversa ? "Abrir conversa" : "Começar conversa"}
                             onClick={() => aoAbrirConversa(c)}
-                            className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-accent-forte"
+                            className="cursor-pointer rounded-ctl p-1.5 text-sub transition-colors hover:bg-surface-hover hover:text-fg"
                           >
                             <MessageCircle size={17} strokeWidth={1.75} />
                           </button>
