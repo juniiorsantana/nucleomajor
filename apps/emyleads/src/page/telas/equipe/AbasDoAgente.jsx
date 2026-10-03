@@ -7,7 +7,7 @@ import { fmtRelativo } from "../../../lib/formato";
 const TOM = { success: "text-success", warning: "text-warning", danger: "text-danger", faint: "text-faint", sub: "text-sub" };
 const chance = (p) => (p == null ? "Chance de acerto desconhecida" : `Chance de acerto: ${Math.round(p * 100)}%`);
 
-function usePlaybookPublicado() {
+export function usePlaybookPublicado() {
   const [playbook, setPlaybook] = useState(undefined);
   useEffect(() => {
     let vivo = true;
@@ -83,17 +83,29 @@ export function AbaPlaybook({ agent, aoAbrirPlaybook }) {
 /* ------------------------------------------------------------------------ *
  * Conhecimento: as coleções que o público deste agente enxerga.
  * ------------------------------------------------------------------------ */
-export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
+export function AbaConhecimento({ agent, data, aoAbrirBiblioteca, aoEnsinar = null }) {
   const audiencia = agent.audience === "internal" ? "internal" : "external";
   const colecoes = (data?.collections || []).filter((c) => c.audience === audiencia);
   const documentos = (id) => (data?.documentCollections || []).filter((d) => d.collection_id === id).length;
   return (
     <div className="grid max-w-2xl gap-3">
-      <p className="text-[11.5px] leading-5 text-sub">
-        {agent.name} consulta o conhecimento{" "}
-        {agent.audience === "internal" ? "interno da equipe" : "publicado para clientes"}. É o público do agente que decide o que
-        ele enxerga; para mudar o conteúdo, use a Biblioteca.
-      </p>
+      <div>
+        <h3 className="text-[16px] font-semibold tracking-tight">O que {agent.name} sabe</h3>
+        <p className="mt-1 text-[12.5px] leading-5 text-sub">
+          {agent.name} consulta o conhecimento{" "}
+          {agent.audience === "internal" ? "interno da equipe" : "publicado para clientes"}. O que você ensinar aqui vale para
+          todo agente que conversa com {agent.audience === "internal" ? "a equipe" : "clientes"}.
+        </p>
+      </div>
+      {aoEnsinar && (
+        <button
+          type="button"
+          onClick={aoEnsinar}
+          className="w-full rounded-ctl bg-ia-soft px-3 py-2 text-[12.5px] font-semibold text-ia hover:bg-ia hover:text-bg md:w-fit"
+        >
+          + Ensinar algo novo
+        </button>
+      )}
       {colecoes.length ? (
         <div className="grid gap-2">
           {colecoes.map((c) => (
@@ -120,7 +132,7 @@ export function AbaConhecimento({ agent, data, aoAbrirBiblioteca }) {
           onClick={aoAbrirBiblioteca}
           className="w-full rounded-ctl border border-line px-3 py-1.5 text-[11.5px] font-semibold hover:border-accent md:w-fit"
         >
-          Abrir a Biblioteca
+          Ver todo o conhecimento
         </button>
       )}
     </div>

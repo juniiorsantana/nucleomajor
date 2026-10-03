@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import Agents, { AssistenteDeCriacao, DetalheAgent } from "./Agents";
+import Agents, { AssistenteDeCriacao, DetalheAgent, SECOES_DO_AGENTE } from "./Agents";
 
 /**
  * A suíte do app renderiza para markup estático e não clica em nada. Então o
  * que dá para provar aqui é o que a tela MOSTRA e o que ela OFERECE; a lógica
- * de decisão está em `domain/agents.test.js`, e o caminho de evento real está
- * em `Agents.interactive.test.jsx`.
+ * de decisão está em `domain/agents.test.js` e `domain/prontidaoDoAgente.test.js`,
+ * e o caminho de evento real está em `Agents.interactive.test.jsx`.
  */
 
 const fonte = readFileSync(new URL("./Agents.jsx", import.meta.url), "utf8");
@@ -30,45 +30,49 @@ const render = (props = {}) => renderToStaticMarkup(
     carregando={false} erro="" {...props} />,
 );
 
-describe("home dos agentes", () => {
-  it("chama pelo nome de produto: 'Sua equipe de IA', não a nomenclatura técnica", () => {
+describe("lista dos agentes", () => {
+  it("chama pelo nome de produto, sem a nomenclatura técnica", () => {
     const html = render();
     expect(html).toContain("Sua equipe de IA");
-    expect(html).toContain("Cada agente atende um público certo e possui responsabilidades específicas.");
-    // Nada de audience/assistant_profile/is_default no que a pessoa lê.
+    expect(html).toContain("Cada agente conversa com um público e faz um trabalho definido.");
     expect(html.toLowerCase()).not.toContain("audience");
     expect(html.toLowerCase()).not.toContain("assistant_profile");
     expect(html).not.toMatch(/is_default|isDefault=/);
   });
 
-  it("A/B: mostra todos os agentes, das duas audiências, com rótulo amigável", () => {
+  it("mostra todos os agentes, dos dois públicos, com rótulo amigável", () => {
     const html = render();
-    for (const nome of ["Emilia", "Closer", "Agenda", "Operacoes", "QA"]) {
-      expect(html).toContain(nome);
-    }
+    for (const nome of ["Emilia", "Closer", "Agenda", "Operacoes", "QA"]) expect(html).toContain(nome);
     expect(html).toContain("Clientes");
     expect(html).toContain("Equipe");
   });
 
-  it("C: identifica o principal como 'Principal', não 'Padrão'", () => {
+  it("diz onde cada um atende: principal, pausado, ou ainda não atende", () => {
     const html = render();
     expect(html).toContain("Principal");
     expect(html).not.toContain(">Padrão<");
-    expect(html).toContain("Ativo");
-    expect(html).toContain("Inativo");
+    expect(html).toContain("Pausado");
+    expect(html).toContain("Ainda não atende");
   });
 
-  it("cada agente tem um avatar (iniciais coloridas), como um perfil", () => {
+  it("atende por campanha só quando a campanha está no ar", () => {
+    const html = render({ campanhas: [
+      { name: "Formulário Meta", assistant_profile_id: "closer", status: "active" },
+      { name: "Rascunho", assistant_profile_id: "qa", status: "draft" },
+    ] });
+    expect(html).toContain("Formulário Meta");
+    expect(html).not.toContain("Rascunho");
+  });
+
+  it("agente é quadrado: cada um tem o seu símbolo, e não um avatar redondo de pessoa", () => {
     const html = render();
-    // O avatar usa <Iniciais>: um círculo colorido com as letras do nome.
-    expect(html).toMatch(/rounded-full[^>]*>\s*E/); // Emilia -> "E" ou "EM"
+    expect((html.match(/viewBox="0 0 100 100"/g) || []).length).toBeGreaterThanOrEqual(elenco.length);
+    expect(fonte).toContain("MarcaDoAgente");
+    expect(fonte).not.toMatch(/<Iniciais/);
   });
 
-  it("empty state quando não há agente nenhum", () => {
+  it("estado vazio, carregando e erro têm tela própria", () => {
     expect(render({ agents: [] })).toContain("Nenhum agente configurado.");
-  });
-
-  it("estados de carregamento e erro têm tela própria", () => {
     expect(render({ carregando: true })).toContain("Carregando agentes…");
     const comErro = render({ erro: "Falhou" });
     expect(comErro).toContain("Falhou");
@@ -80,58 +84,50 @@ describe("home dos agentes", () => {
     expect(render()).toContain("Criar agente");
   });
 
-  it("O: a galeria mostra uma única coleção de cards, sem duplicar agentes por viewport", () => {
-    const html = render();
-    expect(html).toContain("agents-grid");
-    expect((html.match(/Configurar agente/g) || []).length).toBe(elenco.length);
-  });
-
-  it("aponta onde ficou o que esta tela ainda não cobre, com o nome novo da aba", () => {
-    expect(render()).toMatch(/Quem atende/);
+  it("explica o que é o principal", () => {
+    expect(render()).toMatch(/Principal(&quot;|")? é quem recebe primeiro/);
   });
 });
 
-describe("assistente de criação (passo 1: intenção)", () => {
+describe("criação (passo 1: para que serve)", () => {
   const criacao = () => renderToStaticMarkup(
     <AssistenteDeCriacao catalogoSkills={[]} aoFechar={() => {}} aoCriar={async () => {}} />,
   );
 
   it("começa pela intenção, não por um formulário técnico", () => {
     const html = criacao();
-    expect(html).toContain("O que você quer que esse agente faça?");
-    // O primeiro passo não pede nome, slug ou audience ainda.
+    expect(html).toContain("Para que serve esse agente?");
     expect(html).not.toMatch(/<input/);
   });
 
-  it("oferece os presets de papel, incluindo a saída honesta 'Criar do zero'", () => {
+  it("oferece os tipos de agente, incluindo a saída honesta 'Criar do zero'", () => {
     const html = criacao();
-    for (const rotulo of ["Atendimento", "Vendas", "Qualificação", "Agenda", "Suporte", "Cobrança", "Equipe interna", "Criar do zero"]) {
-      expect(html).toContain(rotulo);
-    }
+    for (const rotulo of ["Atendimento", "Vendas", "Criar do zero"]) expect(html).toContain(rotulo);
   });
 
-  it("mostra o progresso em 5 passos", () => {
-    expect(criacao()).toMatch(/aria-valuemax="5"/);
+  it("mostra o progresso em 3 passos", () => {
+    expect(criacao()).toMatch(/aria-valuemax="3"/);
   });
 
   it("não menciona termos internos (soul, slug bruto, audience) na tela inicial", () => {
-    const html = criacao().toLowerCase();
+    const html = criacao();
     expect(html).not.toContain("soul");
     expect(html).not.toContain("audience");
   });
 });
 
 describe("invariáveis que a tela não pode quebrar", () => {
-  it("G: quem o agente atende é somente leitura no detalhe, e o patch nunca o envia", () => {
-    expect(fonte).toMatch(/Quem ele atende[\s\S]{0,400}?disabled readOnly/);
+  it("G: com quem o agente conversa é somente leitura, e o patch nunca o envia", () => {
+    expect(fonte).toMatch(/Com quem conversa[\s\S]{0,400}?disabled readOnly/);
     expect(fonte).toMatch(/name:[^\n]*slug:[^\n]*role:/);
     expect(fonte).not.toMatch(/audience:\s*rascunho/);
     expect(fonte).not.toMatch(/editar\([^)]*audience/);
   });
 
-  it("D: nenhum preset, nem o assistente, marca o agente como principal na criação", () => {
+  it("D: nenhum agente nasce principal, e todo agente novo nasce pausado", () => {
     expect(fonte).not.toMatch(/isDefault:\s*(true|false)/);
     expect(fonte).toMatch(/Quem responde primeiro continua/);
+    expect(fonte).toMatch(/active:\s*false/);
   });
 
   it("J: trocar o principal é UMA chamada, e é a operação atômica", () => {
@@ -165,17 +161,12 @@ describe("invariáveis que a tela não pode quebrar", () => {
     ]));
   });
 
-  it("avatar reusa o mesmo algoritmo de cor das pessoas, não uma cópia", () => {
-    expect(fonte).toMatch(/corDoAgent[\s\S]{0,200}from "\.\.\/\.\.\/domain\/agents"/);
-    expect(fonte).not.toMatch(/function corDerivada/);
-  });
-
-  it("Personalidade explica o que faz, e diz que não concede permissão em lugar nenhum do fluxo", () => {
+  it("a personalidade explica o que faz", () => {
     expect(fonte).toMatch(/conversar, se comportar e representar sua empresa/i);
   });
 });
 
-describe("detalhe do agente, renderizado", () => {
+describe("página do agente, renderizada", () => {
   const skills = [
     { id: "s1", name: "Vendas", slug: "vendas", description: "Qualifica quem chega", audience: "customer", status: "published" },
     { id: "s2", name: "Agenda", slug: "agenda", description: "Marca horário", audience: "both", status: "published" },
@@ -185,66 +176,68 @@ describe("detalhe do agente, renderizado", () => {
     definirSkill: async () => ({}), editar: async () => {},
     alternarAtivo: () => {}, tornarPadrao: () => {},
   };
-  const detalhe = (over = {}) => renderToStaticMarkup(
+  const detalhe = (over = {}, props = {}) => renderToStaticMarkup(
     <DetalheAgent agent={agent({ name: "Emilia", role: "Recepção", tone: "cordial", isDefault: true, ...over })}
-      catalogoSkills={skills} canWrite aoVoltar={() => {}} acoes={acoes} />,
+      catalogoSkills={skills} canWrite aoVoltar={() => {}} acoes={acoes} {...props} />,
   );
 
-  it("a página do agente tem as sete abas, na ordem de configurar", () => {
+  it("o roteiro tem as seções na ordem em que se monta um agente", () => {
     const html = detalhe();
-    const abas = ["Jeito", "Playbook", "Habilidades", "Conhecimento", "Quem atende", "Testar", "Desempenho"];
-    const posicoes = abas.map((rotulo) => html.indexOf(`>${rotulo}</button>`));
+    const roteiro = html.slice(html.indexOf('aria-label="Roteiro do agente"'), html.indexOf("</nav>"));
+    const posicoes = SECOES_DO_AGENTE.map(([, rotulo]) => roteiro.indexOf(`>${rotulo}</span>`));
     expect(posicoes.every((p) => p >= 0)).toBe(true);
     expect([...posicoes].sort((a, b) => a - b)).toEqual(posicoes);
-    // A personalidade (soul) mora na aba Jeito, junto do nome e do tom.
-    expect(html).toContain("Personalidade");
+    expect(html).not.toMatch(/>Jeito</);
     expect(html).not.toMatch(/>Soul</);
-    expect(html).not.toMatch(/>Skills</);
+    expect(html).toMatch(/de 5 itens prontos/);
   });
 
-  it("F: oferece nome, função e como conversa", () => {
+  it("abre na Personalidade: nome, função, como conversa e aparência", () => {
     const html = detalhe();
-    for (const rotulo of ["Nome", "Função", "Como ele conversa"]) {
+    for (const rotulo of ["Nome", "Função", "Como ele conversa", "Instruções", "Aparência", "Outro símbolo"]) {
       expect(html).toContain(rotulo);
     }
     expect(html).toContain("Emilia");
   });
 
-  it("G: quem atende aparece desabilitado, com o motivo — sem a palavra 'audience'", () => {
+  it("G: com quem conversa aparece desabilitado, com o motivo, sem a palavra 'audience'", () => {
     const html = detalhe();
-    expect(html).toContain("Quem ele atende");
+    expect(html).toContain("Com quem conversa");
     expect(html.toLowerCase()).not.toContain("audience");
     expect(html).toMatch(/imutável depois/i);
   });
 
-  it("o identificador técnico fica dentro de Configurações avançadas, não solto na tela", () => {
-    const html = detalhe();
-    expect(html).toContain("Configurações avançadas");
-    expect(html).toMatch(/Configurações avançadas[\s\S]{0,600}?agente-recepcao|Identificador técnico/);
+  it("o identificador técnico fica dentro de Configurações avançadas", () => {
+    expect(detalhe()).toMatch(/Configurações avançadas[\s\S]{0,600}?Identificador técnico/);
   });
 
-  it("H: oferece desativar quando ativo e ativar quando inativo", () => {
-    expect(detalhe({ status: "active" })).toContain("Desativar");
+  it("H: oferece pausar quando ativo e ativar quando pausado", () => {
+    expect(detalhe({ status: "active" })).toContain("Pausar");
     expect(detalhe({ status: "inactive" })).toContain("Ativar");
   });
 
-  it("C: no principal mostra 'Porta de entrada de <audiência>', sem oferecer promovê-lo de novo", () => {
-    const principal = detalhe({ isDefault: true });
-    expect(principal).toMatch(/Porta de entrada de clientes/i);
-    expect(principal).not.toContain("Tornar porta de entrada");
-    expect(detalhe({ isDefault: false })).toContain("Tornar porta de entrada");
+  it("C: o principal aparece como tal no cabeçalho", () => {
+    expect(detalhe({ isDefault: true })).toMatch(/Principal de clientes/i);
+    expect(detalhe({ isDefault: false })).not.toMatch(/Principal de clientes/i);
   });
 
-  it("cabeçalho mostra o avatar do agente", () => {
-    expect(detalhe()).toMatch(/rounded-full/);
+  it("Testar só aparece quando há onde testar, e não ocupa a tela", () => {
+    expect(detalhe()).not.toContain("Testar");
+    const html = detalhe({}, { extras: { testar: () => null } });
+    expect(html).toContain("Testar");
+    expect(html).not.toContain("Nada vai para clientes");
+  });
+
+  it("cabeçalho mostra o símbolo quadrado do agente", () => {
+    expect(detalhe()).toMatch(/aria-label="Símbolo de Emilia"/);
   });
 
   it("somente leitura quando o usuário não pode escrever", () => {
     const html = renderToStaticMarkup(
-      <DetalheAgent agent={agent()} catalogoSkills={skills} canWrite={false}
-        aoVoltar={() => {}} acoes={acoes} />,
+      <DetalheAgent agent={agent()} catalogoSkills={skills} canWrite={false} aoVoltar={() => {}} acoes={acoes} />,
     );
-    expect(html).not.toContain("Tornar porta de entrada");
+    expect(html).not.toContain("Tornar principal");
     expect(html).not.toContain("Salvar");
+    expect(html).not.toContain("Pausar");
   });
 });

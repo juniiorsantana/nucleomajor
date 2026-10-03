@@ -84,7 +84,7 @@ function Opcao({ ativo, titulo, descricao, etiqueta, aviso, onClick, children })
 
 export default function AssistenteConhecimento({
   modeloId = null, inteligencia, documentos = [], aoFechar, aoSalvar, salvando,
-  falha = null, somentePessoal = false,
+  falha = null, somentePessoal = false, publicoInicial = null,
 }) {
   // Os caminhos que já existem, para a derivação desviar de colisão antes de o
   // banco recusar por índice único — três telas depois de a pessoa ter
@@ -94,7 +94,12 @@ export default function AssistenteConhecimento({
     [documentos],
   );
 
-  const [estado, setEstado] = useState(() => sincronizarCaminho(estadoInicial(modeloId), ocupados));
+  // Aberto de dentro de um agente ("Ensinar algo novo"), o público já vem
+  // escolhido pelo público do agente, pela mesma regra do botão da etapa.
+  const [estado, setEstado] = useState(() => {
+    const inicial = sincronizarCaminho(estadoInicial(modeloId), ocupados);
+    return publicoInicial && !somentePessoal ? escolherPublico(inicial, publicoInicial, inteligencia?.collections) : inicial;
+  });
   const [guardado, setGuardado] = useState(() => lerRascunho());
   const [erroArquivo, setErroArquivo] = useState("");
   const [pergunta, setPergunta] = useState("");

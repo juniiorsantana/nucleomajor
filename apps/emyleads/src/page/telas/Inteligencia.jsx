@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bot, BookMarked, BookOpen, Check, ChevronLeft, ChevronRight, FlaskConical, History, Library,
+  Bot, BookMarked, BookOpen, Check, ChevronLeft, ChevronRight, FlaskConical, History,
   Eye, Layers3, LayoutGrid, List, MessageCircle, Plus, RotateCcw,
   Save, Settings2, ShieldCheck, Sparkles, Users, WandSparkles, X,
 } from "lucide-react";
@@ -10,8 +10,10 @@ import { resolverRotaSkill } from "../../domain/intelligenceRouter";
 import Conhecimento from "./Conhecimento";
 import Agents from "./Agents";
 import PlaybookComercial from "./equipe/PlaybookComercial";
-import { AbaConhecimento, AbaDesempenho, AbaPlaybook, AvaliacaoDoJev } from "./equipe/AbasDoAgente";
+import { AbaConhecimento, AbaDesempenho, AbaPlaybook, AvaliacaoDoJev, usePlaybookPublicado } from "./equipe/AbasDoAgente";
 import "./skills-catalog.css";
+// O cabeçalho e as abas da área (`.intelligence-header`, `.intelligence-tabs`).
+import "./agents-gallery.css";
 
 // ETAPA 12B.1: a ordem prioriza o que o usuário administra primeiro — os
 // agentes — e empurra o que é avançado/legado para o fim. "Habilidades" aqui
@@ -26,10 +28,14 @@ import "./skills-catalog.css";
 // atende e Testar); Conhecimento e Habilidades viraram a Biblioteca, as peças
 // que os agentes usam; o Playbook comercial é da empresa e tem área própria.
 // "Campanhas" saiu daqui para a tela Campanhas do menu (28/09/2026).
+// Equipe de IA, fluxo novo (03/10/2026): a Biblioteca some como nível de
+// navegação e Conhecimento e Habilidades viram abas próprias; "Playbook
+// comercial" passa a se chamar "Como vender", o nome do que ele faz.
 const tabs = [
   ["agents", "Agentes", Bot],
-  ["playbook", "Playbook comercial", BookMarked],
-  ["biblioteca", "Biblioteca", Library],
+  ["conhecimento", "Conhecimento", BookOpen],
+  ["habilidades", "Habilidades", WandSparkles],
+  ["playbook", "Como vender", BookMarked],
   ["history", "Histórico", History],
 ];
 const list = (value) => String(value || "").split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
@@ -368,37 +374,6 @@ function Audit({ data, canWrite, reload, fail }) {
   return <div className="scrollbar-fina flex-1 overflow-y-auto p-4 md:p-7"><div className="mx-auto max-w-5xl"><h2 className="text-[18px] font-semibold">Histórico de inteligência</h2><p className="mt-1 text-[12px] text-sub">Alterações sem armazenar mensagens ou argumentos sensíveis.</p>{privateSkills.some((skill) => data.skillVersions.some((version) => version.skill_id === skill.id)) && <section className="mt-5 rounded-none border border-line bg-bg p-4"><h3 className="text-[13px] font-semibold">Rollback de skills privados</h3><p className="mt-1 text-[10.5px] text-sub">Restaurar preserva o histórico e cria uma versão nova.</p><div className="mt-3 grid gap-2 md:grid-cols-2">{privateSkills.map((skill) => { const versions = data.skillVersions.filter((version) => version.skill_id === skill.id).slice(0, 4); return versions.length ? <div key={skill.id} className="rounded-ctl bg-surface p-3"><strong className="text-[11.5px]">{skill.name}</strong><div className="mt-2 flex flex-wrap gap-1.5">{versions.map((version) => <button key={version.id} disabled={!canWrite || version.version === skill.current_version} onClick={() => restore(skill, version)} className="rounded-full border border-line bg-bg px-2.5 py-1 text-[9.5px] text-sub disabled:opacity-35">v{version.version}</button>)}</div></div> : null; })}</div></section>}<div className="mt-5 overflow-hidden rounded-none border border-line bg-bg">{data.audit.length ? data.audit.map((entry) => <div key={entry.id} className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-0"><span className="flex h-8 w-8 items-center justify-center rounded-ctl bg-surface text-sub"><History size={14} /></span><div className="min-w-0 flex-1"><p className="text-[11.5px] font-semibold">{entry.metadata?.name || entry.entity_type}</p><p className="text-[10px] text-sub">{entry.action} · {entry.entity_type}{entry.version ? ` · v${entry.version}` : ""}</p></div><time className="text-[9.5px] text-faint">{date(entry.created_at)}</time></div>) : <p className="p-8 text-center text-[11.5px] text-sub">Nenhuma alteração registrada.</p>}</div></div></div>;
 }
 
-/**
- * Biblioteca: as peças que os agentes usam. Conhecimento é o que eles
- * consultam; Habilidades, o que sabem fazer. Dentro de cada agente só se liga
- * e desliga; aqui se cria e se publica.
- */
-function Biblioteca({ sessao, data, canWrite, reload, fail }) {
-  const [secao, setSecao] = useState("conhecimento");
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 md:mx-7">
-        <div role="tablist" aria-label="Biblioteca" className="flex w-full rounded-ctl border border-line bg-bg p-1 md:inline-flex md:w-auto">
-          {[["conhecimento", "Conhecimento", BookOpen], ["habilidades", "Habilidades", WandSparkles]].map(([id, rotulo, Icone]) => (
-            <button key={id} type="button" role="tab" aria-selected={secao === id} onClick={() => setSecao(id)}
-              className={`inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-ctl px-3 py-1.5 text-[11.5px] font-semibold md:min-h-0 md:flex-none ${secao === id ? "bg-accent-soft text-accent-forte" : "text-sub"}`}>
-              <Icone size={14} aria-hidden="true" />{rotulo}
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-sub">
-          {secao === "conhecimento"
-            ? <>O que os agentes <strong>consultam</strong> ao responder.</>
-            : <>O que os agentes <strong>sabem fazer</strong>. Dentro de cada agente, na aba Habilidades, você escolhe quais ele usa.</>}
-        </p>
-      </div>
-      {secao === "conhecimento"
-        ? <Conhecimento sessao={sessao} inteligencia={data} embedded />
-        : <Skills data={data} canWrite={canWrite} reload={reload} fail={fail} />}
-    </div>
-  );
-}
-
 export default function Inteligencia({ sessao }) {
   const [tab, setTab] = useState("agents"); const [data, setData] = useState(emptyData); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const canWrite = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
@@ -410,6 +385,19 @@ export default function Inteligencia({ sessao }) {
   };
   useEffect(() => { load().catch((failure) => setError(failure.message)).finally(() => setLoading(false)); }, []);
   useEffect(() => { carregarAgents(); }, []);
+  // O que o roteiro de cada agente precisa saber: se o público dele tem algum
+  // conhecimento e se o roteiro comercial está publicado. `null` = carregando.
+  const playbook = usePlaybookPublicado();
+  const playbookPublicado = playbook === undefined ? null : (playbook?.versao || 0) > 0;
+  const conhecimentoPorPublico = useMemo(() => {
+    const comDocumento = (audiencia) => (data.collections || [])
+      .filter((c) => c.audience === audiencia)
+      .some((c) => (data.documentCollections || []).some((d) => d.collection_id === c.id));
+    return { customer: comDocumento("external"), internal: comDocumento("internal") };
+  }, [data]);
+  // "Ensinar algo novo" de dentro de um agente: o assistente de conhecimento
+  // abre por cima, já no público do agente, e fecha de volta no agente.
+  const [ensinando, setEnsinando] = useState(null);
   if (loading) return <div className="flex flex-1 items-center justify-center text-[13px] text-sub">Carregando a equipe de IA…</div>;
   // As abas do agente que dependem desta Central chegam ao detalhe por aqui.
   // O segundo argumento é o próprio `extras`, com o `fechar` que o Agents
@@ -417,7 +405,10 @@ export default function Inteligencia({ sessao }) {
   const irPara = (destino, ctx) => { ctx?.fechar?.(); setTab(destino); };
   const extras = {
     playbook: (agent, ctx) => <AbaPlaybook agent={agent} aoAbrirPlaybook={() => irPara("playbook", ctx)} />,
-    conhecimento: (agent, ctx) => <AbaConhecimento agent={agent} data={data} aoAbrirBiblioteca={() => irPara("biblioteca", ctx)} />,
+    conhecimento: (agent, ctx) => (
+      <AbaConhecimento agent={agent} data={data} aoAbrirBiblioteca={() => irPara("conhecimento", ctx)}
+        aoEnsinar={canWrite ? () => setEnsinando(agent.audience === "internal" ? "equipe" : "clientes") : null} />
+    ),
     quemAtende: (agent) => (agent.isDefault && data.profiles.some((profile) => profile.id === agent.id)
       ? <Assistants data={data} canWrite={canWrite} reload={load} fail={setError} profileId={agent.id} />
       : null),
@@ -440,9 +431,15 @@ export default function Inteligencia({ sessao }) {
         <nav aria-label="Áreas da Equipe de IA" className="intelligence-tabs">{tabs.map(([id, label, Icon]) => <button type="button" key={id} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
       </header>
       {error && <div role="alert" className="mx-4 mt-3 rounded-ctl bg-danger/10 px-4 py-3 text-[12px] text-danger md:mx-7">{error}</div>}
-      {tab === "agents" && <Agents aoAtualizarSkills={load} bindings={data.bindings} agents={agents} catalogoSkills={data.skills} canWrite={canWrite} recarregar={async () => { await carregarAgents(); await load(); }} carregando={false} erro={agentsErro} extras={extras} />}
+      {tab === "agents" && <Agents aoAtualizarSkills={load} bindings={data.bindings} agents={agents} catalogoSkills={data.skills} canWrite={canWrite} recarregar={async () => { await carregarAgents(); await load(); }} carregando={false} erro={agentsErro} extras={extras}
+        campanhas={data.campaigns} conhecimentoPorPublico={conhecimentoPorPublico} playbookPublicado={playbookPublicado} />}
       {tab === "playbook" && <PlaybookComercial canWrite={canWrite} />}
-      {tab === "biblioteca" && <Biblioteca sessao={sessao} data={data} canWrite={canWrite} reload={load} fail={setError} />}
+      {tab === "conhecimento" && <Conhecimento sessao={sessao} inteligencia={data} embedded />}
+      {tab === "habilidades" && <Skills data={data} canWrite={canWrite} reload={load} fail={setError} />}
+      {ensinando && (
+        <Conhecimento sessao={sessao} inteligencia={data} somenteEnsino publicoInicial={ensinando}
+          aoTerminarEnsino={({ salvo }) => { setEnsinando(null); if (salvo) load().catch(() => {}); }} />
+      )}
       {tab === "history" && <Audit data={data} canWrite={canWrite} reload={load} fail={setError} />}
     </div>
   );
