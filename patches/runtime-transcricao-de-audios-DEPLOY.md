@@ -1,6 +1,6 @@
 # Deploy: transcrição dos áudios no runtime
 
-> **Estado em 02/10/2026, ao fechar o roteiro:** nada aplicado.
+> **Estado em 02/10/2026:** migration aplicada e runtime publicado (ver o registro no fim).
 > - Base: a release ativa **`ajustes-v1`** (conferida por `readlink` em
 >   02/10/2026 22:19). Os 9 arquivos que o patch altera batem por sha256 com
 >   a cópia baixada da VPS nesse dia.
@@ -162,4 +162,18 @@ Para apagar também, o rollback da migration limpa o `content` transcrito.
 ## 5. Registro do que já rodou
 
 - 02/10/2026: base baixada da VPS (`ajustes-v1`), patch e testes nesta máquina.
-  Nada aplicado na VPS nem no banco.
+- 02/10/2026, noite: migration `20261007100000` aplicada pelo SQL Editor (eu,
+  pelo navegador, com pedido do dono), depois de ensaio inteiro com
+  `raise exception` no fim (nada ficou). Conferida no catálogo: coluna
+  `timestamp with time zone`, as duas funções, `anon` sem execução; md5 das
+  funções (sem CR) igual ao PGlite com o arquivo do repo:
+  `nucleo_message_transcript_record` `bc615941591b5c1cea8c8558148ee2c9`,
+  `nucleo_message_transcript_pending` `32e4093808d44593020cc3083c6e173c`.
+- Em seguida, na VPS: base conferida pelos 9 hashes e o do patch; release
+  `transcricao-de-audios` criada, `git apply` limpo, 132 testes (transcritor,
+  analista, coordenador, messages, verificação, config) e 45 de mídia e
+  sincronia (com a janela ampliada) OK. `.env` das duas conexões com backup
+  em `.env.antes-transcricao`, `NUCLEO_TRANSCRIBE=1` e
+  `ASSISTANT_WHISPER_MODEL=small`. Symlink virado; Major e Adriani
+  reiniciadas uma de cada vez: `active`, `NRestarts=0`, `service.started` com
+  `"transcription": "small"`, sem erro. Rollback: `ajustes-v1` + os backups.
