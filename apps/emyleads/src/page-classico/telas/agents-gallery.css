@@ -1,0 +1,122 @@
+.agents-gallery { flex: 1; min-height: 0; overflow-y: auto; padding: 32px; color: var(--el-fg); }
+.agents-gallery-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+.agents-eyebrow { color: var(--el-accent-forte); font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 8px; }
+.agents-gallery-heading h2 { font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.035em; }
+.agents-gallery-subtitle { margin-top: 10px; color: var(--el-sub); font-size: 14px; line-height: 1.6; }
+.agents-create { display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0; padding: 14px 22px; border-radius: var(--el-radius-control); background: var(--el-accent); color: var(--el-on-accent); font-size: 14px; font-weight: 600; transition: filter .18s; }
+.agents-create:hover { filter: brightness(1.1); }
+/* 200px e não 260px: com o menu aberto numa tela de 1440 sobram 1120px para o
+   grid, e a 260 isso dá QUATRO colunas — a quinta só entrava a partir de uns
+   1690px de tela. A 200 com gap 14 cabem cinco em 1440, seis com o menu
+   recolhido, sete em 1920.
+
+   auto-FILL e não auto-fit, e essa palavra é a regra inteira: `minmax` só põe
+   PISO, nunca teto. Com auto-fit a trilha vazia COLAPSA e as que sobram
+   esticam para ocupar a linha — três agentes numa tela de 1920 viravam três
+   cartazes de 524px cada, ou seja, quanto MENOS agentes, maior o card. Com
+   auto-fill a trilha vazia fica reservada e o card mede ~215px com três
+   agentes ou com trinta. Em troca, sobram espaços vazios à direita quando há
+   poucos — que é o que um catálogo deve mesmo mostrar. */
+.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 14px; align-items: stretch; }
+.agent-card { --agent-color: var(--el-accent-forte); display: flex; flex-direction: column; min-width: 0; padding: 10px 10px 0; border-radius: 14px; border: 1px solid var(--el-line-strong); background: var(--el-bg); text-align: left; overflow: hidden; transition: border-color .18s, box-shadow .18s, transform .18s; }
+.agent-card:hover { border-color: var(--agent-color); transform: translateY(-3px); box-shadow: 0 12px 28px #10182c14; }
+.agent-card--principal { --agent-color: #087f78; border-color: color-mix(in srgb, var(--agent-color) 55%, var(--el-line)); background: linear-gradient(155deg, color-mix(in srgb, var(--agent-color) 8%, var(--el-bg)), var(--el-bg)); }
+.agent-card--inactive .agent-portrait { filter: saturate(.35); }
+.agent-portrait { position: relative; aspect-ratio: 1.3; overflow: hidden; border-radius: 10px; background-color: var(--el-accent-soft); background-image: url('../../../../../public/agent-portraits/team.png'); background-size: 300% auto; background-repeat: no-repeat; }
+.agent-portrait--major { background-position: left 32%; }
+.agent-portrait--internal { background-position: center 32%; }
+.agent-portrait--sdr { background-position: right 32%; }
+.agent-portrait--fallback { display: flex; align-items: center; justify-content: center; background-image: radial-gradient(ellipse at top left, color-mix(in srgb, var(--el-accent) 20%, transparent), transparent); }
+.agent-status, .agent-principal { position: absolute; display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 5px 8px; font-size: 10px; line-height: 1; color: #f1f5f9; border: 1px solid #ffffff28; background: #101820d9; }
+.agent-status { top: 7px; right: 7px; }
+.agent-status > span { width: 7px; height: 7px; background: #c1c8d3; border-radius: 50%; }
+.agent-status--active > span { background: #2fe2ad; }
+.agent-principal { bottom: 7px; left: 7px; color: #ffdf8b; background: #292212ed; border-color: #f0bf5c55; }
+.agent-card-body { flex: 1; display: flex; flex-direction: column; padding: 13px 5px 0; }
+.agent-card-identity { display: flex; align-items: center; gap: 9px; }
+.agent-role-icon { display: inline-flex; align-items: center; justify-content: center; width: 45px; height: 45px; flex-shrink: 0; color: var(--agent-color, var(--el-accent-forte)); background: color-mix(in srgb, var(--agent-color, var(--el-accent)) 12%, var(--el-bg)); border-radius: 15px; }
+/* Só DENTRO do card. O mesmo selo aparece em .agents-info lá embaixo, onde a
+   largura não é disputada e ele continua com 45px. */
+.agent-card .agent-role-icon { width: 38px; height: 38px; border-radius: 12px; }
+.agent-card-identity h3 { font-size: 14.5px; line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
+.agent-card-identity p { color: var(--el-sub); font-size: 11.5px; margin-top: 2px; }
+.agent-card-description { color: var(--el-sub); font-size: 12px; line-height: 1.65; margin: 13px 0 11px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.agent-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-bottom: 12px; }
+.agent-tags span { font-size: 9.5px; font-weight: 500; color: var(--agent-color); background: color-mix(in srgb, var(--agent-color) 10%, var(--el-bg)); padding: 5px 8px; border-radius: 99px; }
+.agent-card-action { display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--el-line); padding: 13px 0; color: var(--agent-color); font-size: 11.5px; font-weight: 600; }
+.agent-card-action svg:last-child { margin-left: auto; }
+.agents-info { display: flex; align-items: center; gap: 20px; margin-top: 24px; padding: 22px; border: 1px solid var(--el-line-strong); border-radius: 17px; background: var(--el-bg); }
+.agents-info h3 { font-size: 14px; font-weight: 600; }
+.agents-info p { color: var(--el-sub); font-size: 12px; line-height: 1.7; margin-top: 4px; }
+.agent-drawer-backdrop { position: fixed; inset: 0; z-index: 30; display: flex; justify-content: flex-end; background: #090f1a55; }
+.agent-drawer { display: flex; flex-direction: column; min-height: 0; width: min(100%, 640px); background: var(--el-bg); border-left: 1px solid var(--el-line); box-shadow: -16px 0 50px #0002; }
+.agents-status-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.agents-status-filter button { min-height: 44px; padding: 10px 16px; border-radius: var(--el-radius-control); border: 1px solid var(--el-line-strong); font-size: 13px; font-weight: 600; color: var(--el-sub); background: var(--el-bg); }
+.agents-status-filter button[aria-pressed=true] { border-color: var(--el-accent); color: var(--el-accent-forte); background: var(--el-accent-soft); }
+.intelligence-header { flex-shrink: 0; padding: 24px 28px 0; background: var(--el-bg); border-bottom: 1px solid var(--el-line); }
+.intelligence-heading h1 { font-size: 24px; font-weight: 650; letter-spacing: -.025em; line-height: 1.25; }
+.intelligence-heading p { margin-top: 6px; font-size: 14px; color: var(--el-sub); }
+.intelligence-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 18px; }
+.intelligence-tabs button { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 12px; border-bottom: 2px solid transparent; font-size: 13px; color: var(--el-sub); }
+.intelligence-tabs button[aria-current=page] { border-color: var(--el-accent); color: var(--el-accent-forte); font-weight: 600; }
+.intelligence-mobile-select { display: none; }
+@media (max-width: 767px) {
+  .intelligence-header { padding: 16px; }
+  .intelligence-heading h1 { font-size: 22px; }
+  .intelligence-heading p, .intelligence-tabs { display: none; }
+  .intelligence-mobile-select { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; color: var(--el-sub); }
+  .intelligence-mobile-select select { min-width: 0; flex: 1; min-height: 44px; padding: 8px 12px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-control); background: var(--el-surface); color: var(--el-fg); font-size: 16px; }
+  .agents-gallery .agents-eyebrow { display: none; }
+  .agents-gallery .agents-gallery-heading { gap: 12px; margin-bottom: 16px; }
+  .agents-gallery .agents-gallery-heading h2 { font-size: 22px; }
+  .agents-gallery .agents-gallery-subtitle { font-size: 13px; margin-top: 6px; }
+  .agents-grid { grid-template-columns: 1fr; }
+  .agent-card { position: relative; padding: 14px; }
+  .agent-portrait { position: static; height: auto; aspect-ratio: auto; background: none; overflow: visible; }
+  .agent-portrait > .rounded-full { display: none; }
+  .agent-status { position: static; width: fit-content; margin-bottom: 12px; color: var(--el-sub); background: var(--el-surface); border-color: var(--el-line); font-size: 12px; }
+  .agent-status--active { color: var(--el-success); background: var(--el-success-soft); }
+  .agent-principal { top: 14px; right: 14px; bottom: auto; left: auto; font-size: 11px; }
+  .agent-card-body { padding: 0; }
+  .agent-card-description { margin: 10px 0; -webkit-line-clamp: 2; font-size: 13px; }
+  .agent-card-identity h3 { font-size: 17px; }
+  .agent-card-identity p, .agent-tags span, .agent-card-action { font-size: 12px; }
+  .agent-card-action { min-height: 44px; padding-bottom: 0; }
+  .agent-drawer button { min-height: 44px; }
+  .agent-drawer footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Equipe de IA no celular (02/10/2026). Só abaixo de 768px; o desktop não
+     muda. */
+
+  /* Campos com 16px: abaixo disso o Safari do iPhone dá zoom ao tocar no
+     campo e a tela fica deslocada. */
+  .equipe-de-ia input:not([type=checkbox]):not([type=radio]),
+  .equipe-de-ia textarea,
+  .equipe-de-ia select { font-size: 16px; }
+
+  /* Texto mínimo legível. As telas foram desenhadas para o desktop com
+     corpo de 9 a 11px, que no celular vira letra miúda. */
+  .equipe-de-ia [class*="text-[8.5px]"],
+  .equipe-de-ia [class*="text-[9px]"],
+  .equipe-de-ia [class*="text-[9.5px]"],
+  .equipe-de-ia [class*="text-[10px]"],
+  .equipe-de-ia [class*="text-[10.5px]"] { font-size: 12px; line-height: 1.45; }
+  .equipe-de-ia [class*="text-[11px]"],
+  .equipe-de-ia [class*="text-[11.5px]"] { font-size: 13px; line-height: 1.45; }
+
+  /* As sete seções do agente num seletor nativo, como o da Central, em vez de
+     abas que rolavam para o lado. */
+  .agent-secao-mobile { display: flex; align-items: center; gap: 12px; margin: 12px 0 14px; font-size: 13px; color: var(--el-sub); }
+  .agent-secao-mobile select { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--el-line-strong); border-radius: var(--el-radius-control); background: var(--el-surface); color: var(--el-fg); }
+
+  /* Ações do cabeçalho do agente dividem a linha em partes iguais. */
+  .agent-acoes > * { flex: 1 1 0; justify-content: center; }
+
+  /* O painel do agente ocupa a tela inteira: o topo respeita o entalhe. */
+  .agent-drawer > div > header { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+
+  /* O rodapé do playbook encosta nas bordas e fica acima da barra do sistema. */
+  .playbook-rodape { margin: 16px -16px -16px; border-radius: 0; border-left: 0; border-right: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-color-scheme: dark) { .agent-card--principal { --agent-color: #53ddd0; } }
+@media (max-width: 640px) { .agents-gallery { padding: 20px 16px; } .agents-gallery-heading { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 22px; } .agents-gallery-heading h2 { font-size: 25px; } .agents-create { width: 100%; } .agents-info { padding: 18px; align-items: flex-start; gap: 12px; } .agent-drawer-backdrop { position: fixed; } }

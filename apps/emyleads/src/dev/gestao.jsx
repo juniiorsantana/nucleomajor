@@ -8,11 +8,20 @@
 import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "../data/client";
-import Gestao from "../page/Gestao";
-import "@fontsource-variable/geist";
-import "@fontsource-variable/geist-mono";
 import "../ui/theme.css";
+import { painelEscolhido } from "../web/painel";
+import { TrocaDePainel } from "../web/TrocaDePainel";
 import { instalarChromeFalso, semearSePreciso } from "./stub";
+
+// A mesma chave do portal: a bancada abre o painel escolhido, com o botão
+// para trocar.
+const PAINEL = painelEscolhido();
+document.documentElement.dataset.painel = PAINEL;
+if (PAINEL === "novo") {
+  await import("@fontsource-variable/geist");
+  await import("@fontsource-variable/geist-mono");
+}
+const { default: Gestao } = PAINEL === "novo" ? await import("../page/Gestao") : await import("../page-classico/Gestao");
 
 instalarChromeFalso();
 await semearSePreciso();
@@ -55,7 +64,12 @@ function Bancada() {
     return proximo;
   }, []);
 
-  return <Gestao sessao={sessao} atualizarSessao={atualizarSessao} telaInicial={telaInicial} />;
+  return (
+    <>
+      <Gestao sessao={sessao} atualizarSessao={atualizarSessao} telaInicial={telaInicial} />
+      <TrocaDePainel painel={PAINEL} />
+    </>
+  );
 }
 
 createRoot(document.getElementById("raiz")).render(<Bancada />);

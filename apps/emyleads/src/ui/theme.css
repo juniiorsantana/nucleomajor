@@ -213,3 +213,67 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * O painel antigo (a chave "Painel novo / Painel antigo", web/painel.js).
+ *
+ * Os dois painéis usam as mesmas variáveis. Com `data-painel="antigo"` no
+ * <html>, valem os valores de antes do Sistema Grafite (copiados da main de
+ * 02/10/2026): azul de marca, cantos arredondados, sombra e a fonte do
+ * sistema. Fica fora de @layer para ganhar das regras acima. Sai junto com
+ * src/page-classico quando o painel antigo for desligado.
+ * ------------------------------------------------------------------------- */
+html[data-painel="antigo"] {
+  --el-bg: #ffffff;
+  --el-surface: #f4f6f9;
+  --el-surface-hover: #eaf0f6;
+  --el-line: #e1e6ee;
+  --el-line-strong: #c8d1de;
+  --el-fg: #182438;
+  --el-sub: #53637a;
+  --el-faint: #68788e;
+  --el-accent: #2456c7;
+  --el-accent-forte: #1945a5;
+  --el-accent-soft: #eaf0fc;
+  --el-on-accent: #ffffff;
+  --el-signal: #2456c7;
+  --el-signal-soft: #eaf0fc;
+  --el-radius-control: 10px;
+  --el-radius-panel: 20px;
+  --el-shadow-floating: 0 8px 32px #12173024;
+  --el-success: #16a34a;
+  --el-success-soft: #dcfce7;
+  --el-warning: #b45309;
+  --el-danger: #dc2626;
+  --font-sans: "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-el: 6px;
+  --radius-el-lg: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-painel="antigo"] {
+    --el-bg: #171c24;
+    --el-surface: #11151b;
+    --el-surface-hover: #1e242e;
+    --el-line: #262d38;
+    --el-line-strong: #333c4a;
+    --el-fg: #e8ecf1;
+    --el-sub: #9aa5b4;
+    --el-faint: #95a2b5;
+    --el-accent: #3064d8;
+    --el-accent-forte: #a7c4ff;
+    --el-accent-soft: #1b2b49;
+    --el-signal: #3064d8;
+    --el-signal-soft: #1b2b49;
+    --el-success: #3ecf8e;
+    --el-success-soft: #10291d;
+    --el-warning: #d99341;
+    --el-danger: #e8776c;
+  }
+}
+
+html[data-painel="antigo"] .mobile-dock-item,
+html[data-painel="antigo"] .mobile-menu-grid button { border-radius: 14px; }
+html[data-painel="antigo"] .mobile-menu::backdrop { background: #10182770; }
+html[data-painel="antigo"] .mobile-menu-surface { border-radius: 24px 24px 0 0; border-top: 0; }
+html[data-painel="antigo"] .scrollbar-fina::-webkit-scrollbar-thumb { border-radius: 999px; }
