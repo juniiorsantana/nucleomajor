@@ -239,6 +239,12 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261009100000_velocidade_sem_teto.sql` aplicada em 03/10/2026 pelo SQL
+  Editor (ensaio com `raise` antes). Antes, `fatos_do_vendedor` em produção
+  era idêntica à de 20261008100000 (md5 `94e1f074…`); depois, idêntica ao
+  repo (md5 `740a308c…`), sem o teto de 241, sem execução por
+  `authenticated`. Na conversa de teste (8164), a primeira resposta passou de
+  241 (teto) para 650 minutos úteis.
 - Avaliação do vendedor v2 virou o padrão em 03/10/2026, 23:42 UTC
   (`private.trocar_regua_padrao('atendimento.v2')`, pelo SQL Editor, depois da
   release `avaliacao-do-vendedor-v2` na VPS). Conferido: v2 publicada como
