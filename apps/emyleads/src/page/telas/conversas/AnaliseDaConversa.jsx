@@ -61,6 +61,8 @@ export function AnaliseDaConversa({
   aoAplicado,
   aoUsarMensagem,
   aoVerMensagem,
+  // "ficha": dentro da ficha do lead (Leads), com o espaçamento dela.
+  variante = "conversa",
 }) {
   const [creditos, setCreditos] = useState(null);
   const [lista, setLista] = useState([]);
@@ -159,7 +161,10 @@ export function AnaliseDaConversa({
   if (podePedir && creditos === null && daFicha.length === 0 && !andando) return null;
 
   return (
-    <div className="-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5">
+    <div
+      data-analise-da-conversa={variante}
+      className={variante === "ficha" ? "border-b border-line px-5 py-4" : "-mx-3.5 mt-3.5 border-t border-line px-3.5 pt-3.5"}
+    >
       <div className="flex items-center gap-1.5">
         {/* A análise é feita pela IA: o ícone leva a cor dela. */}
         <FileSearch size={13} strokeWidth={2.2} className="flex-none text-ia" />

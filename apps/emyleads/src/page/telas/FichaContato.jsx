@@ -23,6 +23,7 @@ import { StatusNegocio, Valor } from "./gestaoCompartilhados";
 import { conversaDoContato } from "./leads/conversaDoLead";
 import { AvatarDoLead, ResumoDaConversa } from "./leads/pecas";
 import { useConversasDosLeads } from "./leads/useConversasDosLeads";
+import { AnaliseDaConversa } from "./conversas/AnaliseDaConversa";
 
 function LinhaDado({ icone: Icone, children, vazio = false }) {
   return (
@@ -88,6 +89,7 @@ export default function FichaContato({
   aoAbrirNegocio,
   aoAbrirTarefa,
   aoAbrirConversa,
+  podeAnalisar = false,
 }) {
   const [copiado, setCopiado] = useState(false);
   const [copiadoCampo, setCopiadoCampo] = useState(null);
@@ -211,6 +213,20 @@ export default function FichaContato({
             <BlocoTitulo>Conversa no WhatsApp</BlocoTitulo>
             <ResumoDaConversa conversa={conversa} aoAbrirConversa={abrirConversa} podeComecar={Boolean(abrirConversa)} />
           </section>
+
+          {/* As análises da conversa também na ficha do lead (04/10/2026): no
+              celular a tela de Conversas não abre, e a ficha abre em qualquer
+              aparelho. O relatório abre em tela cheia no celular. */}
+          {conversa?.id && (
+            <AnaliseDaConversa
+              conversa={conversa}
+              contato={contato}
+              negocio={abertas[0] || null}
+              estagios={estagios}
+              podePedir={podeAnalisar}
+              variante="ficha"
+            />
+          )}
 
           <section className="border-b border-line px-5 py-4">
             <div className="grid grid-cols-3 gap-2">

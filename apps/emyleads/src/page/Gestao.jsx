@@ -972,6 +972,7 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
           aoAbrirNegocio={abrirNegocio}
           aoAbrirTarefa={abrirTarefa}
           aoAbrirConversa={abrirConversaDoContato}
+          podeAnalisar={["owner", "admin"].includes(sessao?.organizacaoAtual?.papel)}
         />
       )}
       {notaContato && (
