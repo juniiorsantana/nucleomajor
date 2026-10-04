@@ -108,3 +108,57 @@ describe("vendedorV2", () => {
     expect(linhaDoVendedor(null, {})).toBeNull();
   });
 });
+
+describe("vendedorV2 na Análise Completa", () => {
+  it("faixa e rótulos do lead", async () => {
+    const { faixaDoLead, rotuloDoPontoDoLead, motivoDoPontoDoLead, vereditoDoCruzamento, CASAS_DO_VEREDITO } = await import("./vendedorV2.js");
+    expect(faixaDoLead({ score: 83, conclusive: true, band: "bom" })).toMatchObject({ rotulo: "Bom", tom: "success" });
+    expect(faixaDoLead({ score: 60, conclusive: true, band: "atencao" })).toMatchObject({ rotulo: "Atenção", tom: "warning" });
+    expect(faixaDoLead({ score: 30, conclusive: false, band: "ruim" }).rotulo).toBe("Não conclusiva");
+    expect(rotuloDoPontoDoLead({ key: "intent", status: "bom", state: "comprar_agora", points_awarded: 20 })).toBe("Quer comprar");
+    expect(rotuloDoPontoDoLead({ key: "fit", status: "nao_avaliado", points_awarded: null })).toBe("Não avaliado");
+    expect(motivoDoPontoDoLead({ key: "fit", points_awarded: null })).toContain("cliente ideal");
+    expect(vereditoDoCruzamento({ key: "nutrir_ou_soltar" }).rotulo).toBe("Nutrir ou soltar");
+    expect(vereditoDoCruzamento(null).rotulo).toBe("Ainda sem conclusão");
+    expect(CASAS_DO_VEREDITO).toEqual(["em_risco", "avancar", "revisar_processo", "nutrir_ou_soltar"]);
+  });
+
+  it("resumo da Completa leva as duas notas e o veredito", async () => {
+    const { resumoDoVendedorParaCopiar } = await import("./vendedorV2.js");
+    const texto = resumoDoVendedorParaCopiar({
+      nome: "Rodrigo",
+      relatorio: {
+        kind: "completa",
+        seller: { kind: "equipe", label: "Equipe · pelo celular" },
+        vendedor_score: { score: 45, coverage: 88, conclusive: true, band: "atrapalhou" },
+        lead_score: { score: 83, coverage: 95, conclusive: true, band: "bom" },
+        matrix: { key: "em_risco" },
+        diagnosis: { verdict: "Deixou sem caminho.", lead_verdict: "Quer comprar." },
+      },
+    });
+    expect(texto.split("\n").slice(0, 5)).toEqual([
+      "Análise completa · Rodrigo",
+      "Nota do vendedor: 45/100 · Atrapalhou a venda · 88% avaliado",
+      "Quem atendeu: Equipe · pelo celular",
+      "Nota do lead: 83/100 · Bom · 95% avaliado",
+      "Veredito: Oportunidade em risco",
+    ]);
+    expect(texto).toContain("Quer comprar.");
+    expect(texto).toContain("Deixou sem caminho.");
+  });
+});
+
+describe("tipos de análise", () => {
+  it("três tipos, a Completa custa 2", async () => {
+    const { TIPOS_DE_ANALISE, NOME_DO_TIPO, creditosDoTipo, semCreditos, tituloDaAnalise } = await import("./analiseDaConversa.js");
+    expect(TIPOS_DE_ANALISE.map((t) => [t.chave, t.creditos])).toEqual([["atendimento", 1], ["lead", 1], ["completa", 2]]);
+    expect(NOME_DO_TIPO.comercial).toBe("Comercial");
+    expect(creditosDoTipo("completa")).toBe(2);
+    expect(creditosDoTipo("lead")).toBe(1);
+    expect(semCreditos({ limit: 30, left: 1 }, 2)).toBe(true);
+    expect(semCreditos({ limit: 30, left: 2 }, 2)).toBe(false);
+    expect(semCreditos({ limit: null, left: null }, 2)).toBe(false);
+    expect(tituloDaAnalise("lead")).toBe("Análise do lead");
+    expect(tituloDaAnalise("comercial")).toBe("Análise comercial");
+  });
+});
