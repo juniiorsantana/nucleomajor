@@ -106,8 +106,8 @@ describe("pedir, acompanhar, aplicar e salvar", () => {
     await clicar(botao("Analisar conversa"));
     // O banco já descontou: a recarga depois do resultado lê o saldo novo.
     api.conversas.creditosDeAnalise.mockResolvedValue({ ...CREDITOS, left: 22 });
-    await clicar(botao("Analisar · usa 1 crédito"));
-    expect(api.conversas.pedirAnalise).toHaveBeenCalledWith({ id: conversa.id, tipo: "comercial" });
+    await clicar(botao("Analisar · usa 2 créditos"));
+    expect(api.conversas.pedirAnalise).toHaveBeenCalledWith({ id: conversa.id, tipo: "completa" });
     expect(document.body.textContent).toContain("Lendo a conversa…");
 
     await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
@@ -135,7 +135,7 @@ describe("pedir, acompanhar, aplicar e salvar", () => {
     api.conversas.analise.mockResolvedValue({ analysisId: "a2", kind: "comercial", status: "failed", errorCode: "analysis_account_missing" });
     await render(<AnaliseDaConversa {...props()} />);
     await clicar(botao("Analisar conversa"));
-    await clicar(botao("Analisar · usa 1 crédito"));
+    await clicar(botao("Analisar · usa 2 créditos"));
     await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
     await act(async () => {});
     expect(document.body.textContent).toContain("A conta de análise ainda não foi conectada na VPS.");
@@ -147,14 +147,25 @@ describe("pedir, acompanhar, aplicar e salvar", () => {
     api.conversas.creditosDeAnalise.mockResolvedValue({ ...CREDITOS, left: 0 });
     await render(<AnaliseDaConversa {...props()} />);
     await clicar(botao("Analisar conversa"));
-    expect(botao("Analisar · usa 1 crédito").disabled).toBe(true);
+    expect(botao("Analisar · usa 2 créditos").disabled).toBe(true);
 
     api.conversas.creditosDeAnalise.mockResolvedValue(CREDITOS);
     api.conversas.pedirAnalise.mockRejectedValue(new Error("Esta conversa ainda não tem mensagens para analisar."));
     await render(<AnaliseDaConversa {...props({ conversa: { ...conversa, id: "conn:3" } })} />);
     await clicar(botao("Analisar conversa"));
-    await clicar(botao("Analisar · usa 1 crédito"));
+    await clicar(botao("Analisar · usa 2 créditos"));
     expect(document.body.querySelector('[role="alert"]').textContent).toContain("ainda não tem mensagens");
+  });
+
+  it("com 1 crédito, a Completa (2) fica travada e o Lead (1) libera", async () => {
+    api.conversas.creditosDeAnalise.mockResolvedValue({ ...CREDITOS, left: 1 });
+    await render(<AnaliseDaConversa {...props()} />);
+    await clicar(botao("Analisar conversa"));
+    expect(document.body.textContent).toContain("as duas + veredito");
+    expect(botao("Analisar · usa 2 créditos").disabled).toBe(true);
+    await clicar(document.body.querySelector('input[value="lead"]'));
+    expect(botao("Analisar · usa 1 crédito").disabled).toBe(false);
+    expect(document.body.textContent).not.toContain("Comercial");
   });
 
   it("uma análise pedida antes de recarregar a página continua sendo seguida", async () => {
@@ -181,7 +192,7 @@ describe("Analysis Schema v1 no diálogo", () => {
     api.conversas.analise.mockResolvedValue({ analysisId: "v1", kind: "comercial", status: "done", result: RESULTADO_V1, report: RELATORIO_V1, serviceScore: 62 });
     await render(<AnaliseDaConversa {...props()} />);
     await clicar(botao("Analisar conversa"));
-    await clicar(botao("Analisar · usa 1 crédito"));
+    await clicar(botao("Analisar · usa 2 créditos"));
     await act(async () => vi.advanceTimersByTime(INTERVALO_DO_ANDAMENTO_MS));
     await act(async () => {});
     expect(document.body.textContent).toContain("Nota do atendimento");

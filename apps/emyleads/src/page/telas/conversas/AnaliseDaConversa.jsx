@@ -6,6 +6,8 @@ import {
   NOME_DO_TIPO,
   ROTULO_DA_SUGESTAO,
   TIPOS_DE_ANALISE,
+  creditosDoTipo,
+  tituloDaAnalise,
   analiseDoBanco,
   creditosEmTexto,
   ehRelatorioV1,
@@ -302,7 +304,7 @@ function DialogoDaAnalise({
   aoFechar,
 }) {
   const tituloId = useId();
-  const [tipo, setTipo] = useState("comercial");
+  const [tipo, setTipo] = useState("completa");
 
   useEffect(() => {
     const teclado = (evento) => {
@@ -315,7 +317,7 @@ function DialogoDaAnalise({
   const titulo =
     fase === "escolher"
       ? "Analisar conversa"
-      : `Análise ${atual?.tipo === "atendimento" ? "de atendimento" : "comercial"}`;
+      : tituloDaAnalise(atual?.tipo);
   // O relatório v1 e o do vendedor (v2) são relatórios visuais: largos no
   // computador e a tela inteira no celular. O resto (escolher, andamento,
   // falha, formato antigo) segue no diálogo estreito.
@@ -411,11 +413,11 @@ function DialogoDaAnalise({
               <span className="min-w-0 flex-1 text-[11px] text-faint">{creditosEmTexto(creditos)}</span>
               <button
                 type="button"
-                disabled={pedindo || semCreditos(creditos)}
+                disabled={pedindo || semCreditos(creditos, creditosDoTipo(tipo))}
                 onClick={() => aoPedir(tipo)}
                 className="cursor-pointer rounded-ctl bg-accent px-3.5 py-2 text-[12px] font-semibold text-on-accent transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
               >
-                {pedindo ? "Pedindo…" : "Analisar · usa 1 crédito"}
+                {pedindo ? "Pedindo…" : `Analisar · usa ${creditosDoTipo(tipo)} ${creditosDoTipo(tipo) > 1 ? "créditos" : "crédito"}`}
               </button>
             </>
           ) : (
@@ -448,16 +450,24 @@ function EscolherTipo({ tipo, aoEscolher }) {
               onChange={() => aoEscolher(opcao.chave)}
               className="mt-0.5 accent-[var(--el-accent)]"
             />
-            <span>
-              <span className="block text-[13px] font-semibold text-fg">{opcao.nome}</span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-[13px] font-semibold text-fg">{opcao.nome}</span>
+                {opcao.etiqueta && (
+                  <span className="rounded-ctl border border-accent px-1.5 text-[10.5px] font-semibold text-accent-forte">{opcao.etiqueta}</span>
+                )}
+                <span className="ml-auto font-mono text-[11px] text-sub">
+                  {opcao.creditos} {opcao.creditos > 1 ? "créditos" : "crédito"}
+                </span>
+              </span>
               <span className="mt-0.5 block text-[11.5px] leading-[16px] text-sub">{opcao.descricao}</span>
             </span>
           </label>
         ))}
       </div>
       <p className="mt-3 text-[11px] leading-[16px] text-faint">
-        O analista lê as últimas mensagens, a leitura automática e o playbook da empresa. Se a análise falhar, o
-        crédito volta.
+        O analista lê as últimas mensagens, a leitura automática e o playbook da empresa. Se a análise falhar, os
+        créditos voltam.
       </p>
     </fieldset>
   );

@@ -189,11 +189,21 @@ export function resumoDoVendedorParaCopiar({ nome, relatorio }) {
   const nota = relatorio?.vendedor_score;
   const diagnostico = relatorio?.diagnosis || {};
   const faixa = faixaDaNota(nota);
-  const linhas = [`Avaliação do vendedor${nome ? ` · ${nome}` : ""}`];
-  if (nota?.score != null) linhas.push(`Nota: ${nota.score}/100 · ${faixa.rotulo} · ${nota.coverage}% avaliado`);
-  const quem = vendedorEmTexto(relatorio?.seller).nome;
-  if (quem) linhas.push(`Quem atendeu: ${quem}`);
-  if (diagnostico.verdict) linhas.push("", semNumerosInternos(diagnostico.verdict));
+  const tipo = relatorio?.kind;
+  const titulo = tipo === "lead" ? "Análise do lead" : tipo === "completa" ? "Análise completa" : "Avaliação do vendedor";
+  const linhas = [`${titulo}${nome ? ` · ${nome}` : ""}`];
+  const lead = relatorio?.lead_score;
+  if (tipo !== "lead") {
+    if (nota?.score != null) linhas.push(`Nota${tipo === "completa" ? " do vendedor" : ""}: ${nota.score}/100 · ${faixa.rotulo} · ${nota.coverage}% avaliado`);
+    const quem = vendedorEmTexto(relatorio?.seller).nome;
+    if (quem) linhas.push(`Quem atendeu: ${quem}`);
+  }
+  if ((tipo === "lead" || tipo === "completa") && lead?.score != null) {
+    linhas.push(`Nota do lead: ${lead.score}/100 · ${faixaDoLead(lead).rotulo} · ${lead.coverage}% avaliado`);
+  }
+  if (tipo === "completa") linhas.push(`Veredito: ${vereditoDoCruzamento(relatorio?.matrix).rotulo}`);
+  if (diagnostico.lead_verdict && tipo !== "atendimento") linhas.push("", semNumerosInternos(diagnostico.lead_verdict));
+  if (diagnostico.verdict && tipo !== "lead") linhas.push("", semNumerosInternos(diagnostico.verdict));
   const bem = (diagnostico.did_well || []).map((item) => `+ ${semNumerosInternos(item.title)}`);
   const custou = (diagnostico.cost_the_sale || []).map((item) => `- ${semNumerosInternos(item.title)}`);
   if (bem.length) linhas.push("", "O que fez bem:", ...bem);
@@ -202,3 +212,75 @@ export function resumoDoVendedorParaCopiar({ nome, relatorio }) {
   if (acao?.title) linhas.push("", `O que fazer agora: ${semNumerosInternos(acao.title)}`);
   return linhas.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// A nota do lead e o veredito do cruzamento (Análise Completa, 04/10/2026,
+// migration 20261010100000). Nota, faixa, cobertura e veredito vêm do banco.
+// ---------------------------------------------------------------------------
+
+/** Os 7 pontos da nota do lead, com o peso que o banco usa. */
+export const PONTOS_DO_LEAD = {
+  need: { nome: "Necessidade" },
+  intent: { nome: "Intenção" },
+  urgency: { nome: "Urgência" },
+  decision: { nome: "Quem decide" },
+  engagement: { nome: "Engajamento" },
+  objection: { nome: "Objeção" },
+  fit: { nome: "Encaixe no perfil" },
+};
+
+// A resposta diz mais que "bom" ou "atenção" na nota do lead.
+const ROTULO_DA_RESPOSTA_DO_LEAD = {
+  need: { sim: "Disse o que quer", nao: "Não disse" },
+  intent: { comprar_agora: "Quer comprar", pesquisando: "Pesquisando", curiosidade: "Curiosidade", fora_do_perfil: "Fora do perfil" },
+  urgency: { agora: "Agora", este_mes: "Este mês", sem_prazo: "Sem prazo" },
+  decision: { o_proprio: "Ele decide", outra_pessoa: "Depende de outra pessoa" },
+  engagement: { quente: "Quente", morno: "Morno", frio: "Frio" },
+  objection: { nenhuma: "Nenhuma", contornavel: "Contornável", forte: "Forte", impeditiva: "Impeditiva" },
+  fit: { dentro: "Dentro do perfil", parcial: "Em parte", fora: "Fora do perfil" },
+};
+
+export const FAIXAS_DO_LEAD = {
+  bom: { rotulo: "Bom", tom: "success" },
+  atencao: { rotulo: "Atenção", tom: "warning" },
+  ruim: { rotulo: "Ruim", tom: "danger" },
+};
+
+/** A faixa do lead que a tela mostra; sem base, sem faixa. */
+export function faixaDoLead(nota) {
+  if (!nota || nota.score == null) return { rotulo: "Ainda não avaliável", tom: "faint", conclusiva: false };
+  if (!nota.conclusive) return { rotulo: "Não conclusiva", tom: "faint", conclusiva: false };
+  return { ...(FAIXAS_DO_LEAD[nota.band] || { rotulo: nota.band_label || "", tom: "faint" }), conclusiva: true };
+}
+
+export const nomeDoPontoDoLead = (ponto) => PONTOS_DO_LEAD[ponto?.key]?.nome || ponto?.name || ponto?.key || "";
+
+/** "Quer comprar", "Depende de outra pessoa", "Não avaliado". */
+export function rotuloDoPontoDoLead(ponto) {
+  if (!ponto) return "";
+  if (ponto.status === "nao_avaliado" || ponto.points_awarded == null) return "Não avaliado";
+  return ROTULO_DA_RESPOSTA_DO_LEAD[ponto.key]?.[ponto.state] || rotuloDoPonto(ponto);
+}
+
+/** O porquê de um ponto do lead, ou por que ficou de fora. */
+export function motivoDoPontoDoLead(ponto) {
+  const motivo = semNumerosInternos(ponto?.reason);
+  if (motivo) return motivo;
+  if (ponto?.points_awarded != null) return "";
+  if (ponto?.key === "fit") return "O playbook não define o cliente ideal, ou a conversa não mostra.";
+  return "A conversa não mostra isso.";
+}
+
+/** Os quatro vereditos do cruzamento, como no desenho. */
+export const VEREDITOS = {
+  avancar: { rotulo: "Avançar", tom: "success", texto: "Lead bom e atendimento bom. Está no caminho: empurrar para a próxima etapa.", acao: "Proposta, fechamento, data." },
+  em_risco: { rotulo: "Oportunidade em risco", tom: "warning", texto: "Lead bom, atendimento abaixo do corte. É venda escorrendo: prioridade máxima da carteira.", acao: "Retomar hoje e corrigir o gargalo." },
+  revisar_processo: { rotulo: "Revisar o processo", tom: "faint", texto: "Lead fraco e atendimento fraco. Olhar a origem do lead e o roteiro da equipe.", acao: "Qualificar antes de investir tempo." },
+  nutrir_ou_soltar: { rotulo: "Nutrir ou soltar", tom: "accent", texto: "Lead fraco, atendimento bom. A equipe fez a parte dela: não gastar mais tempo que o necessário.", acao: "Follow-up leve ou encerrar com motivo." },
+  sem_conclusao: { rotulo: "Ainda sem conclusão", tom: "faint", texto: "Uma das notas tem menos de 50% dos pontos avaliados: ainda não dá para cruzar.", acao: "" },
+};
+
+/** As quatro casas na ordem do quadro: lead bom em cima, atendimento bom à direita. */
+export const CASAS_DO_VEREDITO = ["em_risco", "avancar", "revisar_processo", "nutrir_ou_soltar"];
+
+export const vereditoDoCruzamento = (matriz) => VEREDITOS[matriz?.key] || VEREDITOS.sem_conclusao;

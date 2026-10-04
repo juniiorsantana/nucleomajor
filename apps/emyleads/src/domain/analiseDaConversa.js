@@ -7,20 +7,47 @@
  * aplica as sugestões que o dono aceitar e salva na ficha.
  */
 
+// Desde 04/10/2026 (migration 20261010100000): Atendimento (o vendedor), Lead
+// (se o lead vale a pena) e Completa (os dois e o veredito do cruzamento, 2
+// créditos). "Comercial" saiu do menu; as análises comerciais antigas
+// continuam abrindo com o nome delas.
 export const TIPOS_DE_ANALISE = [
-  {
-    chave: "comercial",
-    nome: "Comercial",
-    descricao: "Temperatura, objeções, o que faltou para avançar e o próximo passo da venda.",
-  },
   {
     chave: "atendimento",
     nome: "Atendimento",
-    descricao: "Se o contato foi bem atendido, o que ficou sem resposta e o risco de insatisfação.",
+    descricao: "A gente atendeu bem? A nota do vendedor: avanço, diagnóstico, objeção, fechamento, follow-up.",
+    creditos: 1,
+  },
+  {
+    chave: "lead",
+    nome: "Lead",
+    descricao: "Esse lead vale a pena? A nota do lead: necessidade, intenção, prazo, quem decide, engajamento.",
+    creditos: 1,
+  },
+  {
+    chave: "completa",
+    nome: "Completa",
+    etiqueta: "as duas + veredito",
+    descricao: "As duas notas e o cruzamento: o lead é bom e a gente está fazendo o certo com ele? Uma lista só do que fazer agora.",
+    creditos: 2,
   },
 ];
 
-export const NOME_DO_TIPO = Object.fromEntries(TIPOS_DE_ANALISE.map((tipo) => [tipo.chave, tipo.nome]));
+export const NOME_DO_TIPO = {
+  comercial: "Comercial",
+  ...Object.fromEntries(TIPOS_DE_ANALISE.map((tipo) => [tipo.chave, tipo.nome])),
+};
+
+/** Quantos créditos o tipo usa: a Completa, 2; o resto, 1. */
+export const creditosDoTipo = (chave) => TIPOS_DE_ANALISE.find((tipo) => tipo.chave === chave)?.creditos || 1;
+
+/** O título do relatório: "Análise de atendimento", "Análise do lead", "Análise completa". */
+export function tituloDaAnalise(chave) {
+  if (chave === "atendimento") return "Análise de atendimento";
+  if (chave === "lead") return "Análise do lead";
+  if (chave === "completa") return "Análise completa";
+  return "Análise comercial";
+}
 
 /** Pedido na fila ou o analista lendo: a tela continua perguntando. */
 export const emAndamento = (situacao) => situacao === "pending" || situacao === "running";
@@ -61,8 +88,8 @@ export function creditosEmTexto(creditos) {
   return renova ? `${saldo} · renova ${renova}` : saldo;
 }
 
-export const semCreditos = (creditos) =>
-  Boolean(creditos) && creditos.limit != null && (Number(creditos.left) || 0) <= 0;
+export const semCreditos = (creditos, precisa = 1) =>
+  Boolean(creditos) && creditos.limit != null && (Number(creditos.left) || 0) < precisa;
 
 /** A resposta das RPCs de pedido e de andamento, com os nomes da tela. */
 export function analiseDoBanco(dados) {

@@ -2,12 +2,19 @@ import { useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import { instanteEmTexto, linhaDoTempo, periodoDaLinha, semNumerosInternos as limpo } from "../../../domain/analiseDaConversa";
 import {
+  CASAS_DO_VEREDITO,
   PONTOS_DO_VENDEDOR,
   ROTULO_DO_ALERTA_V2,
+  VEREDITOS,
   contaDoVendedor,
   criticaDoPonto,
   faixaDaNota,
+  faixaDoLead,
   linhaDoVendedor,
+  motivoDoPontoDoLead,
+  nomeDoPontoDoLead,
+  rotuloDoPontoDoLead,
+  vereditoDoCruzamento,
   nomeDoPonto,
   pontosEmOrdem,
   pontosEmTexto,
@@ -19,7 +26,20 @@ import {
 } from "../../../domain/vendedorV2";
 import { Anel, BOTAO, CARTAO, CHIP, Evidencias, OQueFazer, OndeAconteceu, ROTULO } from "./RelatorioDaAnalise";
 
-const TEXTO_DO_TOM = { success: "text-success", warning: "text-warning", danger: "text-danger", faint: "text-sub" };
+const TEXTO_DO_TOM = { success: "text-success", warning: "text-warning", danger: "text-danger", faint: "text-sub", accent: "text-accent-forte" };
+// As casas do veredito, escritas por inteiro para o Tailwind achar.
+const CASA = {
+  success: "bg-success-soft text-success",
+  warning: "bg-warning-soft text-warning",
+  accent: "bg-accent-soft text-accent-forte",
+  faint: "bg-surface-hover text-sub",
+};
+const MARCADA = {
+  success: "outline-success",
+  warning: "outline-warning",
+  accent: "outline-accent",
+  faint: "outline-line-strong",
+};
 
 /**
  * O relatório da Avaliação do vendedor v2 (migration 20261008100000), no
@@ -71,6 +91,13 @@ export function RelatorioDoVendedor({ analise, nome = "", podeAgir, contato, neg
     .filter(Boolean)
     .join(" · ");
 
+  // O tipo decide o que aparece: atendimento (o vendedor), lead (só o lead) e
+  // completa (os dois, mais o veredito do cruzamento).
+  const tipo = relatorio.kind || analise.tipo;
+  const notaDoLead = relatorio.lead_score || null;
+  const comVendedor = tipo !== "lead";
+  const comLead = Boolean(notaDoLead) && (tipo === "lead" || tipo === "completa");
+
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2 lg:col-span-2">
@@ -80,9 +107,29 @@ export function RelatorioDoVendedor({ analise, nome = "", podeAgir, contato, neg
         </button>
       </div>
 
-      <CartaoDaNota nota={nota} vendedor={relatorio.seller} velocidade={relatorio.speed} />
-
-      <Veredito diagnostico={diagnostico} faixa={faixaDaNota(nota)} alertas={alertas} aoVer={verEvidencia} />
+      {tipo === "completa" ? (
+        <>
+          <div className="grid gap-4 lg:col-span-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] lg:gap-5">
+            <CartaoDaNota nota={nota} vendedor={relatorio.seller} velocidade={relatorio.speed} />
+            <CartaoDoLead nota={notaDoLead} />
+            <VereditoDoCruzamento matriz={relatorio.matrix} explicacao={diagnostico.matrix_explanation} />
+          </div>
+          <div className="grid gap-4 lg:col-span-2 lg:grid-cols-2 lg:gap-5">
+            <Veredito diagnostico={diagnostico} faixa={faixaDaNota(nota)} alertas={alertas} aoVer={verEvidencia} />
+            <VereditoDoLead diagnostico={diagnostico} faixa={faixaDoLead(notaDoLead)} />
+          </div>
+        </>
+      ) : tipo === "lead" ? (
+        <>
+          <CartaoDoLead nota={notaDoLead} />
+          <VereditoDoLead diagnostico={diagnostico} faixa={faixaDoLead(notaDoLead)} comResumo />
+        </>
+      ) : (
+        <>
+          <CartaoDaNota nota={nota} vendedor={relatorio.seller} velocidade={relatorio.speed} />
+          <Veredito diagnostico={diagnostico} faixa={faixaDaNota(nota)} alertas={alertas} aoVer={verEvidencia} />
+        </>
+      )}
 
       {acoes.length > 0 && (
         <div className="lg:col-span-2">
@@ -100,9 +147,15 @@ export function RelatorioDoVendedor({ analise, nome = "", podeAgir, contato, neg
         </div>
       )}
 
-      {pontos.length > 0 && (
+      {comVendedor && pontos.length > 0 && (
         <div className="lg:col-span-2">
           <OsNovePontos nota={nota} pontos={pontos} aoVer={verEvidencia} />
+        </div>
+      )}
+
+      {comLead && (
+        <div className="lg:col-span-2">
+          <PontosDoLead nota={notaDoLead} aoVer={verEvidencia} />
         </div>
       )}
 
@@ -112,11 +165,19 @@ export function RelatorioDoVendedor({ analise, nome = "", podeAgir, contato, neg
         </div>
       )}
 
-      <p className="text-[12px] leading-[18px] text-sub lg:col-span-2">
-        Faixas: <b className="text-success">Vendeu bem</b> de 75 a 100 · <b className="text-warning">Atende, mas não fecha</b> de 50 a 74 ·{" "}
-        <b className="text-danger">Atrapalhou a venda</b> abaixo de 50. Com menos de 50% avaliado, a nota não é conclusiva. A crítica é sobre o
-        trabalho, nunca sobre a pessoa.
-      </p>
+      {comVendedor && (
+        <p className="text-[12px] leading-[18px] text-sub lg:col-span-2">
+          Faixas do vendedor: <b className="text-success">Vendeu bem</b> de 75 a 100 · <b className="text-warning">Atende, mas não fecha</b> de 50 a
+          74 · <b className="text-danger">Atrapalhou a venda</b> abaixo de 50. Com menos de 50% avaliado, a nota não é conclusiva. A crítica é sobre o
+          trabalho, nunca sobre a pessoa.
+        </p>
+      )}
+      {comLead && (
+        <p className="text-[12px] leading-[18px] text-sub lg:col-span-2">
+          Faixas do lead: <b className="text-success">Bom</b> de 75 a 100 · <b className="text-warning">Atenção</b> de 50 a 74 ·{" "}
+          <b className="text-danger">Ruim</b> abaixo de 50. A nota do lead mede o lead, não a equipe.
+        </p>
+      )}
 
       {aviso && (
         <p role="status" className="text-[12px] text-sub lg:col-span-2">
@@ -277,6 +338,134 @@ function OsNovePontos({ nota, pontos, aoVer }) {
         })}
       </div>
       <p className="text-[12px] text-sub">“Não avaliado” é o que a conversa não mostra (uma ligação fora do WhatsApp, por exemplo) e nunca conta contra.</p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------- o lead
+
+function CartaoDoLead({ nota }) {
+  const faixa = faixaDoLead(nota);
+  const avaliados = (nota?.criteria || []).filter((p) => p.points_awarded != null);
+  const pontos = Math.round(avaliados.reduce((soma, p) => soma + Number(p.points_awarded), 0) * 10) / 10;
+  return (
+    <section aria-label="Nota do lead" className={`${CARTAO} flex flex-col gap-4`}>
+      <h2 className={ROTULO}>Nota do lead</h2>
+      <div className="flex items-center gap-4 lg:gap-5">
+        <Anel nota={nota?.score ?? null} cobertura={nota?.coverage ?? 0} baixa={!faixa.conclusiva} />
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          <span data-faixa-lead className={`rounded-ctl px-2.5 py-[3px] text-[12.5px] font-bold ${CHIP[faixa.tom]}`}>
+            {faixa.rotulo}
+          </span>
+          {nota?.coverage != null && <span className="text-[13px] font-semibold text-signal">{nota.coverage}% avaliado</span>}
+        </div>
+      </div>
+      {nota?.score != null && (
+        <p className={`rounded-none px-3.5 py-3 text-[12.5px] leading-[18px] ${faixa.conclusiva ? "bg-surface text-fg" : "bg-warning-soft text-warning"}`}>
+          {faixa.conclusiva ? (
+            <>
+              O lead somou <b>{String(pontos).replace(".", ",")}</b> dos <b>{Number(nota.evaluated_weight) || 0}</b> pontos que dava para avaliar.
+            </>
+          ) : (
+            "Poucos pontos do lead deram para avaliar: a nota ainda não é conclusiva."
+          )}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function VereditoDoLead({ diagnostico, faixa, comResumo = false }) {
+  const veredito = limpo(diagnostico.lead_verdict || (comResumo ? diagnostico.summary : ""));
+  if (!veredito) return null;
+  return (
+    <section className={`${CARTAO} flex h-full flex-col gap-1.5`}>
+      <h2 className={`text-[12px] font-semibold ${TEXTO_DO_TOM[faixa.tom]}`}>O lead</h2>
+      <p data-veredito-lead className="text-[17px] font-semibold leading-[25px] text-fg lg:text-[20px] lg:leading-[28px]">{veredito}</p>
+    </section>
+  );
+}
+
+/** O veredito do cruzamento: a casa marcada no quadro de 4, como no desenho. */
+function VereditoDoCruzamento({ matriz, explicacao }) {
+  const veredito = vereditoDoCruzamento(matriz);
+  const marcada = matriz?.key && matriz.key !== "sem_conclusao" ? matriz.key : null;
+  return (
+    <section aria-label="Veredito" className={`${CARTAO} flex flex-col gap-3`}>
+      <div className="flex flex-col gap-1">
+        <h2 className={`text-[12px] font-semibold ${TEXTO_DO_TOM[veredito.tom]}`}>Veredito</h2>
+        <p data-veredito className="text-[20px] font-semibold leading-[26px] text-fg">{veredito.rotulo}</p>
+        <p className="text-[13px] leading-[19px] text-fg/85">{limpo(explicacao) || veredito.texto}</p>
+        {veredito.acao && <p className={`text-[12px] font-semibold ${TEXTO_DO_TOM[veredito.tom]}`}>{veredito.acao}</p>}
+      </div>
+      <div className="mt-auto flex flex-col gap-1.5">
+        <div className="grid grid-cols-2 gap-[2px]">
+          {CASAS_DO_VEREDITO.map((chave) => {
+            const casa = VEREDITOS[chave];
+            return (
+              <div
+                key={chave}
+                data-casa={chave}
+                aria-current={marcada === chave ? "true" : undefined}
+                className={`flex h-[52px] items-center justify-center px-1 text-center text-[11.5px] font-semibold ${
+                  marcada === chave ? `bg-bg outline outline-2 -outline-offset-2 ${MARCADA[casa.tom]} ${TEXTO_DO_TOM[casa.tom]}` : CASA[casa.tom]
+                } ${marcada && marcada !== chave ? "opacity-60" : ""}`}
+              >
+                {casa.rotulo}
+              </div>
+            );
+          })}
+        </div>
+        <span className="text-center text-[11px] text-sub">↑ lead · atendimento →</span>
+      </div>
+    </section>
+  );
+}
+
+function PontosDoLead({ nota, aoVer }) {
+  const pontos = pontosEmOrdem(nota?.criteria || []);
+  const LINHA = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 lg:grid-cols-[190px_190px_64px_minmax(0,1fr)] lg:gap-x-4";
+  const avaliados = pontos.filter((p) => p.points_awarded != null);
+  const soma = Math.round(avaliados.reduce((total, p) => total + Number(p.points_awarded), 0) * 10) / 10;
+  return (
+    <section className={`${CARTAO} flex flex-col gap-3`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[16px] font-bold text-fg lg:text-[18px]">Por que a nota do lead</h2>
+        {nota?.score != null && (
+          <span className="text-[12px] tabular-nums text-sub">
+            {String(soma).replace(".", ",")} ÷ {Number(nota.evaluated_weight) || 0} = {nota.score}
+          </span>
+        )}
+      </div>
+      <div role="table" aria-label="Pontos do lead" className="flex flex-col">
+        <div role="row" className={`${LINHA} hidden border-b border-line-strong py-2 text-[12px] font-semibold text-sub lg:grid`}>
+          <span role="columnheader">Ponto</span>
+          <span role="columnheader">Estado</span>
+          <span role="columnheader">Pontos</span>
+          <span role="columnheader">O que a conversa mostra</span>
+        </div>
+        {pontos.map((ponto) => {
+          const avaliado = ponto.points_awarded != null;
+          return (
+            <div key={ponto.key} role="row" data-ponto-lead={ponto.key} className={`${LINHA} items-start border-b border-line/60 py-3 last:border-b-0`}>
+              <span role="cell" className={`text-[13.5px] font-semibold ${avaliado ? "text-fg" : "text-sub"}`}>{nomeDoPontoDoLead(ponto)}</span>
+              <span role="cell">
+                <span className={`inline-block whitespace-nowrap rounded-ctl px-2.5 py-[3px] text-[11.5px] font-semibold ${CHIP[tomDoPonto(ponto)]}`}>
+                  {rotuloDoPontoDoLead(ponto)}
+                  {avaliado && <span className="lg:hidden"> · {pontosEmTexto(ponto)}</span>}
+                </span>
+              </span>
+              <span role="cell" className="hidden text-[13px] tabular-nums text-fg lg:block">
+                {pontosEmTexto(ponto)}
+              </span>
+              <span role="cell" className={`col-span-2 text-[13px] leading-[19px] lg:col-span-1 ${avaliado ? "text-fg/85" : "text-sub"}`}>
+                {motivoDoPontoDoLead(ponto)}
+                <Evidencias ids={ponto.evidence_message_ids} aoVer={aoVer} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

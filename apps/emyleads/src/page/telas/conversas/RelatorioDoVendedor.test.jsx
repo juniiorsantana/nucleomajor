@@ -131,3 +131,74 @@ describe("RelatorioDoVendedor", () => {
     expect(aoFechar).toHaveBeenCalled();
   });
 });
+
+// A Análise Completa (20261010100000): a nota do lead e o veredito do cruzamento.
+const LEAD = {
+  score: 83, max_score: 100, evaluated_weight: 95, max_weight: 100, coverage: 95, conclusive: true, band: "bom", band_label: "Bom",
+  criteria: [
+    ponto("need", 20, "bom", 20, { state: "sim" }),
+    ponto("decision", 15, "atencao", 9, { state: "outra_pessoa", reason: "Precisa ver com a esposa.", evidence_message_ids: ["m2"] }),
+    ponto("fit", 5, "nao_avaliado", null),
+    ponto("objection", 10, "atencao", 6, { state: "contornavel" }),
+  ],
+};
+const COMPLETA = {
+  ...RELATORIO,
+  kind: "completa",
+  credits: 2,
+  lead_score: LEAD,
+  matrix: { key: "em_risco", label: "Oportunidade em risco", lead_good: true, service_good: false },
+  diagnosis: {
+    ...RELATORIO.diagnosis,
+    lead_verdict: "Quer comprar e tem pressa, mas depende da esposa.",
+    matrix_explanation: "Lead bom e atendimento abaixo do corte: venda escorrendo.",
+  },
+};
+
+describe("RelatorioDoVendedor na Análise Completa", () => {
+  it("as duas notas e o veredito do cruzamento, com a casa marcada", async () => {
+    await render(<RelatorioDoVendedor analise={{ ...analise, relatorio: COMPLETA }} />);
+    expect(container.querySelector("[data-faixa]").textContent).toBe("Atrapalhou a venda");
+    expect(container.querySelector("[data-faixa-lead]").textContent).toBe("Bom");
+    expect(container.querySelector("[data-veredito]").textContent).toBe("Oportunidade em risco");
+    expect(container.textContent).toContain("venda escorrendo");
+    expect(container.querySelector('[data-casa="em_risco"]').getAttribute("aria-current")).toBe("true");
+    expect(container.querySelector('[data-casa="avancar"]').getAttribute("aria-current")).toBeNull();
+    expect(container.querySelector("[data-veredito-lead]").textContent).toContain("depende da esposa");
+    // Os dois lados: os 9 pontos do vendedor e os pontos do lead.
+    expect(container.querySelector('[data-ponto="advance"]')).toBeTruthy();
+    const decisao = container.querySelector('[data-ponto-lead="decision"]').textContent;
+    expect(decisao).toContain("Quem decide");
+    expect(decisao).toContain("Depende de outra pessoa");
+    expect(decisao).toContain("9 / 15");
+    expect(decisao).toContain("Precisa ver com a esposa.");
+    expect(container.querySelector('[data-ponto-lead="fit"]').textContent).toContain("Não avaliado");
+    expect(container.textContent).toContain("Faixas do lead");
+  });
+
+  it("sem base, o quadro não marca casa nenhuma", async () => {
+    const semBase = { ...COMPLETA, matrix: { key: "sem_conclusao", label: "Ainda sem conclusão" }, diagnosis: { ...COMPLETA.diagnosis, matrix_explanation: null } };
+    await render(<RelatorioDoVendedor analise={{ ...analise, relatorio: semBase }} />);
+    expect(container.querySelector("[data-veredito]").textContent).toBe("Ainda sem conclusão");
+    expect(container.querySelectorAll('[data-casa][aria-current="true"]').length).toBe(0);
+    expect(container.textContent).toContain("menos de 50%");
+  });
+
+  it("análise do lead mostra só o lead", async () => {
+    const soLead = { ...COMPLETA, kind: "lead", matrix: null };
+    await render(<RelatorioDoVendedor analise={{ ...analise, relatorio: soLead }} />);
+    expect(container.querySelector("[data-faixa-lead]").textContent).toBe("Bom");
+    expect(container.querySelector("[data-faixa]")).toBeNull();
+    expect(container.querySelector('[data-ponto="advance"]')).toBeNull();
+    expect(container.querySelector("[data-veredito]")).toBeNull();
+    expect(container.querySelector('[data-ponto-lead="need"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("Faixas do vendedor");
+  });
+
+  it("análise de atendimento na v3 não mostra o lead", async () => {
+    await render(<RelatorioDoVendedor analise={{ ...analise, relatorio: { ...COMPLETA, kind: "atendimento", matrix: null } }} />);
+    expect(container.querySelector("[data-faixa-lead]")).toBeNull();
+    expect(container.querySelector('[data-ponto-lead="need"]')).toBeNull();
+    expect(container.querySelector("[data-faixa]")).toBeTruthy();
+  });
+});
