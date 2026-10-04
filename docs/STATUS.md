@@ -239,6 +239,19 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261010100000_analise_completa.sql` aplicada em 04/10/2026 pelo SQL
+  Editor (ensaio com `raise` antes). Antes: as 5 funções substituídas
+  (`creditos_de_analise`, `conversation_analysis_request`,
+  `relatorio_do_vendedor`, `linha_do_tempo_da_analise`,
+  `platform_analysis_schema_set`) idênticas ao repo (md5). Depois, pelo
+  catálogo: as 4 alteradas e `veredito_do_cruzamento` idênticas ao repo
+  (md5); `atendimento.v3` como modelo; trava de tipos com lead e completa;
+  `credits` = 1 em todas as análises de antes; saldos iguais (Major 190,
+  Adriani 17); sem execução por `authenticated` no veredito. Em seguida:
+  release `analise-completa` na VPS e
+  `private.trocar_regua_padrao('atendimento.v3')`: v3 publicada como padrão,
+  v1 e v2 aposentadas, Major e Adriani na v3. Voltar:
+  `private.trocar_regua_padrao('atendimento.v2')`. PR #43.
 - `20261009100000_velocidade_sem_teto.sql` aplicada em 03/10/2026 pelo SQL
   Editor (ensaio com `raise` antes). Antes, `fatos_do_vendedor` em produção
   era idêntica à de 20261008100000 (md5 `94e1f074…`); depois, idêntica ao

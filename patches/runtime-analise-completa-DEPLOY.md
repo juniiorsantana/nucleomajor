@@ -1,6 +1,7 @@
 # Deploy: a Análise Completa no runtime
 
-> **Estado em 04/10/2026:** pronto, NÃO publicado.
+> **Estado em 04/10/2026:** publicado na VPS, e a v3 já é o padrão (ver o
+> registro no fim).
 > - Base: a release ativa **`avaliacao-do-vendedor-v2`** (a cópia desta
 >   máquina é a mesma que foi conferida pelos hashes e publicada em 03/10).
 > - Patch `runtime-analise-completa.patch`: 6 arquivos (1 novo), 463 linhas a
@@ -108,3 +109,9 @@ done
 - 04/10/2026: patch feito sobre a cópia da release ativa; aplicado de novo
   numa cópia limpa e igual ao que foi testado; suíte inteira do runtime OK
   (1086 testes, com a janela da data ampliada).
+- 04/10/2026: base conferida na VPS pelos 5 hashes e o do patch; release
+  `analise-completa` criada, `git apply` limpo, 196 testes (completa,
+  vendedor_v2, atendimento_v1, analista, coordenador, runner, transcritor,
+  config) OK lá; symlink virado; Major e Adriani reiniciadas: `active`,
+  `NRestarts=0`, rodando da release nova, sem erro. Rollback:
+  `avaliacao-do-vendedor-v2`. Logo depois, a troca do padrão para a v3.
