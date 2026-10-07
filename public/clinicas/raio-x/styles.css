@@ -70,28 +70,15 @@ button:disabled { cursor: default; background: #cdd1db; color: #3f4452; box-shad
 
 /* Abertura */
 .intro { min-height: 100svh; display: flex; flex-direction: column; }
-.intro-body { flex: 1; display: flex; align-items: center; padding: 28px 0 36px; }
-.intro-copy { display: grid; grid-template-areas: "title" "desc" "path" "action" "expl"; width: 100%; }
-.intro h1 { grid-area: title; font-size: clamp(38px, 6.2vw, 80px); line-height: 1.02; letter-spacing: -.028em; max-width: 13ch; }
+.intro-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 0; }
+.intro-copy { display: grid; grid-template-areas: "title" "desc" "action" "expl"; width: min(760px, 100%); justify-items: center; text-align: center; }
+.intro h1 { grid-area: title; font-size: clamp(40px, 6.6vw, 84px); line-height: 1.02; letter-spacing: -.028em; max-width: 13ch; }
 .intro h1 em { color: var(--navy); }
-.intro .description { grid-area: desc; margin: 18px 0 0; font-size: 17px; }
-.intro-action { grid-area: action; display: flex; flex-direction: column; gap: 10px; margin-top: 26px; }
+.intro .description { grid-area: desc; margin: 20px 0 0; font-size: 18px; }
+.intro-action { grid-area: action; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 32px; width: 100%; }
 .intro-action .note { margin: 0; }
 #start { min-height: 58px; font-size: 17px; }
 .explanation { grid-area: expl; margin: 18px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-3); max-width: 52ch; }
-
-/* O caminho do lead: a linha azul do corredor, com três paradas até a agenda.
-   É o único movimento da página: a linha se desenha uma vez ao abrir. */
-.path { --gap: 12px; grid-area: path; position: relative; list-style: none; margin: 24px 0 0; padding: 0 0 0 30px; display: grid; gap: var(--gap); }
-.path li { position: relative; font-size: 15px; line-height: 1.4; color: var(--ink); }
-.path li::before { content: ""; position: absolute; z-index: 1; left: -30px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--paper); border: 2px solid var(--navy); }
-/* Um trecho de linha de cada ponto até o seguinte, para a linha terminar
-   exatamente no último ponto, qualquer que seja a altura do texto. */
-.path li:not(:last-child)::after { content: ""; position: absolute; left: -23px; top: 18px; width: 2px; height: calc(100% + var(--gap) - 16px); background: var(--navy); transform-origin: top; animation: draw .55s var(--ease-out) both; }
-.path li:nth-child(1)::after { animation-delay: .2s; }
-.path li:nth-child(2)::after { animation-delay: .6s; }
-.path li:last-child::before { background: var(--navy); box-shadow: 0 0 0 4px var(--navy-soft); }
-@keyframes draw { from { transform: scaleY(.06); } to { transform: scaleY(1); } }
 
 /* Perguntas */
 #quiz { display: flex; flex-direction: column; }
@@ -178,14 +165,13 @@ form > .note { margin: 14px 0 0; }
 @media (min-width: 900px) {
   :root { --gutter: 40px; }
   .intro-body { padding: 48px 0 64px; }
-  .intro-copy { grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr); grid-template-areas: "title path" "desc path" "action path" "expl path"; column-gap: 72px; align-items: start; }
-  .intro .description { margin-top: 24px; font-size: 19px; }
-  .intro-action { flex-direction: row; align-items: center; gap: 20px; margin-top: 32px; }
-  .path { --gap: 28px; align-self: center; margin: 0; padding: 36px 32px 36px 62px; background: var(--sheet); border: 1px solid var(--line); border-radius: 4px; }
-  .path li { font-size: 17px; }
+  .intro .description { margin-top: 28px; font-size: 20px; }
+  .intro-action { margin-top: 40px; }
+  #start { padding: 0 32px; }
 }
 
 @media (max-width: 720px) {
+  #start { width: 100%; }
   .brandbar { min-height: 52px; font-size: 12px; }
   .wordmark { font-size: 11px; }
   .brandbar-note { max-width: 58%; line-height: 1.3; }
@@ -209,14 +195,11 @@ form > .note { margin: 14px 0 0; }
   .intro-body { padding: 16px 0 24px; }
   .intro h1 { font-size: 34px; }
   .intro .description { font-size: 16px; margin-top: 14px; }
-  .path { --gap: 8px; margin-top: 18px; }
-  .path li { font-size: 14px; }
   .intro-action { margin-top: 20px; }
   .explanation { margin-top: 14px; font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .path li::after { animation: none; }
   *, *::before, *::after { transition: none !important; }
 }
 
