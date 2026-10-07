@@ -45,7 +45,7 @@ $('lead-form').addEventListener('submit', async event => {
     if (!report.priorities.length) { const p=document.createElement('p'); p.textContent='O próximo passo é validar estes processos com os indicadores reais e acompanhar sua consistência ao longo do tempo.'; root.append(p); }
     const nextStep = document.createElement('article'); nextStep.className = 'priority'; const title = document.createElement('h2'); title.textContent = 'Como avançar no seu momento'; nextStep.append(title);
     for (const text of [report.budget, report.decision, ...report.observations]) { const p = document.createElement('p'); p.textContent = text; nextStep.append(p); } root.append(nextStep);
-    $('form-status').textContent = ''; show('result','result-title'); try { sessionStorage.removeItem(storageKey); } catch {}
+    $('form-status').textContent = ''; try { window.fbq?.('track', 'Lead', { content_name: 'Raio-X Clínicas' }); } catch {} show('result','result-title'); try { sessionStorage.removeItem(storageKey); } catch {}
   } catch (error) { $('form-status').textContent = error.name === 'TimeoutError' ? 'O envio demorou mais que o esperado. Tente novamente em instantes.' : error.message; } finally { button.disabled=false; }
 });
 $('print').onclick = () => window.print();

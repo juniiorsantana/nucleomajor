@@ -81,6 +81,11 @@ function securityHeaders(res) {
   res.setHeader("Content-Security-Policy", "default-src 'self'; connect-src 'self' https://*.supabase.co http://127.0.0.1:8090; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'");
 }
 
+// Só as páginas dos anúncios (/clinicas/) carregam o Pixel da Meta. A exceção
+// libera o script e o envio de eventos da Meta ali, e em nenhum outro lugar:
+// o portal, que tem sessão, continua sem script de terceiros.
+const CSP_COM_PIXEL = "default-src 'self'; connect-src 'self' https://www.facebook.com https://connect.facebook.net; img-src 'self' data: https://www.facebook.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' 'unsafe-inline' https://connect.facebook.net; base-uri 'none'; form-action 'self'";
+
 function bearer(req) {
   const value = String(req.headers.authorization || "");
   const match = value.match(/^Bearer\s+(.+)$/i);
@@ -922,6 +927,7 @@ async function sendPublicFile(res, relative) {
   try {
     const data = await readFile(filePath);
     securityHeaders(res);
+    if (relative.startsWith("clinicas/")) res.setHeader("Content-Security-Policy", CSP_COM_PIXEL);
     res.writeHead(200, { "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream", "Cache-Control": "no-cache" });
     res.end(data);
   } catch {

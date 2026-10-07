@@ -88,3 +88,13 @@ test('o token da campanha é derivado do token da Planos do Site, igual ao SQL',
   assert.equal(clinicLeadConfig({}).token,'');
   assert.equal(clinicLeadConfig({ NUCLEO_LEAD_TOKEN:'curto' }).token,'');
 });
+
+test('só as páginas de /clinicas/ liberam o Pixel da Meta na CSP', async t => {
+  const { createServer } = await import('../src/server.mjs');
+  const server = createServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close());
+  const csp = async path => (await fetch(`http://127.0.0.1:${server.address().port}${path}`)).headers.get('content-security-policy');
+  assert.match(await csp('/clinicas'), /script-src[^;]*https:\/\/connect\.facebook\.net/);
+  assert.match(await csp('/clinicas/raio-x/pixel.js'), /connect\.facebook\.net/);
+  assert.doesNotMatch(await csp('/privacidade'), /facebook/);
+  assert.doesNotMatch(await csp('/'), /facebook/);
+});
