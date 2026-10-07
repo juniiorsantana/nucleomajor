@@ -10,20 +10,36 @@
 //  * a primeira mensagem sai pelo WhatsApp (`site_lead_welcome` na VPS);
 //  * a equipe recebe o aviso com a nota, as áreas e o que ficou abaixo.
 //
-// O token fica só no servidor (`NUCLEO_CLINICAS_LEAD_TOKEN`). Sem ele a rota
-// responde 503 e nada é gravado. Se `CAMPAIGN_LEADS_TO` existir, as doze
-// respostas também vão por e-mail — o aviso do WhatsApp só tem o resumo.
+// O token da campanha não é uma variável nova: ele é DERIVADO do token da
+// "Planos do Site" (`NUCLEO_LEAD_TOKEN`, que a Hostinger já tem), como
+// sha256("raio-x-clinicas:" + sha256(NUCLEO_LEAD_TOKEN)). O banco guarda o
+// sha256 do token da Planos, então o SQL de ligação faz a mesma conta sem que
+// o segredo apareça em lugar nenhum. Trocar o token da Planos exige rodar de
+// novo `criar-campanha-raio-x-clinicas.sql`. `NUCLEO_CLINICAS_LEAD_TOKEN`, se
+// existir, vale no lugar do derivado. Sem nenhum dos dois a rota responde 503 e
+// nada é gravado. Se `CAMPAIGN_LEADS_TO` existir, as doze respostas também vão
+// por e-mail — o aviso do WhatsApp só tem o resumo.
 
-import { normalizarWhatsapp } from "./siteLead.mjs";
+import { createHash } from "node:crypto";
+import { normalizarWhatsapp, siteLeadConfig } from "./siteLead.mjs";
 import { diagnose, questions } from "../public/clinicas/raio-x/diagnostic.js";
 
 export const CAMPANHA_DO_RAIO_X = "Raio-X Clínicas";
 
+const sha256 = (valor) => createHash("sha256").update(valor, "utf8").digest("hex");
+
+// A mesma conta de `criar-campanha-raio-x-clinicas.sql`.
+export function tokenDerivado(tokenDaPlanos) {
+  return sha256(`raio-x-clinicas:${sha256(tokenDaPlanos)}`);
+}
+
 export function clinicLeadConfig(env = process.env) {
-  const token = String(env.NUCLEO_CLINICAS_LEAD_TOKEN || "").trim().toLowerCase();
+  const proprio = String(env.NUCLEO_CLINICAS_LEAD_TOKEN || "").trim().toLowerCase();
+  const daPlanos = siteLeadConfig(env).token;
+  const token = /^[0-9a-f]{64}$/.test(proprio) ? proprio : daPlanos ? tokenDerivado(daPlanos) : "";
   const emailTo = String(env.CAMPAIGN_LEADS_TO || "").trim();
   return {
-    token: /^[0-9a-f]{64}$/.test(token) ? token : "",
+    token,
     emailTo: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailTo) ? emailTo : "",
   };
 }

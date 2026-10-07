@@ -16,19 +16,26 @@
 -- O agente da campanha é o mesmo da "Planos do Site" (a RPC exige um agente
 -- ativo para mandar a primeira mensagem, mesmo sem a IA atender depois).
 --
--- Depois de rodar:
---   copiar `token_para_a_hostinger` para NUCLEO_CLINICAS_LEAD_TOKEN no Node da
---   Hostinger e reimplantar (o servidor só lê variável na partida). O token
---   NÃO aparece de novo: o banco guarda só o sha256. Rodar outra vez reaproveita
---   a campanha e gera um token novo (o anterior deixa de valer).
+-- Não há token novo para copiar. O servidor deriva o desta campanha do token
+-- da "Planos do Site" (NUCLEO_LEAD_TOKEN, já na Hostinger):
+--   token = sha256("raio-x-clinicas:" + sha256(NUCLEO_LEAD_TOKEN))
+-- e o banco já guarda sha256(NUCLEO_LEAD_TOKEN) em `campaign_site_intakes`.
+-- Aqui se grava sha256(token), calculado a partir desse hash. Ver
+-- `tokenDerivado` em src/clinicDiagnostic.mjs.
+--
+-- Se o token da "Planos do Site" for trocado (`ligar-campanha-planos-do-site.sql`),
+-- rode este arquivo de novo, senão o quiz passa a ser recusado. Rodar outra vez
+-- não duplica a campanha.
 --
 -- `{nome}` vira o primeiro nome do lead.
 
 with base as (
   -- A campanha que já roda na landing oficial. Nome repetido não liga nada.
-  select campaign.organization_id, campaign.assistant_profile_id, campaign.created_by
+  select campaign.organization_id, campaign.assistant_profile_id, campaign.created_by,
+         intake.token_hash as hash_da_planos
   from public.organization_campaigns campaign
-  where campaign.name = 'Planos do Site'
+  join public.campaign_site_intakes intake on intake.campaign_id = campaign.id
+  where campaign.name = 'Planos do Site' and intake.enabled
 ), unica as (
   select base.* from base where (select count(*) from base) = 1
 ), ja_existe as (
@@ -56,7 +63,8 @@ with base as (
   union all
   select ja_existe.id, ja_existe.organization_id from ja_existe
 ), token as (
-  select encode(extensions.gen_random_bytes(32), 'hex') as valor
+  select encode(extensions.digest('raio-x-clinicas:' || unica.hash_da_planos, 'sha256'), 'hex') as valor
+  from unica
 ), gravado as (
   insert into public.campaign_site_intakes (
     campaign_id, organization_id, token_hash, welcome_template, tag_name, enabled_by
@@ -82,9 +90,9 @@ Pra gente adiantar: qual é o melhor horário para conversarmos?',
 )
 select
   case when (select count(*) from gravado) = 1
-    then (select token.valor from token)
-    else 'ERRO: "Planos do Site" nao encontrada ou repetida'
-  end as token_para_a_hostinger,
+    then 'ok: campanha ligada ao quiz'
+    else 'ERRO: "Planos do Site" nao encontrada, repetida ou desligada'
+  end as resultado,
   (select count(*) from nova) = 1 as campanha_criada_agora,
   (select gravado.campaign_id from gravado) as campanha;
 

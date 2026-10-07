@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { diagnose, questions, qualify } from '../public/clinicas/raio-x/diagnostic.js';
-import { processClinicDiagnostic, resumoParaAEquipe } from '../src/clinicDiagnostic.mjs';
+import { clinicLeadConfig, processClinicDiagnostic, resumoParaAEquipe, tokenDerivado } from '../src/clinicDiagnostic.mjs';
 const best = [2,2,0,0,2,0,3,0,3,3,3,0];
 const worst = [0,2,1,1,0,3,0,3,0,0,0,3];
 test('qualificação exige orçamento confirmado', () => {
@@ -78,4 +78,13 @@ test('falha da campanha não libera o diagnóstico; falha do e-mail não tira o 
   const calls=[];
   const ok=await processClinicDiagnostic({ body:payload, config:{ token, emailTo:'equipe@example.com' }, receive: async p => calls.push(p), sendEmail: async () => { throw new Error('SMTP'); } });
   assert.equal(ok.status,200); assert.ok(ok.body.diagnostic);
+});
+
+test('o token da campanha é derivado do token da Planos do Site, igual ao SQL', () => {
+  // Conferido contra o Postgres de produção em 06/10/2026 com o mesmo valor de teste.
+  assert.equal(tokenDerivado('b'.repeat(64)),'11b5d42d3915737f5222429548172cc14892cec0b392f8ce7d44ae2ecd8a6dd9');
+  assert.equal(clinicLeadConfig({ NUCLEO_LEAD_TOKEN:'B'.repeat(64) }).token,tokenDerivado('b'.repeat(64)));
+  assert.equal(clinicLeadConfig({ NUCLEO_LEAD_TOKEN:'b'.repeat(64), NUCLEO_CLINICAS_LEAD_TOKEN:'c'.repeat(64) }).token,'c'.repeat(64));
+  assert.equal(clinicLeadConfig({}).token,'');
+  assert.equal(clinicLeadConfig({ NUCLEO_LEAD_TOKEN:'curto' }).token,'');
 });

@@ -26,9 +26,8 @@ Se `CAMPAIGN_LEADS_TO` existir, as doze respostas, a conclusão e as UTMs vão t
 ## Ligar
 
 1. Rodar `scripts/sql/criar-campanha-raio-x-clinicas.sql` no SQL Editor.
-2. Colocar o token em `NUCLEO_CLINICAS_LEAD_TOKEN` na Hostinger e reimplantar.
-3. Fazer um diagnóstico com o próprio WhatsApp e conferir a mensagem e o aviso.
+2. Fazer um diagnóstico com o próprio WhatsApp e conferir a mensagem e o aviso.
 
-Sem o token, a rota responde 503 e nada é gravado.
+Não há variável nova na Hostinger: o token da campanha é derivado do token da "Planos do Site" (`NUCLEO_LEAD_TOKEN`) como `sha256("raio-x-clinicas:" + sha256(NUCLEO_LEAD_TOKEN))`, e o SQL faz a mesma conta a partir do hash que o banco já guarda. Trocar o token da Planos exige rodar o SQL do Raio-X de novo. `NUCLEO_CLINICAS_LEAD_TOKEN`, se existir, vale no lugar do derivado. Sem nenhum dos dois, a rota responde 503 e nada é gravado.
 
 Verificação: `node --test test/clinicDiagnostic.test.mjs`.
