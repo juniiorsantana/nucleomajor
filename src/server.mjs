@@ -12,6 +12,7 @@ import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./act
 import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
 import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
 import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
+import { clinicLeadConfig, processClinicDiagnostic } from "./clinicDiagnostic.mjs";
 import { metaLeadsHandlerFromEnv } from "./metaLeads.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,6 +40,7 @@ const ALLOWED_ORIGINS = new Set(
 );
 const BILLING = billingConfig();
 const SITE_LEAD = siteLeadConfig();
+const CLINIC_LEAD = clinicLeadConfig();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 8;
 const attempts = new Map();
@@ -734,6 +736,21 @@ async function siteLead(req, res) {
   return json(res, outcome.status, outcome.body);
 }
 
+// O fim do Raio-X das clínicas. Mesmo caminho do popup de planos, com o token
+// da campanha "Raio-X Clínicas"; o diagnóstico é recalculado no servidor.
+async function clinicDiagnostic(req, res) {
+  countAttempt(`${clientIp(req)}:clinic-diagnostic`);
+  const outcome = await processClinicDiagnostic({
+    body: await readJson(req),
+    config: CLINIC_LEAD,
+    receive: (payload) => publicRpc("nucleo_site_lead_receive", payload),
+    sendEmail: ({ to, subject, text }) => sendEmail({ mailer: createMailer(), to, message: { subject, text } }),
+    log: (message) => console.error(message),
+  });
+  if (outcome.status >= 500) console.error("clinic diagnostic failed", outcome.body.code);
+  return json(res, outcome.status, outcome.body);
+}
+
 // Reenviar é emitir outro código (o texto do anterior não existe em lugar
 // nenhum). A RPC confere se quem pede é da administração da plataforma.
 async function resendActivation(req, res, token, user, subscriptionId) {
@@ -944,6 +961,8 @@ async function staticFile(req, res, url) {
   else if (pathname === "/planos" || pathname === "/planos/") relative = "planos/index.html";
   // O Meta exige esta URL para publicar o app que recebe os leads dos formulários.
   else if (pathname === "/privacidade" || pathname === "/privacidade/") relative = "privacidade/index.html";
+  // A página dos anúncios para clínicas. `/clinicas` é o endereço curto.
+  else if (["/clinicas", "/clinicas/", "/clinicas/raio-x", "/clinicas/raio-x/"].includes(pathname)) relative = "clinicas/raio-x/index.html";
   else if (isAppRoute) relative = "app/index.html";
   else relative = pathname.replace(/^\//, "");
   return sendPublicFile(res, relative);
@@ -964,7 +983,7 @@ async function metaLeadsFromEnv(req, res, url) {
   return envMetaLeads(req, res, url);
 }
 
-export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, metaLeadsHandler = metaLeadsFromEnv } = {}) {
+export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, clinicHandler = clinicDiagnostic, metaLeadsHandler = metaLeadsFromEnv } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
@@ -983,6 +1002,7 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       // que exige uma.
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname === "/api/lead" && req.method === "POST") return await leadHandler(req, res, url);
+      if (url.pathname === "/api/clinic-diagnostic" && req.method === "POST") return await clinicHandler(req, res, url);
       // Antes da sessão: quem chama é o Meta, que se identifica pela assinatura.
       if (url.pathname === "/api/webhooks/meta-leads") return await metaLeadsHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
