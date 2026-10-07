@@ -71,14 +71,13 @@ button:disabled { cursor: default; background: #cdd1db; color: #3f4452; box-shad
 /* Abertura */
 .intro { min-height: 100svh; display: flex; flex-direction: column; }
 .intro-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 0; }
-.intro-copy { display: grid; grid-template-areas: "title" "desc" "action" "expl"; width: min(760px, 100%); justify-items: center; text-align: center; }
+.intro-copy { display: grid; grid-template-areas: "title" "desc" "action"; width: min(760px, 100%); justify-items: center; text-align: center; }
 .intro h1 { grid-area: title; font-size: clamp(40px, 6.6vw, 84px); line-height: 1.02; letter-spacing: -.028em; max-width: 13ch; }
 .intro h1 em { color: var(--navy); }
 .intro .description { grid-area: desc; margin: 20px 0 0; font-size: 18px; }
 .intro-action { grid-area: action; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 32px; width: 100%; }
 .intro-action .note { margin: 0; }
 #start { min-height: 58px; font-size: 17px; }
-.explanation { grid-area: expl; margin: 18px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-3); max-width: 52ch; }
 
 /* Perguntas */
 #quiz { display: flex; flex-direction: column; }
@@ -196,7 +195,6 @@ form > .note { margin: 14px 0 0; }
   .intro h1 { font-size: 34px; }
   .intro .description { font-size: 16px; margin-top: 14px; }
   .intro-action { margin-top: 20px; }
-  .explanation { margin-top: 14px; font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
