@@ -77,7 +77,7 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 
 ## Conectar
 
-- **Claude** (Pro, Max, Team ou Enterprise): no claude.ai, em Configurações →
+- **Claude** (qualquer plano; o gratuito aceita um conector personalizado só): no claude.ai, em Configurações →
   Conectores → **Adicionar conector personalizado**. Nome `Núcleo Major`, URL
   `https://nucleomajor.com/mcp`. Depois clique em Conectar, entre com a conta do
   portal e escolha Permitir. Feito na web, o conector aparece também no app do
