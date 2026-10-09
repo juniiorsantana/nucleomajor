@@ -551,19 +551,36 @@ a {
   object-fit: cover;
 }
 
-/* Cards. Máscara do Figma: cantos de 30, menos o de baixo à esquerda.
-   Cada card tem três grupos: .card-midia (imagem), .card-texto e .card-barra
-   (rótulo + pílula "Acessar"). Até 1279 px eles se empilham, com texto
-   legível no celular; no computador os grupos viram display: contents e cada
-   peça volta à posição absoluta do Figma (bloco desktop, no fim do arquivo). */
+/* Cards (669 x 311), como no Figma do celular. Máscara do Figma: cantos de 30,
+   menos o de baixo à esquerda. Os grupos do HTML (.card-midia, .card-texto,
+   .card-barra, .card-acao) não têm caixa: cada peça fica na posição absoluta do
+   Figma, medida a partir do card. No computador o bloco desktop, no fim do
+   arquivo, troca as posições pelas do quadro de 1920. */
 .card {
-  --acessar-desloca: calc(var(--u) * -20);
+  --acessar-desloca: calc(var(--u) * -12);
   isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  height: auto;
   overflow: hidden;
   border-radius: calc(var(--u) * 30) calc(var(--u) * 30) calc(var(--u) * 30) 0;
+}
+
+.card-midia,
+.card-texto,
+.card-barra,
+.card-acao {
+  display: contents;
+}
+
+.card .barra,
+.card .titulo,
+.card .texto,
+.card .rotulo,
+.card .pilula-brilho,
+.card .pilula,
+.card .pilula-texto,
+.card-diagnostico .foto-homem,
+.card-diagnostico .ruido-mono,
+.card-diagnostico .cristal {
+  position: absolute;
 }
 
 .card-diagnostico {
@@ -576,42 +593,18 @@ a {
   background: var(--barra);
 }
 
-.card-midia {
-  position: relative;
-  display: block;
-  flex: none;
-  overflow: hidden;
-}
-
-.card-texto {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--u) * 14);
-  padding: calc(var(--u) * 34) calc(var(--u) * 44) calc(var(--u) * 44);
-}
-
-/* No celular a própria barra do card é o fundo escuro do rótulo e da pílula */
-.card-barra {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: calc(var(--u) * 24);
-  min-height: calc(var(--u) * 124);
-  padding: calc(var(--u) * 26) calc(var(--u) * 30) calc(var(--u) * 26) calc(var(--u) * 44);
-  background: var(--barra);
-}
-
-/* O retângulo da barra do Figma só é usado no computador */
 .card .barra {
-  display: none;
+  left: 0;
+  top: calc(var(--u) * 241);
+  width: 100%;
+  height: calc(var(--u) * 70);
   background: var(--barra);
 }
 
 .card .rotulo {
-  position: relative;
+  top: calc(var(--u) * 264);
   color: var(--nevoa);
-  font-size: calc(var(--u) * 34);
+  font-size: calc(var(--u) * 20);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
@@ -623,8 +616,8 @@ a {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + var(--u) * 9);
-  height: calc(var(--u) * 3.5);
+  top: calc(100% + var(--u) * 7);
+  height: calc(var(--u) * 2.5);
   border-radius: 2px;
   background: linear-gradient(90deg, rgb(var(--ciano)), rgb(var(--azul)));
   transform: scaleX(0);
@@ -634,21 +627,15 @@ a {
 
 /* Pílula "Acessar": brilho em Clarear Linear + vidro (Glass, fosco 58).
    No Figma as duas camadas estão viradas de cabeça para baixo, por isso os
-   ângulos são 180° menos os do Figma. No celular a pílula é maior (236 x 72)
-   e o brilho mantém a mesma folga proporcional do Figma (6 de 149 x 35). */
-.card-acao {
-  position: relative;
-  flex: none;
-  width: calc(var(--u) * 236);
-  height: calc(var(--u) * 72);
-}
-
+   ângulos são 180° menos os do Figma. */
 .card .pilula-brilho {
-  position: absolute;
-  inset: calc(var(--u) * 12) calc(var(--u) * 9.5);
-  border-radius: 999px;
+  left: calc(var(--u) * 496);
+  top: calc(var(--u) * 265);
+  width: calc(var(--u) * 137);
+  height: calc(var(--u) * 23);
+  border-radius: calc(var(--u) * 40);
   background: linear-gradient(9.43deg, rgba(var(--ciano), 0.9) 15.289%, rgb(var(--azul)) 86.03%);
-  filter: blur(calc(var(--u) * 60));
+  filter: blur(calc(var(--u) * 47.9));
   mix-blend-mode: screen;
   mix-blend-mode: plus-lighter;
   transition: transform 600ms var(--chegada);
@@ -656,10 +643,12 @@ a {
 
 .card .pilula {
   --fosco: calc(var(--u) * 29);
-  position: absolute;
-  inset: 0;
+  left: calc(var(--u) * 490);
+  top: calc(var(--u) * 259);
+  width: calc(var(--u) * 149);
+  height: calc(var(--u) * 35);
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: calc(var(--u) * 40);
   background: linear-gradient(13.08deg, rgba(var(--ciano), 0.576) 15.289%, rgba(var(--azul), 0.64) 86.03%);
 }
 
@@ -673,19 +662,21 @@ a {
   transition: opacity 300ms ease-out;
 }
 
-/* Na pílula o filete do Glass quase não aparece no print do Figma */
+/* Na pílula pequena o filete do Glass quase não aparece no print do Figma */
 .card .pilula::after {
   box-shadow: inset 0 0 0 calc(var(--u) * 0.75) rgba(var(--aro), 0.22);
 }
 
 .card .pilula-texto {
-  position: absolute;
-  inset: 0;
+  left: calc(var(--u) * 490);
+  top: calc(var(--u) * 265);
   display: flex;
   align-items: center;
   justify-content: center;
+  width: calc(var(--u) * 148);
+  height: calc(var(--u) * 20);
   color: var(--nevoa);
-  font-size: calc(var(--u) * 32);
+  font-size: calc(var(--u) * 18);
   font-weight: 500;
   line-height: 1;
 }
@@ -694,36 +685,28 @@ a {
   transition: transform 450ms var(--chegada);
 }
 
-/* Seta que entra no mouse; em repouso o "Acessar" fica centrado */
+/* Seta que entra no mouse; em repouso o "Acessar" fica centrado como no Figma */
 .card .seta {
   position: absolute;
   top: 50%;
-  left: calc(50% + var(--u) * 52);
-  width: calc(var(--u) * 28);
-  height: calc(var(--u) * 28);
-  margin-top: calc(var(--u) * -14);
+  left: calc(50% + var(--u) * 30);
+  width: calc(var(--u) * 18);
+  height: calc(var(--u) * 18);
+  margin-top: calc(var(--u) * -9);
   fill: none;
   stroke: currentColor;
   stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0;
-  transform: translateX(calc(var(--u) * -16));
+  transform: translateX(calc(var(--u) * -10));
   transition:
     transform 450ms var(--chegada),
     opacity 200ms ease-out;
 }
 
-/* Card 1: diagnóstico. Faixa de 300 com a foto como no Figma do celular
-   (mesmo enquadramento), apagando embaixo no fundo claro do card. */
-.card-diagnostico .card-midia {
-  height: calc(var(--u) * 300);
-  -webkit-mask-image: linear-gradient(#000 70%, transparent);
-  mask-image: linear-gradient(#000 70%, transparent);
-}
-
+/* Card 1: diagnóstico */
 .card-diagnostico .foto-homem {
-  position: absolute;
   left: calc(var(--u) * -5.02);
   top: calc(var(--u) * -78);
   width: calc(var(--u) * 296.03);
@@ -740,19 +723,17 @@ a {
   transition: transform 900ms var(--chegada);
 }
 
-/* Brilho branco (Ellipse 8, refeito no Figma desktop) na escala do card de 669 */
 .card-diagnostico .brilho-8 {
   position: absolute;
-  left: calc(var(--u) * 214.7);
-  top: calc(var(--u) * -76);
-  width: calc(var(--u) * 262.66);
-  height: calc(var(--u) * 274.67);
+  left: calc(var(--u) * 174.11);
+  top: calc(var(--u) * -53.89);
+  width: calc(var(--u) * 168.8);
+  height: calc(var(--u) * 165.8);
 }
 
 /* Group 10 — ruído monocromático preto a 5%: no print do Figma o fundo
    #F5F5F5 sai #F0F0F0, ou seja, escurece ~2% em média. */
 .card-diagnostico .ruido-mono {
-  position: absolute;
   inset: 0;
   background: url("assets/ruido-mono.png") 0 0 / calc(var(--u) * 64);
   opacity: 0.04;
@@ -760,7 +741,6 @@ a {
 
 /* 33:145 e 33:146 — cristais a 30% em Escurecer (darken), levemente desfocados */
 .card-diagnostico .cristal {
-  position: absolute;
   display: grid;
   place-items: center;
 }
@@ -799,10 +779,13 @@ a {
 }
 
 .card-diagnostico .titulo {
+  left: calc(var(--u) * 324);
+  top: calc(var(--u) * 56);
+  width: calc(var(--u) * 292);
   color: var(--tinta);
-  font-size: calc(var(--u) * 46);
+  font-size: calc(var(--u) * 30);
   font-weight: 300;
-  line-height: 1.08;
+  line-height: 1;
 }
 
 .card-diagnostico .titulo strong {
@@ -810,48 +793,52 @@ a {
 }
 
 .card-diagnostico .texto {
+  left: calc(var(--u) * 324);
+  top: calc(var(--u) * 128);
+  width: calc(var(--u) * 292);
   color: var(--tinta);
-  font-size: calc(var(--u) * 34);
+  font-size: calc(var(--u) * 15);
   font-weight: 300;
   line-height: 1.35;
 }
 
-/* Card 2: Núcleo Major. O painel inteiro no alto (proporção da imagem,
-   1672 x 941) e o texto embaixo, no fundo escuro. */
-.card-nucleo .card-midia {
-  height: calc(var(--u) * 376.5);
-  -webkit-mask-image: linear-gradient(#000 72%, transparent);
-  mask-image: linear-gradient(#000 72%, transparent);
+.card-diagnostico .rotulo {
+  left: calc(var(--u) * 55);
 }
 
+/* Card 2: Núcleo Major */
 .card-nucleo .dashboard {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  left: calc(var(--u) * -1);
+  top: calc(var(--u) * -14);
+  width: calc(var(--u) * 670);
+  height: calc(var(--u) * 376.97);
   object-fit: cover;
   transition: transform 900ms var(--chegada);
 }
 
-.card-nucleo .card-texto {
-  padding-top: calc(var(--u) * 8);
-}
-
 .card-nucleo .titulo {
+  left: calc(var(--u) * 51);
+  top: calc(var(--u) * 47);
+  width: calc(var(--u) * 318);
   color: var(--lilas);
-  font-size: calc(var(--u) * 40);
+  font-size: calc(var(--u) * 30);
   font-weight: 300;
-  line-height: 1.12;
+  line-height: 1;
 }
 
-/* O degradê do Figma (#1479FF → #38C8FF) cobre a caixa inteira do texto;
-   na primeira linha ele vai só de #1479FF a ~#1C8BFF. */
+/* O degradê do Figma (#1479FF → #38C8FF) cobre a caixa inteira do texto
+   (5 linhas); na primeira linha ele vai só de #1479FF a ~#1C8BFF. */
 .card-nucleo .marca {
   background: linear-gradient(180deg, #1479ff, #1c8bff);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   font-weight: 600;
+}
+
+.card-nucleo .rotulo {
+  left: calc(var(--u) * 51);
 }
 
 /* ---------- Projetos ---------- */

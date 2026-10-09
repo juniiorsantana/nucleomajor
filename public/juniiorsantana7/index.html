@@ -19,9 +19,8 @@
     Página feita a partir do Figma "Link na Bio - Junior" (Frame 1, 1080 px de largura).
     Medidas no CSS em unidades do Figma: calc(var(--u) * N) = N px do quadro.
 
-    Links a preencher (procure por PREENCHER):
-      - Solicitar orçamento
-      - Diagnóstico gratuito
+    A preencher (procure por PREENCHER):
+      - Solicitar orçamento: vai abrir o modal ligado ao Núcleo Major (/api/orcamento)
   -->
 
   <!-- Fundo do navegador (computador): só aparece a partir de 600 px de largura -->
@@ -76,13 +75,13 @@
       </header>
 
       <nav class="links" id="links" aria-label="Links">
-        <!-- Cada card tem três partes: imagem, texto e barra. No celular elas se
-             empilham (texto grande, legível); no computador os grupos somem
-             (display: contents) e cada peça volta à posição do Figma. -->
-        <a class="card card-diagnostico" href="#" data-luz data-preencher="diagnostico"><!-- PREENCHER: link do diagnóstico -->
+        <!-- Cada card tem três grupos: imagem, texto e barra. Os grupos não têm
+             caixa (display: contents): cada peça fica na posição do Figma, do
+             celular ou do computador. -->
+        <a class="card card-diagnostico" href="https://www.majorhub.com.br/diagnostico" data-luz>
           <span class="card-midia" aria-hidden="true">
             <span class="foto-homem"><img src="assets/homem-cafe.webp" alt=""></span>
-            <picture><source media="(min-width: 1280px)" srcset="assets/brilho-card-desktop.svg"><img class="brilho-8" src="assets/brilho-card-celular.svg" alt=""></picture>
+            <picture><source media="(min-width: 1280px)" srcset="assets/brilho-card-desktop.svg"><img class="brilho-8" src="assets/ellipse8.svg" alt=""></picture>
             <span class="ruido-mono"></span>
             <span class="cristal cristal-a"><img src="assets/lupa-cristal.webp" alt=""></span>
             <span class="cristal cristal-b"><img src="assets/lupa-cristal.webp" alt=""></span>

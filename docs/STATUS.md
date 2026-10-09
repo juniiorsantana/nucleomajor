@@ -13,8 +13,16 @@ portal em `public/juniiorsantana7/` (HTML, CSS e `app.js`, sem build).
 caminhos relativos. A fonte é o Figma "Link na Bio - Junior" e a pasta de
 trabalho fica fora do repositório (`D:\CLIENTES 2024\JUNIOR SANTANA\link-na-bio`,
 com `LEIA-ME.md`); para atualizar, copie `index.html`, `estilo.css`, `app.js`,
-`assets/` e `fontes/` de lá. Faltam os links de "Solicitar orçamento" e
-"Diagnóstico gratuito" (estão com `#`, marcados `PREENCHER`).
+`assets/` e `fontes/` de lá. No ar desde 09/10/2026 (PR #48, merge `e082ee8`).
+
+Em 09/10: "Diagnóstico gratuito" leva a `https://www.majorhub.com.br/diagnostico`,
+e no celular os cards voltaram ao formato largo do Figma (o empilhado não
+agradou ao dono; o computador não mudou, conferido pixel a pixel). O pedido de
+orçamento ganhou rota, `POST /api/orcamento` (`src/orcamentoLead.mjs`), com o
+mesmo caminho do Raio-X: RPC `nucleo_site_lead_receive` e token derivado do
+`NUCLEO_LEAD_TOKEN`. Ainda **não há modal** ("Solicitar orçamento" continua com
+`#`) nem a campanha "Orçamento pelo link na bio" no banco: sem ela, a rota
+responde 502.
 
 ## Equipe de IA: playbook e Jev por agente (01/10/2026)
 

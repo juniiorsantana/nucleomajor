@@ -13,6 +13,7 @@ import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBod
 import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
 import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
 import { clinicLeadConfig, processClinicDiagnostic } from "./clinicDiagnostic.mjs";
+import { orcamentoLeadConfig, processOrcamento } from "./orcamentoLead.mjs";
 import { metaLeadsHandlerFromEnv } from "./metaLeads.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,6 +42,7 @@ const ALLOWED_ORIGINS = new Set(
 const BILLING = billingConfig();
 const SITE_LEAD = siteLeadConfig();
 const CLINIC_LEAD = clinicLeadConfig();
+const ORCAMENTO_LEAD = orcamentoLeadConfig();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 8;
 const attempts = new Map();
@@ -756,6 +758,20 @@ async function clinicDiagnostic(req, res) {
   return json(res, outcome.status, outcome.body);
 }
 
+// O modal "Solicitar orçamento" do link na bio (/juniiorsantana7/). Mesmo
+// caminho do popup de planos, com o token da campanha "Orçamento · Link na bio".
+async function orcamentoLead(req, res) {
+  countAttempt(`${clientIp(req)}:orcamento`);
+  const outcome = await processOrcamento({
+    body: await readJson(req),
+    config: ORCAMENTO_LEAD,
+    receive: (payload) => publicRpc("nucleo_site_lead_receive", payload),
+    log: (message) => console.error(message),
+  });
+  if (outcome.status >= 500) console.error("orcamento failed", outcome.body.code);
+  return json(res, outcome.status, outcome.body);
+}
+
 // Reenviar é emitir outro código (o texto do anterior não existe em lugar
 // nenhum). A RPC confere se quem pede é da administração da plataforma.
 async function resendActivation(req, res, token, user, subscriptionId) {
@@ -994,7 +1010,7 @@ async function metaLeadsFromEnv(req, res, url) {
   return envMetaLeads(req, res, url);
 }
 
-export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, clinicHandler = clinicDiagnostic, metaLeadsHandler = metaLeadsFromEnv } = {}) {
+export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, clinicHandler = clinicDiagnostic, orcamentoHandler = orcamentoLead, metaLeadsHandler = metaLeadsFromEnv } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
@@ -1014,6 +1030,7 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname === "/api/lead" && req.method === "POST") return await leadHandler(req, res, url);
       if (url.pathname === "/api/clinic-diagnostic" && req.method === "POST") return await clinicHandler(req, res, url);
+      if (url.pathname === "/api/orcamento" && req.method === "POST") return await orcamentoHandler(req, res, url);
       // Antes da sessão: quem chama é o Meta, que se identifica pela assinatura.
       if (url.pathname === "/api/webhooks/meta-leads") return await metaLeadsHandler(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
