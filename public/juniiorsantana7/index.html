@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- interactive-widget: no Android a tela encolhe com o teclado, e o modal do
+       orçamento (preso ao pé da tela) sobe junto em vez de ficar por baixo dele -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Juniior Santana · Major</title>
   <meta name="description" content="UX Design e CMO da Major. Solicite um orçamento, faça um diagnóstico gratuito do seu site e conheça o Núcleo Major.">
   <meta name="theme-color" content="#170d3b">
@@ -19,8 +21,10 @@
     Página feita a partir do Figma "Link na Bio - Junior" (Frame 1, 1080 px de largura).
     Medidas no CSS em unidades do Figma: calc(var(--u) * N) = N px do quadro.
 
-    A preencher (procure por PREENCHER):
-      - Solicitar orçamento: vai abrir o modal ligado ao Núcleo Major (/api/orcamento)
+    "Solicitar orçamento" abre o modal #orcamento (fim da página), que envia
+    para /api/orcamento, a rota do Núcleo Major. A rota só existe com a página
+    servida pelo portal (nucleomajor.com/juniiorsantana7/); aberta de outro
+    servidor, o envio mostra o aviso de falta de conexão.
   -->
 
   <!-- Fundo do navegador (computador): só aparece a partir de 600 px de largura -->
@@ -56,7 +60,7 @@
           </span>
         </p>
         <p class="bio">Há mais de 10 anos no universo do digital, ajudando empresários a crescer por meio de estratégias, tecnologia e soluções criativas.</p>
-        <a class="botao" href="#" data-luz data-preencher="orcamento"><!-- PREENCHER: link do orçamento -->
+        <a class="botao" href="#orcamento" data-luz data-abrir-orcamento aria-haspopup="dialog" aria-controls="orcamento">
           <span class="brilho" aria-hidden="true"></span>
           <span class="vidro" aria-hidden="true">
             <span class="luz"></span>
@@ -179,5 +183,70 @@
     </div>
 
   </main>
+
+  <!-- Pedido de orçamento. O app.js abre este modal pelo botão "Solicitar
+       orçamento" e envia os dados para /api/orcamento: o Núcleo Major grava o
+       contato no CRM e manda a primeira mensagem no WhatsApp. -->
+  <dialog class="orcamento" id="orcamento" aria-labelledby="orcamento-titulo" aria-describedby="orcamento-descricao">
+    <div class="orcamento-painel">
+      <button class="orcamento-fechar" type="button" data-fechar aria-label="Fechar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+
+      <div class="orcamento-passo" data-passo="pedido">
+        <div class="orcamento-cabeca">
+          <span class="orcamento-icone" aria-hidden="true"><img src="assets/diamante-major.webp" alt=""></span>
+          <h2 class="orcamento-titulo" id="orcamento-titulo" tabindex="-1">Solicitar orçamento</h2>
+        </div>
+        <p class="orcamento-descricao" id="orcamento-descricao">Deixe seus dados e a equipe da Major te chama no WhatsApp em instantes.</p>
+
+        <form class="orcamento-form" novalidate>
+          <div class="campo">
+            <label for="orcamento-nome">Nome</label>
+            <input id="orcamento-nome" name="nome" type="text" autocomplete="name" autocapitalize="words" maxlength="120" required aria-describedby="orcamento-nome-erro">
+            <p class="campo-erro" id="orcamento-nome-erro"></p>
+          </div>
+          <div class="campo">
+            <label for="orcamento-email">E-mail</label>
+            <input id="orcamento-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="160" required aria-describedby="orcamento-email-erro">
+            <p class="campo-erro" id="orcamento-email-erro"></p>
+          </div>
+          <div class="campo">
+            <label for="orcamento-whatsapp">WhatsApp com DDD</label>
+            <input id="orcamento-whatsapp" name="whatsapp" type="tel" autocomplete="tel-national" inputmode="tel" enterkeyhint="send" placeholder="(00) 00000-0000" maxlength="20" required aria-describedby="orcamento-whatsapp-erro">
+            <p class="campo-erro" id="orcamento-whatsapp-erro"></p>
+          </div>
+          <div class="campo">
+            <label class="aceite">
+              <input name="consentimento" type="checkbox" required aria-describedby="orcamento-consentimento-erro">
+              <span>Autorizo a Major a falar comigo pelo WhatsApp sobre este orçamento.</span>
+            </label>
+            <p class="campo-erro" id="orcamento-consentimento-erro"></p>
+          </div>
+          <!-- Campo escondido: gente não vê nem preenche; robô preenche tudo -->
+          <div class="armadilha" aria-hidden="true">
+            <label>Site da empresa <input name="site_da_empresa" type="text" tabindex="-1" autocomplete="off"></label>
+          </div>
+          <p class="orcamento-aviso" role="alert"></p>
+          <button class="orcamento-enviar" type="submit" data-luz>
+            <span class="reflexo" aria-hidden="true"></span>
+            <span class="orcamento-enviar-texto">Enviar pedido</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="orcamento-passo orcamento-pronto" data-passo="pronto" hidden>
+        <div class="orcamento-cabeca">
+          <span class="orcamento-icone" aria-hidden="true"><svg class="orcamento-certo" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg></span>
+          <h2 class="orcamento-titulo" tabindex="-1">Pedido recebido</h2>
+        </div>
+        <p class="orcamento-descricao">Em instantes você recebe a mensagem da Major no WhatsApp <strong class="orcamento-numero"></strong>.</p>
+        <button class="orcamento-enviar" type="button" data-fechar data-luz>
+          <span class="reflexo" aria-hidden="true"></span>
+          <span class="orcamento-enviar-texto">Fechar</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>

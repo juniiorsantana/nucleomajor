@@ -1,5 +1,6 @@
 // Interações do link na bio. A página funciona sem este arquivo: tudo aqui é
-// camada extra (a luz no vidro, o efeito "PROJETOS" e o bento dos projetos).
+// camada extra (a luz no vidro, o pedido de orçamento, o efeito "PROJETOS" e o
+// bento dos projetos).
 (() => {
   const menosMovimento = matchMedia("(prefers-reduced-motion: reduce)");
   const comMouse = matchMedia("(hover: hover) and (pointer: fine)");
@@ -44,6 +45,223 @@
         botao.style.setProperty("--luz-x", `${x}px`);
         botao.style.setProperty("--luz-y", `${y}px`);
       });
+    });
+  }
+
+  // ---------- Pedido de orçamento ----------
+
+  // "Solicitar orçamento" abre o modal. O envio vai para /api/orcamento, a rota
+  // do Núcleo Major que grava o contato no CRM e manda a primeira mensagem no
+  // WhatsApp. Sem <dialog> (iOS 15.3 e anteriores) o botão fica como está.
+  const modal = document.querySelector("#orcamento");
+  const abrirModal = document.querySelector("[data-abrir-orcamento]");
+  if (modal && abrirModal && typeof modal.showModal === "function") {
+    const form = modal.querySelector(".orcamento-form");
+    const enviar = form.querySelector(".orcamento-enviar");
+    const textoEnviar = enviar.querySelector(".orcamento-enviar-texto");
+    const aviso = form.querySelector(".orcamento-aviso");
+    const passoPedido = modal.querySelector('[data-passo="pedido"]');
+    const passoPronto = modal.querySelector('[data-passo="pronto"]');
+    const campos = {
+      nome: form.elements.nome,
+      email: form.elements.email,
+      whatsapp: form.elements.whatsapp,
+      consentimento: form.elements.consentimento,
+    };
+    let enviando = false;
+    let tentou = false;
+
+    // Os dígitos do WhatsApp sem o 55 do Brasil, e a mesma régua do servidor:
+    // DDD de 11 a 99; celular com 11 dígitos começando com 9, fixo com 10.
+    const digitos = (valor) => {
+      const numeros = valor.replace(/\D/g, "");
+      return (numeros.length === 12 || numeros.length === 13) && numeros.startsWith("55") ? numeros.slice(2) : numeros;
+    };
+    const whatsappValido = (valor) => {
+      const numeros = digitos(valor);
+      if (numeros.length !== 10 && numeros.length !== 11) return false;
+      if (numeros.slice(0, 2) < "11") return false;
+      return numeros.length === 10 || numeros[2] === "9";
+    };
+    // (65) 99876-5432. Com dígitos demais o texto fica como veio, para o erro aparecer.
+    const formatar = (valor) => {
+      const numeros = digitos(valor);
+      if (numeros.length > 11) return valor;
+      if (numeros.length <= 2) return numeros ? `(${numeros}` : "";
+      const resto = numeros.slice(2);
+      if (resto.length <= 4) return `(${numeros.slice(0, 2)}) ${resto}`;
+      const corte = resto.length > 8 ? 5 : 4;
+      return `(${numeros.slice(0, 2)}) ${resto.slice(0, corte)}-${resto.slice(corte)}`;
+    };
+
+    // A máscara só age digitando no fim do campo. Apagando ela espera, senão o
+    // hífen e o parêntese voltariam a cada toque; ao sair do campo, arruma tudo.
+    campos.whatsapp.addEventListener("input", (evento) => {
+      const campo = campos.whatsapp;
+      if (String(evento.inputType || "").startsWith("delete")) return;
+      if (campo.selectionStart !== campo.value.length) return;
+      campo.value = formatar(campo.value);
+    });
+    campos.whatsapp.addEventListener("blur", () => {
+      if (digitos(campos.whatsapp.value)) campos.whatsapp.value = formatar(campos.whatsapp.value);
+    });
+
+    const conferir = () => {
+      const erros = {};
+      if (campos.nome.value.trim().length < 2) erros.nome = "Informe seu nome.";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(campos.email.value.trim())) erros.email = "Informe um e-mail válido.";
+      if (!whatsappValido(campos.whatsapp.value)) erros.whatsapp = "Informe um WhatsApp com DDD.";
+      if (!campos.consentimento.checked) erros.consentimento = "Marque a autorização para a Major poder te chamar no WhatsApp.";
+      return erros;
+    };
+
+    const mostrarErros = (erros) => {
+      Object.entries(campos).forEach(([nome, campo]) => {
+        const texto = erros[nome] || "";
+        if (texto) campo.setAttribute("aria-invalid", "true");
+        else campo.removeAttribute("aria-invalid");
+        document.getElementById(`orcamento-${nome}-erro`).textContent = texto;
+      });
+    };
+
+    const focarPrimeiroErro = (erros) => {
+      const primeiro = Object.keys(campos).find((nome) => erros[nome]);
+      if (primeiro) campos[primeiro].focus();
+    };
+
+    // Depois da primeira tentativa, cada erro some assim que o campo é corrigido
+    const reconferir = () => {
+      if (tentou) mostrarErros(conferir());
+    };
+    form.addEventListener("input", reconferir);
+    form.addEventListener("change", reconferir);
+
+    const ocupado = (sim) => {
+      enviando = sim;
+      enviar.disabled = sim;
+      enviar.setAttribute("aria-busy", String(sim));
+      textoEnviar.textContent = sim ? "Enviando…" : "Enviar pedido";
+    };
+
+    const mostrarPronto = () => {
+      modal.querySelector(".orcamento-numero").textContent = formatar(campos.whatsapp.value);
+      passoPedido.hidden = true;
+      passoPronto.hidden = false;
+      passoPronto.querySelector(".orcamento-titulo").focus();
+    };
+
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      if (enviando) return;
+      tentou = true;
+      aviso.textContent = "";
+      const erros = conferir();
+      mostrarErros(erros);
+      if (Object.keys(erros).length) {
+        focarPrimeiroErro(erros);
+        return;
+      }
+
+      ocupado(true);
+      const espera = new AbortController();
+      const limite = setTimeout(() => espera.abort(), 20000);
+      try {
+        const resposta = await fetch("/api/orcamento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: campos.nome.value,
+            email: campos.email.value,
+            whatsapp: campos.whatsapp.value,
+            consentimento: campos.consentimento.checked,
+            site_da_empresa: form.elements.site_da_empresa.value,
+          }),
+          signal: espera.signal,
+        });
+        const corpo = await resposta.json().catch(() => ({}));
+        if (resposta.ok) {
+          mostrarPronto();
+          return;
+        }
+        if (corpo.fields) {
+          mostrarErros(corpo.fields);
+          focarPrimeiroErro(corpo.fields);
+        }
+        aviso.textContent = corpo.error || "Não foi possível enviar agora. Tente de novo em instantes.";
+      } catch {
+        aviso.textContent = "Não deu para falar com o servidor. Confira a internet e tente de novo.";
+      } finally {
+        clearTimeout(limite);
+        ocupado(false);
+      }
+    });
+
+    const abrir = () => {
+      if (modal.open) return;
+      // Depois de um pedido enviado, o modal volta limpo
+      if (!passoPronto.hidden) {
+        form.reset();
+        tentou = false;
+        mostrarErros({});
+        aviso.textContent = "";
+        passoPronto.hidden = true;
+        passoPedido.hidden = false;
+      }
+      modal.showModal();
+      // Com mouse, o cursor já vai para o nome. No toque, o foco fica no título,
+      // para o teclado não cobrir o formulário antes de a pessoa escolher o campo.
+      if (comMouse.matches) campos.nome.focus();
+      else passoPedido.querySelector(".orcamento-titulo").focus();
+    };
+
+    // Fecha com a animação de saída (o CSS a define em [data-saindo]); com
+    // menos movimento, de uma vez. O relógio é a reserva caso o fim da
+    // animação não chegue.
+    let reserva = 0;
+    const concluir = () => {
+      if (modal.open) modal.close();
+    };
+    const fechar = () => {
+      if (!modal.open || modal.hasAttribute("data-saindo")) return;
+      if (menosMovimento.matches) {
+        modal.close();
+        return;
+      }
+      modal.setAttribute("data-saindo", "");
+      reserva = setTimeout(concluir, 400);
+    };
+    modal.addEventListener("animationend", (evento) => {
+      if (evento.target === modal && /^orcamento-(sai|desce)$/.test(evento.animationName)) concluir();
+    });
+
+    abrirModal.addEventListener("click", (evento) => {
+      evento.preventDefault();
+      abrir();
+    });
+    modal.querySelectorAll("[data-fechar]").forEach((botao) => botao.addEventListener("click", fechar));
+
+    // Esc fecha com a mesma animação
+    modal.addEventListener("cancel", (evento) => {
+      evento.preventDefault();
+      fechar();
+    });
+
+    // Toque no fundo escurecido fecha. O toque precisa começar fora também:
+    // arrastar para selecionar um texto e soltar fora não fecha.
+    let tocouFora = false;
+    modal.addEventListener("pointerdown", (evento) => {
+      tocouFora = evento.target === modal;
+    });
+    modal.addEventListener("click", (evento) => {
+      if (tocouFora && evento.target === modal) fechar();
+    });
+
+    // Fechado por qualquer caminho (inclusive o segundo Esc, que o navegador
+    // não deixa adiar), o modal sai limpo, e o foco volta ao botão que o abriu
+    modal.addEventListener("close", () => {
+      clearTimeout(reserva);
+      modal.removeAttribute("data-saindo");
+      abrirModal.focus({ preventScroll: true });
     });
   }
 
