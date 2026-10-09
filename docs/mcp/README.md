@@ -57,14 +57,20 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 | Ferramenta | Responde | Regra |
 |---|---|---|
 | `minhas_empresas` | empresas e papel | `organization_members` ativo |
-| `resumo_do_dia` | as cinco abaixo, de uma vez | — |
-| `conversas` | conversas com mensagem no dia (recebidas e enviadas), total de diretas e de grupos, não lidas, "precisa de você" | `whatsapp_messages` no dia, sem grupos; "precisa de você" = `unread_count > 0` e `owner = 'humano'` (`Conversas.jsx`) |
-| `leads` | total, novos no dia, últimos 7 dias | `contacts.lead_at` não nulo, sem `deleted_at` (`domain/lead.js`) |
-| `leads_esperando` | quem espera a equipe, há quanto tempo, quem atende | conversa direta com `last_message_from_me = false`, casada com o lead por `variantesBR`. É o que a tela Leads chama de **"Respondeu"**. Lista os últimos 7 dias, com a espera mais longa primeiro, e só conta os mais antigos |
+| `resumo_do_dia` | conversas, leads, quem espera, tarefas e agenda, de uma vez | — |
+| `esperando_resposta` | quem espera a equipe, por idade (hoje, 7 dias, mais antigas), com nome, espera, quem atende e a última mensagem; `somente_leads` opcional | conversa direta com `last_message_from_me = false`; o contato é casado por `variantesBR`, e quem não está no CRM aparece pelo nome da conversa. Para lead, é o que a tela Leads chama de **"Respondeu"** |
+| `leads_esperando` | o mesmo, só leads | — |
+| `ficha_do_contato` | lead ou não, negócio e etapa, tarefas abertas, três notas, pé da conversa | busca por nome (`ilike`, contém), número inteiro (com e sem o nono dígito) ou últimos 4 a 7 dígitos, no CRM e nas conversas. Mais de um resultado volta como lista para escolher |
+| `conversa_com_contato` | as últimas mensagens (padrão 20, até 50), em ordem, com quem falou | `whatsapp_messages` do número; áudio transcrito vem marcado `[áudio]`, mídia sem texto pelo rótulo |
+| `conversas` | conversas com mensagem no período (recebidas e enviadas), comparado com o anterior; diretas, grupos, não lidas, "precisa de você" por idade | `whatsapp_messages` no período, sem grupos; "precisa de você" = `unread_count > 0` e `owner = 'humano'` (`Conversas.jsx`) |
+| `leads` | total e novos no período, comparado com o anterior | `contacts.lead_at` não nulo, sem `deleted_at` (`domain/lead.js`) |
 | `tarefas` | pendentes, minhas, atrasadas, do dia, sem data | `tasks` não concluída e sem `deleted_at`; responsáveis em `task_assignees`, ou `owner_id` |
-| `agenda` | compromissos do dia | RPC `calendar_events_list`, só `source_type = 'event'`; evento pessoal de outra pessoa chega mascarado |
+| `agenda` | compromissos de um dia ou dos próximos `dias` (até 14), agrupados por dia | RPC `calendar_events_list`, só `source_type = 'event'`; evento pessoal de outra pessoa chega mascarado |
 
-`conversas`, `leads`, `tarefas` e `agenda` aceitam `dia` (AAAA-MM-DD).
+- **`dia`** (AAAA-MM-DD) vale em `conversas`, `leads`, `tarefas`, `agenda` e `resumo_do_dia`.
+- **`periodo`** vale em `conversas` e `leads`: `hoje`, `ontem`, `semana` (de segunda até hoje), `7dias`, `mes` (do dia 1 até hoje) ou `30dias`. A resposta compara com o período anterior: semana com o mesmo trecho da semana passada; 7 e 30 dias com os 7 e 30 dias antes.
+- **O que a conversa expõe:** é o dado mais sensível que sai do portal, então só vem de uma pessoa, só quando pedido, até 50 mensagens, cada uma cortada em 400 caracteres. Telefone inteiro continua sem sair, inclusive na ficha (`…1234`).
+- **Busca por nome não ignora acento** (o `ilike` do Postgres diferencia "Joao" de "João"). Se não achar, tente outra parte do nome ou os últimos dígitos.
 
 ## Ligar em produção (uma vez)
 

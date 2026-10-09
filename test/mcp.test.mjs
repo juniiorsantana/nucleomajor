@@ -16,7 +16,7 @@ const AGORA = new Date("2026-10-10T02:30:00Z");
 function filtrar(linhas, params) {
   let saida = linhas;
   for (const [campo, regra] of params) {
-    if (["select", "order"].includes(campo)) continue;
+    if (["select", "order", "limit"].includes(campo)) continue;
     saida = saida.filter((linha) => {
       const valor = linha[campo];
       if (regra === "is.null") return valor === null || valor === undefined;
@@ -24,6 +24,10 @@ function filtrar(linhas, params) {
       const [op, ...resto] = regra.split(".");
       const alvo = resto.join(".");
       if (op === "in") return alvo.replace(/[()]/g, "").split(",").includes(String(valor));
+      if (op === "like" || op === "ilike") {
+        const padrao = alvo.split("*").map((parte) => parte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+        return new RegExp(`^${padrao}$`, op === "ilike" ? "i" : "").test(String(valor ?? ""));
+      }
       const comparar = (a, b) => {
         if (typeof a === "number") return a - Number(b);
         if (typeof a === "boolean") return String(a) === b ? 0 : 1;
@@ -90,8 +94,9 @@ function cenario() {
     mensagens.push({ organization_id: ORG_A, contact_phone: "5511988887777", is_from_me: false, sent_at: "2026-10-09T15:00:00Z" });
   }
   mensagens.push(
-    { organization_id: ORG_A, contact_phone: "556592178164", is_from_me: false, sent_at: "2026-10-10T01:00:00Z" }, // 22h de 09/10 em Brasília
-    { organization_id: ORG_A, contact_phone: "556592178164", is_from_me: true, sent_at: "2026-10-09T12:00:00Z" },
+    { organization_id: ORG_A, contact_phone: "556592178164", is_from_me: false, sent_at: "2026-10-10T01:00:00Z", content: "Oi, ainda tem horário amanhã?", author_kind: "contato" }, // 22h de 09/10 em Brasília
+    { organization_id: ORG_A, contact_phone: "556592178164", is_from_me: true, sent_at: "2026-10-09T12:00:00Z", content: "Temos às 10h, serve?", author_kind: "ia", author_name: "" },
+    { organization_id: ORG_A, contact_phone: "556592178164", is_from_me: false, sent_at: "2026-10-09T11:00:00Z", content: "", media_type: "audio", author_kind: "contato" },
     { organization_id: ORG_A, contact_phone: "5511911112222", is_from_me: false, sent_at: "2026-10-09T02:30:00Z" }, // 23h30 de 08/10: ontem
     { organization_id: ORG_A, contact_phone: "120363000000000001", is_from_me: false, sent_at: "2026-10-09T15:00:00Z" }, // grupo
     { organization_id: ORG_B, contact_phone: "5521900000000", is_from_me: false, sent_at: "2026-10-09T15:00:00Z" },
@@ -113,17 +118,30 @@ function cenario() {
       { organization_id: ORG_A, contact_phone: "5511911112222", contact_name: "João", chat_kind: "direto", unread_count: 0, owner: "bot", last_message_from_me: true, last_message_at: "2026-10-09T02:30:00Z", last_message_preview: "Até amanhã" },
       { organization_id: ORG_A, contact_phone: "120363000000000001", contact_name: "Equipe", chat_kind: "grupo", unread_count: 9, owner: "bot", last_message_from_me: false, last_message_at: "2026-10-09T15:00:00Z" },
       { organization_id: ORG_B, contact_phone: "5521900000000", contact_name: "Segredo da B", chat_kind: "direto", unread_count: 1, owner: "humano", last_message_from_me: false, last_message_at: "2026-10-09T15:00:00Z", last_message_preview: "dado da B" },
+      // Esperando há quase três semanas, e nunca virou contato no CRM.
+      { organization_id: ORG_A, contact_phone: "5511933334444", contact_name: "Paciente Antiga", chat_kind: "direto", unread_count: 1, owner: "humano", last_message_from_me: false, last_message_at: "2026-09-20T12:00:00Z", last_message_preview: "Vocês atendem sábado?" },
+    ],
+    deals: [
+      { organization_id: ORG_A, contact_id: "c1", stage_id: "s2", title: "Botox", value: "1200.00", status: "aberto", loss_reason: "", deleted_at: null, updated_at: "2026-10-09T13:00:00Z" },
+    ],
+    stages: [
+      { organization_id: ORG_A, id: "s1", name: "Lead", deleted_at: null },
+      { organization_id: ORG_A, id: "s2", name: "Em contato", deleted_at: null },
+    ],
+    notes: [
+      { organization_id: ORG_A, contact_id: "c1", body: "Prefere horário de manhã.", author_label: "Carla", deleted_at: null, created_at: "2026-10-09T13:30:00Z" },
     ],
     whatsapp_messages: mensagens,
     contacts: [
-      { organization_id: ORG_A, id: "c1", name: "Maria Souza", phone: "65992178164", deleted_at: null, lead_at: "2026-10-09T13:00:00Z" },
+      { organization_id: ORG_A, id: "c1", name: "Maria Souza", phone: "5565992178164", deleted_at: null, lead_at: "2026-10-09T13:00:00Z", source: "Formulário Meta" },
+      { organization_id: ORG_A, id: "c6", name: "Mariana Lima", phone: "5511955556666", deleted_at: null, lead_at: null },
       { organization_id: ORG_A, id: "c2", name: "João", phone: "5511911112222", deleted_at: null, lead_at: "2026-10-01T13:00:00Z" },
       { organization_id: ORG_A, id: "c3", name: "Fornecedor", phone: "5511988887777", deleted_at: null, lead_at: null },
       { organization_id: ORG_A, id: "c4", name: "Apagado", phone: "5511900000001", deleted_at: "2026-10-02T00:00:00Z", lead_at: "2026-10-01T00:00:00Z" },
       { organization_id: ORG_B, id: "c5", name: "Lead da B", phone: "5521900000000", deleted_at: null, lead_at: "2026-10-09T13:00:00Z" },
     ],
     tasks: [
-      { organization_id: ORG_A, id: "t1", title: "Ligar para Maria", due_at: "2026-10-09T18:00:00Z", owner_id: "user-a", deleted_at: null, completed: false },
+      { organization_id: ORG_A, id: "t1", contact_id: "c1", title: "Ligar para Maria", due_at: "2026-10-09T18:00:00Z", owner_id: "user-a", deleted_at: null, completed: false },
       { organization_id: ORG_A, id: "t2", title: "Enviar orçamento", due_at: "2026-10-07T18:00:00Z", owner_id: "user-x", deleted_at: null, completed: false },
       { organization_id: ORG_A, id: "t3", title: "Feita", due_at: "2026-10-09T18:00:00Z", owner_id: "user-a", deleted_at: null, completed: true },
       { organization_id: ORG_A, id: "t4", title: "Sem prazo", due_at: null, owner_id: null, deleted_at: null, completed: false },
@@ -203,7 +221,10 @@ test("initialize, notificação e lista de ferramentas só de leitura", async (t
 
   const lista = await rpc("tok-a", "tools/list", {});
   const nomes = lista.corpo.result.tools.map((tool) => tool.name);
-  assert.deepEqual(nomes, ["minhas_empresas", "resumo_do_dia", "conversas", "leads", "leads_esperando", "tarefas", "agenda"]);
+  assert.deepEqual(nomes, [
+    "minhas_empresas", "resumo_do_dia", "esperando_resposta", "leads_esperando", "ficha_do_contato",
+    "conversa_com_contato", "conversas", "leads", "tarefas", "agenda",
+  ]);
   for (const tool of lista.corpo.result.tools) {
     assert.equal(tool.annotations.readOnlyHint, true, tool.name);
     assert.equal(tool.annotations.destructiveHint, false, tool.name);
@@ -217,22 +238,24 @@ test("as cinco perguntas, no fuso de Brasília e com a regra do portal", async (
   const { chamar } = await servidor(t);
 
   const conversas = (await chamar("tok-a", "conversas")).structuredContent;
-  assert.equal(conversas.dia, "2026-10-09", "23h30 em Brasília ainda é dia 9");
-  assert.equal(conversas.diretas, 3);
+  assert.equal(conversas.periodo, "hoje");
+  assert.equal(conversas.de, "2026-10-09T03:00:00.000Z", "23h30 em Brasília ainda é dia 9");
+  assert.equal(conversas.diretas, 4);
   assert.equal(conversas.grupos, 1);
-  assert.equal(conversas.comMensagemNoDia, 2, "a de ontem às 23h30 e o grupo ficam de fora");
-  assert.equal(conversas.mensagensRecebidas, 1206, "paginou além de mil linhas");
+  assert.equal(conversas.comMensagem, 2, "a de ontem às 23h30 e o grupo ficam de fora");
+  assert.equal(conversas.mensagensRecebidas, 1207, "paginou além de mil linhas");
   assert.equal(conversas.mensagensEnviadas, 1);
-  assert.equal(conversas.naoLidas, 1);
-  assert.equal(conversas.precisaDeVoce, 1);
+  assert.equal(conversas.anterior.comMensagem, 1, "ontem: a do João às 23h30");
+  assert.equal(conversas.naoLidas, 2);
+  assert.deepEqual(conversas.precisaDeVoce, { total: 2, hoje: 1, semana: 0, antigas: 1 }, "separado por idade");
 
   const leads = (await chamar("tok-a", "leads")).structuredContent;
-  assert.deepEqual([leads.total, leads.noDia, leads.ultimos7Dias], [2, 1, 1]);
+  assert.deepEqual([leads.total, leads.noPeriodo, leads.anterior], [2, 1, 0]);
 
   const esperando = await chamar("tok-a", "leads_esperando");
   assert.equal(esperando.structuredContent.total, 1, "o fornecedor não é lead");
-  const [maria] = esperando.structuredContent.lista;
-  assert.equal(maria.nome, "Maria Souza", "casou 65992178164 com 556592178164");
+  const [maria] = esperando.structuredContent.hoje.lista;
+  assert.equal(maria.nome, "Maria Souza", "casou 5565992178164 com 556592178164");
   assert.equal(maria.espera, "1 h 30 min");
   assert.equal(maria.quemAtende, "equipe");
   assert.doesNotMatch(esperando.content[0].text, /92178164/, "o telefone não sai");
@@ -252,10 +275,105 @@ test("as cinco perguntas, no fuso de Brasília e com a regra do portal", async (
   assert.match(resumo.content[0].text, /Compromissos hoje: 1/);
 
   const ontem = (await chamar("tok-a", "conversas", { dia: "2026-10-08" })).structuredContent;
-  assert.equal(ontem.comMensagemNoDia, 1);
+  assert.equal(ontem.comMensagem, 1);
 
   const diaRuim = await chamar("tok-a", "agenda", { dia: "09/10" });
   assert.equal(diaRuim.isError, true);
+});
+
+test("quem está esperando: todos, por idade, e as antigas dizem quem é", async (t) => {
+  const { chamar } = await servidor(t);
+  const r = await chamar("tok-a", "esperando_resposta");
+  const dados = r.structuredContent;
+  assert.equal(dados.total, 3);
+  assert.deepEqual(dados.hoje.lista.map((item) => [item.nome, item.lead]), [["Fornecedor", false], ["Maria Souza", true]], "a espera mais longa primeiro");
+  assert.equal(dados.antigas.total, 1);
+  assert.equal(dados.antigas.lista[0].nome, "Paciente Antiga", "fora do CRM, pelo nome da conversa");
+  assert.equal(dados.antigas.lista[0].espera, "19 dias");
+  assert.match(r.content[0].text, /Há mais tempo/);
+  assert.match(r.content[0].text, /Vocês atendem sábado\?/);
+
+  const resumo = await chamar("tok-a", "resumo_do_dia");
+  assert.match(resumo.content[0].text, /Esperando resposta: 3 \(2 de hoje, 0 dos últimos 7 dias, 1 há mais tempo\)/);
+  assert.match(resumo.content[0].text, /Precisando de alguém da equipe: 2 \(1 de hoje, 0 dos últimos 7 dias, 1 mais antigas\)/);
+});
+
+test("períodos: semana, mês, comparação e período desconhecido", async (t) => {
+  const { chamar } = await servidor(t);
+  const semana = (await chamar("tok-a", "leads", { periodo: "semana" })).structuredContent;
+  assert.equal(semana.de, "2026-10-05T03:00:00.000Z", "a semana começa na segunda");
+  assert.equal(semana.ate, "2026-10-10T03:00:00.000Z", "e vai até o fim de hoje");
+  assert.deepEqual([semana.noPeriodo, semana.anterior], [1, 1], "João entrou na semana passada");
+
+  const mes = (await chamar("tok-a", "leads", { periodo: "mes" })).structuredContent;
+  assert.equal(mes.de, "2026-10-01T03:00:00.000Z");
+  assert.equal(mes.noPeriodo, 2);
+
+  const texto = (await chamar("tok-a", "conversas", { periodo: "7dias" })).content[0].text;
+  assert.match(texto, /nos últimos 7 dias/);
+  assert.match(texto, /nos 7 dias anteriores/);
+
+  const ruim = await chamar("tok-a", "leads", { periodo: "trimestre" });
+  assert.equal(ruim.isError, true);
+});
+
+test("agenda de vários dias, agrupada por dia", async (t) => {
+  const { chamar } = await servidor(t);
+  const r = await chamar("tok-a", "agenda", { dias: 2 });
+  assert.equal(r.structuredContent.total, 2);
+  assert.deepEqual(r.structuredContent.eventos.map((e) => e.dia), ["2026-10-09", "2026-10-10"]);
+  assert.match(r.content[0].text, /Compromissos nos próximos 2 dias: 2/);
+  assert.match(r.content[0].text, /sex\.?, 09\/10/);
+});
+
+test("ficha do contato: por nome, por número, pelos últimos dígitos, e sem chutar", async (t) => {
+  const { chamar } = await servidor(t);
+  const r = await chamar("tok-a", "ficha_do_contato", { busca: "maria souza" });
+  const f = r.structuredContent;
+  assert.equal(f.nome, "Maria Souza");
+  assert.equal(f.lead, true);
+  assert.deepEqual(f.negocios, [{ titulo: "Botox", etapa: "Em contato", situacao: "aberto", valor: 1200, motivoDaPerda: null }]);
+  assert.deepEqual(f.tarefasAbertas.map((tarefa) => tarefa.titulo), ["Ligar para Maria"]);
+  assert.equal(f.notas[0].texto, "Prefere horário de manhã.");
+  assert.equal(f.conversa.esperandoResposta, true);
+  assert.equal(f.telefone, "…8164");
+  assert.doesNotMatch(r.content[0].text, /92178164/, "o telefone não sai inteiro");
+  assert.match(r.content[0].text, /Em contato, aberto, R\$ 1\.200/);
+
+  for (const busca of ["(65) 99217-8164", "6592178164", "8164"]) {
+    const porNumero = await chamar("tok-a", "ficha_do_contato", { busca });
+    assert.equal(porNumero.structuredContent?.nome, "Maria Souza", busca);
+  }
+
+  const duas = await chamar("tok-a", "ficha_do_contato", { busca: "maria" });
+  assert.equal(duas.isError, true, "Maria Souza e Mariana Lima: pergunta em vez de chutar");
+  assert.match(duas.content[0].text, /Maria Souza.*Mariana Lima|Mariana Lima.*Maria Souza/);
+
+  const soWhatsApp = (await chamar("tok-a", "ficha_do_contato", { busca: "paciente antiga" })).structuredContent;
+  assert.equal(soWhatsApp.noCrm, false);
+  assert.equal(soWhatsApp.conversa.esperandoResposta, true);
+
+  const ninguem = await chamar("tok-a", "ficha_do_contato", { busca: "Zé Ninguém" });
+  assert.equal(ninguem.isError, true);
+
+  const daOutra = await chamar("tok-a", "ficha_do_contato", { busca: "Lead da B" });
+  assert.equal(daOutra.isError, true, "contato de outra empresa não aparece");
+});
+
+test("conversa com o contato: em ordem, com quem falou e a mídia pelo rótulo", async (t) => {
+  const { chamar } = await servidor(t);
+  const r = await chamar("tok-a", "conversa_com_contato", { busca: "maria souza", mensagens: 10 });
+  const dados = r.structuredContent;
+  assert.equal(dados.total, 3);
+  assert.deepEqual(dados.mensagens.map((m) => [m.quem, m.texto]), [
+    ["Maria Souza", "[áudio]"],
+    ["IA", "Temos às 10h, serve?"],
+    ["Maria Souza", "Oi, ainda tem horário amanhã?"],
+  ]);
+  assert.match(r.content[0].text, /09\/10 09:00 · IA: Temos às 10h, serve\?/);
+
+  const ultima = (await chamar("tok-a", "conversa_com_contato", { busca: "8164", mensagens: 1 })).structuredContent;
+  assert.deepEqual(ultima.mensagens.map((m) => m.texto), ["Oi, ainda tem horário amanhã?"], "a mais recente fica");
 });
 
 test("a empresa sai dos vínculos da pessoa: pedir a de outra é recusado", async (t) => {

@@ -38,7 +38,7 @@ const APLICATIVOS = {
   },
 };
 
-const EXEMPLOS = ["Como está hoje?", "Tem lead esperando resposta?", "Quais tarefas estão atrasadas?", "Tenho compromisso hoje?"];
+const EXEMPLOS = ["Como está hoje?", "Quem está esperando resposta?", "O que a Maria pediu?", "Como foram os leads da semana?", "Como está a agenda da semana?"];
 
 /** O endereço público do MCP: o do servidor que serviu o portal. */
 export function enderecoDoMcp(config = globalThis.__NUCLEO_CONFIG__, local = globalThis.location) {
