@@ -1146,6 +1146,463 @@ a {
   line-height: normal;
 }
 
+/* ---------- Pedido de orçamento (modal) ----------
+   Fora da escala do Figma: medidas em px, e texto de 16 px ou mais nos campos
+   (abaixo disso o iPhone dá zoom ao tocar). Mesmo material da página: painel
+   escuro com o filete de vidro na borda e a luz que cruza o botão. No celular
+   é uma folha presa ao pé da tela; a partir de 600 px, um painel no meio. */
+
+/* A página para de rolar por trás; o espaço da barra de rolagem fica
+   reservado para o conteúdo não pular de lado ao abrir */
+html:has(.orcamento[open]) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* O <dialog> só posiciona; quem rola e tem fundo é o painel, para o toque
+   no fundo escurecido (alvo: o próprio dialog) fechar o modal */
+.orcamento {
+  position: fixed;
+  inset: 0;
+  width: min(480px, 100% - 32px);
+  max-width: none;
+  height: fit-content;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--gelo);
+}
+
+.orcamento::backdrop {
+  background: rgba(8, 4, 28, 0.66);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.orcamento-painel {
+  position: relative;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 28px 32px;
+  border-radius: 28px;
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgba(var(--azul), 0.34), rgba(var(--azul), 0) 72%),
+    linear-gradient(180deg, #1b1450, #120b33);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--aro), 0.2),
+    inset 0 1px 0 0 rgba(var(--aro), 0.28),
+    0 32px 80px -24px rgba(3, 1, 14, 0.9);
+  scrollbar-color: #3558e4 transparent;
+  scrollbar-width: thin;
+}
+
+.orcamento-fechar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(229, 247, 255, 0.72);
+  cursor: pointer;
+  transition:
+    color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.orcamento-fechar svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Ícone e título como no botão que abriu o modal */
+.orcamento-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-right: 44px;
+}
+
+.orcamento-icone {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--gelo);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+}
+
+.orcamento-icone img {
+  width: 34px;
+  height: 27px;
+  object-fit: cover;
+}
+
+.orcamento-titulo {
+  color: var(--gelo);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.orcamento-titulo:focus {
+  outline: none;
+}
+
+.orcamento-descricao {
+  margin-top: 14px;
+  color: rgba(229, 247, 255, 0.78);
+  font-size: 16px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.orcamento-descricao strong {
+  color: var(--gelo);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.orcamento-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.campo {
+  display: grid;
+  gap: 8px;
+}
+
+.campo > label {
+  color: rgba(229, 247, 255, 0.86);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.campo input:not([type="checkbox"]) {
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border: 1px solid rgba(var(--aro), 0.24);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--gelo);
+  font: inherit;
+  font-size: 17px;
+  caret-color: #66e8f9;
+  transition:
+    border-color 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.campo input::placeholder {
+  color: rgba(229, 247, 255, 0.5);
+}
+
+.campo input:not([type="checkbox"]):focus {
+  border-color: #66e8f9;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  box-shadow: inset 0 0 0 1px #66e8f9;
+}
+
+.campo input[aria-invalid="true"]:not([type="checkbox"]) {
+  border-color: #ff8fa8;
+}
+
+/* Preenchimento automático do navegador: sem o fundo amarelo ou azul dele */
+.campo input:-webkit-autofill {
+  -webkit-text-fill-color: var(--gelo);
+  caret-color: #66e8f9;
+  box-shadow: inset 0 0 0 100px #231b57;
+  transition: background-color 600000s 0s;
+}
+
+.campo input:-webkit-autofill:focus {
+  box-shadow:
+    inset 0 0 0 1px #66e8f9,
+    inset 0 0 0 100px #231b57;
+}
+
+.campo-erro {
+  color: #ffb4c3;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.campo-erro:empty,
+.orcamento-aviso:empty {
+  display: none;
+}
+
+.aceite {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding-top: 4px;
+  color: rgba(229, 247, 255, 0.82);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.aceite input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: rgb(var(--azul));
+  cursor: pointer;
+}
+
+.aceite input:focus-visible {
+  outline: 2px solid #66e8f9;
+  outline-offset: 2px;
+}
+
+.aceite input[aria-invalid="true"] {
+  outline: 2px solid #ff8fa8;
+  outline-offset: 2px;
+}
+
+/* Campo-armadilha para robôs: fora da vista, mas preenchível */
+.armadilha {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.orcamento-aviso {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 143, 168, 0.12);
+  color: #ffc2cd;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Botão de envio: o azul do degradê dos botões com a luz ciano no canto
+   (o texto branco fica acima de 4,5:1) e a mesma faixa de luz do vidro */
+.orcamento-enviar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 56px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--ciano), 0.6), rgba(var(--ciano), 0) 58%),
+    rgb(var(--azul));
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--aro), 0.3),
+    0 14px 32px -12px rgba(var(--azul), 0.8);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    transform 450ms var(--chegada),
+    opacity 200ms ease-out;
+}
+
+.orcamento-enviar-texto {
+  position: relative;
+}
+
+.orcamento-enviar:disabled {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.orcamento-fechar:focus-visible,
+.orcamento-enviar:focus-visible {
+  outline: 2px solid #66e8f9;
+  outline-offset: 3px;
+}
+
+.orcamento-certo {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: rgb(var(--azul));
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+
+.orcamento-pronto .orcamento-enviar {
+  margin-top: 28px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .orcamento-fechar:hover {
+    background: rgba(var(--aro), 0.1);
+    color: #fff;
+  }
+
+  .campo input:not([type="checkbox"]):not(:focus):hover {
+    border-color: rgba(var(--aro), 0.4);
+  }
+}
+
+@media (max-width: 599px) {
+  .orcamento {
+    inset: auto 0 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .orcamento-painel {
+    max-height: calc(100vh - 12px);
+    max-height: calc(100dvh - 12px);
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+  }
+
+  .orcamento-fechar {
+    top: 10px;
+    right: 10px;
+  }
+
+  .orcamento-titulo {
+    font-size: 20px;
+  }
+}
+
+/* Na primeira dobra do computador o botão que abre o modal é grande */
+@media (min-width: 1280px) {
+  .orcamento {
+    width: 520px;
+  }
+
+  .orcamento-titulo {
+    font-size: 24px;
+  }
+}
+
+/* Movimento: o painel chega com a saída exponencial (no celular, a folha sobe
+   do pé da tela), a luz cruza o botão de envio e o certo se desenha */
+@media (prefers-reduced-motion: no-preference) {
+  .orcamento[open] {
+    animation: orcamento-entra 420ms var(--chegada);
+  }
+
+  .orcamento[open]::backdrop {
+    animation: orcamento-fundo 320ms ease-out;
+  }
+
+  .orcamento[data-saindo] {
+    animation: orcamento-sai 220ms ease-in forwards;
+  }
+
+  .orcamento[data-saindo]::backdrop {
+    animation: orcamento-fundo-sai 220ms ease-in forwards;
+  }
+
+  .orcamento[open] .orcamento-enviar .reflexo {
+    animation: varrer 1100ms var(--chegada) 500ms both;
+  }
+
+  .orcamento-pronto:not([hidden]) .orcamento-certo {
+    animation: desenhar 700ms var(--chegada) 150ms both;
+  }
+
+  .orcamento-enviar:active:not(:disabled) {
+    transform: scale(0.985);
+    transition-duration: 120ms;
+  }
+}
+
+@media (max-width: 599px) and (prefers-reduced-motion: no-preference) {
+  .orcamento[open] {
+    animation-name: orcamento-sobe;
+  }
+
+  .orcamento[data-saindo] {
+    animation-name: orcamento-desce;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .orcamento-enviar:hover:not(:disabled) {
+    transform: scale(1.015);
+  }
+}
+
+@keyframes orcamento-entra {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+}
+
+@keyframes orcamento-sai {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+}
+
+@keyframes orcamento-sobe {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes orcamento-desce {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes orcamento-fundo {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes orcamento-fundo-sai {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes desenhar {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
 /* ---------- Interação ---------- */
 
 /* Cor e brilho respondem sempre (também com menos movimento) */
