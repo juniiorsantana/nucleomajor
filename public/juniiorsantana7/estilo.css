@@ -1,0 +1,1910 @@
+/*
+  Link na bio — Juniior Santana / Major
+  Fonte da verdade: Figma "Link na Bio - Junior", Frame 1 (1080 x 6362).
+
+  Escala: cada bloco (.coluna, .faixa) é medido em px do quadro do Figma:
+  calc(var(--u) * N) vale N px do Figma. No celular a página é o quadro
+  inteiro reduzido. No computador a coluna fica com 540 px e a faixa de
+  projetos se abre na largura da tela, com escala própria.
+
+  Conversões do Figma usadas aqui:
+  - Desfoque de camada R vira filter: blur(R / 2), como o próprio Figma exporta.
+  - Sombra (raio R) vira blur R no CSS.
+  - Efeito Glass: desfoque de fundo (raio / 2), mais o filete de luz de ~1 px
+    na borda, medido no print 2x do Figma.
+
+  Movimento: um só material, a luz atravessando o vidro (tag, botão e pílulas),
+  e a troca de lugar dos projetos. Todo o resto é resposta ao toque e ao mouse.
+*/
+
+@font-face {
+  font-family: "Funnel Sans";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("fontes/funnel-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --fundo: #170d3b;
+  --barra: #111a40;
+  --gelo: #e5f7ff;
+  --nevoa: #f5f5f5;
+  --tinta: #161030;
+  --nome: #d9d9d9;
+  --bio: #e5e5e5;
+  /* Tag: o azul do cargo no Figma (#3959FA) dá 3,1:1 sobre o fundo; este, 7,1:1 */
+  --tag: #8fa8ff;
+  --tag-forte: #c3d2ff;
+  --lilas: #f0edff;
+  /* Degradê dos botões no Figma: #20C3FF a 90% → #3558E4 */
+  --ciano: 32, 195, 255;
+  --azul: 53, 88, 228;
+  --aro: 192, 222, 255;
+  /* Curva de chegada (saída exponencial) para tudo que responde ao usuário */
+  --chegada: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Espaço entre os projetos e a foto final. No Figma eram 1748 px vazios,
+     reservados para conteúdo novo; por enquanto só cabe a esfera. */
+  --respiro: 300;
+  /* Fundo do navegador (600 a 1279 px), opcional. Para usar uma arte, troque
+     none pelo url() do arquivo dentro da pasta de imagens. */
+  --arte-navegador: none;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--fundo);
+  scrollbar-color: #3558e4 var(--fundo);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+@supports (overflow: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+/* Sem fundo no body: ele pintaria por cima do .fundo-navegador (z-index -1).
+   A cor de base fica no html. */
+body {
+  min-height: 100vh;
+  color: var(--gelo);
+  font-family: "Funnel Sans", system-ui, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(var(--ciano), 0.38);
+  color: #fff;
+}
+
+img {
+  display: block;
+  max-width: none;
+}
+
+/* <picture> só troca o arquivo no computador; quem tem caixa e posição é o img */
+picture {
+  display: contents;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Blocos e escala ---------- */
+
+.coluna,
+.faixa {
+  --u: calc(100cqw / 1080);
+  position: relative;
+  width: min(100%, 540px);
+  margin-inline: auto;
+  container-type: inline-size;
+  background: var(--fundo);
+}
+
+/* Navegadores sem cqw (iOS 15 e anteriores) usam a largura da tela */
+@supports not (width: 1cqw) {
+  .coluna,
+  .faixa {
+    --u: calc(min(100vw, 540px) / 1080);
+  }
+
+  @media (min-width: 1000px) and (max-width: 1279px) {
+    .faixa {
+      --u: calc(min(100vw - 96px, 960px) / 1080);
+    }
+  }
+}
+
+.coluna-topo {
+  isolation: isolate;
+  overflow: hidden;
+  overflow: clip;
+}
+
+/* ---------- Fundo do topo ---------- */
+
+.decor-topo {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: calc(var(--u) * 1080);
+  height: calc(var(--u) * 2000);
+  background: var(--fundo);
+  pointer-events: none;
+}
+
+.decor-topo > img {
+  position: absolute;
+}
+
+/* Group 1: quatro elipses desfocadas (desfoque já está no SVG) */
+.brilho-topo {
+  left: calc(var(--u) * -152.93);
+  top: calc(var(--u) * -828.92);
+  width: calc(var(--u) * 1386.8);
+  height: calc(var(--u) * 1599.31);
+}
+
+/* 29:24 — cristais em Tela (screen) a 62% */
+.cristais {
+  left: calc(var(--u) * -191);
+  top: calc(var(--u) * -34);
+  width: calc(var(--u) * 1292);
+  height: calc(var(--u) * 837);
+  opacity: 0.62;
+  mix-blend-mode: screen;
+}
+
+/* 30:28 — retângulo #170D3B desfocado que apaga os cristais para baixo */
+.esmaecer {
+  left: calc(var(--u) * -572);
+  top: calc(var(--u) * 136);
+  width: calc(var(--u) * 2224);
+  height: calc(var(--u) * 1575);
+}
+
+.brilho-9 {
+  left: calc(var(--u) * 259);
+  top: calc(var(--u) * 439);
+  width: calc(var(--u) * 1641);
+  height: calc(var(--u) * 1551);
+}
+
+/* 35:169 — desfoque 6,1 e sombra 18/72/71,7 preta a 20% */
+.cristal-direita {
+  left: calc(var(--u) * 661);
+  top: calc(var(--u) * 840);
+  width: calc(var(--u) * 616);
+  height: calc(var(--u) * 616);
+  filter: blur(calc(var(--u) * 3.05))
+    drop-shadow(calc(var(--u) * 18) calc(var(--u) * 72) calc(var(--u) * 71.7) rgba(0, 0, 0, 0.2));
+}
+
+.brilho-10 {
+  left: calc(var(--u) * 254);
+  top: calc(var(--u) * 554);
+  width: calc(var(--u) * 1395);
+  height: calc(var(--u) * 1339);
+}
+
+/* ---------- Apresentação ---------- */
+
+.topo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: calc(var(--u) * 102);
+  text-align: center;
+}
+
+.logo {
+  width: calc(var(--u) * 192);
+  height: calc(var(--u) * 64);
+  object-fit: cover;
+}
+
+.perfil {
+  position: relative;
+  width: calc(var(--u) * 340);
+  height: calc(var(--u) * 342);
+  margin-top: calc(var(--u) * 48);
+}
+
+.perfil img {
+  position: absolute;
+}
+
+.perfil .foto {
+  left: calc(var(--u) * 13.91);
+  top: calc(var(--u) * 13.99);
+  width: calc(var(--u) * 312.18);
+  height: calc(var(--u) * 314.02);
+}
+
+.perfil .aro-brilho {
+  left: calc(var(--u) * -21.4);
+  top: calc(var(--u) * -21.4);
+  width: calc(var(--u) * 382.8);
+  height: calc(var(--u) * 384.8);
+}
+
+.perfil .aro {
+  left: 0;
+  top: 0;
+  width: calc(var(--u) * 340);
+  height: calc(var(--u) * 342);
+}
+
+.nome {
+  width: calc(var(--u) * 566);
+  height: calc(var(--u) * 107);
+  margin-top: calc(var(--u) * 52);
+  color: var(--nome);
+  font-size: calc(var(--u) * 70);
+  font-weight: 700;
+  line-height: normal;
+}
+
+/* Tag do cargo: a linha de texto do Figma (topo em 717) virou uma pílula de
+   vidro de 54 px, centrada entre o nome e a bio; a bio continua em 784. */
+.cargo {
+  display: flex;
+  justify-content: center;
+  height: calc(var(--u) * 54);
+  margin-top: calc(var(--u) * 2);
+}
+
+.tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding-inline: calc(var(--u) * 30);
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(167deg, rgba(var(--ciano), 0.12) 15%, rgba(var(--azul), 0.2) 86%);
+  color: var(--tag);
+  font-size: calc(var(--u) * 30);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(calc(var(--u) * 10));
+  backdrop-filter: blur(calc(var(--u) * 10));
+  transition:
+    transform 450ms var(--chegada),
+    color 250ms ease-out;
+}
+
+.tag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 calc(var(--u) * 1) rgba(var(--aro), 0.34),
+    inset 0 calc(var(--u) * 1) 0 0 rgba(var(--aro), 0.2);
+  transition: box-shadow 250ms ease-out;
+}
+
+.tag-texto {
+  position: relative;
+}
+
+.bio {
+  width: calc(var(--u) * 766);
+  height: calc(var(--u) * 170);
+  margin-top: calc(var(--u) * 13);
+  color: var(--bio);
+  font-size: calc(var(--u) * 30);
+  line-height: normal;
+}
+
+/* ---------- Material: vidro (Glass do Figma) ---------- */
+
+/* Desfoque do que está atrás + filete de luz na borda. O filete tem ~0,75 px
+   do Figma (medido no print 2x), azul-gelo a ~45%, um pouco mais forte no alto.
+   É sombra interna, e não border ou máscara, porque o navegador arredonda os
+   dois para 1 px ou para zero. */
+.vidro,
+.pilula {
+  -webkit-backdrop-filter: blur(var(--fosco));
+  backdrop-filter: blur(var(--fosco));
+}
+
+.vidro::after,
+.pilula::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 calc(var(--u) * 0.75) rgba(var(--aro), 0.42),
+    inset 0 calc(var(--u) * 0.6) 0 0 rgba(var(--aro), 0.18);
+}
+
+/* A luz que atravessa o vidro: uma faixa clara que cruza a peça. Passa uma
+   vez quando a página abre (tag e botão) e de novo no mouse ou no toque. */
+.reflexo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg,
+      rgba(214, 238, 255, 0) 32%,
+      rgba(214, 238, 255, 0.34) 50%,
+      rgba(214, 238, 255, 0) 68%);
+  transform: translateX(-130%);
+}
+
+@keyframes varrer {
+  from {
+    transform: translateX(-130%);
+  }
+
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* Efeito Noise do Figma: granulado que não muda a cor média (medido na foto
+   final: a cor quase não mexe), por isso a mesclagem é overlay. */
+.grao,
+.ruido-multi {
+  background: url("assets/ruido-multi.png") 0 0 / calc(var(--u) * 64);
+  mix-blend-mode: overlay;
+}
+
+/* ---------- Botão e cards ---------- */
+
+.links {
+  display: flex;
+  flex-direction: column;
+  padding-left: calc(var(--u) * 206);
+  padding-bottom: calc(var(--u) * 100);
+  scroll-margin-top: 24px;
+}
+
+/* Indicador de rolagem no pé da primeira dobra: só no computador */
+.rolar {
+  position: absolute;
+  left: 50%;
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(var(--aro), 0.3);
+  color: rgba(229, 247, 255, 0.72);
+  transition:
+    color 250ms ease-out,
+    box-shadow 250ms ease-out,
+    transform 450ms var(--chegada);
+}
+
+.rolar svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rolar:focus-visible {
+  outline: 2px solid #66e8f9;
+  outline-offset: 3px;
+}
+
+.botao,
+.card {
+  position: relative;
+  display: block;
+  width: calc(var(--u) * 669);
+  height: calc(var(--u) * 311);
+  transition: transform 450ms var(--chegada);
+}
+
+.botao:focus-visible,
+.card:focus-visible {
+  outline: calc(var(--u) * 4) solid #66e8f9;
+  outline-offset: calc(var(--u) * 8);
+}
+
+/* Botão "Solicitar orçamento" (669 x 153) */
+.botao {
+  height: calc(var(--u) * 153);
+  margin-top: calc(var(--u) * 20);
+  border-radius: calc(var(--u) * 40);
+}
+
+.botao > * {
+  position: absolute;
+}
+
+/* 30:53 — brilho por baixo do vidro, desfoque 95,8 */
+.botao .brilho {
+  left: calc(var(--u) * 24);
+  top: calc(var(--u) * 26);
+  width: calc(var(--u) * 621);
+  height: calc(var(--u) * 101);
+  border-radius: calc(var(--u) * 40);
+  background: linear-gradient(170.86deg, rgba(var(--ciano), 0.9) 15.289%, rgb(var(--azul)) 86.03%);
+  filter: blur(calc(var(--u) * 47.9));
+  transition: transform 600ms var(--chegada);
+}
+
+/* 30:39 — vidro: degradê a 17%, Glass (fosco 29) e ruído a 9% */
+.botao .vidro {
+  --fosco: calc(var(--u) * 14.5);
+  inset: 0;
+  overflow: hidden;
+  border-radius: calc(var(--u) * 40);
+  background: linear-gradient(167.26deg, rgba(var(--ciano), 0.153) 15.289%, rgba(var(--azul), 0.17) 86.03%);
+}
+
+/* Refração do Glass (profundidade 60): o vidro curva o brilho para as bordas.
+   Medido no print 2x: alto, baixo e esquerda ganham ~20 de verde e azul;
+   a direita já bate, por isso a luz vem deslocada para a esquerda. */
+.botao .vidro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset calc(var(--u) * 10) 0 calc(var(--u) * 24) calc(var(--u) * 2) rgba(42, 124, 204, 0.5),
+    inset 0 0 calc(var(--u) * 16) calc(var(--u) * 3) rgba(48, 118, 214, 0.5),
+    inset 0 calc(var(--u) * -10) calc(var(--u) * 20) 0 rgba(66, 112, 222, 0.45);
+}
+
+/* Luz que segue o cursor (só com mouse; a posição vem do app.js) */
+.botao .luz {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--u) * 460);
+  height: calc(var(--u) * 460);
+  margin: calc(var(--u) * -230) 0 0 calc(var(--u) * -230);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(196, 232, 255, 0.3), rgba(196, 232, 255, 0));
+  opacity: 0;
+  transform: translate(var(--luz-x, 50%), var(--luz-y, 50%));
+  transition: opacity 300ms ease-out;
+}
+
+.botao .grao {
+  inset: 0;
+  border-radius: calc(var(--u) * 40);
+  opacity: 0.09;
+}
+
+/* 30:43 — textos com sombra 0/4/12,5 preta a 30% */
+.botao .titulo,
+.botao .detalhe {
+  color: var(--gelo);
+  line-height: normal;
+  white-space: nowrap;
+  text-shadow: 0 calc(var(--u) * 4) calc(var(--u) * 12.5) rgba(0, 0, 0, 0.3);
+}
+
+.botao .titulo {
+  left: calc(var(--u) * 382);
+  top: calc(var(--u) * 40);
+  transform: translateX(-50%);
+  font-size: calc(var(--u) * 40);
+  font-weight: 700;
+}
+
+.botao .detalhe {
+  left: calc(var(--u) * 158);
+  top: calc(var(--u) * 90);
+  font-size: calc(var(--u) * 18);
+}
+
+/* 30:42 — quadrado do ícone */
+.botao .icone {
+  left: calc(var(--u) * 30);
+  top: calc(var(--u) * 27);
+  width: calc(var(--u) * 100);
+  height: calc(var(--u) * 100);
+  border-radius: calc(var(--u) * 20);
+  background: var(--gelo);
+  box-shadow: 0 calc(var(--u) * 4) calc(var(--u) * 18.3) rgba(0, 0, 0, 0.1);
+}
+
+.botao .diamante {
+  left: calc(var(--u) * 46);
+  top: calc(var(--u) * 53);
+  width: calc(var(--u) * 68);
+  height: calc(var(--u) * 54);
+  object-fit: cover;
+}
+
+/* Cards. Máscara do Figma: cantos de 30, menos o de baixo à esquerda.
+   Cada card tem três grupos: .card-midia (imagem), .card-texto e .card-barra
+   (rótulo + pílula "Acessar"). Até 1279 px eles se empilham, com texto
+   legível no celular; no computador os grupos viram display: contents e cada
+   peça volta à posição absoluta do Figma (bloco desktop, no fim do arquivo). */
+.card {
+  --acessar-desloca: calc(var(--u) * -20);
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  overflow: hidden;
+  border-radius: calc(var(--u) * 30) calc(var(--u) * 30) calc(var(--u) * 30) 0;
+}
+
+.card-diagnostico {
+  margin-top: calc(var(--u) * 52);
+  background: var(--nevoa);
+}
+
+.card-nucleo {
+  margin-top: calc(var(--u) * 46);
+  background: var(--barra);
+}
+
+.card-midia {
+  position: relative;
+  display: block;
+  flex: none;
+  overflow: hidden;
+}
+
+.card-texto {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 14);
+  padding: calc(var(--u) * 34) calc(var(--u) * 44) calc(var(--u) * 44);
+}
+
+/* No celular a própria barra do card é o fundo escuro do rótulo e da pílula */
+.card-barra {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--u) * 24);
+  min-height: calc(var(--u) * 124);
+  padding: calc(var(--u) * 26) calc(var(--u) * 30) calc(var(--u) * 26) calc(var(--u) * 44);
+  background: var(--barra);
+}
+
+/* O retângulo da barra do Figma só é usado no computador */
+.card .barra {
+  display: none;
+  background: var(--barra);
+}
+
+.card .rotulo {
+  position: relative;
+  color: var(--nevoa);
+  font-size: calc(var(--u) * 34);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Sublinhado que se desenha no mouse (rótulo de baixo do card) */
+.card .rotulo::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + var(--u) * 9);
+  height: calc(var(--u) * 3.5);
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgb(var(--ciano)), rgb(var(--azul)));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 500ms var(--chegada);
+}
+
+/* Pílula "Acessar": brilho em Clarear Linear + vidro (Glass, fosco 58).
+   No Figma as duas camadas estão viradas de cabeça para baixo, por isso os
+   ângulos são 180° menos os do Figma. No celular a pílula é maior (236 x 72)
+   e o brilho mantém a mesma folga proporcional do Figma (6 de 149 x 35). */
+.card-acao {
+  position: relative;
+  flex: none;
+  width: calc(var(--u) * 236);
+  height: calc(var(--u) * 72);
+}
+
+.card .pilula-brilho {
+  position: absolute;
+  inset: calc(var(--u) * 12) calc(var(--u) * 9.5);
+  border-radius: 999px;
+  background: linear-gradient(9.43deg, rgba(var(--ciano), 0.9) 15.289%, rgb(var(--azul)) 86.03%);
+  filter: blur(calc(var(--u) * 60));
+  mix-blend-mode: screen;
+  mix-blend-mode: plus-lighter;
+  transition: transform 600ms var(--chegada);
+}
+
+.card .pilula {
+  --fosco: calc(var(--u) * 29);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(13.08deg, rgba(var(--ciano), 0.576) 15.289%, rgba(var(--azul), 0.64) 86.03%);
+}
+
+/* Clarão da pílula no mouse */
+.card .pilula::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(13deg, rgba(var(--ciano), 0.3), rgba(150, 200, 255, 0.16));
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+/* Na pílula o filete do Glass quase não aparece no print do Figma */
+.card .pilula::after {
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.75) rgba(var(--aro), 0.22);
+}
+
+.card .pilula-texto {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nevoa);
+  font-size: calc(var(--u) * 32);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.card .acessar {
+  transition: transform 450ms var(--chegada);
+}
+
+/* Seta que entra no mouse; em repouso o "Acessar" fica centrado */
+.card .seta {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + var(--u) * 52);
+  width: calc(var(--u) * 28);
+  height: calc(var(--u) * 28);
+  margin-top: calc(var(--u) * -14);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: translateX(calc(var(--u) * -16));
+  transition:
+    transform 450ms var(--chegada),
+    opacity 200ms ease-out;
+}
+
+/* Card 1: diagnóstico. Faixa de 300 com a foto como no Figma do celular
+   (mesmo enquadramento), apagando embaixo no fundo claro do card. */
+.card-diagnostico .card-midia {
+  height: calc(var(--u) * 300);
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+}
+
+.card-diagnostico .foto-homem {
+  position: absolute;
+  left: calc(var(--u) * -5.02);
+  top: calc(var(--u) * -78);
+  width: calc(var(--u) * 296.03);
+  height: calc(var(--u) * 427.04);
+  overflow: hidden;
+}
+
+.card-diagnostico .foto-homem img {
+  position: absolute;
+  left: calc(var(--u) * -0.41);
+  top: 0;
+  width: calc(var(--u) * 318.86);
+  height: calc(var(--u) * 427.04);
+  transition: transform 900ms var(--chegada);
+}
+
+/* Brilho branco (Ellipse 8, refeito no Figma desktop) na escala do card de 669 */
+.card-diagnostico .brilho-8 {
+  position: absolute;
+  left: calc(var(--u) * 214.7);
+  top: calc(var(--u) * -76);
+  width: calc(var(--u) * 262.66);
+  height: calc(var(--u) * 274.67);
+}
+
+/* Group 10 — ruído monocromático preto a 5%: no print do Figma o fundo
+   #F5F5F5 sai #F0F0F0, ou seja, escurece ~2% em média. */
+.card-diagnostico .ruido-mono {
+  position: absolute;
+  inset: 0;
+  background: url("assets/ruido-mono.png") 0 0 / calc(var(--u) * 64);
+  opacity: 0.04;
+}
+
+/* 33:145 e 33:146 — cristais a 30% em Escurecer (darken), levemente desfocados */
+.card-diagnostico .cristal {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.card-diagnostico .cristal img {
+  opacity: 0.3;
+  mix-blend-mode: darken;
+}
+
+.card-diagnostico .cristal-a {
+  left: calc(var(--u) * 522);
+  top: calc(var(--u) * 117);
+  width: calc(var(--u) * 169.36);
+  height: calc(var(--u) * 169.36);
+}
+
+.card-diagnostico .cristal-a img {
+  width: calc(var(--u) * 144.16);
+  height: calc(var(--u) * 144.16);
+  transform: rotate(-11.17deg);
+  filter: blur(calc(var(--u) * 1.3));
+}
+
+.card-diagnostico .cristal-b {
+  left: calc(var(--u) * 267);
+  top: calc(var(--u) * 57);
+  width: calc(var(--u) * 86.34);
+  height: calc(var(--u) * 86.34);
+}
+
+.card-diagnostico .cristal-b img {
+  width: calc(var(--u) * 69.91);
+  height: calc(var(--u) * 69.91);
+  transform: rotate(15.85deg);
+  filter: blur(calc(var(--u) * 0.8));
+}
+
+.card-diagnostico .titulo {
+  color: var(--tinta);
+  font-size: calc(var(--u) * 46);
+  font-weight: 300;
+  line-height: 1.08;
+}
+
+.card-diagnostico .titulo strong {
+  font-weight: 500;
+}
+
+.card-diagnostico .texto {
+  color: var(--tinta);
+  font-size: calc(var(--u) * 34);
+  font-weight: 300;
+  line-height: 1.35;
+}
+
+/* Card 2: Núcleo Major. O painel inteiro no alto (proporção da imagem,
+   1672 x 941) e o texto embaixo, no fundo escuro. */
+.card-nucleo .card-midia {
+  height: calc(var(--u) * 376.5);
+  -webkit-mask-image: linear-gradient(#000 72%, transparent);
+  mask-image: linear-gradient(#000 72%, transparent);
+}
+
+.card-nucleo .dashboard {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 900ms var(--chegada);
+}
+
+.card-nucleo .card-texto {
+  padding-top: calc(var(--u) * 8);
+}
+
+.card-nucleo .titulo {
+  color: var(--lilas);
+  font-size: calc(var(--u) * 40);
+  font-weight: 300;
+  line-height: 1.12;
+}
+
+/* O degradê do Figma (#1479FF → #38C8FF) cobre a caixa inteira do texto;
+   na primeira linha ele vai só de #1479FF a ~#1C8BFF. */
+.card-nucleo .marca {
+  background: linear-gradient(180deg, #1479ff, #1c8bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+
+/* ---------- Projetos ---------- */
+
+.faixa {
+  z-index: 2;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* Título: "PROJETOS" virou só efeito (SVG decorativo) e o título de verdade,
+   "Conheça meus projetos", fica no meio das letras. As medidas reproduzem o
+   contorno do Figma: letras de 230 px com a linha de base em 230, numa caixa
+   de 292 (no computador: 390 px, base em 390, caixa de 368). */
+.projetos-titulo {
+  position: relative;
+  height: calc(var(--u) * 292);
+}
+
+/* O viewBox está em unidades de uma fonte de 1000 px (o contorno vai de 66 a
+   4845 na horizontal e de -699,5 a 27,6 na vertical). Aqui ele é escalado para
+   230 px: 4779 x 0,23 = 1099,2 de largura. */
+.efeito-projetos {
+  /* Traço em unidades da fonte de 1000 px: 1,4 px do quadro, ~0,5 px no celular */
+  --traco: 6.1;
+  position: absolute;
+  left: calc(var(--u) * -4.65);
+  top: calc(var(--u) * 69.1);
+  width: calc(var(--u) * 1099.2);
+  height: calc(var(--u) * 167.2);
+  overflow: visible;
+}
+
+.efeito-projetos text {
+  fill: none;
+  font: 700 1000px "Funnel Sans", system-ui, sans-serif;
+  stroke-width: var(--traco);
+}
+
+/* Contorno mais apagado que o do Figma (0,9): agora é fundo, não texto */
+.efeito-projetos .contorno {
+  stroke: rgba(var(--ciano), 0.55);
+  stroke-dasharray: 6000;
+  stroke-dashoffset: 0;
+}
+
+/* O app.js marca "aguardando" ao carregar e "ativo" quando a seção aparece:
+   o contorno se desenha. Sem o script, ele fica inteiro desde o começo. */
+.efeito-projetos[data-efeito="aguardando"] .contorno {
+  stroke-dashoffset: 6000;
+}
+
+.efeito-projetos[data-efeito="ativo"] .contorno {
+  transition: stroke-dashoffset 2400ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* A luz: o mesmo contorno, pintado com um degradê que atravessa as letras */
+.efeito-projetos .contorno-luz {
+  stroke: url(#luz-projetos);
+}
+
+.cristal-projetos {
+  position: absolute;
+  left: calc(var(--u) * -198);
+  top: calc(var(--u) * 39);
+  width: calc(var(--u) * 404);
+  height: calc(var(--u) * 404);
+}
+
+/* No meio das letras. Celular: em 114, como o texto 41:130 do Figma (caixa
+   de 63 a partir de 2061, com o contorno começando em 1947) */
+.titulo-projetos {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: calc(var(--u) * 114);
+  width: 100%;
+  color: var(--nome);
+  font-size: calc(var(--u) * 50);
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.titulo-projetos span {
+  position: relative;
+}
+
+/* Halo da cor do fundo atrás do título, para o contorno não cortar as letras */
+.titulo-projetos span::before {
+  content: "";
+  position: absolute;
+  inset: -55% -10%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(23, 13, 59, 0.88) 50%, rgba(23, 13, 59, 0));
+}
+
+/* Bento: a grade se monta conforme as imagens (app.js). Cada célula tem a
+   proporção dos posts (4:5); a peça alta ocupa as duas linhas e a grande, 2 x 2.
+   No celular: 2 colunas; de 1000 a 1279 px: 4; no computador: 6, quase na
+   largura da tela. Sem o app.js, as imagens ficam numa grade simples. */
+.bento {
+  --colunas: 2;
+  --linhas: 2;
+  --vao: calc(var(--u) * 12);
+  --raio: calc(var(--u) * 20);
+  --largura: calc(var(--u) * 1032);
+  --coluna: calc((var(--largura) - (var(--colunas) - 1) * var(--vao)) / var(--colunas));
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--colunas), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--linhas), calc(var(--coluna) * 1.25));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column dense;
+  gap: var(--vao);
+  width: var(--largura);
+  margin: calc(var(--u) * 60) auto 0;
+}
+
+.bento .peca,
+.bento .vaga {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--raio);
+  background: var(--barra);
+}
+
+.bento .peca[data-forma="alta"],
+.bento .vaga[data-tamanho="alta"] {
+  grid-row: span 2;
+}
+
+.bento .vaga[data-tamanho="grande"] {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.bento .peca img,
+.bento .vaga img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 900ms var(--chegada);
+}
+
+/* Imagens fora da grade, esperando a vez de entrar */
+.bento-reserva {
+  display: none;
+}
+
+/* Pausar/retomar a troca: botão de vidro no canto da grade */
+.bento-controle {
+  position: absolute;
+  z-index: 3;
+  right: calc(var(--u) * 24);
+  bottom: calc(var(--u) * 24);
+  display: grid;
+  place-items: center;
+  width: max(44px, calc(var(--u) * 88));
+  height: max(44px, calc(var(--u) * 88));
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(167deg, rgba(var(--ciano), 0.3) 15%, rgba(var(--azul), 0.45) 86%);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--aro), 0.42),
+    0 6px 20px rgba(3, 1, 14, 0.35);
+  color: var(--gelo);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: transform 300ms var(--chegada);
+}
+
+.bento-controle[hidden] {
+  display: none;
+}
+
+.bento-controle svg {
+  grid-area: 1 / 1;
+  width: 44%;
+  height: 44%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bento-controle .icone-tocar {
+  fill: currentColor;
+}
+
+.bento-controle .icone-tocar,
+.bento-controle[aria-pressed="true"] .icone-pausa {
+  visibility: hidden;
+}
+
+.bento-controle[aria-pressed="true"] .icone-tocar {
+  visibility: visible;
+}
+
+.bento-controle:focus-visible {
+  outline: 2px solid #66e8f9;
+  outline-offset: 3px;
+}
+
+/* ---------- Foto final e rodapé ---------- */
+
+.coluna-final {
+  display: flow-root;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+.final {
+  position: relative;
+  z-index: 1;
+  width: calc(var(--u) * 1080);
+  height: calc(var(--u) * 1433);
+  margin-top: calc(var(--u) * var(--respiro));
+}
+
+.final > * {
+  position: absolute;
+}
+
+/* Group 12 — duas cópias da esfera (20% e 63%) = uma a 70,4%.
+   Centro na borda de baixo da grade: a metade de cima fica atrás das fotos
+   (como no Figma, a esfera está abaixo da grade) e a de baixo no espaço vazio,
+   sem cobrir a foto final. */
+.esfera {
+  z-index: 1;
+  left: calc(var(--u) * -290);
+  top: calc(var(--u) * (var(--respiro) * -1 - 289));
+  width: calc(var(--u) * 578);
+  height: calc(var(--u) * 578);
+  opacity: 0.704;
+}
+
+/* A segunda esfera (sobre a foto) só existe no quadro desktop */
+.esfera-2 {
+  display: none;
+}
+
+.foto-final {
+  left: 0;
+  top: 0;
+  width: calc(var(--u) * 1081);
+  height: calc(var(--u) * 1433);
+}
+
+.foto-final img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 29:6 — ruído multicolorido a 18% */
+.foto-final .ruido-multi {
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+}
+
+/* 35:181 — polígono ciano a 54%, desfoque 64,3 (no SVG), girado 17,13° */
+.poligono {
+  z-index: 1;
+  left: calc(var(--u) * 426.12);
+  top: calc(var(--u) * 364.85);
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 354.89);
+  height: calc(var(--u) * 355.15);
+}
+
+.poligono > div {
+  position: relative;
+  width: calc(var(--u) * 283.77);
+  height: calc(var(--u) * 284.15);
+  transform: rotate(-17.13deg);
+}
+
+.poligono img {
+  position: absolute;
+  left: calc(var(--u) * -40.78);
+  top: calc(var(--u) * -55.61);
+  width: calc(var(--u) * 374.95);
+  height: calc(var(--u) * 403.75);
+}
+
+.rodape {
+  z-index: 2;
+  left: 0;
+  top: calc(var(--u) * 1361);
+  display: grid;
+  place-items: center;
+  width: calc(var(--u) * 1080);
+  height: calc(var(--u) * 72);
+  background: var(--fundo);
+  color: var(--gelo);
+  font-size: calc(var(--u) * 20);
+  font-weight: 700;
+  line-height: normal;
+}
+
+/* ---------- Interação ---------- */
+
+/* Cor e brilho respondem sempre (também com menos movimento) */
+@media (hover: hover) and (pointer: fine) {
+  .tag:hover {
+    color: var(--tag-forte);
+  }
+
+  .tag:hover::after {
+    box-shadow:
+      inset 0 0 0 calc(var(--u) * 1) rgba(var(--aro), 0.6),
+      inset 0 calc(var(--u) * 1) 0 0 rgba(var(--aro), 0.3);
+  }
+
+  .botao:hover .luz {
+    opacity: 1;
+  }
+
+  .card:hover .pilula::before {
+    opacity: 1;
+  }
+
+  .card:hover .seta {
+    opacity: 1;
+  }
+
+  .card:hover .rotulo::after {
+    transform: scaleX(1);
+  }
+
+  .rolar:hover {
+    box-shadow: inset 0 0 0 1px rgba(var(--aro), 0.6);
+    color: #fff;
+  }
+}
+
+/* Movimento: zoom, deslizes e a luz cruzando o vidro */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* O indicador aparece depois que a luz passa pelo botão */
+  .rolar {
+    animation: surgir 700ms var(--chegada) 1500ms backwards;
+  }
+
+  .tag > .reflexo {
+    animation: varrer 1100ms var(--chegada) 500ms both;
+  }
+
+  .botao .vidro .reflexo {
+    animation: varrer 1300ms var(--chegada) 800ms both;
+  }
+
+  .botao:active {
+    transform: scale(0.985);
+    transition-duration: 120ms;
+  }
+
+  .card:active {
+    transform: scale(0.985);
+    transition-duration: 120ms;
+  }
+
+  .bento-controle:active {
+    transform: scale(0.92);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .tag:hover {
+    transform: scale(1.05);
+  }
+
+  .botao:hover,
+  .botao:focus-visible {
+    transform: scale(1.035);
+  }
+
+  .botao:hover .brilho {
+    transform: scale(1.06, 1.3);
+  }
+
+  .card:hover,
+  .card:focus-visible {
+    transform: scale(1.025);
+  }
+
+  .card:hover .foto-homem img,
+  .card:hover .dashboard {
+    transform: scale(1.06);
+  }
+
+  .card:hover .pilula-brilho {
+    transform: scale(1.35, 1.6);
+  }
+
+  .card:hover .acessar {
+    transform: translateX(var(--acessar-desloca));
+  }
+
+  .card:hover .seta {
+    transform: translateX(0);
+  }
+
+  .bento .vaga:hover img {
+    transform: scale(1.05);
+  }
+
+  .bento-controle:hover {
+    transform: scale(1.08);
+  }
+
+  .rolar:hover {
+    transform: translateY(3px);
+  }
+}
+
+/* ---------- Navegador (computador) ---------- */
+
+.fundo-navegador {
+  display: none;
+}
+
+/* De 600 a 1279 px: o fundo ocupa a tela e a página vira um cartão */
+@media (min-width: 600px) and (max-width: 1279px) {
+  body {
+    padding-block: 40px;
+  }
+
+  .fundo-navegador {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    display: block;
+    overflow: hidden;
+    background:
+      radial-gradient(60% 70% at 12% 18%, rgba(var(--azul), 0.42), rgba(var(--azul), 0) 70%),
+      radial-gradient(55% 65% at 88% 82%, rgba(var(--ciano), 0.2), rgba(var(--ciano), 0) 70%),
+      var(--fundo);
+  }
+
+  /* Provisório até a arte chegar: os cristais do topo, grandes e apagados */
+  .fundo-navegador::before {
+    content: "";
+    position: absolute;
+    inset: -4%;
+    background: url("assets/cristais-topo.webp") center / cover no-repeat;
+    filter: blur(6px) saturate(1.1);
+    mix-blend-mode: screen;
+    opacity: 0.32;
+  }
+
+  /* A arte do usuário (--arte-navegador) cobre o provisório quando existir */
+  .fundo-navegador::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--arte-navegador) center / cover no-repeat;
+  }
+
+  .pagina {
+    width: 540px;
+    margin-inline: auto;
+    overflow: hidden;
+    overflow: clip;
+    border-radius: 28px;
+    box-shadow:
+      0 40px 100px -30px rgba(3, 1, 14, 0.8),
+      0 0 0 1px rgba(var(--aro), 0.1);
+  }
+}
+
+/* De 1000 a 1279 px: a faixa de projetos se abre além da coluna, em bento */
+@media (min-width: 1000px) and (max-width: 1279px) {
+  .pagina {
+    width: auto;
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .coluna {
+    border-radius: 28px;
+    box-shadow:
+      0 40px 100px -30px rgba(3, 1, 14, 0.8),
+      0 0 0 1px rgba(var(--aro), 0.1);
+  }
+
+  /* Cartão final: começa na foto, e a esfera fica no canto de cima, metade
+     sobre o cartão e metade sobre o fundo. Os cantos são arredondados na foto
+     e no rodapé, e não na coluna, para a esfera não ser cortada. */
+  .coluna-final {
+    overflow: visible;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .final {
+    margin-top: 0;
+    border-radius: 28px;
+    box-shadow:
+      0 40px 100px -30px rgba(3, 1, 14, 0.8),
+      0 0 0 1px rgba(var(--aro), 0.1);
+  }
+
+  .esfera {
+    top: calc(var(--u) * -289);
+  }
+
+  .foto-final {
+    width: calc(var(--u) * 1080);
+    overflow: hidden;
+    border-radius: 28px 28px 0 0;
+  }
+
+  .rodape {
+    border-radius: 0 0 28px 28px;
+  }
+
+  .faixa {
+    width: min(100vw - 96px, 960px);
+    margin-block: 56px;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .bento {
+    --colunas: 4;
+  }
+
+  .bento-controle {
+    right: 18px;
+    bottom: 18px;
+    width: 52px;
+    height: 52px;
+  }
+}
+
+/* ---------- Computador: quadro "Versao desktop" do Figma (1920 px) ----------
+   A partir de 1280 px a página segue o quadro de 1920 px, reduzido ou ampliado
+   até 2560 px: calc(var(--u) * N) vale N px desse quadro. O topo, os cards e a
+   foto final seguem o Figma; os projetos mantêm o bento, centrado na largura
+   dos cards. O espaço vazio do Figma entre os projetos e a foto (2054 px) ficou
+   em 240 px, como no celular. */
+@media (min-width: 1280px) {
+  .coluna,
+  .faixa {
+    --u: calc(100cqw / 1920);
+    width: 100%;
+    max-width: 2560px;
+  }
+
+  /* Primeira dobra: o grupo do topo (logo → botão, 798 px no Figma) ocupa a
+     janela inteira, centrado na altura, com o indicador de rolagem no pé; os
+     cards começam depois da dobra. Em janela baixa só o vão entre a bio e o
+     botão encolhe (de 97 até 56). O fundo do topo desce junto com o grupo,
+     para manter a composição do Figma (lá o logo fica em 95). */
+  .coluna-topo {
+    --sem-vao: calc(var(--u) * 701);
+    --vao-botao: clamp(calc(var(--u) * 56), calc(100vh - var(--sem-vao) - 112px), calc(var(--u) * 97));
+    --folga: max(24px, calc((100vh - var(--sem-vao) - var(--vao-botao) - 64px) / 2));
+  }
+
+  @supports (height: 100svh) {
+    .coluna-topo {
+      --vao-botao: clamp(calc(var(--u) * 56), calc(100svh - var(--sem-vao) - 112px), calc(var(--u) * 97));
+      --folga: max(24px, calc((100svh - var(--sem-vao) - var(--vao-botao) - 64px) / 2));
+    }
+  }
+
+  .topo {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding-top: var(--folga);
+    padding-bottom: calc(var(--folga) + 64px);
+  }
+
+  .rolar {
+    bottom: calc((var(--folga) + 64px - 44px) / 2);
+    display: grid;
+  }
+
+  /* Fundo do topo na largura toda */
+  .decor-topo {
+    top: calc(var(--folga) - var(--u) * 95);
+    width: calc(var(--u) * 1920);
+    height: calc(var(--u) * 1840);
+  }
+
+  .brilho-topo {
+    left: calc(var(--u) * 310.07);
+    top: calc(var(--u) * -756.92);
+  }
+
+  /* 39:15 — camada a 62% com a imagem a 33%: 20,5% em Tela */
+  .cristais {
+    left: 0;
+    top: calc(var(--u) * -226);
+    width: calc(var(--u) * 1920);
+    height: calc(var(--u) * 1243);
+    opacity: 0.2046;
+  }
+
+  .esmaecer {
+    left: calc(var(--u) * -109);
+    top: calc(var(--u) * 208);
+  }
+
+  .brilho-9 {
+    left: calc(var(--u) * 1123.06);
+    top: calc(var(--u) * 350);
+  }
+
+  .cristal-direita {
+    left: calc(var(--u) * 1524.94);
+    top: calc(var(--u) * 751);
+  }
+
+  .brilho-10 {
+    left: calc(var(--u) * 1118.06);
+    top: calc(var(--u) * 465);
+  }
+
+  /* Apresentação */
+  .logo {
+    width: calc(var(--u) * 142);
+    height: calc(var(--u) * 48);
+  }
+
+  .perfil {
+    width: calc(var(--u) * 214.74);
+    height: calc(var(--u) * 216);
+    margin-top: calc(var(--u) * 37);
+  }
+
+  .perfil .foto {
+    left: calc(var(--u) * 8.78);
+    top: calc(var(--u) * 8.84);
+    width: calc(var(--u) * 197.17);
+    height: calc(var(--u) * 198.33);
+  }
+
+  .perfil .aro-brilho {
+    left: calc(var(--u) * -21.41);
+    top: calc(var(--u) * -21.4);
+    width: calc(var(--u) * 257.54);
+    height: calc(var(--u) * 258.8);
+  }
+
+  .perfil .aro {
+    width: calc(var(--u) * 214.74);
+    height: calc(var(--u) * 216);
+  }
+
+  .nome {
+    height: calc(var(--u) * 63);
+    margin-top: calc(var(--u) * 23);
+    font-size: calc(var(--u) * 50);
+  }
+
+  /* Tag: no Figma o cargo é texto de 19,1 px em 488; a pílula fica entre o
+     nome e a bio, que continua em 539 */
+  .cargo {
+    height: calc(var(--u) * 36);
+    margin-top: calc(var(--u) * 8);
+  }
+
+  .tag {
+    padding-inline: calc(var(--u) * 19);
+    font-size: calc(var(--u) * 19.1);
+  }
+
+  .bio {
+    width: calc(var(--u) * 742);
+    height: calc(var(--u) * 114);
+    margin-top: calc(var(--u) * 13);
+  }
+
+  /* Botão (743 x 143, cantos de 30) e cards (1003 x 351), centrados */
+  .links {
+    align-items: center;
+    padding-left: 0;
+    padding-bottom: calc(var(--u) * 89);
+  }
+
+  .botao {
+    flex-shrink: 0;
+    width: calc(var(--u) * 743);
+    height: calc(var(--u) * 143);
+    margin-top: var(--vao-botao);
+    border-radius: calc(var(--u) * 30);
+  }
+
+  .botao .brilho {
+    left: calc(var(--u) * 26.65);
+    top: calc(var(--u) * 24.3);
+    width: calc(var(--u) * 689.69);
+    height: calc(var(--u) * 94.4);
+    border-radius: calc(var(--u) * 30);
+    background: linear-gradient(172.29deg, rgba(var(--ciano), 0.9) 15.289%, rgb(var(--azul)) 86.03%);
+  }
+
+  .botao .vidro {
+    border-radius: calc(var(--u) * 30);
+    background: linear-gradient(169.22deg, rgba(var(--ciano), 0.153) 15.289%, rgba(var(--azul), 0.17) 86.03%);
+  }
+
+  .botao .grao {
+    border-radius: calc(var(--u) * 30);
+  }
+
+  .botao .titulo {
+    left: calc(var(--u) * 396.16);
+    top: calc(var(--u) * 32);
+  }
+
+  .botao .detalhe {
+    left: calc(var(--u) * 169.9);
+    top: calc(var(--u) * 80.61);
+  }
+
+  .botao .icone {
+    left: calc(var(--u) * 27);
+    top: calc(var(--u) * 25.24);
+    width: calc(var(--u) * 111.06);
+    height: calc(var(--u) * 93.46);
+  }
+
+  .botao .diamante {
+    left: calc(var(--u) * 47.88);
+    top: calc(var(--u) * 47.26);
+    width: calc(var(--u) * 69.05);
+    height: calc(var(--u) * 55.2);
+  }
+
+  /* Cards no computador: 1003 x 351, cada peça na posição absoluta do Figma.
+     Os grupos do celular somem (display: contents) e a ordem do HTML segue a
+     ordem das camadas do Figma. */
+  .card {
+    --acessar-desloca: calc(var(--u) * -12);
+    display: block;
+    width: calc(var(--u) * 1003);
+    height: calc(var(--u) * 351);
+  }
+
+  .card-midia,
+  .card-texto,
+  .card-barra,
+  .card-acao {
+    display: contents;
+  }
+
+  /* Sem caixa no computador: o fundo escuro aqui é o .barra do Figma */
+  .card-barra {
+    padding: 0;
+    background: none;
+  }
+
+  .card .barra,
+  .card .titulo,
+  .card .texto,
+  .card .rotulo,
+  .card .pilula-brilho,
+  .card .pilula,
+  .card .pilula-texto {
+    position: absolute;
+  }
+
+  /* Primeiro card logo depois da dobra */
+  .card-diagnostico {
+    margin-top: calc(var(--u) * 64);
+  }
+
+  .card-nucleo {
+    margin-top: calc(var(--u) * 52.2);
+  }
+
+  .card .barra {
+    display: block;
+    left: 0;
+    top: calc(var(--u) * 272);
+    width: 100%;
+    height: calc(var(--u) * 79);
+  }
+
+  .card .rotulo {
+    font-size: calc(var(--u) * 20);
+  }
+
+  .card .rotulo::after {
+    top: calc(100% + var(--u) * 7);
+    height: calc(var(--u) * 2.5);
+  }
+
+  .card .pilula-brilho {
+    inset: auto;
+    border-radius: calc(var(--u) * 40);
+    filter: blur(calc(var(--u) * 47.9));
+  }
+
+  .card .pilula {
+    inset: auto;
+    border-radius: calc(var(--u) * 40);
+  }
+
+  .card .pilula-texto {
+    inset: auto;
+    font-size: calc(var(--u) * 18);
+  }
+
+  .card .seta {
+    left: calc(50% + var(--u) * 30);
+    width: calc(var(--u) * 18);
+    height: calc(var(--u) * 18);
+    margin-top: calc(var(--u) * -9);
+    transform: translateX(calc(var(--u) * -10));
+  }
+
+  /* Card 1 (Figma "Versao desktop", 40:89, revisto): título de 40, texto de
+     apoio de 16 com 355 de largura, brilho branco maior e o cristal grande
+     perto do Acessar */
+  .card-diagnostico .foto-homem {
+    left: calc(var(--u) * -7.52);
+    top: calc(var(--u) * -78);
+    width: calc(var(--u) * 443.83);
+    height: calc(var(--u) * 640.25);
+  }
+
+  .card-diagnostico .foto-homem img {
+    left: calc(var(--u) * 10.16);
+    top: calc(var(--u) * -34.57);
+    width: calc(var(--u) * 443.08);
+    height: calc(var(--u) * 593.45);
+  }
+
+  /* Ellipse 8: 324 x 342 em (357, -79), desfoque 34,9 (SVG com 34,9 de margem) */
+  .card-diagnostico .brilho-8 {
+    left: calc(var(--u) * 322.1);
+    top: calc(var(--u) * -113.9);
+    width: calc(var(--u) * 393.8);
+    height: calc(var(--u) * 411.8);
+  }
+
+  .card-diagnostico .cristal-a {
+    left: calc(var(--u) * 862);
+    top: calc(var(--u) * 153);
+  }
+
+  .card-diagnostico .titulo {
+    left: calc(var(--u) * 485.76);
+    top: calc(var(--u) * 61);
+    width: calc(var(--u) * 437.8);
+    font-size: calc(var(--u) * 40);
+    line-height: 1;
+  }
+
+  .card-diagnostico .texto {
+    left: calc(var(--u) * 484);
+    top: calc(var(--u) * 152);
+    width: calc(var(--u) * 355);
+    font-size: calc(var(--u) * 16);
+  }
+
+  .card-diagnostico .rotulo {
+    left: calc(var(--u) * 92.98);
+    top: calc(var(--u) * 299.02);
+  }
+
+  .card-diagnostico .pilula-brilho {
+    left: calc(var(--u) * 813.73);
+    top: calc(var(--u) * 298.77);
+    width: calc(var(--u) * 152.96);
+    height: calc(var(--u) * 25.97);
+  }
+
+  .card-diagnostico .pilula {
+    left: calc(var(--u) * 807.01);
+    top: calc(var(--u) * 292);
+    width: calc(var(--u) * 166.3);
+    height: calc(var(--u) * 39.49);
+  }
+
+  .card-diagnostico .pilula-texto {
+    left: calc(var(--u) * 807.01);
+    top: calc(var(--u) * 298.77);
+    width: calc(var(--u) * 165.19);
+    height: calc(var(--u) * 22.57);
+  }
+
+  /* Card 2 (40:78), como no Figma */
+  .card-nucleo .dashboard {
+    inset: auto;
+    left: calc(var(--u) * -1.5);
+    top: calc(var(--u) * -14);
+    width: calc(var(--u) * 1004.5);
+    height: calc(var(--u) * 565.35);
+  }
+
+  .card-nucleo .titulo {
+    left: calc(var(--u) * 91.98);
+    top: calc(var(--u) * 84);
+    width: calc(var(--u) * 476.83);
+    font-size: calc(var(--u) * 30);
+    line-height: 1;
+  }
+
+  /* 4 linhas: na primeira, o degradê vai de #1479FF a ~#1E8EFF */
+  .card-nucleo .marca {
+    background: linear-gradient(180deg, #1479ff, #1e8eff);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .card-nucleo .rotulo {
+    left: calc(var(--u) * 94.48);
+    top: calc(var(--u) * 299.96);
+  }
+
+  .card-nucleo .pilula-brilho {
+    left: calc(var(--u) * 811.63);
+    top: calc(var(--u) * 299.09);
+    width: calc(var(--u) * 150.75);
+    height: calc(var(--u) * 25.94);
+  }
+
+  .card-nucleo .pilula {
+    left: calc(var(--u) * 805);
+    top: calc(var(--u) * 292.31);
+    width: calc(var(--u) * 163.99);
+    height: calc(var(--u) * 39.49);
+  }
+
+  .card-nucleo .pilula-texto {
+    left: calc(var(--u) * 805);
+    top: calc(var(--u) * 299.09);
+    width: calc(var(--u) * 162.89);
+    height: calc(var(--u) * 22.57);
+  }
+
+  /* Projetos: o efeito "PROJETOS" de 390 px fica por cima do cristal (ordem do
+     Figma) e o título no meio das letras; o bento quase na largura da tela */
+  .faixa {
+    background: transparent;
+  }
+
+  .projetos-titulo {
+    height: calc(var(--u) * 368);
+  }
+
+  /* 4779 x 0,39 = 1863,8 de largura; linha de base em 390 */
+  .efeito-projetos {
+    /* 1 px do quadro de 1920 = 1000 / 390 unidades da fonte */
+    --traco: 2.56;
+    z-index: 1;
+    left: calc(var(--u) * 36.47);
+    top: calc(var(--u) * 117.2);
+    width: calc(var(--u) * 1863.8);
+    height: calc(var(--u) * 283.6);
+  }
+
+  .titulo-projetos {
+    top: calc(var(--u) * 226.2);
+  }
+
+  .cristal-projetos {
+    left: calc(var(--u) * -332);
+    top: calc(var(--u) * -62);
+    width: calc(var(--u) * 664);
+    height: calc(var(--u) * 664);
+  }
+
+  /* 6 colunas em 1824 px (48 de margem de cada lado) */
+  .bento {
+    --colunas: 6;
+    --vao: calc(var(--u) * 16);
+    --largura: calc(var(--u) * 1824);
+  }
+
+  .bento-controle {
+    right: calc(var(--u) * 18);
+    bottom: calc(var(--u) * 18);
+    width: max(44px, calc(var(--u) * 52));
+    height: max(44px, calc(var(--u) * 52));
+  }
+
+  /* Foto final na largura toda (recorte do Figma: imagem de 1920 x 2545,
+     subida 234 px), uma esfera desfocada no alto à direita e outra sobre a foto */
+  .final {
+    width: calc(var(--u) * 1920);
+    height: calc(var(--u) * 2107);
+    margin-top: calc(var(--u) * 240);
+  }
+
+  .foto-final {
+    width: calc(var(--u) * 1920);
+    height: calc(var(--u) * 2107);
+    overflow: hidden;
+  }
+
+  .foto-final img {
+    position: absolute;
+    left: calc(var(--u) * -0.19);
+    top: calc(var(--u) * -234.1);
+    width: calc(var(--u) * 1920.38);
+    height: calc(var(--u) * 2545.1);
+    object-fit: fill;
+  }
+
+  /* Group 19 — duas cópias (20% e 63%) com desfoque de camada 13,2 */
+  .esfera {
+    left: calc(var(--u) * 1564);
+    top: calc(var(--u) * -321);
+    width: calc(var(--u) * 525.45);
+    height: calc(var(--u) * 525.45);
+    filter: blur(calc(var(--u) * 6.6));
+  }
+
+  /* Group 18 — sobre a foto, sem desfoque */
+  .esfera-2 {
+    display: block;
+    left: calc(var(--u) * -36);
+    top: calc(var(--u) * 845);
+    width: calc(var(--u) * 742);
+    height: calc(var(--u) * 742);
+    filter: none;
+  }
+
+  .poligono {
+    left: calc(var(--u) * 426.18);
+    top: calc(var(--u) * 1038.8);
+  }
+
+  .rodape {
+    top: calc(var(--u) * 2035);
+    width: calc(var(--u) * 1920);
+  }
+
+  /* Navegadores sem cqw usam a largura da tela (até 2560 px) */
+  @supports not (width: 1cqw) {
+    .coluna,
+    .faixa {
+      --u: calc(min(100vw, 2560px) / 1920);
+    }
+  }
+}
