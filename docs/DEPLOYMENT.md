@@ -35,6 +35,17 @@ O push para `main` aciona a implantação configurada. Verifique `/`, `/convite`
 `/app` e uma rota profunda. A ausência de erro no build não comprova que as
 variáveis de produção estão corretas.
 
+### MCP do portal
+
+`/mcp` e `/.well-known/oauth-*` são servidos pelo mesmo Node. Para o login
+funcionar, o OAuth Server do Supabase Auth precisa estar ligado, com registro
+dinâmico e caminho `/oauth/consent`. Depois do deploy, confira:
+
+- `GET /.well-known/oauth-protected-resource` responde 200;
+- `POST /mcp` sem token responde 401 com `WWW-Authenticate`.
+
+Passo a passo em [`docs/mcp/README.md`](mcp/README.md).
+
 ## Supabase
 
 - preferir Supabase CLI com histórico íntegro;

@@ -15,6 +15,7 @@ import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
 import { clinicLeadConfig, processClinicDiagnostic } from "./clinicDiagnostic.mjs";
 import { orcamentoLeadConfig, processOrcamento } from "./orcamentoLead.mjs";
 import { metaLeadsHandlerFromEnv } from "./metaLeads.mjs";
+import { createMcp } from "./mcp.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_DIR = resolve(ROOT, "public");
@@ -40,6 +41,7 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 const BILLING = billingConfig();
+const MCP = createMcp({ publicOrigin: PUBLIC_ORIGIN, supabaseUrl: SUPABASE_URL, publishableKey: SUPABASE_PUBLISHABLE_KEY });
 const SITE_LEAD = siteLeadConfig();
 const CLINIC_LEAD = clinicLeadConfig();
 const ORCAMENTO_LEAD = orcamentoLeadConfig();
@@ -1010,7 +1012,7 @@ async function metaLeadsFromEnv(req, res, url) {
   return envMetaLeads(req, res, url);
 }
 
-export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, clinicHandler = clinicDiagnostic, orcamentoHandler = orcamentoLead, metaLeadsHandler = metaLeadsFromEnv } = {}) {
+export function createServer({ apiHandler = api, billingHandler = billingWebhook, leadHandler = siteLead, clinicHandler = clinicDiagnostic, orcamentoHandler = orcamentoLead, metaLeadsHandler = metaLeadsFromEnv, mcp = MCP } = {}) {
   return http.createServer(async (req, res) => {
     applyCors(req, res);
     try {
@@ -1033,6 +1035,9 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       if (url.pathname === "/api/orcamento" && req.method === "POST") return await orcamentoHandler(req, res, url);
       // Antes da sessão: quem chama é o Meta, que se identifica pela assinatura.
       if (url.pathname === "/api/webhooks/meta-leads") return await metaLeadsHandler(req, res, url);
+      // O MCP do portal (Claude e ChatGPT) e o `.well-known` que leva ao
+      // login. Antes de `api`: a sessão chega por OAuth, não pelo portal.
+      if (mcp.matches(url.pathname)) return await mcp.handle(req, res, url);
       if (url.pathname.startsWith("/api/")) return await apiHandler(req, res, url);
       if (isPainelHost(req.headers.host)) return await painelFile(req, res, url);
       return await staticFile(req, res, url);

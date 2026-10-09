@@ -365,11 +365,13 @@ enabled = false
 # OAuth server configuration
 [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
+# Ligado para o MCP do portal (docs/mcp/README.md). Em produção, o mesmo vale no
+# painel do Supabase; este arquivo só documenta e serve ao ambiente local.
+enabled = true
+# Path for OAuth consent flow UI (relativo ao Site URL, que termina em /app)
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# Allow dynamic client registration: Claude e ChatGPT se registram sozinhos
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

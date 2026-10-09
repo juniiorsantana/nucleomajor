@@ -23,7 +23,9 @@ import { api } from "../../data/client";
 import { fmtRelativo } from "../../lib/formato";
 import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } from "../../ui/atendimento";
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
+import { ClaudeEChatGPT } from "./conexoes/ClaudeEChatGPT";
 import { FASES, resumirConexao } from "./conexoes/estadoDaConexao";
+import { SeloEstado } from "./conexoes/SeloEstado";
 import { PedirConexao } from "./conversas/ConexaoDoWhatsApp";
 
 const ROTULOS = {
@@ -70,20 +72,6 @@ const ESPERA_DO_QR_MS = 15000;
 // um teto cheio mantém o teto cheio.
 const PAUSA_APOS_RECUSA_MS = 60000;
 const PLATAFORMA_WEB = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
-
-function SeloEstado({ tom = "neutro", children }) {
-  const classes = {
-    sucesso: "bg-success-soft text-success",
-    atencao: "bg-warning/10 text-warning",
-    erro: "bg-danger/10 text-danger",
-    neutro: "bg-surface-hover text-sub",
-  };
-  return (
-    <span className={`inline-flex flex-none items-center rounded-full px-2.5 py-1 text-[12px] font-medium ${classes[tom]}`}>
-      {children}
-    </span>
-  );
-}
 
 function EstadoLinha({ rotulo, valor, tom = "neutro" }) {
   return (
@@ -1253,6 +1241,11 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
               </section>
             </>
           )}
+
+          {/* Fora do condicional do WhatsApp: perguntar pelo Claude ou pelo
+              ChatGPT não depende de haver número conectado. Só no portal: o
+              MCP e o login dele moram em nucleomajor.com. */}
+          {PLATAFORMA_WEB && <ClaudeEChatGPT />}
         </div>
       </div>
     </>

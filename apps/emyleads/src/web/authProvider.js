@@ -316,6 +316,46 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       return { ok: true };
     },
 
+    /*
+     * Os aplicativos (Claude, ChatGPT) que a pessoa autorizou a ler o portal
+     * pelo MCP. Quem guarda isso é o próprio Supabase Auth, servidor OAuth do
+     * MCP: não há tabela nossa. Com o servidor OAuth desligado no projeto, a
+     * resposta é "ainda não liberado", e não erro: a tela explica em vez de
+     * mostrar um passo a passo que terminaria numa página de falha.
+     */
+    "auth.aplicativosConectados": async () => {
+      const { data, error } = await supabase.auth.oauth.listGrants();
+      if (error) {
+        if (error.code === "feature_disabled" || /oauth server is disabled/i.test(error.message || "")) {
+          return { liberado: false, aplicativos: [] };
+        }
+        const erro = new Error("Não foi possível ver os aplicativos conectados agora.");
+        erro.codigo = "aplicativos-falhou";
+        throw erro;
+      }
+      const aplicativos = (data || [])
+        .filter((grant) => grant?.client?.id)
+        .map((grant) => ({
+          id: grant.client.id,
+          nome: grant.client.name || "Aplicativo",
+          desde: grant.granted_at || null,
+        }));
+      return { liberado: true, aplicativos };
+    },
+
+    // Desconectar apaga o consentimento, as sessões e os tokens daquele
+    // aplicativo: a próxima pergunta dele cai no login de novo.
+    "auth.desconectarAplicativo": async ({ clientId } = {}) => {
+      if (!clientId) throw new Error("Aplicativo não informado.");
+      const { error } = await supabase.auth.oauth.revokeGrant({ clientId });
+      if (error) {
+        const erro = new Error("Não foi possível desconectar o aplicativo. Tente de novo.");
+        erro.codigo = "desconectar-falhou";
+        throw erro;
+      }
+      return { ok: true };
+    },
+
     "organizacoes.listar": async () => {
       const atual = await estado();
       return atual?.organizacoes || [];
