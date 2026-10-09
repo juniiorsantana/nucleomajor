@@ -552,6 +552,13 @@ Protocolo e servidor que apresentam ferramentas estruturadas ao modelo. O MCP
 traduz capacidades autorizadas; não é a fonte de verdade e não concede permissão
 por conta própria.
 
+### MCP do portal
+
+Servidor MCP em `https://nucleomajor.com/mcp`, para Claude e ChatGPT usarem em
+nome de uma pessoa. O login é OAuth pelo Supabase Auth, com o JWT da pessoa e a
+RLS valendo. Na v1 é só leitura. Não é o MCP do runtime da VPS. Ver
+[`docs/mcp/README.md`](mcp/README.md).
+
 ### Credencial de robô
 
 Sessão técnica renovável, vinculada a uma conexão e organização, usada pelo

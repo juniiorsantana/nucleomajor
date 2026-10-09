@@ -14,6 +14,7 @@ if (PAINEL === "novo") {
   import("@fontsource-variable/geist-mono");
 }
 const AuthGate = lazy(() => (PAINEL === "novo" ? import("../page/AuthGate") : import("../page-classico/AuthGate")));
+const ConsentimentoOAuth = lazy(() => import("../page/ConsentimentoOAuth"));
 const Gestao = lazy(() => (PAINEL === "novo" ? import("../page/Gestao") : import("../page-classico/Gestao")));
 
 /*
@@ -52,6 +53,12 @@ function WebApp() {
   // em vez de tela em branco.
   const slug = location.pathname.split("/").filter(Boolean)[0] || "conversas";
   const screen = slugToScreen[slug] || "conversas";
+
+  // `/oauth/consent`: o "Permitir acesso" do MCP do portal (Claude e
+  // ChatGPT). Passa pelo mesmo login, mas não abre o painel.
+  if (slug === "oauth") {
+    return <AuthGate>{() => <ConsentimentoOAuth />}</AuthGate>;
+  }
 
   return (
     <AuthGate>

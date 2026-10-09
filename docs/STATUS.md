@@ -5,6 +5,19 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## MCP do portal, só leitura (09/10/2026)
+
+Claude e ChatGPT, inclusive no celular, perguntam ao portal sobre conversas,
+leads, leads esperando, tarefas e agenda, em `https://nucleomajor.com/mcp`. O
+login é OAuth pelo Supabase Auth, com o token da própria pessoa, então a RLS
+vale e não há `service_role`. Não exige migration. Código em `src/mcp.mjs`,
+`src/mcpTools.mjs` e na tela `/app/oauth/consent`; detalhe em
+[`docs/mcp/README.md`](mcp/README.md).
+
+**Antes de funcionar**, o OAuth Server precisa ser ligado no painel do Supabase,
+com registro dinâmico. Em 09/10/2026 ele respondia `OAuth server is disabled`.
+Primeiras usuárias: Major e Adriani.
+
 ## Link na bio do Juniior em `/juniiorsantana7` (08/10/2026)
 
 Página estática da Major Hub para o Instagram @juniiorsantana7, servida pelo
