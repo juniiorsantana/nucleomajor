@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../web/supabaseClient", () => ({ obterSupabaseWeb: () => ({ auth: { oauth: null } }) }));
 
-const { default: ConsentimentoOAuth } = await import("./ConsentimentoOAuth");
+const { default: ConsentimentoOAuth, destinoConfiavel } = await import("./ConsentimentoOAuth");
 
 const PEDIDO = {
   authorization_id: "auth-1",
@@ -94,6 +94,56 @@ describe("ConsentimentoOAuth", () => {
     expect(irPara).not.toHaveBeenCalled();
     expect(container.querySelector("[role=alert]").textContent).toMatch(/Não foi possível registrar/);
     expect(botao("Permitir acesso").disabled).toBe(false);
+  });
+
+  it("só confia no que volta para o Claude ou para o ChatGPT, por https", () => {
+    for (const bom of [
+      "https://claude.ai/api/mcp/auth_callback",
+      "https://claude.com/api/mcp/auth_callback",
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+      "https://www.claude.ai/cb",
+    ]) expect(destinoConfiavel(bom), bom).toBe(true);
+    for (const ruim of [
+      "http://claude.ai/api/mcp/auth_callback",
+      "https://claude.ai.golpe.com/cb",
+      "https://golpeclaude.ai/cb",
+      "https://golpe.com/?volta=claude.ai",
+      "javascript:alert(1)",
+      "",
+      undefined,
+    ]) expect(destinoConfiavel(ruim), String(ruim)).toBe(false);
+  });
+
+  it("aplicativo que volta para outro site: sem Permitir, e recusar não leva até ele", async () => {
+    const oauth = {
+      getAuthorizationDetails: vi.fn().mockResolvedValue({
+        data: { ...PEDIDO, client: { ...PEDIDO.client, name: "Claude" }, redirect_uri: "https://claude-ai.golpe.com/cb" },
+        error: null,
+      }),
+      approveAuthorization: vi.fn(),
+      denyAuthorization: vi.fn().mockResolvedValue({ data: { redirect_url: "https://claude-ai.golpe.com/cb?error=access_denied" }, error: null }),
+    };
+    const irPara = vi.fn();
+    await montar({ oauth, busca: "?authorization_id=auth-3", irPara });
+
+    expect(container.textContent).toContain("não é reconhecido");
+    expect(container.textContent).toContain("claude-ai.golpe.com");
+    expect(botao("Permitir acesso")).toBeUndefined();
+
+    await act(async () => botao("Recusar pedido").click());
+    expect(oauth.denyAuthorization).toHaveBeenCalledWith("auth-3", { skipBrowserRedirect: true });
+    expect(oauth.approveAuthorization).not.toHaveBeenCalled();
+    expect(irPara).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Pedido recusado");
+  });
+
+  it("retorno automático para destino estranho também para aqui", async () => {
+    const oauth = { getAuthorizationDetails: vi.fn().mockResolvedValue({ data: { redirect_url: "https://golpe.com/cb?code=z" }, error: null }) };
+    const irPara = vi.fn();
+    await montar({ oauth, busca: "?authorization_id=auth-4", irPara });
+    expect(irPara).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("golpe.com");
+    expect(container.textContent).toContain("não é reconhecido");
   });
 
   it("link sem authorization_id ou expirado explica o que fazer", async () => {

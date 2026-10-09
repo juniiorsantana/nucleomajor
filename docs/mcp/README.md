@@ -22,6 +22,19 @@ Claude / ChatGPT
 - **Quem autentica é o Supabase Auth**, que funciona como servidor OAuth 2.1. O
   token é um JWT da própria pessoa, então a RLS vale como no portal. Não há
   `service_role` nem token global.
+- **A trava dos destinos.**
+  - **Por que existe:** o registro de aplicativos é aberto (registro dinâmico),
+    então qualquer um pode cadastrar um "Claude" falso. O token emitido vale a
+    sessão inteira da pessoa, não só a leitura do MCP: "só leitura" é das
+    ferramentas, não do token.
+  - **Como funciona:** a tela `/app/oauth/consent`, que é a única porta de
+    aprovação, só aprova o que volta por https para `claude.ai`, `claude.com`
+    ou `chatgpt.com` (e subdomínios). Para qualquer outro destino, a tela diz
+    "Este aplicativo não é reconhecido" e só oferece Recusar, sem levar a
+    pessoa ao site de quem pediu. O retorno automático de um pedido já
+    aprovado passa pela mesma trava.
+  - **Onde mexer:** `destinoConfiavel` em `ConsentimentoOAuth.jsx`. Um
+    aplicativo novo exige incluir o domínio dele ali.
 - **A empresa vem dos vínculos da pessoa** (`organization_members` ativo). O
   parâmetro `empresa` que o modelo envia só escolhe dentro dessa lista e nunca
   sai dela. Para quem tem uma empresa só, ela é usada direto.
@@ -54,6 +67,11 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 `conversas`, `leads`, `tarefas` e `agenda` aceitam `dia` (AAAA-MM-DD).
 
 ## Ligar em produção (uma vez)
+
+**Passos 1 e 2 feitos em 09/10/2026**, no painel, com o dono acompanhando.
+O Supabase pediu a confirmação de risco do registro dinâmico, e ela foi aceita
+junto com a trava dos destinos. A resposta da conferência traz
+`registration_endpoint`. Falta o passo 3.
 
 1. **Supabase → Authentication → OAuth Server:**
    - ligar o servidor OAuth;

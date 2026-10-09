@@ -15,9 +15,12 @@ vale e não há `service_role`. Não exige migration. Código em `src/mcp.mjs`,
 ChatGPT** ficam o endereço, o passo a passo e os aplicativos conectados, com
 Desconectar. Detalhe em [`docs/mcp/README.md`](mcp/README.md).
 
-**Antes de funcionar**, o OAuth Server precisa ser ligado no painel do Supabase,
-com registro dinâmico. Em 09/10/2026 ele respondia `OAuth server is disabled`.
-Primeiras usuárias: Major e Adriani.
+**OAuth Server ligado no Supabase em 09/10/2026**, com registro dinâmico e
+caminho `/oauth/consent`; a conferência responde com `registration_endpoint`.
+Como o registro é aberto, a tela de consentimento só aprova aplicativos que
+voltam para `claude.ai`, `claude.com` ou `chatgpt.com`. Enquanto o PR #52 não
+entra, nenhuma autorização pode ser aprovada, porque a tela ainda não está em
+produção. Primeiras usuárias: Major e Adriani.
 
 ## Link na bio do Juniior em `/juniiorsantana7` (08/10/2026)
 

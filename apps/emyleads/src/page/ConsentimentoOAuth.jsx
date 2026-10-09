@@ -11,6 +11,13 @@ import { BotaoPrimario, Marca } from "./ui";
  *
  * Acontece quase sempre no navegador do celular, no meio de outro app:
  * por isso diz em uma frase o que o outro lado vai ver e o que não pode.
+ *
+ * Esta tela é a única porta de aprovação, e por isso guarda a trava dos
+ * destinos. O registro de aplicativos no Supabase é aberto (o Claude e o
+ * ChatGPT se cadastram sozinhos), então qualquer um pode criar um "Claude"
+ * falso que devolve o código para outro site. E o token que sai daqui vale
+ * a sessão inteira da pessoa, não só a leitura do MCP. Só se aprova o que
+ * volta para o Claude ou para o ChatGPT; o resto é recusado aqui mesmo.
  */
 
 function Moldura({ children }) {
@@ -36,6 +43,20 @@ function hostDe(endereco) {
   }
 }
 
+/** Para onde o código de acesso pode voltar: os donos do Claude e do ChatGPT. */
+const DESTINOS_CONFIAVEIS = ["claude.ai", "claude.com", "chatgpt.com"];
+
+export function destinoConfiavel(endereco) {
+  try {
+    const url = new URL(endereco);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    return DESTINOS_CONFIAVEIS.some((dominio) => host === dominio || host.endsWith(`.${dominio}`));
+  } catch {
+    return false;
+  }
+}
+
 const PODE = ["Conversas e mensagens do WhatsApp", "Leads e contatos", "Tarefas e agenda"];
 const NAO_PODE = ["Enviar mensagens", "Criar, mudar ou apagar qualquer coisa"];
 
@@ -48,6 +69,8 @@ export default function ConsentimentoOAuth({
   const [pedido, setPedido] = useState(null);
   const [erro, setErro] = useState(id ? "" : "Este link de autorização está incompleto. Volte ao aplicativo e conecte de novo.");
   const [enviando, setEnviando] = useState("");
+  const [bloqueado, setBloqueado] = useState("");
+  const [recusado, setRecusado] = useState(false);
 
   useEffect(() => {
     if (!id) return undefined;
@@ -59,8 +82,11 @@ export default function ConsentimentoOAuth({
         return;
       }
       // Já autorizado antes: o Supabase devolve direto o caminho de volta.
+      // A trava vale aqui também, para nada sair desta tela rumo a um
+      // destino estranho, nem o que foi aprovado antes dela existir.
       if (data.redirect_url && !data.authorization_id) {
-        irPara(data.redirect_url);
+        if (destinoConfiavel(data.redirect_url)) irPara(data.redirect_url);
+        else setBloqueado(hostDe(data.redirect_url) || "um endereço desconhecido");
         return;
       }
       setPedido(data);
@@ -85,6 +111,32 @@ export default function ConsentimentoOAuth({
     }
   };
 
+  // Recusa sem voltar: o "voltar" levaria a pessoa ao site de quem pediu.
+  const recusarAqui = async () => {
+    setErro("");
+    setEnviando("negar");
+    try {
+      const { error } = await oauth.denyAuthorization(id, { skipBrowserRedirect: true });
+      if (error) throw error;
+      setRecusado(true);
+    } catch {
+      setErro("Não foi possível recusar o pedido. Feche esta página: sem a sua aprovação, ele não vale.");
+    } finally {
+      setEnviando("");
+    }
+  };
+
+  if (bloqueado) {
+    return (
+      <Moldura>
+        <h1 className="text-[20px] font-semibold tracking-tight">Este aplicativo não é reconhecido</h1>
+        <p className="mt-2 text-[13px] leading-5 text-sub">
+          O pedido mandaria seus dados para <span className="font-medium text-fg">{bloqueado}</span>, que não é o Claude nem o ChatGPT. Por segurança, o Núcleo Major não libera. Pode fechar esta página.
+        </p>
+      </Moldura>
+    );
+  }
+
   if (!pedido) {
     return (
       <Moldura>
@@ -100,6 +152,28 @@ export default function ConsentimentoOAuth({
 
   const nome = pedido.client?.name || "Um aplicativo";
   const destino = hostDe(pedido.redirect_uri);
+
+  if (!destinoConfiavel(pedido.redirect_uri)) {
+    return (
+      <Moldura>
+        <h1 className="text-[20px] font-semibold tracking-tight">Este aplicativo não é reconhecido</h1>
+        <p className="mt-2 text-[13px] leading-5 text-sub">
+          “{nome}” pediu para ler seus dados e mandaria a resposta para{" "}
+          <span className="font-medium text-fg">{destino || "um endereço desconhecido"}</span>, que não é o Claude nem o
+          ChatGPT. Por segurança, o Núcleo Major só libera o acesso para eles.
+        </p>
+        <p className="mt-2 text-[13px] leading-5 text-sub">Se não foi você que pediu, alguém pode estar tentando enganar você.</p>
+        {erro && <Aviso>{erro}</Aviso>}
+        {recusado ? (
+          <p role="status" className="mt-5 text-[13px] font-medium text-fg">Pedido recusado. Pode fechar esta página.</p>
+        ) : (
+          <BotaoPrimario type="button" onClick={recusarAqui} disabled={Boolean(enviando)} className="mt-5 w-full">
+            {enviando ? "Recusando…" : "Recusar pedido"}
+          </BotaoPrimario>
+        )}
+      </Moldura>
+    );
+  }
 
   return (
     <Moldura>
