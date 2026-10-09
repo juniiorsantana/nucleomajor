@@ -121,7 +121,7 @@ export default function ConsentimentoOAuth({
 
       {destino && (
         <p className="mt-5 text-[11.5px] leading-4 text-faint">
-          Ao permitir, você volta para <span className="font-medium text-sub">{destino}</span>. Para cortar o acesso depois, desconecte o Núcleo Major nas configurações do {nome}.
+          Ao permitir, você volta para <span className="font-medium text-sub">{destino}</span>. Para cortar o acesso depois, use Desconectar em Conexões, no portal, ou desconecte nas configurações do {nome}.
         </p>
       )}
 

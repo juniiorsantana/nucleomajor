@@ -77,6 +77,22 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 
 ## Conectar
 
+O portal mostra o caminho em **Conexões → Claude e ChatGPT**
+(`page/telas/conexoes/ClaudeEChatGPT.jsx`). Ali ficam:
+
+- o endereço, com o botão Copiar;
+- o passo a passo de cada aplicativo;
+- perguntas de exemplo;
+- **os aplicativos que a pessoa já autorizou**, com o botão Desconectar.
+
+A lista vem do próprio Supabase Auth (`auth.oauth.listGrants` e
+`revokeGrant`), sem tabela nossa. Desconectar apaga o consentimento, as sessões
+e os tokens daquele aplicativo.
+
+Com o OAuth Server desligado, o bloco diz "Ainda não liberado" em vez de mostrar
+passos que terminariam em erro. O bloco aparece só no portal, não na extensão, e
+a lista é da pessoa, não da empresa.
+
 - **Claude** (qualquer plano; o gratuito aceita um conector personalizado só): no claude.ai, em Configurações →
   Conectores → **Adicionar conector personalizado**. Nome `Núcleo Major`, URL
   `https://nucleomajor.com/mcp`. Depois clique em Conectar, entre com a conta do
@@ -86,7 +102,8 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
   Conectores → Avançado e crie o conector com a mesma URL. Plus e Pro só aceitam
   conectores de leitura, o que basta para a v1. O plano de cada pessoa decide o
   que aparece.
-- **Para cortar o acesso**, desconecte o conector no Claude ou no ChatGPT.
+- **Para cortar o acesso**, use Desconectar em Conexões ou desconecte o
+  conector no Claude ou no ChatGPT.
 
 ## Testar
 
@@ -100,6 +117,13 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
     com o token de A para a B.
 - `apps/emyleads/src/page/ConsentimentoOAuth.interactive.test.jsx` cobre a tela
   "Permitir acesso".
+- `apps/emyleads/src/page/telas/conexoes/ClaudeEChatGPT.interactive.test.jsx` e
+  `apps/emyleads/src/web/authProvider.aplicativos.test.js` cobrem o bloco de
+  Conexões:
+  - sem nada conectado, conectado e desconectar;
+  - falha ao desconectar;
+  - OAuth desligado;
+  - lista que não carrega.
 - **Ponta a ponta:**
   - conecte com a conta da Major e compare as respostas com as telas Conversas,
     Leads, Tarefas e Agenda;
@@ -110,8 +134,8 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 
 - Escritas (tarefa, funil, nota, agenda), pelo padrão `assistant_tool_runs`:
   proposta, confirmação e idempotência.
-- Interruptor "permitir acesso por MCP" por empresa e lista dos acessos
-  concedidos em Conexões, antes de abrir para todos os clientes. Exige
-  migration.
+- Interruptor "permitir acesso por MCP" por empresa, antes de abrir para todos
+  os clientes. Exige migration. A lista dos acessos da própria pessoa já existe,
+  em Conexões.
 - Tabela de auditoria das chamadas, no lugar do log.
 - Envio de WhatsApp continua fora.

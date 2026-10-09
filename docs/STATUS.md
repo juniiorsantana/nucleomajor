@@ -11,8 +11,9 @@ Claude e ChatGPT, inclusive no celular, perguntam ao portal sobre conversas,
 leads, leads esperando, tarefas e agenda, em `https://nucleomajor.com/mcp`. O
 login é OAuth pelo Supabase Auth, com o token da própria pessoa, então a RLS
 vale e não há `service_role`. Não exige migration. Código em `src/mcp.mjs`,
-`src/mcpTools.mjs` e na tela `/app/oauth/consent`; detalhe em
-[`docs/mcp/README.md`](mcp/README.md).
+`src/mcpTools.mjs` e na tela `/app/oauth/consent`. Em **Conexões → Claude e
+ChatGPT** ficam o endereço, o passo a passo e os aplicativos conectados, com
+Desconectar. Detalhe em [`docs/mcp/README.md`](mcp/README.md).
 
 **Antes de funcionar**, o OAuth Server precisa ser ligado no painel do Supabase,
 com registro dinâmico. Em 09/10/2026 ele respondia `OAuth server is disabled`.
