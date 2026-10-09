@@ -841,6 +841,37 @@ a {
   left: calc(var(--u) * 51);
 }
 
+/* Celular e coluna de 540 px: botão e cards 1,42x maiores que no Figma, por
+   igual (como um zoom: nada muda por dentro), quase na largura da coluna
+   (669 -> 950 de 1080, 65 de margem de cada lado). Cada peça usa a própria
+   escala --u, e as medidas do Figma continuam valendo dentro deles. O topo
+   ganha mais respiro entre o nome, a tag do cargo e a bio. */
+@media (max-width: 1279px) {
+  .botao,
+  .card {
+    --u: calc(100cqw / 1080 * 1.42);
+  }
+
+  @supports not (width: 1cqw) {
+    .botao,
+    .card {
+      --u: calc(min(100vw, 540px) / 1080 * 1.42);
+    }
+  }
+
+  .links {
+    padding-left: calc(var(--u) * 65);
+  }
+
+  .cargo {
+    margin-top: calc(var(--u) * 12);
+  }
+
+  .bio {
+    margin-top: calc(var(--u) * 36);
+  }
+}
+
 /* ---------- Projetos ---------- */
 
 .faixa {
