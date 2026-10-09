@@ -59,6 +59,34 @@ test("publica configuração, a página SaaS, o app e a página de convite", asy
   }
 });
 
+// Link na bio do Juniior (Instagram @juniiorsantana7). Os caminhos da página são
+// relativos, então o endereço curto precisa levar à pasta com a barra no fim; e
+// todo arquivo citado no HTML e no CSS tem de existir, senão some uma imagem só
+// em produção.
+test("publica o link na bio do Juniior em /juniiorsantana7/", async (t) => {
+  const { server, origin } = await runningServer();
+  t.after(() => server.close());
+
+  const curto = await fetch(`${origin}/juniiorsantana7?utm_source=instagram`, { redirect: "manual" });
+  assert.equal(curto.status, 302);
+  assert.equal(curto.headers.get("location"), "/juniiorsantana7/?utm_source=instagram");
+
+  const pagina = await fetch(`${origin}/juniiorsantana7/`);
+  assert.equal(pagina.status, 200);
+  assert.match(pagina.headers.get("content-type"), /text\/html/);
+  const html = await pagina.text();
+  assert.match(html, /Conheça os meus projetos/);
+
+  const css = await (await fetch(`${origin}/juniiorsantana7/estilo.css`)).text();
+  const citados = new Set([...`${html}\n${css}`.matchAll(/\b(?:assets|fontes)\/[\w.-]+\.(?:webp|png|svg|woff2)\b/g)].map((m) => m[0]));
+  assert.ok(citados.size > 20, `esperava as imagens da página, achei ${citados.size}`);
+  for (const caminho of ["estilo.css", "app.js", ...citados]) {
+    const resposta = await fetch(`${origin}/juniiorsantana7/${caminho}`);
+    assert.equal(resposta.status, 200, caminho);
+  }
+  assert.match((await fetch(`${origin}/juniiorsantana7/assets/ellipse7.svg`)).headers.get("content-type"), /image\/svg\+xml/);
+});
+
 test("aceita as rotas de reenvio e cancelamento com id UUID", async (t) => {
   const calls = [];
   const { server, origin } = await runningServer(async (req, res, url) => {

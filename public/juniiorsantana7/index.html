@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Juniior Santana · Major</title>
+  <meta name="description" content="UX Design e CMO da Major. Solicite um orçamento, faça um diagnóstico gratuito do seu site e conheça o Núcleo Major.">
+  <meta name="theme-color" content="#170d3b">
+  <meta property="og:title" content="Juniior Santana · Major">
+  <meta property="og:description" content="Estratégia, tecnologia e soluções criativas para empresários crescerem no digital.">
+  <meta property="og:type" content="website">
+  <link rel="preload" href="fontes/funnel-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/perfil.webp" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="estilo.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <!--
+    Página feita a partir do Figma "Link na Bio - Junior" (Frame 1, 1080 px de largura).
+    Medidas no CSS em unidades do Figma: calc(var(--u) * N) = N px do quadro.
+
+    Links a preencher (procure por PREENCHER):
+      - Solicitar orçamento
+      - Diagnóstico gratuito
+  -->
+
+  <!-- Fundo do navegador (computador): só aparece a partir de 600 px de largura -->
+  <div class="fundo-navegador" aria-hidden="true"></div>
+
+  <main class="pagina">
+
+    <!-- Coluna 1: apresentação, botão e cards -->
+    <div class="coluna coluna-topo">
+
+      <!-- Fundo do topo: brilho, cristais, esmaecimento e o cristal da direita (atrás de tudo) -->
+      <div class="decor-topo" aria-hidden="true">
+        <img class="brilho-topo" src="assets/group1.svg" alt="">
+        <img class="cristais" src="assets/cristais-topo.webp" alt="" fetchpriority="high">
+        <img class="esmaecer" src="assets/fade-topo.svg" alt="">
+        <img class="brilho-9" src="assets/ellipse9.svg" alt="">
+        <img class="cristal-direita" src="assets/cristal-direita.webp" alt="">
+        <img class="brilho-10" src="assets/ellipse10.svg" alt="">
+      </div>
+
+      <header class="topo">
+        <img class="logo" src="assets/logo-major.webp" alt="Major" width="192" height="64">
+        <div class="perfil">
+          <img class="foto" src="assets/perfil.webp" alt="Foto de Juniior Santana" fetchpriority="high">
+          <picture><source media="(min-width: 1280px)" srcset="assets/ellipse6-desktop.svg"><img class="aro-brilho" src="assets/ellipse6.svg" alt="" aria-hidden="true"></picture>
+          <picture><source media="(min-width: 1280px)" srcset="assets/ellipse7-desktop.svg"><img class="aro" src="assets/ellipse7.svg" alt="" aria-hidden="true"></picture>
+        </div>
+        <h1 class="nome">Juniior Santana</h1>
+        <p class="cargo">
+          <span class="tag vidro-luz" data-luz>
+            <span class="reflexo" aria-hidden="true"></span>
+            <span class="tag-texto">UX Design - CMO da Major</span>
+          </span>
+        </p>
+        <p class="bio">Há mais de 10 anos no universo do digital, ajudando empresários a crescer por meio de estratégias, tecnologia e soluções criativas.</p>
+        <a class="botao" href="#" data-luz data-preencher="orcamento"><!-- PREENCHER: link do orçamento -->
+          <span class="brilho" aria-hidden="true"></span>
+          <span class="vidro" aria-hidden="true">
+            <span class="luz"></span>
+            <span class="reflexo"></span>
+          </span>
+          <span class="grao" aria-hidden="true"></span>
+          <span class="titulo">SOLICITAR ORÇAMENTO</span>
+          <span class="detalhe">Estruturação Comercial, Site, Identidade Visual... </span>
+          <span class="icone" aria-hidden="true"></span>
+          <img class="diamante" src="assets/diamante-major.webp" alt="" aria-hidden="true">
+        </a>
+        <!-- No computador o topo ocupa a primeira tela; este indicador leva aos cards -->
+        <a class="rolar" href="#links" aria-label="Ver os links abaixo">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg>
+        </a>
+      </header>
+
+      <nav class="links" id="links" aria-label="Links">
+        <!-- Cada card tem três partes: imagem, texto e barra. No celular elas se
+             empilham (texto grande, legível); no computador os grupos somem
+             (display: contents) e cada peça volta à posição do Figma. -->
+        <a class="card card-diagnostico" href="#" data-luz data-preencher="diagnostico"><!-- PREENCHER: link do diagnóstico -->
+          <span class="card-midia" aria-hidden="true">
+            <span class="foto-homem"><img src="assets/homem-cafe.webp" alt=""></span>
+            <picture><source media="(min-width: 1280px)" srcset="assets/brilho-card-desktop.svg"><img class="brilho-8" src="assets/brilho-card-celular.svg" alt=""></picture>
+            <span class="ruido-mono"></span>
+            <span class="cristal cristal-a"><img src="assets/lupa-cristal.webp" alt=""></span>
+            <span class="cristal cristal-b"><img src="assets/lupa-cristal.webp" alt=""></span>
+          </span>
+          <span class="barra" aria-hidden="true"></span>
+          <span class="card-texto">
+            <span class="titulo">Faça um <strong>diagnóstico gratuito</strong> do seu site</span>
+            <span class="texto">Nossa análise verifica desempenho, SEO, visibilidade para IA e presença digital e mostra exatamente o que corrigir.</span>
+          </span>
+          <span class="card-barra">
+            <span class="rotulo">Diagnóstico gratuito</span>
+            <span class="card-acao">
+              <span class="pilula-brilho" aria-hidden="true"></span>
+              <span class="pilula" aria-hidden="true"><span class="reflexo"></span></span>
+              <span class="pilula-texto"><span class="acessar">Acessar</span><svg class="seta" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+            </span>
+          </span>
+        </a>
+
+        <a class="card card-nucleo" href="https://nucleomajor.com" data-luz>
+          <span class="card-midia" aria-hidden="true">
+            <picture><source media="(min-width: 1280px)" srcset="assets/dashboard-desktop.webp"><img class="dashboard" src="assets/dashboard-cristal.webp" alt=""></picture>
+          </span>
+          <span class="barra" aria-hidden="true"></span>
+          <span class="card-texto">
+            <span class="titulo"><span class="marca">Núcleo Major: </span>Sistema de Gestão comercial para empresas que vendem todos os dias pelo Whatsapp</span>
+          </span>
+          <span class="card-barra">
+            <span class="rotulo">Núcleo Major</span>
+            <span class="card-acao">
+              <span class="pilula-brilho" aria-hidden="true"></span>
+              <span class="pilula" aria-hidden="true"><span class="reflexo"></span></span>
+              <span class="pilula-texto"><span class="acessar">Acessar</span><svg class="seta" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+            </span>
+          </span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Faixa: projetos. De 1000 a 1279 px ela se abre além da coluna; a partir de
+         1280 px a página inteira segue o quadro "Versao desktop" do Figma. -->
+    <section class="faixa projetos" aria-labelledby="titulo-projetos">
+      <div class="projetos-titulo">
+        <!-- "PROJETOS" é só efeito: contorno em SVG que se desenha quando a seção
+             aparece, com um feixe de luz passando. Unidades: fonte de 1000 px,
+             linha de base em y = 0. -->
+        <svg class="efeito-projetos" viewBox="66.125 -699.5 4779 727.125" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="luz-projetos" gradientUnits="userSpaceOnUse" x1="-1600" y1="0" x2="0" y2="0">
+              <stop offset="0" stop-color="#bfeaff" stop-opacity="0"/>
+              <stop offset="0.5" stop-color="#e5f7ff"/>
+              <stop offset="1" stop-color="#bfeaff" stop-opacity="0"/>
+              <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="6600 0" dur="1.9s" begin="indefinite" fill="remove" calcMode="spline" keyTimes="0;1" keySplines="0.65 0 0.35 1"/>
+            </linearGradient>
+          </defs>
+          <text class="contorno" x="0" y="0">PROJETOS</text>
+          <text class="contorno-luz" x="0" y="0">PROJETOS</text>
+        </svg>
+        <picture><source media="(min-width: 1280px)" srcset="assets/cristal-projetos-desktop.webp"><img class="cristal-projetos" src="assets/cristal-projetos.webp" alt="" aria-hidden="true" loading="lazy" decoding="async"></picture>
+        <h2 id="titulo-projetos" class="titulo-projetos"><span>Conheça os meus projetos</span></h2>
+      </div>
+
+      <!-- Bento: a grade se monta sozinha conforme as imagens (app.js). Para
+           acrescentar um projeto, ponha mais uma <figure> aqui:
+             data-forma="retrato"  → posts 4:5 (1080 x 1350)
+             data-forma="alta"     → telas de site em pé (9:16)
+           As que não couberem na grade entram deslizando, uma de cada vez. -->
+      <div class="bento" data-bento>
+        <figure class="peca" data-forma="retrato"><img src="assets/parceiro-abs.webp" srcset="assets/parceiro-abs.webp 540w, assets/parceiro-abs-720.webp 720w, assets/parceiro-abs-1080.webp 1080w" sizes="(min-width: 1280px) 32vw, (min-width: 1000px) 460px, 48vw" alt="Post ABS: por trás de cada entrega, um parceiro que faz acontecer" loading="lazy" decoding="async"></figure>
+        <figure class="peca" data-forma="retrato"><img src="assets/pediu-achou-chegou.webp" srcset="assets/pediu-achou-chegou.webp 540w, assets/pediu-achou-chegou-720.webp 720w, assets/pediu-achou-chegou-1080.webp 1080w" sizes="(min-width: 1280px) 32vw, (min-width: 1000px) 460px, 48vw" alt="Post ABS: pediu, achou, chegou" loading="lazy" decoding="async"></figure>
+        <figure class="peca" data-forma="alta"><img src="assets/abs-story-desktop.webp" srcset="assets/abs-story-desktop.webp 540w, assets/abs-story-desktop-720.webp 720w, assets/abs-story-desktop-1080.webp 1080w" sizes="(min-width: 1280px) 22vw, (min-width: 1000px) 330px, 67vw" alt="Site da ABS: vai de ABS" loading="lazy" decoding="async"></figure>
+        <figure class="peca" data-forma="retrato"><img src="assets/caceres.webp" srcset="assets/caceres.webp 540w, assets/caceres-720.webp 720w, assets/caceres-1080.webp 1080w" sizes="(min-width: 1280px) 32vw, (min-width: 1000px) 460px, 48vw" alt="Post ABS: Cáceres sempre foi amor para a vida inteira" loading="lazy" decoding="async"></figure>
+        <figure class="peca" data-forma="retrato"><img src="assets/reta-final.webp" srcset="assets/reta-final.webp 540w, assets/reta-final-720.webp 720w, assets/reta-final-1080.webp 1080w" sizes="(min-width: 1280px) 32vw, (min-width: 1000px) 460px, 48vw" alt="Post ABS: estamos na reta final do cadastro de motoboys" loading="lazy" decoding="async"></figure>
+        <button class="bento-controle" type="button" aria-pressed="false" aria-label="Pausar a troca das imagens" hidden>
+          <svg class="icone-pausa" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5v11M15 6.5v11"/></svg>
+          <svg class="icone-tocar" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6.2v11.6L18 12z"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- Coluna 2: foto final e rodapé. O espaço vazio do Figma entre os projetos e a
+         foto ficou em --respiro; aumente quando entrar conteúdo novo ali. -->
+    <div class="coluna coluna-final">
+      <section class="final">
+        <img class="esfera" src="assets/esfera.webp" alt="" aria-hidden="true" loading="lazy" decoding="async">
+        <div class="foto-final">
+          <picture><source media="(min-width: 1280px)" srcset="assets/final-m-desktop.webp"><img src="assets/final-m.webp" alt="Juniior Santana com notebook e café, diante de um M gigante" loading="lazy" decoding="async"></picture>
+          <span class="ruido-multi" aria-hidden="true"></span>
+        </div>
+        <!-- Segunda esfera, sobre a foto: só no computador -->
+        <img class="esfera esfera-2" src="assets/esfera-742.webp" alt="" aria-hidden="true" loading="lazy" decoding="async">
+        <div class="poligono" aria-hidden="true"><div><img src="assets/polygon1.svg" alt=""></div></div>
+        <footer class="rodape">By @hub.major</footer>
+      </section>
+    </div>
+
+  </main>
+</body>
+</html>

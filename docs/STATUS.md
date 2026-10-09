@@ -5,6 +5,17 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Link na bio do Juniior em `/juniiorsantana7` (08/10/2026)
+
+Página estática da Major Hub para o Instagram @juniiorsantana7, servida pelo
+portal em `public/juniiorsantana7/` (HTML, CSS e `app.js`, sem build).
+`/juniiorsantana7` responde 302 para `/juniiorsantana7/`, porque a página usa
+caminhos relativos. A fonte é o Figma "Link na Bio - Junior" e a pasta de
+trabalho fica fora do repositório (`D:\CLIENTES 2024\JUNIOR SANTANA\link-na-bio`,
+com `LEIA-ME.md`); para atualizar, copie `index.html`, `estilo.css`, `app.js`,
+`assets/` e `fontes/` de lá. Faltam os links de "Solicitar orçamento" e
+"Diagnóstico gratuito" (estão com `#`, marcados `PREENCHER`).
+
 ## Equipe de IA: playbook e Jev por agente (01/10/2026)
 
 A Central de Inteligência virou "Equipe de IA" (agente no centro, Playbook

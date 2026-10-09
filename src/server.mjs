@@ -961,6 +961,10 @@ async function staticFile(req, res, url) {
   if (pathname === "/painel" || pathname.startsWith("/painel/")) {
     return redirect(res, `${PAINEL_ORIGIN}${pathname.slice("/painel".length) || "/"}`);
   }
+  // Link na bio do Juniior (Instagram @juniiorsantana7). A página usa caminhos
+  // relativos (estilo.css, assets/...), que só resolvem dentro da pasta com a
+  // barra no fim; por isso o endereço curto leva para `/juniiorsantana7/`.
+  if (pathname === "/juniiorsantana7") return redirect(res, `/juniiorsantana7/${url.search}`);
   let relative;
   if (pathname === "/") relative = "index.html";
   else if (pathname === "/convite" || pathname === "/convite/") relative = "convite/index.html";
@@ -969,6 +973,7 @@ async function staticFile(req, res, url) {
   else if (pathname === "/privacidade" || pathname === "/privacidade/") relative = "privacidade/index.html";
   // A página dos anúncios para clínicas. `/clinicas` é o endereço curto.
   else if (["/clinicas", "/clinicas/", "/clinicas/raio-x", "/clinicas/raio-x/"].includes(pathname)) relative = "clinicas/raio-x/index.html";
+  else if (pathname === "/juniiorsantana7/") relative = "juniiorsantana7/index.html";
   else if (isAppRoute) relative = "app/index.html";
   else relative = pathname.replace(/^\//, "");
   return sendPublicFile(res, relative);
