@@ -113,6 +113,13 @@ await db.query(
    values ($1, $2, 'Recepção', $3, '1111'), ($4, $5, 'WhatsApp principal', $6, '8362')`,
   [C, cliente.id, sha(`${C}:${ANTIGO}`), M, major.id, sha(`${M}:${MAJOR_ANTIGO}`)],
 );
+// A Major tem a identidade verificada, como a reconciliação de 14/08 gravou.
+await db.query(
+  `update public.whatsapp_connections
+   set verified_account_ref = $2, verified_phone_hash = $3, verified_phone_last4 = '8362', verified_at = now()
+   where id = $1`,
+  [M, sha(`emyleads:whatsapp-account:${MAJOR_ANTIGO}`), sha(`${M}:${MAJOR_ANTIGO}`)],
+);
 const ROBO_C = "dddddddd-0000-4000-8000-000000000001";
 const WORKER = "dddddddd-0000-4000-8000-000000000002";
 const ROBO_M = "dddddddd-0000-4000-8000-000000000003";
@@ -288,6 +295,8 @@ confere("D4 a VPS aplica: pedido aplicado, sessão liberada, aparelho desligado 
   d4.status === "applied" && d4.remote_logout === true && mDesconectada.session_released_at !== null);
 confere("D4 desconectar não muda o número esperado",
   mDesconectada.expected_phone_last4 === "8362" && mDesconectada.expected_phone_hash === sha(`${M}:${MAJOR_ANTIGO}`));
+confere("D4 nem a identidade verificada: o número continua sendo o mesmo",
+  mDesconectada.verified_phone_last4 === "8362" && mDesconectada.verified_account_ref !== null);
 const trilha = (await auditoria(M)).map((a) => a.action);
 confere("D4 o histórico da plataforma tem pedido, confirmação e aplicação",
   ["whatsapp.change_requested", "whatsapp.change_confirmed", "whatsapp.change_applied"].every((x) => trilha.includes(x)), trilha.join(","));
@@ -312,6 +321,9 @@ confere("D6 aplicada: o número esperado vira o novo, o período antigo fecha e 
   mTrocada.expected_phone_last4 === "7777" && mTrocada.expected_phone_hash === sha(`${M}:${MAJOR_NOVO}`)
   && periodosM.length === 2 && periodosM[0].active_until !== null && periodosM[1].active_until === null
   && periodosM[1].reason === "voluntary" && Number(periodosM[1].generation) === 2);
+confere("D6 a identidade verificada do número antigo deixa de valer (e solta o índice único)",
+  mTrocada.verified_account_ref === null && mTrocada.verified_phone_hash === null
+  && mTrocada.verified_phone_last4 === null && mTrocada.verified_at === null);
 confere("D6 a conexão continua liberada até o número novo conectar", mTrocada.session_released_at !== null);
 await statusDoRuntime(M, "awaiting_qr");
 confere("D7 o QR na tela não encerra a liberação", (await conexaoDb(M)).session_released_at !== null);

@@ -1022,9 +1022,16 @@ begin
             pedido.new_phone_last4, pedido.reason, pedido.import_history, now(), now(), pedido.id,
             pedido.requested_by
           );
+          -- A identidade verificada era a do número antigo e deixa de valer.
+          -- Mantê-la mostraria o final antigo como "verificado" e prenderia a
+          -- conta antiga ao índice único entre empresas.
           update public.whatsapp_connections
           set expected_phone_hash = pedido.new_phone_hash,
-              expected_phone_last4 = pedido.new_phone_last4
+              expected_phone_last4 = pedido.new_phone_last4,
+              verified_account_ref = null,
+              verified_phone_hash = null,
+              verified_phone_last4 = null,
+              verified_at = null
           where id = pedido.connection_id;
         end if;
         select * into pedido from public.whatsapp_connection_change_requests where id = pedido.id;
