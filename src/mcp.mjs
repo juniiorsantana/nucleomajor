@@ -25,6 +25,9 @@ const MAX_LINHAS = 10_000;
 const INSTRUCOES = [
   "Dados do Núcleo Major (CRM, WhatsApp, tarefas e agenda) das empresas em que a pessoa participa. Só leitura.",
   "Para perguntas gerais do dia ('como está hoje?', 'tem algo pendente?'), use resumo_do_dia.",
+  "Para 'quem está esperando resposta?', use esperando_resposta. Para perguntas sobre uma pessoa, ficha_do_contato; para o que ela disse ou pediu, conversa_com_contato.",
+  "Para 'como foi a semana/o mês?', use o parâmetro periodo de conversas e leads. Para 'como está a semana na agenda?', agenda com dias.",
+  "Se a ferramenta devolver uma lista para escolher (duas pessoas, duas empresas), pergunte a quem está usando em vez de escolher.",
   "Horários e 'hoje' são de Brasília. Responda em português, curto, pensando na leitura no celular.",
 ].join(" ");
 
@@ -165,7 +168,7 @@ export function createMcp({ publicOrigin, supabaseUrl, publishableKey, fetchImpl
         result: {
           protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "nucleo-major", title: "Núcleo Major", version: "0.1.0" },
+          serverInfo: { name: "nucleo-major", title: "Núcleo Major", version: "0.2.0" },
           instructions: INSTRUCOES,
         },
       };

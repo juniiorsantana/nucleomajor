@@ -22,6 +22,15 @@ voltam para `claude.ai`, `claude.com` ou `chatgpt.com`. Enquanto o PR #52 não
 entra, nenhuma autorização pode ser aprovada, porque a tela ainda não está em
 produção. Primeiras usuárias: Major e Adriani.
 
+**Pacote 1 (PR seguinte ao #52):**
+- "quem está esperando" passa a incluir todos, separados por idade, e dizer quem são, mesmo os antigos;
+- "precisa de você" vem por idade;
+- períodos (ontem, semana, mês, 7 e 30 dias), com comparação;
+- agenda de até 14 dias;
+- ficha do contato e conversa com o contato.
+
+Sem migration.
+
 ## Link na bio do Juniior em `/juniiorsantana7` (08/10/2026)
 
 Página estática da Major Hub para o Instagram @juniiorsantana7, servida pelo
