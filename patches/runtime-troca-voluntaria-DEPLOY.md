@@ -1,11 +1,7 @@
 # Deploy: desconectar e trocar o número pelo portal (troca voluntária)
 
-> **NADA DESTE ROTEIRO FOI EXECUTADO.** Escrito em 10/10/2026 (ORCH-014 a
-> 016, `docs/troca-de-numero/PLANO.md`, fase 2). Aplicar SQL, deploy,
-> reinícios, virar symlink, liberar a troca para uma conexão e trocar o número
-> da Major dependem de autorização do dono, numa janela combinada. A 8362
-> (`8ee1e6d0-a9d0-4041-b6ea-878716a34a71`) só entra nos passos marcados
-> "janela".
+> **Preparação e validações executadas pelo Codex; publicação ainda pendente (ver seção 9).** Escrito em 10/10/2026 (ORCH-014 a
+> 016, `docs/troca-de-numero/PLANO.md`, fase 2). O dono autorizou a publicação em 10/10/2026. A troca efetiva da Major ainda será acompanhada pelo dono; nenhum logout foi executado. O symlink compartilhado não deve ser alterado.
 
 ## Estado ao fechar o roteiro
 
@@ -40,11 +36,7 @@
   - portal: vitest 1141/1141 e `build:web` OK; a bancada percorrida no
     navegador, com capturas em `docs/troca-de-numero/bancada-2026-10-10/`
     (branch de docs);
-  - **Bridge: `go build` e `go vet` OK, `go test` NÃO executado.** A política
-    de Controle de Aplicativo do Windows passou a bloquear o binário de teste
-    em 10/10/2026 à tarde, e não foi contornada. `troca_test.go` e
-    `troca_prazos_test.go` compilam (o `go vet` compila os testes). O passo 0
-    cobre isso.
+  - **Bridge validado em Linux pelo Codex:** 323 casos passaram, nenhum falhou e um foi pulado; `go build` da nova release também passou. A política do Windows não foi alterada.
 
 ## O que muda
 
@@ -211,7 +203,7 @@ EOF
 cat > ~/.config/systemd/user/whatsapp-assistant@$T.service.d/release.conf <<EOF
 [Service]
 WorkingDirectory=$NOVA/whatsapp-assistant
-Environment=ASSISTANT_MCP_CONFIG=$NOVA/whatsapp-assistant/mcp-runtime.json
+Environment=ASSISTANT_MCP_CONFIG=$NOVA/scripts/vps/mcp-runtime.json
 Environment=ASSISTANT_OPERATOR_RUNTIME_DIR=$NOVA/whatsapp-assistant/runtime-profile
 EOF
 systemctl --user daemon-reload
@@ -338,4 +330,14 @@ select private.connection_change_mode('<T>');   -- off
 
 ## 9. Registro do que já rodou
 
-Nada.
+Em 10/10/2026, após autorização do dono para publicar:
+
+- Portal: 1141 testes e build:web passaram; servidor: 372 testes passaram.
+- Banco descartável local: 130/130 verificações passaram.
+- VPS: Bridge testado em ambiente isolado, 323 casos passaram, 0 falhas, 1 skip.
+- Base ativa conferida por oito hashes; patch combinado conferido pelo sha256 e aplicado em cópia integral separada.
+- Release preparada: `/home/nucleo/releases/whatsapp-mcp-hardened/troca-voluntaria`; compilação Go e 88 testes Python direcionados passaram.
+- Nenhum serviço reiniciado, nenhum drop-in instalado e nenhum symlink alterado. A sessão 8362 continua na release anterior.
+- SQL Editor: os seis pré-requisitos foram conferidos; migration ainda não aplicada. A abertura do arquivo local pelo navegador foi bloqueada pela política da ferramenta; aplicação SQL permanece pendente.
+- Branch do portal enviada ao GitHub. Sem ativação do modo direct e sem troca real.
+
