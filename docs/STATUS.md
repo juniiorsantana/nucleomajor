@@ -37,12 +37,17 @@ novo entra pelo QR de sempre. Portal e migration
   daemon-reload` e reiniciar só a instância. Depois de uma troca aplicada, a
   release antiga volta a ler o `.env`, que precisa ser alinhado ao número
   novo (roteiro, passo 8).
-- **Pendente:** a migration pelo SQL Editor (ensaio com `raise` antes;
-  conferência em `scripts/sql/conferir-troca-voluntaria.sql`), o merge do PR
-  #54 e a liberação `direct` de 24 h só para a 8362. Sem a migration, nenhuma
-  troca começa, porque a fila não aceita os comandos novos; fora o
-  desvínculo, a release se comporta como a anterior. Antes da troca real: a
-  decisão sobre as automações durante a troca (D3).
+- **Banco:** migration aplicada em 10/10/2026, por volta das 20:26
+  (Brasília), e conferida 17/17 (ver "Banco aplicado").
+- **Liberação `direct` só da 8362, de 10/10 20:29 a 11/10 20:29** (Brasília),
+  autorizada pelo dono no chat. Nenhuma outra conexão tem liberação. O único
+  administrador da plataforma é dono ativo da Major, que é a dupla exigência
+  do `direct`. Fechar antes do prazo: `delete from
+  private.connection_change_policies where connection_id =
+  '8ee1e6d0-a9d0-4041-b6ea-878716a34a71';` e conferir
+  `private.connection_change_mode(...) = 'off'`.
+- **Antes da troca real:** decidir o que as automações fazem durante a troca
+  (D3). A troca em si é do dono, com o número novo e o QR.
 
 ## MCP do portal, só leitura (09/10/2026)
 
@@ -329,6 +334,18 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261012100000_a_troca_voluntaria_de_numero.sql` aplicada em 10/10/2026,
+  por volta das 20:26 (Brasília), pelo SQL Editor.
+  - Antes: os pré-requisitos do roteiro, passo 1, todos `true`; nenhuma
+    tabela nem coluna da troca; 2 conexões vivas com número, nenhuma sem hash.
+  - Ensaio com `raise` no lugar do `commit;`: só o erro `P0001: ensaio ok`, e
+    conferido por consulta que nada ficou.
+  - O texto colado no editor foi conferido por sha256 contra o arquivo, com
+    quebra de linha LF: os corpos das funções novas não têm CRLF.
+  - Depois: `scripts/sql/conferir-troca-voluntaria.sql` deu 17/17 `true`. O
+    sinal de vida da 8ee1 e da a502 continuou chegando (12 e 14 s), então os
+    gatilhos novos em `connection_runtime_status` não travaram o heartbeat.
+  - Em seguida: a liberação `direct` só da 8362, por 24 h (ver o topo).
 - `20261010100000_analise_completa.sql` aplicada em 04/10/2026 pelo SQL
   Editor (ensaio com `raise` antes). Antes: as 5 funções substituídas
   (`creditos_de_analise`, `conversation_analysis_request`,
