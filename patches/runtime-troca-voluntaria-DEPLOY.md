@@ -15,30 +15,36 @@
   runtime, `private.is_notification_worker`, `private.is_platform_admin`,
   `private.platform_audit` e `private.org_access_state`.
 - **Runtime** (`feat/troca-voluntaria`): `3f2c5cb` (o desvínculo, o mesmo de
-  `41351a0`), `940f483` (Bridge), `eae3463` (assistente), sobre o snapshot
-  `5cf6135` da release ativa `analise-completa`.
+  `41351a0`), `940f483` (Bridge), `eae3463` (assistente), `7e1f359` (prazo
+  próprio da limpeza local e o recorte do histórico) e `78f1c4c`
+  (`remoteLogout` nulo sem sessão), sobre o snapshot `5cf6135` da release
+  ativa `analise-completa`.
 - **Dois patches; use um só:**
 
   | Patch | Arquivos | sha256 | Quando |
   |---|---|---|---|
-  | `runtime-troca-voluntaria-sobre-analise-completa.patch` | 12 (desvínculo + troca) | `75589fbfcced4d42ba293fdbdda03ad281a2a5ffb1b1220ec7c5d6ce62d971db` | a ativa ainda é a `analise-completa`; `git apply --check` OK na cópia bruta dela |
-  | `runtime-troca-voluntaria.patch` | 10 (só a troca) | `68d4ed4530cb52cebb84ab79639ad4d5c8a6ab00451c0b66e261865eff7140e6` | a release do desvínculo/aviso (patch `59e85936…`) já é a ativa; `--check` OK sobre `3f2c5cb` e `21ca806` |
+  | `runtime-troca-voluntaria-sobre-analise-completa.patch` | 13 (desvínculo + troca) | `528faf7b94ccb949f7d0611f20ff55ef73e5d3bf9551c760eeb3cf4655d98e31` | a ativa ainda é a `analise-completa`; `git apply --check` OK na cópia bruta dela |
+  | `runtime-troca-voluntaria.patch` | 11 (só a troca) | `99ef39d7b1fa8f6c9c244bd7f54362161ba96c037002d08f32202e907e6143b8` | a release do desvínculo/aviso (patch `59e85936…`) já é a ativa; `--check` OK sobre `3f2c5cb` e `21ca806` |
 
 - **Portal:** `feat/troca-voluntaria-de-numero` (`7170fc7` `32170fd` `7817ddc`
-  `260156f` `cf65a69` `cd89963`).
+  `260156f` `cf65a69` `cd89963` `e0c014f`).
 - **Testes:**
   - banco: prova em PGlite com todas as migrations e a fila real, 130/130;
     teste estático, 12/12;
   - servidor do portal: o aviso por e-mail com dublês, 9/9; `node --test`
     inteiro, 372/372 (nenhum e-mail real);
   - assistente: `test_runtime_commands`, `test_bridge_control` e `test_config`,
-    87 OK. A suíte inteira (1095) tem 28 falhas, todas fora desta mudança: as
+    OK (78 nos dois primeiros, na última rodada). A suíte inteira (1095) tem 28 falhas, todas fora desta mudança: as
     18 presas à data e 10 do `test_runner`, que também falham na `21ca806`
     num caminho com "ú" (o `.cmd` falso do teste não acha o Python do venv);
-  - portal: vitest 1133/1133 e `build:web` OK;
+  - portal: vitest 1141/1141 e `build:web` OK; a bancada percorrida no
+    navegador, com capturas em `docs/troca-de-numero/bancada-2026-10-10/`
+    (branch de docs);
   - **Bridge: `go build` e `go vet` OK, `go test` NÃO executado.** A política
     de Controle de Aplicativo do Windows passou a bloquear o binário de teste
-    em 10/10/2026 à tarde. O passo 0 cobre isso.
+    em 10/10/2026 à tarde, e não foi contornada. `troca_test.go` e
+    `troca_prazos_test.go` compilam (o `go vet` compila os testes). O passo 0
+    cobre isso.
 
 ## O que muda
 
@@ -49,13 +55,17 @@
   pedido. Pedido, confirmação, aplicação e cada mudança de liberação vão para
   `platform_audit_log`, sem hash nem telefone.
 - **Bridge:** `POST /api/internal/v1/session/logout` e `/session/identity`,
-  com o token da conexão. Desligam a sessão (`Logout` no WhatsApp; se o
-  WhatsApp não confirmar, apagam só a local e dizem `remoteLogout=false`),
-  gravam `store/controle_da_sessao.json` e reiniciam com exit 3, como no
-  desvínculo. Depois disso o processo espera o portal em vez de abrir QR, a
-  identidade esperada vem do arquivo (e não mais do `.env`), e o mesmo
-  celular com e sem o nono dígito conta como o mesmo. O `messages.db` não é
-  tocado.
+  com o token da conexão. Desligam a sessão: até 15 s para o WhatsApp
+  confirmar (`Logout`) e, sem confirmação, até 5 s próprios para apagar só a
+  local, dizendo `remoteLogout=false` (sem sessão, `remoteLogout` nulo). Sem
+  sucesso enquanto a sessão continuar guardada. Gravam
+  `store/controle_da_sessao.json` e reiniciam com exit 3, como no desvínculo.
+  Depois disso o processo espera o portal em vez de abrir QR, a identidade
+  esperada vem do arquivo (e não mais do `.env`), e o mesmo celular com e sem
+  o nono dígito conta como o mesmo. Com `importHistory=false`, do histórico
+  que o WhatsApp mandar entra só o que é de depois de o número certo conectar
+  (o recorte é marcado no primeiro `Connected` com a identidade conferida).
+  O `messages.db` não é apagado.
 - **Assistente:** os comandos `connection_logout` e
   `connection_identity_replace` (timeout de 30 s nessas rotas), e o final
   novo no `connections.json`. O envio de código ao WhatsApp antigo
@@ -277,7 +287,7 @@ plataforma (`whatsapp.change_policy_insert`).
    **Trocar por outro número** → número novo com DDD → **Continuar**.
 2. Conferir o número inteiro na confirmação → **Trocar para o final NNNN**.
 3. A seção mostra "Na fila da VPS", depois "A VPS está aplicando agora", e só
-   então "Pronto para o número novo". Na VPS:
+   então "Troca aplicada: a conexão agora espera o número final NNNN" (ainda não pronta). Na VPS:
    ```bash
    journalctl --user -u whatsapp-bridge@$T -n 40 --no-pager
    # "Session released by the portal; restarting so a fresh device can pair (exit 3)"
@@ -294,7 +304,7 @@ plataforma (`whatsapp.change_policy_insert`).
 4. **Conectar WhatsApp** → ler o QR com o celular do número novo → o cartão
    volta a "conectado" com o final novo, e `session_released_at` some. Com o
    aviso ligado, os donos e administradores da empresa recebem o e-mail em
-   até um minuto depois do "Pronto para o número novo".
+   até um minuto depois da "Troca aplicada".
 5. Aceite: os critérios de `docs/troca-de-numero/TESTE-REAL-NA-MAJOR.md`.
 6. Depois do aceite, alinhar o arquivo de ambiente do Bridge da conexão
    (`CONNECTION_EXPECTED_PHONE_HASH/LAST4`, ver `EnvironmentFile` da unit) aos

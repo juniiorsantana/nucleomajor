@@ -1,21 +1,22 @@
 diff --git a/whatsapp-assistant/bridge_control.py b/whatsapp-assistant/bridge_control.py
-index 48fc554..a6ecb90 100644
+index 48fc554..9b6753d 100644
 --- a/whatsapp-assistant/bridge_control.py
 +++ b/whatsapp-assistant/bridge_control.py
-@@ -13,6 +13,12 @@ class BridgeUnavailable(RuntimeError):
+@@ -13,6 +13,13 @@ class BridgeUnavailable(RuntimeError):
      pass
  
  
 +# Desligar a sessão é uma conversa com o WhatsApp, e não com o bridge só: o
-+# bridge espera até 20 s pela resposta do servidor antes de apagar a sessão
-+# localmente. Os 3 s das outras rotas cortariam um desligamento que deu certo.
++# bridge espera até 15 s pela confirmação do servidor e, sem ela, tem mais 5 s
++# próprios para apagar a sessão local (troca.go). Os 3 s das outras rotas
++# cortariam um desligamento que deu certo; 30 s cobrem os 20 s com folga.
 +SESSION_TIMEOUT = 30.0
 +
 +
  @dataclass(frozen=True)
  class BridgeResponse:
      status: int
-@@ -83,7 +89,53 @@ class BridgeControl:
+@@ -83,7 +90,53 @@ class BridgeControl:
              },
          )
  
@@ -70,7 +71,7 @@ index 48fc554..a6ecb90 100644
          data = None if payload is None else json.dumps(payload).encode("utf-8")
          req = urllib.request.Request(self.base_url + path, data=data, method=method)
          req.add_header("Authorization", f"Bearer {self.token}")
-@@ -91,7 +143,7 @@ class BridgeControl:
+@@ -91,7 +144,7 @@ class BridgeControl:
              req.add_header("Content-Type", "application/json")
  
          try:
@@ -112,7 +113,7 @@ index 0e2eaea..805b2cf 100644
          """Escolhe store e endereco interno para uma conexao nova.
  
 diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
-index 32985cf..231f6bb 100644
+index 32985cf..705e8df 100644
 --- a/whatsapp-assistant/runtime_commands.py
 +++ b/whatsapp-assistant/runtime_commands.py
 @@ -97,9 +97,20 @@ COMANDOS = frozenset(
@@ -147,7 +148,7 @@ index 32985cf..231f6bb 100644
          if command_type in {"handoff_return_to_ai", "handoff_close"}:
              request_id = str(payload.get("requestId") or "").strip()
              contact = str(payload.get("contact") or "").strip()
-@@ -1012,6 +1027,104 @@ class RuntimeCommandPoller:
+@@ -1012,6 +1027,107 @@ class RuntimeCommandPoller:
              error_code=motivo,
          )
  
@@ -237,10 +238,13 @@ index 32985cf..231f6bb 100644
 +                    error=type(exc).__name__,
 +                )
 +
++        remoto = sessao.get("remoteLogout")
 +        self._complete(command_id, "completed", "", {
 +            "status": "applied",
 +            "generation": geracao,
-+            "remoteLogout": bool(sessao.get("remoteLogout")),
++            # None quando não havia sessão para desligar: aí não há aparelho
++            # a remover no celular antigo, e a tela não pode pedir isso.
++            "remoteLogout": remoto if isinstance(remoto, bool) else None,
 +        })
 +        audit.log(
 +            "runtime.command_completed",
@@ -321,7 +325,7 @@ index 095e31c..291dc1c 100644
  if __name__ == "__main__":
      unittest.main()
 diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
-index a368c05..179550c 100644
+index a368c05..871f358 100644
 --- a/whatsapp-assistant/test_runtime_commands.py
 +++ b/whatsapp-assistant/test_runtime_commands.py
 @@ -57,6 +57,16 @@ class FakeControl:
@@ -341,7 +345,7 @@ index a368c05..179550c 100644
  
  class Bancada:
      """O runtime montado num diretório temporário, para as duas suítes.
-@@ -710,6 +720,119 @@ class ConnectionPairTests(Bancada, unittest.TestCase):
+@@ -710,6 +720,133 @@ class ConnectionPairTests(Bancada, unittest.TestCase):
          self.assertEqual((status, motivo), ("failed", "bridge_offline"))
  
  
@@ -398,6 +402,20 @@ index a368c05..179550c 100644
 +        self.assertEqual(resultado, {"status": "applied", "generation": 4, "remoteLogout": False})
 +        self.assertNotIn(HASH_NOVO, str(resultado))
 +        self.assertEqual(final, "7777")
++
++    def test_sem_sessao_para_desligar_o_remote_logout_vai_nulo(self):
++        """Trocar o número de uma conexão já desconectada não desliga aparelho
++        nenhum. Mandar `False` faria a tela pedir para removê-lo no celular."""
++        sem_sessao = BridgeResponse(200, {"success": True, "session": {
++            "status": "applied", "generation": 6, "remoteLogout": None, "repeated": False,
++        }})
++        (_, status, _, resultado, _), _, _ = self._liberar(
++            "connection_identity_replace",
++            {"generation": 6, "newLast4": "7777", "newPhoneHash": HASH_NOVO},
++            response=sem_sessao,
++        )
++        self.assertEqual(status, "completed")
++        self.assertIsNone(resultado["remoteLogout"])
 +
 +    def test_carga_malformada_nao_chega_ao_bridge(self):
 +        for tipo, payload in [
@@ -489,7 +507,7 @@ index 8c07220..1575a14 100644
  		// Fica em "logged_out" ate o portal pedir o pareamento.
  		if _, desvinculada := loggedOutAt(); desvinculada {
 diff --git a/whatsapp-bridge/main.go b/whatsapp-bridge/main.go
-index e6179da..8ca9a40 100644
+index e6179da..77ed422 100644
 --- a/whatsapp-bridge/main.go
 +++ b/whatsapp-bridge/main.go
 @@ -1101,7 +1101,8 @@ func loadBridgeDeps(runtimeCfg *runtimeConfig) (*bridgeDeps, error) {
@@ -548,20 +566,20 @@ index e6179da..8ca9a40 100644
  
  	// Setup event handling for messages and history sync
  	client.AddEventHandler(func(evt interface{}) {
-@@ -1709,6 +1737,12 @@ func main() {
+@@ -1709,8 +1737,10 @@ func main() {
  			handleMessage(client, messageStore, v, deps, logger)
  
  		case *events.HistorySync:
-+			// O numero foi conectado pelo portal sem trazer o historico: as
-+			// conversas antigas daquele celular nao entram no portal.
-+			if !control.ImportHistory() {
-+				logger.Infof("History sync skipped: this number was connected without importing history")
-+				return
-+			}
- 			// Process history sync events
- 			handleHistorySync(client, messageStore, v, logger)
+-			// Process history sync events
+-			handleHistorySync(client, messageStore, v, logger)
++			// O numero foi conectado pelo portal sem trazer o historico: das
++			// conversas que o WhatsApp mandar, entra so o que e de depois de
++			// ele conectar (ver HistoryKeep em troca.go). Sem esse caso, tudo.
++			handleHistorySync(client, messageStore, v, control.HistoryKeep(), logger)
  
-@@ -1721,15 +1755,19 @@ func main() {
+ 		case *events.Connected:
+ 			phone := ""
+@@ -1721,18 +1751,27 @@ func main() {
  			if err := clearLogoutMarker(); err != nil {
  				logger.Warnf("Could not clear logout marker: %v", err)
  			}
@@ -584,7 +602,15 @@ index e6179da..8ca9a40 100644
  				)
  				return
  			}
-@@ -1741,6 +1779,13 @@ func main() {
++			// O numero certo conectou: com importHistory=false, o historico
++			// passa a valer a partir de agora, e so a partir de agora.
++			if err := control.MarkIdentityConfirmed(); err != nil {
++				logger.Warnf("Could not record the history cutoff: %v", err)
++			}
+ 			logger.Infof("Connected to WhatsApp on connection %s", runtimeCfg.ConnectionID)
+ 			connections.setConnected(phone)
+ 
+@@ -1741,6 +1780,13 @@ func main() {
  			connections.onDisconnected(hasSession)
  
  		case *events.LoggedOut:
@@ -598,7 +624,7 @@ index e6179da..8ca9a40 100644
  			logger.Warnf("Device logged out, please scan QR code to log in again")
  			connections.setLoggedOut()
  			if err := recordLogout(time.Now()); err != nil {
-@@ -1755,7 +1800,7 @@ func main() {
+@@ -1755,7 +1801,7 @@ func main() {
  
  	// A API precisa existir antes do QR: e por ela que a Gestão acompanha o
  	// pareamento. O processo permanece vivo mesmo desconectado.
@@ -607,7 +633,7 @@ index e6179da..8ca9a40 100644
  	go func() {
  		if err := connector.Start(); err != nil {
  			logger.Errorf("Failed to start WhatsApp connection: %v", err)
-@@ -1776,6 +1821,9 @@ func main() {
+@@ -1776,6 +1822,9 @@ func main() {
  	case <-loggedOutChan:
  		logger.Warnf("Restarting so a fresh device can pair again (exit %d)", logoutExitCode)
  		exitCode = logoutExitCode
@@ -617,6 +643,44 @@ index e6179da..8ca9a40 100644
  	}
  
  	fmt.Println("Disconnecting...")
+@@ -1878,8 +1927,13 @@ func GetChatName(client *whatsmeow.Client, messageStore *MessageStore, jid types
+ }
+ 
+ // Handle history sync events
+-func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, historySync *events.HistorySync, logger waLog.Logger) {
++// keep nil: todo o historico entra. Com keep, so as mensagens que ela aceita,
++// e uma conversa sem nenhuma aceita nao vira nem chat no messages.db.
++func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, historySync *events.HistorySync, keep func(time.Time) bool, logger waLog.Logger) {
+ 	fmt.Printf("Received history sync event with %d conversations\n", len(historySync.Data.Conversations))
++	if keep != nil {
++		fmt.Println("History sync limited to messages after this number connected to the portal")
++	}
+ 
+ 	syncedCount := 0
+ 	for _, conversation := range historySync.Data.Conversations {
+@@ -1888,6 +1942,14 @@ func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, his
+ 			continue
+ 		}
+ 
++		messages := conversation.Messages
++		if keep != nil {
++			messages = keptHistoryMessages(messages, keep)
++			if len(messages) == 0 {
++				continue
++			}
++		}
++
+ 		chatJID := *conversation.ID
+ 
+ 		// Try to parse the JID
+@@ -1901,7 +1963,6 @@ func handleHistorySync(client *whatsmeow.Client, messageStore *MessageStore, his
+ 		name := GetChatName(client, messageStore, jid, chatJID, conversation, "", logger)
+ 
+ 		// Process messages
+-		messages := conversation.Messages
+ 		if len(messages) > 0 {
+ 			// Update chat with latest message timestamp
+ 			latestMsg := messages[0]
 diff --git a/whatsapp-bridge/runtime.go b/whatsapp-bridge/runtime.go
 index 21af19d..0714c5d 100644
 --- a/whatsapp-bridge/runtime.go
@@ -675,10 +739,10 @@ index 21af19d..0714c5d 100644
  func onlyDigits(raw string) string {
 diff --git a/whatsapp-bridge/troca.go b/whatsapp-bridge/troca.go
 new file mode 100644
-index 0000000..7648c2d
+index 0000000..99dc91b
 --- /dev/null
 +++ b/whatsapp-bridge/troca.go
-@@ -0,0 +1,524 @@
+@@ -0,0 +1,613 @@
 +package main
 +
 +import (
@@ -695,6 +759,7 @@ index 0000000..7648c2d
 +	"time"
 +
 +	"go.mau.fi/whatsmeow"
++	"go.mau.fi/whatsmeow/proto/waHistorySync"
 +	waLog "go.mau.fi/whatsmeow/util/log"
 +)
 +
@@ -726,9 +791,16 @@ index 0000000..7648c2d
 +	ExpectedPhoneHash  string `json:"expectedPhoneHash,omitempty"`
 +	ExpectedPhoneLast4 string `json:"expectedPhoneLast4,omitempty"`
 +	ImportHistory      bool   `json:"importHistory"`
-+	ReleasedByOwner    bool   `json:"releasedByOwner"`
-+	LastRemoteLogout   bool   `json:"lastRemoteLogout"`
-+	UpdatedAt          string `json:"updatedAt"`
++	// HistoryCutoff: com importHistory=false, a hora em que o número
++	// esperado conectou pela primeira vez. Do histórico que o WhatsApp mandar
++	// depois, entra só o que é desta hora em diante: o de antes (as conversas
++	// pessoais do celular) fica de fora; o de depois (o que a conexão já
++	// atendia) pode voltar sem expor nada. Vazio: ainda não conectou, nada
++	// entra.
++	HistoryCutoff    string `json:"historyCutoff,omitempty"`
++	ReleasedByOwner  bool   `json:"releasedByOwner"`
++	LastRemoteLogout *bool  `json:"lastRemoteLogout,omitempty"`
++	UpdatedAt        string `json:"updatedAt"`
 +}
 +
 +// sessionControl e a fonte da identidade esperada deste processo. Sem o
@@ -836,6 +908,59 @@ index 0000000..7648c2d
 +		return true
 +	}
 +	return s.state.ImportHistory
++}
++
++// HistoryKeep diz que historico entra no messages.db. nil: tudo, como sempre
++// foi. Uma funcao: so o que ela aceita pela hora da mensagem.
++//
++// O Connected e o HistorySync chegam por goroutines diferentes do whatsmeow,
++// em qualquer ordem. Um historico que chegue antes de o recorte existir nao
++// leva nada: o lado seguro, porque ate ali so pode haver conversa de antes do
++// pareamento.
++func (s *sessionControl) HistoryKeep() func(time.Time) bool {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	if !s.present || s.state.ImportHistory {
++		return nil
++	}
++	cutoff, err := time.Parse(time.RFC3339, s.state.HistoryCutoff)
++	if s.state.HistoryCutoff == "" || err != nil {
++		return func(time.Time) bool { return false }
++	}
++	return func(ts time.Time) bool { return !ts.Before(cutoff) }
++}
++
++// MarkIdentityConfirmed roda quando o numero CERTO conecta (nunca num
++// identity_mismatch: o recorte marcado ali deixaria entrar o historico
++// pessoal do numero certo entre as duas leituras de QR). Com
++// importHistory=false e sem recorte ainda, o recorte passa a ser agora. Nao
++// liga a importacao: so diz a partir de quando ela vale.
++func (s *sessionControl) MarkIdentityConfirmed() error {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	if !s.present || s.state.ImportHistory || s.state.HistoryCutoff != "" {
++		return nil
++	}
++	next := s.state
++	next.HistoryCutoff = s.now().UTC().Format(time.RFC3339)
++	return s.commitLocked(next)
++}
++
++// keptHistoryMessages devolve, na mesma ordem, so as mensagens que keep
++// aceita pela hora. Mensagem sem hora fica de fora: na duvida, nao entra.
++func keptHistoryMessages(messages []*waHistorySync.HistorySyncMsg, keep func(time.Time) bool) []*waHistorySync.HistorySyncMsg {
++	kept := make([]*waHistorySync.HistorySyncMsg, 0, len(messages))
++	for _, msg := range messages {
++		if msg == nil || msg.Message == nil {
++			continue
++		}
++		ts := msg.Message.GetMessageTimestamp()
++		if ts == 0 || !keep(time.Unix(int64(ts), 0)) {
++			continue
++		}
++		kept = append(kept, msg)
++	}
++	return kept
 +}
 +
 +func (s *sessionControl) ReleasedByOwner() bool {
@@ -1009,31 +1134,47 @@ index 0000000..7648c2d
 +}
 +
 +type sessionReleaseResult struct {
-+	Status       string `json:"status"`
-+	Generation   int64  `json:"generation"`
-+	RemoteLogout bool   `json:"remoteLogout"`
-+	Repeated     bool   `json:"repeated"`
++	Status     string `json:"status"`
++	Generation int64  `json:"generation"`
++	// RemoteLogout: o WhatsApp confirmou o desligamento do aparelho? nil
++	// quando nao havia sessao para desligar: ai nao ha o que remover no
++	// celular antigo, e a tela nao pode mandar ninguem procurar o aparelho.
++	RemoteLogout *bool `json:"remoteLogout"`
++	Repeated     bool  `json:"repeated"`
 +	// restart: o processo encostou numa sessao viva e precisa recomecar com
 +	// um device limpo (o whatsmeow nao pareia de novo com o device apagado).
 +	restart bool
 +}
 +
++// O orcamento de uma liberacao cabe nos 30 s que o assistente espera
++// (SESSION_TIMEOUT em bridge_control.py): ate 15 s para o WhatsApp confirmar
++// o desligamento e, se ele nao confirmar, ate 5 s proprios para apagar a
++// sessao daqui. O prazo da limpeza e separado de proposito: um Logout que
++// esgotou o dele deixaria o contexto cancelado, e apagar a sessao local
++// falharia justamente quando a rede caiu.
++const (
++	defaultLogoutTimeout       = 15 * time.Second
++	defaultLocalCleanupTimeout = 5 * time.Second
++)
++
 +type sessionReleaser struct {
-+	mu      sync.Mutex
-+	control *sessionControl
-+	session sessionClient
-+	state   *connectionState
-+	logger  waLog.Logger
-+	timeout time.Duration
++	mu             sync.Mutex
++	control        *sessionControl
++	session        sessionClient
++	state          *connectionState
++	logger         waLog.Logger
++	logoutTimeout  time.Duration
++	cleanupTimeout time.Duration
 +}
 +
 +func newSessionReleaser(control *sessionControl, session sessionClient, state *connectionState, logger waLog.Logger) *sessionReleaser {
 +	return &sessionReleaser{
-+		control: control,
-+		session: session,
-+		state:   state,
-+		logger:  logger,
-+		timeout: 20 * time.Second,
++		control:        control,
++		session:        session,
++		state:          state,
++		logger:         logger,
++		logoutTimeout:  defaultLogoutTimeout,
++		cleanupTimeout: defaultLocalCleanupTimeout,
 +	}
 +}
 +
@@ -1060,26 +1201,36 @@ index 0000000..7648c2d
 +		return sessionReleaseResult{Status: "applied", Generation: generation, RemoteLogout: remote, Repeated: true}, nil
 +	}
 +
-+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
-+	defer cancel()
-+
 +	hadSession := r.session.HasSession()
-+	remote := false
++	var remote *bool
 +	if hadSession {
++		confirmado := false
 +		r.control.setReleasing(true)
-+		if err := r.session.Logout(ctx); err != nil {
++		logoutCtx, cancelLogout := context.WithTimeout(context.Background(), r.logoutTimeout)
++		err := r.session.Logout(logoutCtx)
++		cancelLogout()
++		if err != nil {
 +			// O WhatsApp nao confirmou o desligamento (rede, sessao ja
-+			// invalida). Quem pediu para desconectar nao pode continuar
-+			// conectado porque o servidor nao respondeu: a sessao sai daqui
-+			// do mesmo jeito.
++			// invalida, prazo esgotado). Quem pediu para desconectar nao pode
++			// continuar conectado porque o servidor nao respondeu: a sessao
++			// sai daqui do mesmo jeito, com um prazo proprio.
 +			r.warnf("WhatsApp did not confirm the logout; dropping the local session (%v)", err)
-+			if dropErr := r.session.DropLocalSession(ctx); dropErr != nil {
++			cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), r.cleanupTimeout)
++			dropErr := r.session.DropLocalSession(cleanupCtx)
++			cancelCleanup()
++			if dropErr != nil {
 +				r.control.setReleasing(false)
 +				return sessionReleaseResult{restart: true}, fmt.Errorf("could not drop the session: %w", dropErr)
 +			}
 +		} else {
-+			remote = true
++			confirmado = true
 +		}
++		// Sem sucesso enquanto a sessao nao saiu de fato.
++		if r.session.HasSession() {
++			r.control.setReleasing(false)
++			return sessionReleaseResult{restart: true}, errors.New("the WhatsApp session is still stored after the release")
++		}
++		remote = &confirmado
 +	} else {
 +		// Sem sessao: so fecha um pareamento que esteja aberto.
 +		r.session.Disconnect()
@@ -1092,6 +1243,8 @@ index 0000000..7648c2d
 +			next.ExpectedPhoneHash = change.PhoneHash
 +			next.ExpectedPhoneLast4 = change.PhoneLast4
 +			next.ImportHistory = change.ImportHistory
++			// Numero novo, recorte novo: vale a primeira conexao dele.
++			next.HistoryCutoff = ""
 +		}
 +	})
 +	if err != nil {
@@ -1203,12 +1356,317 @@ index 0000000..7648c2d
 +		restart()
 +	}
 +}
+diff --git a/whatsapp-bridge/troca_prazos_test.go b/whatsapp-bridge/troca_prazos_test.go
+new file mode 100644
+index 0000000..8077e92
+--- /dev/null
++++ b/whatsapp-bridge/troca_prazos_test.go
+@@ -0,0 +1,299 @@
++package main
++
++import (
++	"context"
++	"errors"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++
++	"go.mau.fi/whatsmeow/proto/waHistorySync"
++	"go.mau.fi/whatsmeow/proto/waWeb"
++	"google.golang.org/protobuf/proto"
++)
++
++// sessaoTravada imita a rede que caiu: o Logout so volta quando o prazo dele
++// acaba. A limpeza local registra o contexto que recebeu.
++type sessaoTravada struct {
++	fakeSession
++	logoutBlocks bool
++	dropBlocks   bool
++	dropCtxVivo  bool
++	dropTemPrazo bool
++	dropPrazo    time.Duration
++}
++
++func (s *sessaoTravada) Logout(ctx context.Context) error {
++	s.logouts++
++	if s.logoutBlocks {
++		<-ctx.Done()
++		return ctx.Err()
++	}
++	s.has = false
++	return nil
++}
++
++func (s *sessaoTravada) DropLocalSession(ctx context.Context) error {
++	s.drops++
++	s.dropCtxVivo = ctx.Err() == nil
++	if deadline, ok := ctx.Deadline(); ok {
++		s.dropTemPrazo = true
++		s.dropPrazo = time.Until(deadline)
++	}
++	if s.dropBlocks {
++		<-ctx.Done()
++		return ctx.Err()
++	}
++	s.has = false
++	return nil
++}
++
++// sessaoTeimosa diz que desligou, mas a sessao continua guardada.
++type sessaoTeimosa struct {
++	fakeSession
++}
++
++func (s *sessaoTeimosa) Logout(context.Context) error {
++	s.logouts++
++	return nil
++}
++
++func releaserCom(t *testing.T, session sessionClient) (*sessionReleaser, *sessionControl) {
++	t.Helper()
++	control, err := loadSessionControl(envIdentity())
++	if err != nil {
++		t.Fatal(err)
++	}
++	state := newConnectionState(testOrganizationID, testConnectionID)
++	state.setConnected(oldAccountPhone)
++	return newSessionReleaser(control, session, state, nil), control
++}
++
++func TestOsPrazosCabemNoQueOAssistenteEspera(t *testing.T) {
++	// SESSION_TIMEOUT em whatsapp-assistant/bridge_control.py e 30 s.
++	if total := defaultLogoutTimeout + defaultLocalCleanupTimeout; total >= 30*time.Second {
++		t.Fatalf("logout + limpeza = %s: o assistente desistiria antes do bridge responder", total)
++	}
++}
++
++func TestLogoutQueEsgotaOPrazoNaoContaminaALimpezaLocal(t *testing.T) {
++	useTempSessionControl(t)
++	useTempLogoutMarker(t)
++	session := &sessaoTravada{fakeSession: fakeSession{has: true}, logoutBlocks: true}
++	releaser, control := releaserCom(t, session)
++	releaser.logoutTimeout = 20 * time.Millisecond
++	releaser.cleanupTimeout = 2 * time.Second
++
++	inicio := time.Now()
++	result, err := releaser.Release(1, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !session.dropCtxVivo {
++		t.Fatal("a limpeza local recebeu o contexto do Logout, ja cancelado")
++	}
++	if !session.dropTemPrazo || session.dropPrazo <= 0 || session.dropPrazo > 2*time.Second {
++		t.Fatalf("a limpeza local precisa de prazo proprio e limitado: tem=%v prazo=%s", session.dropTemPrazo, session.dropPrazo)
++	}
++	if result.RemoteLogout == nil || *result.RemoteLogout || !result.restart || control.Generation() != 1 {
++		t.Fatalf("result=%#v generation=%d", result, control.Generation())
++	}
++	if time.Since(inicio) > time.Second {
++		t.Fatalf("a liberacao levou %s, alem dos prazos", time.Since(inicio))
++	}
++}
++
++func TestALimpezaLocalTambemTemPrazoEFalhaComHonestidade(t *testing.T) {
++	useTempSessionControl(t)
++	useTempLogoutMarker(t)
++	session := &sessaoTravada{fakeSession: fakeSession{has: true}, logoutBlocks: true, dropBlocks: true}
++	releaser, control := releaserCom(t, session)
++	releaser.logoutTimeout = 20 * time.Millisecond
++	releaser.cleanupTimeout = 30 * time.Millisecond
++
++	inicio := time.Now()
++	result, err := releaser.Release(1, &identityChange{
++		PhoneHash:  phoneHashFor(testConnectionID, newAccountPhone),
++		PhoneLast4: "7777",
++	})
++	if !errors.Is(err, context.DeadlineExceeded) {
++		t.Fatalf("err = %v, want o prazo da limpeza", err)
++	}
++	if !result.restart {
++		t.Fatal("o processo ficou de pe com a sessao pela metade")
++	}
++	if time.Since(inicio) > time.Second {
++		t.Fatalf("a falha levou %s", time.Since(inicio))
++	}
++	if _, statErr := os.Stat(sessionControlPath); !errors.Is(statErr, os.ErrNotExist) {
++		t.Fatal("a falha gravou o arquivo de controle")
++	}
++	if control.Generation() != 0 || control.Releasing() {
++		t.Fatalf("generation=%d releasing=%v", control.Generation(), control.Releasing())
++	}
++	if !control.MatchesIdentity(oldAccountPhone) || control.MatchesIdentity(newAccountPhone) {
++		t.Fatal("a falha trocou a identidade esperada")
++	}
++}
++
++func TestSemSucessoEnquantoASessaoContinuaGuardada(t *testing.T) {
++	useTempSessionControl(t)
++	useTempLogoutMarker(t)
++	releaser, control := releaserCom(t, &sessaoTeimosa{fakeSession: fakeSession{has: true}})
++
++	result, err := releaser.Release(1, nil)
++	if err == nil || !result.restart {
++		t.Fatalf("err=%v restart=%v: a sessao nao saiu e a liberacao disse que saiu", err, result.restart)
++	}
++	if control.Generation() != 0 {
++		t.Fatal("a geracao andou sem a sessao sair")
++	}
++}
++
++func TestFalhaENovaTentativaNaoReaplicamIdentidadeErradaNemTocamNoHistorico(t *testing.T) {
++	useTempSessionControl(t)
++	useTempLogoutMarker(t)
++	anterior := messagesStorePath
++	messagesStorePath = filepath.Join(t.TempDir(), "messages.db")
++	t.Cleanup(func() { messagesStorePath = anterior })
++	if err := os.WriteFile(messagesStorePath, []byte("conversas da conexao"), 0600); err != nil {
++		t.Fatal(err)
++	}
++
++	session := &fakeSession{has: true, logoutErr: errors.New("offline"), dropErr: errors.New("disco")}
++	releaser, control, _ := newTestReleaser(t, session)
++	novo := &identityChange{PhoneHash: phoneHashFor(testConnectionID, newAccountPhone), PhoneLast4: "7777"}
++
++	if _, err := releaser.Release(1, novo); err == nil {
++		t.Fatal("a primeira tentativa deveria falhar")
++	}
++	if control.Generation() != 0 || !control.MatchesIdentity(oldAccountPhone) || control.MatchesIdentity(newAccountPhone) {
++		t.Fatal("a tentativa que falhou mexeu na identidade")
++	}
++
++	// O portal repete com uma geracao nova; agora a limpeza funciona.
++	session.dropErr = nil
++	if _, err := releaser.Release(2, novo); err != nil {
++		t.Fatal(err)
++	}
++	if control.Generation() != 2 || !control.MatchesIdentity(newAccountPhone) {
++		t.Fatal("a nova tentativa nao aplicou o numero novo")
++	}
++
++	// O comando da primeira tentativa, se ainda aparecer, chega atrasado.
++	velho := &identityChange{PhoneHash: phoneHashFor(testConnectionID, "5565999990000"), PhoneLast4: "0000"}
++	if _, err := releaser.Release(1, velho); !errors.Is(err, errStaleGeneration) {
++		t.Fatalf("err = %v, want stale", err)
++	}
++	if !control.MatchesIdentity(newAccountPhone) || control.ExpectedLast4() != "7777" {
++		t.Fatal("o comando atrasado reaplicou uma identidade")
++	}
++
++	data, err := os.ReadFile(messagesStorePath)
++	if err != nil || string(data) != "conversas da conexao" {
++		t.Fatalf("o messages.db mudou: %q, %v", data, err)
++	}
++}
++
++func TestOHistoricoDoNumeroNovoSoEntraDepoisDeEleConectar(t *testing.T) {
++	useTempSessionControl(t)
++	useTempLogoutMarker(t)
++	control, err := loadSessionControl(envIdentity())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if control.HistoryKeep() != nil {
++		t.Fatal("sem troca, o historico deixou de entrar inteiro")
++	}
++	releaser := newSessionReleaser(control, &fakeSession{}, newConnectionState(testOrganizationID, testConnectionID), nil)
++	trocar := func(geracao int64, final string, importar bool) {
++		t.Helper()
++		_, err := releaser.Release(geracao, &identityChange{
++			PhoneHash:     phoneHashFor(testConnectionID, "55659999"+final+"0"),
++			PhoneLast4:    final,
++			ImportHistory: importar,
++		})
++		if err != nil {
++			t.Fatal(err)
++		}
++	}
++
++	trocar(1, "7777", false)
++	if keep := control.HistoryKeep(); keep == nil || keep(time.Now()) {
++		t.Fatal("antes de o numero novo conectar, nada do historico pode entrar")
++	}
++
++	agora := time.Date(2026, 10, 10, 18, 0, 0, 0, time.UTC)
++	control.now = func() time.Time { return agora }
++	if err := control.MarkIdentityConfirmed(); err != nil {
++		t.Fatal(err)
++	}
++	keep := control.HistoryKeep()
++	if keep(agora.Add(-time.Second)) {
++		t.Fatal("conversa de antes do pareamento entrou")
++	}
++	if !keep(agora) || !keep(agora.Add(time.Hour)) {
++		t.Fatal("o que chegou depois de conectar ficou de fora")
++	}
++
++	// Reconectar nao move o recorte.
++	control.now = func() time.Time { return agora.Add(24 * time.Hour) }
++	if err := control.MarkIdentityConfirmed(); err != nil {
++		t.Fatal(err)
++	}
++	if !control.HistoryKeep()(agora.Add(time.Minute)) {
++		t.Fatal("a reconexao moveu o recorte e escondeu o que ja era do numero")
++	}
++
++	// O recorte atravessa o reinicio.
++	reloaded, err := loadSessionControl(envIdentity())
++	if err != nil {
++		t.Fatal(err)
++	}
++	if reloaded.HistoryKeep()(agora.Add(-time.Second)) || !reloaded.HistoryKeep()(agora.Add(time.Second)) {
++		t.Fatal("o recorte nao sobreviveu ao reinicio")
++	}
++
++	// Desconectar o mesmo numero mantem o recorte; trocar de novo zera.
++	if _, err := releaser.Release(2, nil); err != nil {
++		t.Fatal(err)
++	}
++	if !control.HistoryKeep()(agora.Add(time.Second)) {
++		t.Fatal("a desconexao apagou o recorte do mesmo numero")
++	}
++	trocar(3, "8888", false)
++	if control.HistoryKeep()(agora.Add(48 * time.Hour)) {
++		t.Fatal("o recorte do numero anterior valeu para o novo")
++	}
++
++	// Com importHistory=true, tudo entra, como antes.
++	trocar(4, "9999", true)
++	if control.HistoryKeep() != nil {
++		t.Fatal("importHistory=true deixou de importar tudo")
++	}
++}
++
++func TestKeptHistoryMessagesSoDeixaPassarODepoisDoRecorte(t *testing.T) {
++	recorte := time.Date(2026, 10, 10, 18, 0, 0, 0, time.UTC)
++	mensagem := func(ts int64) *waHistorySync.HistorySyncMsg {
++		return &waHistorySync.HistorySyncMsg{Message: &waWeb.WebMessageInfo{MessageTimestamp: proto.Uint64(uint64(ts))}}
++	}
++	depois := mensagem(recorte.Add(time.Hour).Unix())
++	naHora := mensagem(recorte.Unix())
++	entrada := []*waHistorySync.HistorySyncMsg{
++		depois,
++		nil,
++		{Message: nil},
++		mensagem(0),
++		naHora,
++		mensagem(recorte.Add(-time.Minute).Unix()),
++	}
++	saida := keptHistoryMessages(entrada, func(ts time.Time) bool { return !ts.Before(recorte) })
++	if len(saida) != 2 || saida[0] != depois || saida[1] != naHora {
++		t.Fatalf("saida = %v", saida)
++	}
++	if len(keptHistoryMessages(entrada, func(time.Time) bool { return false })) != 0 {
++		t.Fatal("sem recorte, algo entrou")
++	}
++}
 diff --git a/whatsapp-bridge/troca_test.go b/whatsapp-bridge/troca_test.go
 new file mode 100644
-index 0000000..d512481
+index 0000000..b513a25
 --- /dev/null
 +++ b/whatsapp-bridge/troca_test.go
-@@ -0,0 +1,499 @@
+@@ -0,0 +1,513 @@
 +package main
 +
 +import (
@@ -1233,6 +1691,8 @@ index 0000000..d512481
 +	oldAccountPhone = "556599998362"
 +	newAccountPhone = "5565999997777"
 +)
++
++func boolPtr(v bool) *bool { return &v }
 +
 +func useTempSessionControl(t *testing.T) string {
 +	t.Helper()
@@ -1384,7 +1844,7 @@ index 0000000..d512481
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if result.Status != "applied" || result.Generation != 1 || !result.RemoteLogout || !result.restart || result.Repeated {
++	if result.Status != "applied" || result.Generation != 1 || result.RemoteLogout == nil || !*result.RemoteLogout || !result.restart || result.Repeated {
 +		t.Fatalf("result = %#v", result)
 +	}
 +	if session.logouts != 1 || session.drops != 0 {
@@ -1427,7 +1887,7 @@ index 0000000..d512481
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if !again.Repeated || again.Status != "applied" || !again.RemoteLogout || again.restart {
++	if !again.Repeated || again.Status != "applied" || again.RemoteLogout == nil || !*again.RemoteLogout || again.restart {
 +		t.Fatalf("repeated = %#v", again)
 +	}
 +	if _, err := releaser.Release(2, &identityChange{PhoneLast4: "7777"}); !errors.Is(err, errStaleGeneration) {
@@ -1455,7 +1915,7 @@ index 0000000..d512481
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if result.restart || result.RemoteLogout || session.logouts != 0 || session.disconnects != 1 {
++	if result.restart || result.RemoteLogout != nil || session.logouts != 0 || session.disconnects != 1 {
 +		t.Fatalf("result=%#v logouts=%d disconnects=%d", result, session.logouts, session.disconnects)
 +	}
 +	if !control.MatchesIdentity(newAccountPhone) || !control.MatchesIdentity("556599997777") {
@@ -1490,10 +1950,10 @@ index 0000000..d512481
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if result.RemoteLogout || !result.restart || session.drops != 1 {
++	if result.RemoteLogout == nil || *result.RemoteLogout || !result.restart || session.drops != 1 {
 +		t.Fatalf("result=%#v drops=%d", result, session.drops)
 +	}
-+	if readControlFile(t).LastRemoteLogout {
++	if saved := readControlFile(t); saved.LastRemoteLogout == nil || *saved.LastRemoteLogout {
 +		t.Fatal("the file says WhatsApp confirmed the logout")
 +	}
 +}
@@ -1665,7 +2125,7 @@ index 0000000..d512481
 +	restarts := 0
 +	hash := phoneHashFor(testConnectionID, newAccountPhone)
 +
-+	applied := &fakeReleaser{result: sessionReleaseResult{Status: "applied", RemoteLogout: true, restart: true}}
++	applied := &fakeReleaser{result: sessionReleaseResult{Status: "applied", RemoteLogout: boolPtr(true), restart: true}}
 +	recorder := httptest.NewRecorder()
 +	newSessionTestHandler(applied, &restarts).ServeHTTP(recorder, sessionRequest(t, "/api/internal/v1/session/identity",
 +		map[string]interface{}{"connectionId": testConnectionID, "generation": 4, "phoneHash": strings.ToUpper(hash), "phoneLast4": "7777", "importHistory": true}))
@@ -1706,5 +2166,17 @@ index 0000000..d512481
 +	}
 +	if restarts != 2 {
 +		t.Fatalf("restarts = %d: a failure after touching the session must restart too", restarts)
++	}
++}
++
++func TestSemSessaoORemoteLogoutVaiNuloNaResposta(t *testing.T) {
++	restarts := 0
++	semSessao := &fakeReleaser{result: sessionReleaseResult{Status: "applied"}}
++	recorder := httptest.NewRecorder()
++	newSessionTestHandler(semSessao, &restarts).ServeHTTP(recorder, sessionRequest(t, "/api/internal/v1/session/logout",
++		map[string]interface{}{"connectionId": testConnectionID, "generation": 7}))
++	session, _ := decodeSessionBody(t, recorder)["session"].(map[string]interface{})
++	if valor, existe := session["remoteLogout"]; !existe || valor != nil {
++		t.Fatalf("remoteLogout = %#v (existe=%v): sem sessao, nao ha desligamento a confirmar", valor, existe)
 +	}
 +}
