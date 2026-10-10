@@ -216,3 +216,64 @@ describe("Pareamento de uma conexão da VPS", () => {
     );
   });
 });
+
+describe("troca voluntária de WhatsApp", () => {
+  const organizationId = "338e44ca-36ab-437c-b8ac-aa7c60fee64a";
+  const connectionId = "8ee1e6d0-a9d0-4041-b6ea-878716a34a71";
+  const pedidoId = "51bd34ab-4712-46a9-aeb2-27a2d661ec6d";
+
+  beforeEach(() => {
+    mocks.supabase.rpc.mockReset();
+    mocks.supabase.rpc.mockImplementation(async () => ({ data: { ok: true }, error: null }));
+  });
+
+  it("cada passo chama a RPC dele, com a empresa e nada além do necessário", async () => {
+    const operacoes = criarOperacoesGateway();
+    await operacoes["gateway.trocaEstado"]({ organizationId, connectionId });
+    await operacoes["gateway.trocaIniciar"]({
+      organizationId, connectionId, tipo: "change_number", telefone: "5565999997777", importarHistorico: true, chave: "c1a2b3c4",
+    });
+    await operacoes["gateway.trocaIniciar"]({
+      organizationId, connectionId, tipo: "disconnect", telefone: "5565999997777", importarHistorico: true, chave: "d1a2b3c4",
+    });
+    await operacoes["gateway.trocaConfirmar"]({ organizationId, pedidoId });
+    await operacoes["gateway.trocaConfirmar"]({ organizationId, pedidoId, codigo: " ab12cd34 " });
+    await operacoes["gateway.trocaReenviar"]({ organizationId, pedidoId });
+    await operacoes["gateway.trocaCancelar"]({ organizationId, pedidoId });
+    await operacoes["gateway.trocaRepetir"]({ organizationId, pedidoId });
+
+    expect(mocks.supabase.rpc.mock.calls).toEqual([
+      ["nucleo_connection_change_status", { target_organization: organizationId, target_connection: connectionId }],
+      ["nucleo_connection_change_start", {
+        target_organization: organizationId, target_connection: connectionId, change_kind: "change_number",
+        new_phone: "5565999997777", import_history: true, request_key: "c1a2b3c4",
+      }],
+      // Desconectar não leva telefone nem histórico, mesmo que a tela mande.
+      ["nucleo_connection_change_start", {
+        target_organization: organizationId, target_connection: connectionId, change_kind: "disconnect",
+        new_phone: null, import_history: false, request_key: "d1a2b3c4",
+      }],
+      ["nucleo_connection_change_confirm", { target_organization: organizationId, target_request: pedidoId, confirmation_code: null }],
+      ["nucleo_connection_change_confirm", { target_organization: organizationId, target_request: pedidoId, confirmation_code: "ab12cd34" }],
+      ["nucleo_connection_change_resend", { target_organization: organizationId, target_request: pedidoId }],
+      ["nucleo_connection_change_cancel", { target_organization: organizationId, target_request: pedidoId }],
+      ["nucleo_connection_change_retry", { target_organization: organizationId, target_request: pedidoId }],
+    ]);
+  });
+
+  it("sem empresa não chama nada", async () => {
+    await expect(criarOperacoesGateway()["gateway.trocaEstado"]({ connectionId })).rejects.toThrow("Selecione uma empresa");
+    expect(mocks.supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a recusa do banco volta com a frase em `motivo`, para a tela traduzir", async () => {
+    mocks.supabase.rpc.mockImplementation(async () => ({
+      data: null, error: { message: "connection change is not enabled for this connection" },
+    }));
+    const erro = await criarOperacoesGateway()["gateway.trocaIniciar"]({
+      organizationId, connectionId, tipo: "disconnect", chave: "e1a2b3c4",
+    }).catch((e) => e);
+    expect(erro.codigo).toBe("troca-recusada");
+    expect(erro.motivo).toBe("connection change is not enabled for this connection");
+  });
+});

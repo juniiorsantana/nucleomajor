@@ -11,12 +11,14 @@
 
 import { serializarErro } from "../data/erros";
 import { operacoes } from "../data/localProvider";
+import { CONEXAO_DA_TROCA, conexaoDaTrocaInicial, criarTrocaDev } from "./trocaDev";
 
 const memoriaChrome = {};
 // A bancada nasce com duas conexões: uma conectada e uma divergente. São os
 // dois estados que a tela precisa distinguir e que ninguém consegue reproduzir
 // à mão sem parear dois números de verdade.
-let vinculadoDev = false;
+// `?vinculado=1` abre a bancada já vinculada, para demonstrações curtas.
+let vinculadoDev = new URLSearchParams(globalThis.location?.search || "").get("vinculado") === "1";
 let conexoesDev = [
   {
     connectionId: "dev-conexao-comercial",
@@ -47,7 +49,20 @@ let conexoesDev = [
       updatedAt: new Date().toISOString(),
     },
   },
+  // Uma conexão da VPS, para a troca de número (ver trocaDev.js).
+  conexaoDaTrocaInicial(),
 ];
+const trocaDev = criarTrocaDev({
+  ler: () => conexoesDev.find((c) => c.connectionId === CONEXAO_DA_TROCA),
+  gravar: (mudanca) => {
+    conexoesDev = conexoesDev.map((c) =>
+      c.connectionId === CONEXAO_DA_TROCA
+        ? { ...c, ...mudanca, controlPlane: { heartbeat_at: new Date().toISOString(), fresh: true } }
+        : c
+    );
+  },
+  parametros: new URLSearchParams(globalThis.location?.search || ""),
+});
 const qrDev = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 21 21' shape-rendering='crispEdges'%3E%3Crect width='21' height='21' fill='white'/%3E%3Cpath fill='%23121730' d='M1 1h7v7H1zm2 2v3h3V3zM13 1h7v7h-7zm2 2v3h3V3zM1 13h7v7H1zm2 2v3h3v-3zM10 2h2v2h-2zm0 4h2v3h-2zm4 4h2v2h-2zm4 0h2v4h-2zm-8 1h3v2h-3zm5 3h2v2h-2zm3 2h2v4h-2zm-8-1h3v2h-3zm1 3h5v2h-5z'/%3E%3C/svg%3E";
 
 /**
@@ -658,8 +673,10 @@ const operacoesBancada = {
         ? { ...c, connection: { status: "awaiting_qr", qrAvailable: true, updatedAt: new Date().toISOString() } }
         : c
     );
+    if (trocaDev.ehDaTroca(connectionId)) trocaDev.simularLeituraDoQr();
     return { success: true };
   },
+  ...trocaDev.operacoes,
   "gateway.qr": async () => ({ status: "awaiting_qr", imageData: qrDev }),
   "gateway.reconectar": async () => ({ success: true }),
   "gateway.revogar": async ({ connectionId }) => {

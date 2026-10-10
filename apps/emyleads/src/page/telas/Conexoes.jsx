@@ -26,6 +26,7 @@ import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
 import { ClaudeEChatGPT } from "./conexoes/ClaudeEChatGPT";
 import { FASES, resumirConexao } from "./conexoes/estadoDaConexao";
 import { SeloEstado } from "./conexoes/SeloEstado";
+import { TrocaDeWhatsApp } from "./conexoes/TrocaDeWhatsApp";
 import { PedirConexao } from "./conversas/ConexaoDoWhatsApp";
 
 const ROTULOS = {
@@ -354,6 +355,7 @@ function PainelQr({ qr, final4, aguardando }) {
  * usa no WhatsApp Web.
  */
 function CartaoConexao({
+  organizationId,
   conexao,
   robo,
   prontidao,
@@ -362,6 +364,7 @@ function CartaoConexao({
   sessaoWeb,
   resumo,
   ocupado,
+  aoRecarregar,
   aoParear,
   aoReconectar,
   aoRevogar,
@@ -536,6 +539,12 @@ function CartaoConexao({
         <p className="px-5 pb-4 text-[12px] text-sub">Conectar o número é permissão de administrador.</p>
       )}
 
+      {/* Só na VPS e só para quem administra: quem barra de verdade é o
+          banco, que confere a liberação da conexão e o cargo. */}
+      {conexao.remoteManaged && podeGerenciar && (
+        <TrocaDeWhatsApp organizationId={organizationId} conexao={conexao} aoMudar={aoRecarregar} />
+      )}
+
       <details className="group border-t border-line">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-[12.5px] font-medium text-sub transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
           <ChevronDown size={15} className="flex-none transition-transform group-open:rotate-180" aria-hidden="true" />
@@ -672,8 +681,10 @@ function CartaoConexao({
 
           {conexao.remoteManaged ? (
             <div className="px-5 py-3 text-[12px] leading-relaxed text-sub">
-              Esta conexão opera na VPS. Ler o QR funciona daqui; reconectar uma sessão
-              existente e revogar o acesso ainda são feitos na própria VPS.
+              Esta conexão opera na VPS. Ler o QR funciona daqui, e desconectar ou
+              trocar o número também, quando a troca está liberada para ela;
+              reconectar uma sessão existente e revogar o acesso ainda são feitos
+              na própria VPS.
             </div>
           ) : (
             <div className="flex items-center px-5 py-3">
@@ -1128,6 +1139,8 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
               {conexoes.map((conexao) => (
                 <CartaoConexao
                   key={conexao.connectionId}
+                  organizationId={organizationId}
+                  aoRecarregar={() => carregar({ silencioso: true })}
                   conexao={conexao}
                   robo={robos[conexao.connectionId] || null}
                   prontidao={prontidoes[conexao.connectionId] || null}
