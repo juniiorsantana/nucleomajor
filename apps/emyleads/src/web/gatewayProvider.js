@@ -50,6 +50,19 @@ function exigirOrganizacao(organizationId) {
   return limpo;
 }
 
+/**
+ * Uma RPC da troca voluntária de WhatsApp (migration 20261012100000).
+ *
+ * A recusa volta com a frase do banco em `motivo`: é ela que a tela traduz
+ * (`mensagemDaRecusa`), e ela não carrega dado de ninguém — o banco nunca põe
+ * telefone ou código numa exceção.
+ */
+async function chamarTroca(rpc, parametros) {
+  const { data, error } = await obterSupabaseWeb().rpc(rpc, parametros);
+  if (error) throw erroGateway(error.message, "troca-recusada", { motivo: error.message });
+  return data;
+}
+
 function chave(organizationId, connectionId, installationId) {
   return `${organizationId}:${connectionId || ORGANIZACAO_INTEIRA}:${installationId}`;
 }
@@ -787,6 +800,58 @@ export function criarOperacoesGateway() {
      * ficou para trás: um token que sobrevive à troca é acesso que o usuário
      * acha que encerrou.
      */
+    /*
+     * A troca voluntária de WhatsApp: desconectar, ou conectar outro número
+     * na mesma conexão.
+     *
+     * O portal só pede e lê. Quem decide se pode é o banco (a liberação da
+     * conexão, o cargo, a empresa) e quem aplica é a VPS. Nenhuma destas
+     * operações diz "deu certo": o `applied` vem do banco, depois que a VPS
+     * confirmou com a geração do pedido.
+     */
+    "gateway.trocaEstado": async ({ organizationId, connectionId } = {}) =>
+      chamarTroca("nucleo_connection_change_status", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_connection: connectionId,
+      }),
+
+    // `chave` é do clique: repetir a mesma devolve o mesmo pedido, e é isso
+    // que torna o duplo clique inofensivo.
+    "gateway.trocaIniciar": async ({ organizationId, connectionId, tipo, telefone = null, importarHistorico = false, chave } = {}) =>
+      chamarTroca("nucleo_connection_change_start", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_connection: connectionId,
+        change_kind: tipo,
+        new_phone: tipo === "change_number" ? String(telefone || "") : null,
+        import_history: tipo === "change_number" && Boolean(importarHistorico),
+        request_key: chave,
+      }),
+
+    "gateway.trocaConfirmar": async ({ organizationId, pedidoId, codigo = null } = {}) =>
+      chamarTroca("nucleo_connection_change_confirm", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_request: pedidoId,
+        confirmation_code: codigo ? String(codigo).trim() : null,
+      }),
+
+    "gateway.trocaReenviar": async ({ organizationId, pedidoId } = {}) =>
+      chamarTroca("nucleo_connection_change_resend", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_request: pedidoId,
+      }),
+
+    "gateway.trocaCancelar": async ({ organizationId, pedidoId } = {}) =>
+      chamarTroca("nucleo_connection_change_cancel", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_request: pedidoId,
+      }),
+
+    "gateway.trocaRepetir": async ({ organizationId, pedidoId } = {}) =>
+      chamarTroca("nucleo_connection_change_retry", {
+        target_organization: exigirOrganizacao(organizationId),
+        target_request: pedidoId,
+      }),
+
     "gateway.descarregar": async ({ organizationId } = {}) => {
       if (!organizationId) {
         await webArea.remove(CHAVE_CREDENCIAIS);

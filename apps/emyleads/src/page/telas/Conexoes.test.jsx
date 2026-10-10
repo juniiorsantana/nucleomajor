@@ -12,6 +12,7 @@ const gatewayApi = {
   qr: vi.fn(),
   parear: vi.fn(),
   ativarRealtime: vi.fn(),
+  trocaEstado: vi.fn(),
 };
 const configApi = { ler: vi.fn() };
 const organizacoesApi = { robos: vi.fn() };
@@ -73,6 +74,8 @@ beforeEach(() => {
   });
   gatewayApi.qr.mockResolvedValue(null);
   gatewayApi.parear.mockResolvedValue({ ok: true });
+  // A troca de número fica desligada nestes testes: eles são do cartão.
+  gatewayApi.trocaEstado.mockResolvedValue({ mode: "off", actorAllowed: false, request: null, identity: null, runtime: null });
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
