@@ -11,6 +11,7 @@ import { createMailer, sendEmail, sendInviteEmail } from "./email.mjs";
 import { activationUrl, buildActivationEmail, buildSaleNoticeEmail } from "./activation.mjs";
 import { billingConfig, fetchAsaasCustomerEmail, processAsaasWebhook, readRawBody } from "./billing.mjs";
 import { buildConnectionRequestNotice, normalizeConnectionRequest } from "./connectionRequest.mjs";
+import { startConnectionChangeNotices } from "./connectionChangeNotice.mjs";
 import { processSiteLead, siteLeadConfig } from "./siteLead.mjs";
 import { clinicLeadConfig, processClinicDiagnostic } from "./clinicDiagnostic.mjs";
 import { orcamentoLeadConfig, processOrcamento } from "./orcamentoLead.mjs";
@@ -1049,6 +1050,36 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
   });
 }
 
+// O aviso de segurança da troca de WhatsApp (connectionChangeNotice.mjs): o
+// banco entrega os avisos pendentes a quem tem o token, e este processo manda
+// os e-mails. Sem CONNECTION_CHANGE_NOTICE_TOKEN, nada liga.
+export function connectionChangeNoticeDeps(token) {
+  let mailer = null;
+  return {
+    claim: () => publicRpc("nucleo_connection_change_notices_claim", { intake_token: token, max_items: 10 }),
+    send: async ({ to, message }) => {
+      mailer ||= createMailer();
+      return sendEmail({ mailer, to, message });
+    },
+    done: (requestId, delivered, failed) => publicRpc("nucleo_connection_change_notice_done", {
+      intake_token: token,
+      target_request: requestId,
+      delivered,
+      failed,
+    }),
+    log: (message) => console.error(message),
+  };
+}
+
+export function startBackgroundJobs(env = process.env) {
+  return {
+    connectionChangeNotices: startConnectionChangeNotices({
+      token: env.CONNECTION_CHANGE_NOTICE_TOKEN,
+      deps: connectionChangeNoticeDeps,
+    }),
+  };
+}
+
 // Compatibilidade com a configuração inicial da Hostinger, que pode ainda
 // estar usando `src/server.mjs` como arquivo de entrada. Quando este módulo é
 // importado pelo `src/start.mjs`, o bloco não é executado.
@@ -1057,5 +1088,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const host = String(process.env.HOST || "0.0.0.0");
   createServer().listen(port, host, () => {
     console.log(`Núcleo Major portal listening on ${host}:${port}`);
+    startBackgroundJobs();
   });
 }

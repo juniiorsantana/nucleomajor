@@ -34,10 +34,12 @@
 --      Antes disso a tela mostra "aguardando a VPS", nunca sucesso.
 --   4. A geração ordena: o Bridge recusa comando com geração menor que a já
 --      aplicada e trata a mesma geração como repetição.
+--   5. Aplicado, os donos e administradores recebem um e-mail de segurança,
+--      enviado pelo servidor do portal com um token próprio (seção 9).
 --
 -- Fora daqui, de propósito: avisos de queda (outra frente), pausa automática
--- de automações (D3) e e-mail (D4). O ponto de integração com o aviso de
--- queda está no fim deste arquivo.
+-- de automações (D3) e e-mail de queda (D4). O ponto de integração com o
+-- aviso de queda está no fim deste arquivo.
 
 begin;
 
@@ -60,7 +62,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 1/9. A liberação, por conexão. Só o SQL Editor grava.
+-- 1/10. A liberação, por conexão. Só o SQL Editor grava.
 -- ---------------------------------------------------------------------------
 create table private.connection_change_policies (
   connection_id uuid primary key references public.whatsapp_connections(id) on delete cascade,
@@ -153,7 +155,7 @@ $$;
 revoke all on function private.connection_change_mode(uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 2/9. A geração da conexão, a sessão liberada e o histórico de identidades.
+-- 2/10. A geração da conexão, a sessão liberada e o histórico de identidades.
 -- ---------------------------------------------------------------------------
 alter table public.whatsapp_connections
   add column control_generation bigint not null default 0 check (control_generation >= 0),
@@ -204,7 +206,7 @@ alter table public.whatsapp_connection_identities enable row level security;
 revoke all on public.whatsapp_connection_identities from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3/9. Os pedidos. Só as RPCs leem e escrevem.
+-- 3/10. Os pedidos. Só as RPCs leem e escrevem.
 -- ---------------------------------------------------------------------------
 create table public.whatsapp_connection_change_requests (
   id uuid primary key default gen_random_uuid(),
@@ -243,6 +245,13 @@ create table public.whatsapp_connection_change_requests (
   -- só na VPS, e o aparelho pode continuar listado no celular antigo.
   remote_logout boolean,
   error_code text check (error_code is null or error_code ~ '^[a-z0-9_-]{1,80}$'),
+  -- O aviso por e-mail aos donos e administradores, depois de aplicado. Quem
+  -- envia é o servidor do portal (seção 9), nunca o navegador de quem trocou.
+  notice_status text not null default 'none'
+    check (notice_status in ('none', 'pending', 'sending', 'sent', 'failed')),
+  notice_attempts integer not null default 0 check (notice_attempts between 0 and 3),
+  notice_claimed_at timestamptz,
+  notice_sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (connection_id, requested_by, request_key),
@@ -262,7 +271,7 @@ alter table public.whatsapp_connection_change_requests enable row level security
 revoke all on public.whatsapp_connection_change_requests from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 4/9. Os três comandos novos na fila (acrescentados ao que já existe).
+-- 4/10. Os três comandos novos na fila (acrescentados ao que já existe).
 -- ---------------------------------------------------------------------------
 do $$
 declare
@@ -290,7 +299,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 5/9. Guardas comuns.
+-- 5/10. Guardas comuns.
 -- ---------------------------------------------------------------------------
 -- Quem pode mexer: uma pessoa (não robô, não worker de avisos), dono ou
 -- administrador, de empresa não bloqueada, numa conexão viva desta empresa.
@@ -485,6 +494,7 @@ as $$
     'generation', pedido.generation,
     'appliedAt', pedido.applied_at,
     'remoteLogout', pedido.remote_logout,
+    'noticeStatus', pedido.notice_status,
     'errorCode', pedido.error_code,
     'createdAt', pedido.created_at,
     'commandStatus', (select command.status from public.connection_runtime_commands command
@@ -526,7 +536,7 @@ $$;
 revoke all on function private.connection_change_audit(public.whatsapp_connection_change_requests, text, text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 6/9. As RPCs do portal.
+-- 6/10. As RPCs do portal.
 -- ---------------------------------------------------------------------------
 create or replace function public.nucleo_connection_change_start(
   target_organization uuid,
@@ -960,7 +970,7 @@ grant execute on function public.nucleo_connection_change_retry(uuid, uuid) to a
 grant execute on function public.nucleo_connection_change_status(uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 7/9. A confirmação da VPS move o pedido. Na troca, a identidade muda AQUI,
+-- 7/10. A confirmação da VPS move o pedido. Na troca, a identidade muda AQUI,
 --      na mesma transação em que o runtime conclui o comando.
 -- ---------------------------------------------------------------------------
 create or replace function private.connection_change_track_command()
@@ -1005,6 +1015,7 @@ begin
         set status = 'applied', applied_at = now(), error_code = null,
             remote_logout = case jsonb_typeof(resultado -> 'remoteLogout')
               when 'boolean' then (resultado ->> 'remoteLogout')::boolean end,
+            notice_status = 'pending',
             updated_at = now()
         where id = pedido.id;
         update public.whatsapp_connections
@@ -1068,7 +1079,7 @@ when (new.command_type in ('connection_confirmation_send', 'connection_logout', 
 execute function private.connection_change_track_command();
 
 -- ---------------------------------------------------------------------------
--- 8/9. A sessão volta: o WhatsApp conectou de novo, a liberação acabou.
+-- 8/10. A sessão volta: o WhatsApp conectou de novo, a liberação acabou.
 -- ---------------------------------------------------------------------------
 create or replace function private.connection_change_session_back()
 returns trigger
@@ -1104,7 +1115,168 @@ when (new.whatsapp_status = 'connected' and old.whatsapp_status is distinct from
 execute function private.connection_change_session_back();
 
 -- ---------------------------------------------------------------------------
--- 9/9. Ponto de integração (NÃO implementado aqui).
+-- 9/10. O aviso de segurança por e-mail.
+-- ---------------------------------------------------------------------------
+-- Aplicada uma troca ou desconexão, os donos e administradores da empresa
+-- recebem um e-mail. Quem envia é o servidor do portal: o navegador de quem
+-- trocou não participa, então quem fizesse uma troca indevida não teria como
+-- calar o aviso. O servidor não tem service_role; ele chama as duas RPCs
+-- abaixo com a chave publicável e um token que só existe na variável
+-- CONNECTION_CHANGE_NOTICE_TOKEN. Aqui fica o sha256 dele, gravado pelo SQL
+-- Editor: o mesmo desenho do token do webhook de cobrança (20260920100000).
+-- Sem o token gravado, os avisos ficam 'pending' e nada sai.
+create table private.connection_change_notifier (
+  id boolean primary key default true check (id),
+  token_hash text not null check (token_hash ~ '^[0-9a-f]{64}$'),
+  enabled boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table private.connection_change_notifier enable row level security;
+revoke all on private.connection_change_notifier from public, anon, authenticated;
+
+create or replace function private.connection_change_notifier_ok(intake_token text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select lower(trim(coalesce(intake_token, ''))) ~ '^[0-9a-f]{64}$'
+    and exists (
+      select 1
+      from private.connection_change_notifier notifier
+      where notifier.enabled
+        and notifier.token_hash = encode(extensions.digest(lower(trim(intake_token)), 'sha256'), 'hex')
+    );
+$$;
+revoke all on function private.connection_change_notifier_ok(text) from public, anon, authenticated;
+
+-- Pega os avisos a enviar. Cada um volta com o nome da empresa, os finais,
+-- quem pediu e os e-mails dos donos e administradores ativos (no máximo 20).
+-- Nunca hash nem telefone inteiro. Um aviso preso em 'sending' ou que falhou
+-- volta depois de 10 minutos, até 3 tentativas.
+create or replace function public.nucleo_connection_change_notices_claim(
+  intake_token text,
+  max_items integer default 10
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  limite integer := greatest(1, least(coalesce(max_items, 10), 20));
+  avisos jsonb;
+begin
+  if not private.connection_change_notifier_ok(intake_token) then
+    raise exception 'notice token is invalid';
+  end if;
+
+  with alvo as (
+    select change_request.id
+    from public.whatsapp_connection_change_requests change_request
+    where change_request.status = 'applied'
+      and (change_request.notice_status = 'pending'
+           or (change_request.notice_status in ('sending', 'failed')
+               and change_request.notice_attempts < 3
+               and change_request.notice_claimed_at < now() - interval '10 minutes'))
+    order by change_request.applied_at
+    limit limite
+    for update skip locked
+  ), marcado as (
+    update public.whatsapp_connection_change_requests change_request
+    set notice_status = 'sending',
+        notice_attempts = change_request.notice_attempts + 1,
+        notice_claimed_at = now(),
+        updated_at = now()
+    from alvo
+    where change_request.id = alvo.id
+    returning change_request.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'requestId', marcado.id,
+    'organizationName', organization.name,
+    'kind', marcado.kind,
+    'oldLast4', marcado.old_phone_last4,
+    'newLast4', marcado.new_phone_last4,
+    'appliedAt', marcado.applied_at,
+    'remoteLogout', marcado.remote_logout,
+    'requesterEmail', (select users.email from auth.users users where users.id = marcado.requested_by),
+    'recipients', coalesce((
+      select jsonb_agg(destinatario.email order by destinatario.email)
+      from (
+        select distinct lower(users.email) as email
+        from public.organization_members member
+        join auth.users users on users.id = member.user_id
+        where member.organization_id = marcado.organization_id
+          and member.role in ('owner', 'admin')
+          and member.status = 'active'
+          and coalesce(users.email, '') <> ''
+        order by 1
+        limit 20
+      ) destinatario
+    ), '[]'::jsonb)
+  ) order by marcado.applied_at), '[]'::jsonb)
+  into avisos
+  from marcado
+  join public.organizations organization on organization.id = marcado.organization_id;
+
+  return jsonb_build_object('notices', avisos);
+end;
+$$;
+
+-- O desfecho de um aviso pego. Com ao menos uma entrega, 'sent'; sem nenhuma,
+-- 'failed' (volta para nova tentativa). Vai para o histórico da plataforma,
+-- só com as contagens.
+create or replace function public.nucleo_connection_change_notice_done(
+  intake_token text,
+  target_request uuid,
+  delivered integer,
+  failed integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  pedido public.whatsapp_connection_change_requests%rowtype;
+  entregues integer := greatest(coalesce(delivered, 0), 0);
+  falhas integer := greatest(coalesce(failed, 0), 0);
+begin
+  if not private.connection_change_notifier_ok(intake_token) then
+    raise exception 'notice token is invalid';
+  end if;
+  select * into pedido
+  from public.whatsapp_connection_change_requests
+  where id = target_request
+  for update;
+  if pedido.id is null or pedido.notice_status <> 'sending' then
+    return jsonb_build_object('recorded', false);
+  end if;
+  update public.whatsapp_connection_change_requests
+  set notice_status = case when entregues > 0 then 'sent' else 'failed' end,
+      notice_sent_at = case when entregues > 0 then now() end,
+      updated_at = now()
+  where id = pedido.id
+  returning * into pedido;
+  perform private.connection_change_audit(
+    pedido,
+    case when entregues > 0 then 'notice_sent' else 'notice_failed' end,
+    format('%s entregue(s), %s falha(s)', entregues, falhas)
+  );
+  return jsonb_build_object('recorded', true, 'noticeStatus', pedido.notice_status);
+end;
+$$;
+
+-- Como o webhook de cobrança: aceita `anon`, porque quem autoriza é o token.
+revoke all on function public.nucleo_connection_change_notices_claim(text, integer) from public;
+revoke all on function public.nucleo_connection_change_notice_done(text, uuid, integer, integer) from public;
+grant execute on function public.nucleo_connection_change_notices_claim(text, integer) to anon, authenticated;
+grant execute on function public.nucleo_connection_change_notice_done(text, uuid, integer, integer) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 10/10. Ponto de integração (NÃO implementado aqui).
 -- ---------------------------------------------------------------------------
 -- O aviso de queda (frente feat/aviso-de-conexao-caida-v2, ainda não
 -- aplicada) abre alerta quando o status sai de `connected` para um estado

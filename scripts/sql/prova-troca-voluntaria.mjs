@@ -541,6 +541,67 @@ const p9depois = await pedidoDb(p9.requestId);
 confere("T23 runtime ainda sem o transporte do código: a tela vê o motivo e nada é confirmado",
   p9depois.status === "awaiting_confirmation" && p9depois.error_code === "confirmation-unsupported_command");
 
+// =========================== O aviso de segurança por e-mail (servidor)
+// O servidor do portal chama estas duas RPCs com a chave publicável (anon) e
+// o token dele. Aqui, `como(null, ...)` é exatamente essa chamada.
+const TOKEN_DO_SERVIDOR = "ab".repeat(32);
+const pegarAvisos = (token, max = 20) =>
+  como(null, "select public.nucleo_connection_change_notices_claim($1, $2) as r", [token, max]).then((r) => r.rows[0].r.notices);
+const concluirAviso = (token, pedido, entregues, falhasNoEnvio) =>
+  como(null, "select public.nucleo_connection_change_notice_done($1, $2, $3, $4) as r", [token, pedido, entregues, falhasNoEnvio])
+    .then((r) => r.rows[0].r);
+const aplicados = (await db.query("select notice_status from public.whatsapp_connection_change_requests where status = 'applied'")).rows;
+confere("N1 toda troca ou desconexão aplicada deixa um aviso pendente",
+  aplicados.length === 2 && aplicados.every((p) => p.notice_status === "pending"), String(aplicados.length));
+const semToken = await erroDe(() => pegarAvisos("cd".repeat(32)));
+confere("N2 sem o token gravado no banco, nada sai", semToken.includes("notice token is invalid"), semToken);
+await db.query("insert into private.connection_change_notifier (token_hash) values ($1)", [sha(TOKEN_DO_SERVIDOR)]);
+const tokenErrado = await erroDe(() => pegarAvisos("cd".repeat(32)));
+confere("N2 com outro token, também não", tokenErrado.includes("notice token is invalid"), tokenErrado);
+const tokenTorto = await erroDe(() => pegarAvisos("nao-e-um-token"));
+confere("N2 nem com token fora do formato", tokenTorto.includes("notice token is invalid"), tokenTorto);
+const avisos = await pegarAvisos(TOKEN_DO_SERVIDOR);
+const daMajor = avisos.filter((a) => [d1.requestId, d5.requestId].includes(a.requestId));
+confere("N3 o servidor pega os dois avisos da Major, a desconexão e a troca", avisos.length === 2 && daMajor.length === 2);
+const avisoDaTroca = daMajor.find((a) => a.kind === "change_number");
+confere("N3 o aviso traz empresa, finais e quem pediu",
+  avisoDaTroca.organizationName === "Núcleo Major" && avisoDaTroca.oldLast4 === "8362"
+  && avisoDaTroca.newLast4 === "7777" && avisoDaTroca.requesterEmail === "dono3@exemplo.invalido");
+confere("N3 destinatários: os donos e administradores ativos da Major, e só eles",
+  JSON.stringify(avisoDaTroca.recipients) === JSON.stringify(["0004@exemplo.invalido", "dono3@exemplo.invalido"]),
+  JSON.stringify(avisoDaTroca.recipients));
+confere("N3 sem hash nem telefone inteiro",
+  !JSON.stringify(avisos).includes(MAJOR_NOVO) && !JSON.stringify(avisos).includes(sha(`${M}:${MAJOR_NOVO}`)));
+confere("N4 pegar de novo logo em seguida não repete o aviso", (await pegarAvisos(TOKEN_DO_SERVIDOR)).length === 0);
+const enviado = await concluirAviso(TOKEN_DO_SERVIDOR, avisoDaTroca.requestId, 2, 0);
+confere("N5 com entrega: 'sent'", enviado.recorded === true && enviado.noticeStatus === "sent");
+confere("N5 concluir de novo não muda nada", (await concluirAviso(TOKEN_DO_SERVIDOR, avisoDaTroca.requestId, 2, 0)).recorded === false);
+const avisoDaDesconexao = daMajor.find((a) => a.kind === "disconnect");
+const naoEntregue = await concluirAviso(TOKEN_DO_SERVIDOR, avisoDaDesconexao.requestId, 0, 2);
+confere("N6 sem nenhuma entrega: 'failed'", naoEntregue.noticeStatus === "failed");
+confere("N6 a falha não volta antes de 10 minutos", (await pegarAvisos(TOKEN_DO_SERVIDOR)).length === 0);
+const envelhecerAviso = () => db.query(
+  "update public.whatsapp_connection_change_requests set notice_claimed_at = now() - interval '11 minutes' where id = $1",
+  [avisoDaDesconexao.requestId]);
+await envelhecerAviso();
+const segunda = await pegarAvisos(TOKEN_DO_SERVIDOR);
+confere("N6 depois, volta para nova tentativa", segunda.length === 1 && segunda[0].requestId === avisoDaDesconexao.requestId);
+await concluirAviso(TOKEN_DO_SERVIDOR, avisoDaDesconexao.requestId, 0, 2);
+await envelhecerAviso();
+await pegarAvisos(TOKEN_DO_SERVIDOR);
+await concluirAviso(TOKEN_DO_SERVIDOR, avisoDaDesconexao.requestId, 0, 2);
+await envelhecerAviso();
+confere("N6 no máximo 3 tentativas", (await pegarAvisos(TOKEN_DO_SERVIDOR)).length === 0);
+const concluirSemToken = await erroDe(() => concluirAviso("cd".repeat(32), avisoDaTroca.requestId, 1, 0));
+confere("N7 concluir também exige o token", concluirSemToken.includes("notice token is invalid"), concluirSemToken);
+const trilhaDoAviso = await auditoria(M);
+confere("N7 o desfecho vai para o histórico, só com contagens",
+  trilhaDoAviso.some((a) => a.action === "whatsapp.change_notice_sent" && a.note.includes("2 entregue"))
+  && trilhaDoAviso.some((a) => a.action === "whatsapp.change_notice_failed")
+  && !JSON.stringify(trilhaDoAviso).includes("@exemplo.invalido"));
+const tabelaDoToken = await erroDe(() => como(usuario(major.dono), "select * from private.connection_change_notifier"));
+confere("N7 ninguém lê o hash do token", /permission denied/i.test(tabelaDoToken), tabelaDoToken);
+
 console.log(`\n${passou.length} ok, ${falhas.length} falhas\n`);
 for (const p of passou) console.log(`  ok  ${p}`);
 for (const f of falhas) console.log(`  FALHOU  ${f}`);

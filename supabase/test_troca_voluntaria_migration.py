@@ -110,6 +110,18 @@ class TrocaVoluntariaMigrationTest(unittest.TestCase):
         back = self._function("private.connection_change_session_back")
         self.assertIn("raise warning", back)
 
+    def test_security_notice_is_sent_by_the_server_with_its_own_token(self):
+        claim = self._function("public.nucleo_connection_change_notices_claim")
+        done = self._function("public.nucleo_connection_change_notice_done")
+        for body in (claim, done):
+            self.assertIn("if not private.connection_change_notifier_ok(intake_token) then", body)
+        self.assertIn("member.role in ('owner', 'admin')", claim)
+        self.assertIn("member.status = 'active'", claim)
+        self.assertIn("for update skip locked", claim)
+        self.assertNotIn("phone_hash", claim)
+        self.assertIn("notice_status = 'pending'", self._function("private.connection_change_track_command"))
+        self.assertIn("revoke all on private.connection_change_notifier from public, anon, authenticated;", self.sql)
+
     def test_tables_closed_to_direct_reads(self):
         self.assertIn("revoke all on public.whatsapp_connection_identities from anon, authenticated;", self.sql)
         self.assertIn("revoke all on public.whatsapp_connection_change_requests from anon, authenticated;", self.sql)
