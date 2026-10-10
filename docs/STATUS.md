@@ -5,6 +5,45 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Troca voluntária de número do WhatsApp (10/10/2026)
+
+O dono ou o administrador desconecta o WhatsApp de uma conexão por escolha, ou
+troca o número, sem perder as conversas: a conexão continua a mesma, e o número
+novo entra pelo QR de sempre. Portal e migration
+`20261012100000_a_troca_voluntaria_de_numero.sql` no PR #54; runtime na branch
+`feat/troca-voluntaria` (`78f1c4c`). Roteiro em
+[`patches/runtime-troca-voluntaria-DEPLOY.md`](../patches/runtime-troca-voluntaria-DEPLOY.md).
+
+- **Runtime da Major na release `troca-voluntaria` desde 10/10/2026, 19:50
+  (Brasília)**, só na instância `8ee1e6d0-a9d0-4041-b6ea-878716a34a71` (8362),
+  por drop-ins `release.conf` em
+  `~/.config/systemd/user/whatsapp-{bridge,assistant}@<id>.service.d/`. O
+  symlink compartilhado continua na `analise-completa`, e a a502 não foi tocada
+  (o Bridge dela segue no binário da `claudio-dormindo`). Antes, o Bridge da
+  Major rodava o binário da `midia-no-portal`, e o assistente, a
+  `analise-completa`.
+- A release é a cópia integral da `analise-completa` com o patch combinado
+  (desvínculo + troca, sha256 `528faf7b…`). Antes de ativar, os cinco arquivos
+  principais foram conferidos por hash contra `78f1c4c`.
+- Depois do reinício, conferido: `exe` e `cwd` na release nova;
+  `Expected identity ****8362 (ambiente)` e `Connected` com a sessão de sempre,
+  sem QR e sem logout; `messages.db` e `whatsapp.db` no lugar; `NRestarts=0`
+  e assistente sem erro 10 min depois.
+- O desvínculo de 26/09 entrou junto por necessidade de código: num
+  `LoggedOut`, o Bridge encerra, o systemd o sobe com um aparelho limpo, e a
+  marca `store/desvinculado_em` mantém `logged_out` até o novo pareamento. O
+  aviso de queda continua **desligado**.
+- Voltar: apagar os dois `release.conf`, rodar `systemctl --user
+  daemon-reload` e reiniciar só a instância. Depois de uma troca aplicada, a
+  release antiga volta a ler o `.env`, que precisa ser alinhado ao número
+  novo (roteiro, passo 8).
+- **Pendente:** a migration pelo SQL Editor (ensaio com `raise` antes;
+  conferência em `scripts/sql/conferir-troca-voluntaria.sql`), o merge do PR
+  #54 e a liberação `direct` de 24 h só para a 8362. Sem a migration, nenhuma
+  troca começa, porque a fila não aceita os comandos novos; fora o
+  desvínculo, a release se comporta como a anterior. Antes da troca real: a
+  decisão sobre as automações durante a troca (D3).
+
 ## MCP do portal, só leitura (09/10/2026)
 
 Claude e ChatGPT, inclusive no celular, perguntam ao portal sobre conversas,
