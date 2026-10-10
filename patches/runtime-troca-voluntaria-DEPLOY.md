@@ -25,10 +25,12 @@
   | `runtime-troca-voluntaria.patch` | 10 (só a troca) | `68d4ed4530cb52cebb84ab79639ad4d5c8a6ab00451c0b66e261865eff7140e6` | a release do desvínculo/aviso (patch `59e85936…`) já é a ativa; `--check` OK sobre `3f2c5cb` e `21ca806` |
 
 - **Portal:** `feat/troca-voluntaria-de-numero` (`7170fc7` `32170fd` `7817ddc`
-  `260156f` `cf65a69`).
+  `260156f` `cf65a69` `cd89963`).
 - **Testes:**
-  - banco: prova em PGlite com todas as migrations e a fila real, 112/112;
-    teste estático, 11/11;
+  - banco: prova em PGlite com todas as migrations e a fila real, 130/130;
+    teste estático, 12/12;
+  - servidor do portal: o aviso por e-mail com dublês, 9/9; `node --test`
+    inteiro, 372/372 (nenhum e-mail real);
   - assistente: `test_runtime_commands`, `test_bridge_control` e `test_config`,
     87 OK. A suíte inteira (1095) tem 28 falhas, todas fora desta mudança: as
     18 presas à data e 10 do `test_runner`, que também falham na `21ca806`
@@ -61,6 +63,10 @@
   fechado.
 - **Portal:** a seção "Trocar ou desconectar o número" no cartão de cada
   conexão da VPS, para dono e administrador.
+- **Aviso de segurança:** aplicada uma troca ou desconexão, os donos e
+  administradores ativos recebem um e-mail. Quem envia é o servidor do portal,
+  a cada minuto, com o token `CONNECTION_CHANGE_NOTICE_TOKEN` (o banco guarda
+  o sha256). Sem o token, os avisos ficam pendentes e nada sai.
 
 ## Antes: condições, todas fora deste roteiro
 
@@ -218,6 +224,32 @@ Merge do PR de `feat/troca-voluntaria-de-numero` (o deploy do portal é
 automático). Sem liberação, a seção diz "ainda não foi liberada para esta
 conexão" e não oferece nada.
 
+**O aviso de segurança por e-mail** (recomendado antes da primeira troca
+real). O token é gerado por quem configura, fora de qualquer chat, e só o
+sha256 vai para o banco:
+
+```bash
+TOKEN=$(openssl rand -hex 32)          # vai para CONNECTION_CHANGE_NOTICE_TOKEN do servidor do portal
+printf '%s' "$TOKEN" | sha256sum       # vai para o SQL abaixo
+```
+
+```sql
+insert into private.connection_change_notifier (token_hash) values ('<sha256 do token>');
+```
+
+Depois de pôr a variável no servidor do portal (com o SMTP do portal já
+configurado) e reiniciá-lo, o envio roda a cada minuto. Conferir depois de
+uma troca aplicada:
+
+```sql
+select notice_status, notice_attempts, notice_sent_at
+from public.whatsapp_connection_change_requests
+where connection_id = '<T>' order by created_at desc limit 3;   -- 'sent'
+```
+
+Sem o token, `notice_status` fica `pending` e ninguém é avisado: a troca
+funciona do mesmo jeito.
+
 ## 5. Liberar a troca só para a conexão-alvo, com prazo (SQL Editor, janela)
 
 ```sql
@@ -260,7 +292,9 @@ plataforma (`whatsapp.change_policy_insert`).
    from public.whatsapp_connections where id = '<T>';
    ```
 4. **Conectar WhatsApp** → ler o QR com o celular do número novo → o cartão
-   volta a "conectado" com o final novo, e `session_released_at` some.
+   volta a "conectado" com o final novo, e `session_released_at` some. Com o
+   aviso ligado, os donos e administradores da empresa recebem o e-mail em
+   até um minuto depois do "Pronto para o número novo".
 5. Aceite: os critérios de `docs/troca-de-numero/TESTE-REAL-NA-MAJOR.md`.
 6. Depois do aceite, alinhar o arquivo de ambiente do Bridge da conexão
    (`CONNECTION_EXPECTED_PHONE_HASH/LAST4`, ver `EnvironmentFile` da unit) aos
