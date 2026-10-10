@@ -17,7 +17,8 @@ const memoriaChrome = {};
 // A bancada nasce com duas conexões: uma conectada e uma divergente. São os
 // dois estados que a tela precisa distinguir e que ninguém consegue reproduzir
 // à mão sem parear dois números de verdade.
-let vinculadoDev = false;
+// `?vinculado=1` abre a bancada já vinculada, para demonstrações curtas.
+let vinculadoDev = new URLSearchParams(globalThis.location?.search || "").get("vinculado") === "1";
 let conexoesDev = [
   {
     connectionId: "dev-conexao-comercial",

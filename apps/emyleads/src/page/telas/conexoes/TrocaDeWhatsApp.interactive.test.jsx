@@ -154,7 +154,7 @@ describe("a operação controlada da Major ('direct')", () => {
     // Na fila não é sucesso.
     expect(container.textContent).toContain("Trocando para o número final 7777");
     expect(container.textContent).toContain("Na fila da VPS");
-    expect(container.textContent).not.toContain("Pronto para o número novo");
+    expect(container.textContent).not.toContain("Troca aplicada");
     expect(aoMudar).not.toHaveBeenCalled();
 
     // A VPS aplicou.
@@ -165,7 +165,8 @@ describe("a operação controlada da Major ('direct')", () => {
     });
     await act(async () => vi.advanceTimersByTime(3000));
     await act(async () => {});
-    expect(container.textContent).toContain("Pronto para o número novo, final 7777");
+    expect(container.textContent).toContain("Troca aplicada: a conexão agora espera o número final 7777");
+    expect(container.textContent).toContain("ainda não está pronta");
     expect(container.textContent).toContain("Conectar WhatsApp");
     expect(aoMudar).toHaveBeenCalledTimes(1);
   });
@@ -278,6 +279,39 @@ describe("pedido em andamento e falhas recuperáveis", () => {
     await clicar("Tentar de novo");
     expect(gateway.trocaRepetir).toHaveBeenCalledWith({ organizationId: ORG, pedidoId: "pedido-1" });
     expect(container.textContent).toContain("Trocando para o número final 7777");
+  });
+
+  it("quando o cartão vê o número novo conectar, a seção relê na hora e deixa de dizer que falta o QR", async () => {
+    estadoAtual = estado({
+      sessionReleasedAt: daqui(-1000),
+      runtime: { whatsappStatus: "awaiting_qr", fresh: true },
+      request: pedido({ status: "applied", confirmedAt: daqui(-5000), generation: 1, appliedAt: daqui(-2000), remoteLogout: null }),
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    raiz = createRoot(container);
+    const render = (status) => raiz.render(
+      <TrocaDeWhatsApp organizationId={ORG} conexao={{ ...CONEXAO, connection: { status } }} />
+    );
+    await act(async () => render("awaiting_qr"));
+    await act(async () => {});
+    expect(container.textContent).toContain("ainda não está pronta");
+    // Sem sessão para desligar, nada de mandar procurar aparelho no celular antigo.
+    expect(container.textContent).not.toContain("Aparelhos conectados");
+
+    const leiturasAntes = gateway.trocaEstado.mock.calls.length;
+    estadoAtual = estado({
+      runtime: { whatsappStatus: "connected", fresh: true },
+      request: pedido({ status: "applied", confirmedAt: daqui(-5000), generation: 1, appliedAt: daqui(-2000), remoteLogout: null }),
+    });
+    await act(async () => render("connected"));
+    await act(async () => {});
+    expect(gateway.trocaEstado.mock.calls.length).toBe(leiturasAntes + 1);
+    expect(container.textContent).not.toContain("ainda não está pronta");
+    // Conectado o número novo, a seção para de se abrir sozinha: quem diz
+    // "conectado" é o cartão. Aberta, ela conta o que aconteceu.
+    await clicar("Trocar ou desconectar o número");
+    expect(container.textContent).toContain("foi trocado para o final 7777");
   });
 
   it("desconectado sem confirmação do WhatsApp: pede para remover o aparelho no celular antigo", async () => {

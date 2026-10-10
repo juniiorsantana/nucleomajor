@@ -9,7 +9,11 @@
  *   troca=direct|whatsapp_code|off  a liberação da conexão (padrão: direct)
  *   troca-equipe=nao                quem olha não administra a plataforma
  *   troca-vps=fora                  a primeira aplicação falha (bridge_offline)
+ *   troca-runtime=fora              a VPS está calada desde o início (nada começa)
+ *   troca-runtime=cai               a VPS cai logo depois da confirmação: o
+ *                                   pedido fica parado na fila, cancelável
  *   troca-qr=outro                  o QR é lido por outro número
+ *   vinculado=1                     a bancada já abre vinculada (stub.js)
  *
  * No modo com código, o código da bancada é sempre a1b2c3d4.
  *
@@ -73,6 +77,7 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
     modo: ["direct", "whatsapp_code", "off"].includes(pedidoDeModo) ? pedidoDeModo : "direct",
     equipe: parametros.get("troca-equipe") !== "nao",
     vpsFalha: parametros.get("troca-vps") === "fora",
+    vpsCai: parametros.get("troca-runtime") === "cai",
     qrOutro: parametros.get("troca-qr") === "outro",
   };
   const banco = {
@@ -81,6 +86,7 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
     esperado: "556599998362",
     pedido: null,
     chaves: new Map(),
+    vpsCalada: parametros.get("troca-runtime") === "fora",
   };
 
   const status = () => ler()?.connection?.status || "whatsapp_disconnected";
@@ -132,6 +138,12 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
     pedido.comando = "pending";
     pedido.erro = null;
     pedido.confirmadoEm ||= agora();
+    if (config.vpsCai) {
+      // A VPS para de responder: o pedido fica na fila até ela voltar ou
+      // alguém cancelar. Nada se aplica sozinho.
+      banco.vpsCalada = true;
+      return;
+    }
     const geracao = pedido.geracao;
     setTimeout(() => {
       if (pedido.status !== "queued" || pedido.geracao !== geracao) return;
@@ -146,7 +158,9 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
           pedido.erro = "bridge_offline";
           return;
         }
-        pedido.remoto = status() === "connected" || status() === "identity_mismatch";
+        // Sem sessão (já desconectada), não há desligamento a confirmar.
+        const tinhaSessao = ["connected", "identity_mismatch", "reconnecting"].includes(status());
+        pedido.remoto = tinhaSessao ? true : null;
         pedido.status = "applied";
         pedido.comando = "completed";
         pedido.aplicadoEm = agora();
@@ -172,7 +186,7 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
         sessionReleasedAt: banco.liberadaEm,
         request: visao(banco.pedido),
         identity: { last4: final(banco.esperado), generation: banco.geracao },
-        runtime: { whatsappStatus: status(), fresh: true, heartbeatAt: agora() },
+        runtime: { whatsappStatus: status(), fresh: !banco.vpsCalada, heartbeatAt: agora() },
       };
     },
 
@@ -186,6 +200,7 @@ export function criarTrocaDev({ ler, gravar, parametros = new URLSearchParams() 
         if (!/^[1-9][0-9]{9,14}$/.test(novo)) throw new Error("invalid phone");
         if (variantes(novo).includes(banco.esperado)) throw new Error("same number: reconnect instead of changing");
       }
+      if (banco.vpsCalada) throw new Error("runtime is not online");
       const conectado = status() === "connected";
       if (!conectado && (config.modo === "whatsapp_code" || !banco.liberadaEm)) {
         throw new Error("old whatsapp is not connected");

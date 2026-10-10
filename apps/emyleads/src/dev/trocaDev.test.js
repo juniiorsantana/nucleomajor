@@ -37,6 +37,7 @@ describe("troca na bancada", () => {
     await vi.advanceTimersByTimeAsync(2500);
     const aplicado = await op("gateway.trocaEstado");
     expect(aplicado.request.status).toBe("applied");
+    expect(aplicado.request.remoteLogout).toBe(true);
     expect(aplicado.sessionReleasedAt).not.toBeNull();
     expect(conexao().connection.status).toBe("whatsapp_disconnected");
     expect(conexao().expectedPhoneMasked).toBe("•••• 7777");
@@ -70,6 +71,35 @@ describe("troca na bancada", () => {
     const aplicado = await op("gateway.trocaEstado");
     expect(aplicado.request.status).toBe("applied");
     expect(aplicado.request.generation).toBe(2);
+  });
+
+  it("a VPS calada: nada começa; a VPS que cai depois deixa o pedido na fila, cancelável", async () => {
+    const calada = montar("troca-runtime=fora");
+    await expect(calada.op("gateway.trocaIniciar", { tipo: "disconnect" })).rejects.toThrow("runtime is not online");
+    expect((await calada.op("gateway.trocaEstado")).runtime.fresh).toBe(false);
+
+    const { op } = montar("troca-runtime=cai");
+    const pedido = await op("gateway.trocaIniciar", { tipo: "disconnect" });
+    await op("gateway.trocaConfirmar", { pedidoId: pedido.requestId });
+    await vi.advanceTimersByTimeAsync(10000);
+    const parado = await op("gateway.trocaEstado");
+    expect(parado.request.status).toBe("queued");
+    expect(parado.request.commandStatus).toBe("pending");
+    expect(parado.runtime.fresh).toBe(false);
+    expect((await op("gateway.trocaCancelar", { pedidoId: pedido.requestId })).cancelled).toBe(true);
+  });
+
+  it("trocar depois de desconectar: sem sessão, não há desligamento a confirmar (remoteLogout nulo)", async () => {
+    const { op } = montar();
+    const desconectar = await op("gateway.trocaIniciar", { tipo: "disconnect" });
+    await op("gateway.trocaConfirmar", { pedidoId: desconectar.requestId });
+    await vi.advanceTimersByTimeAsync(4000);
+    const trocar = await op("gateway.trocaIniciar", { tipo: "change_number", telefone: "65999997777" });
+    await op("gateway.trocaConfirmar", { pedidoId: trocar.requestId });
+    await vi.advanceTimersByTimeAsync(4000);
+    const estado = await op("gateway.trocaEstado");
+    expect(estado.request.status).toBe("applied");
+    expect(estado.request.remoteLogout).toBeNull();
   });
 
   it("o QR lido por outro número bloqueia o envio", async () => {

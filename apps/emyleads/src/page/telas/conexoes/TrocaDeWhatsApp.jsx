@@ -50,7 +50,7 @@ function Caixa({ tom = "neutro", children }) {
 }
 
 /** O desfecho do último pedido: o que aconteceu e o que falta. */
-function Desfecho({ ultimo, liberada, estado, ocupado, aoRepetir }) {
+function Desfecho({ ultimo, liberada, estado, ocupado, aoRepetir, conexao }) {
   if (!ultimo) return null;
   if (ultimo.status === "applied") {
     if (!liberada) {
@@ -60,14 +60,17 @@ function Desfecho({ ultimo, liberada, estado, ocupado, aoRepetir }) {
         </p>
       ) : null;
     }
+    // Nada aqui é verde: a ação foi aplicada, mas a conexão ainda não atende.
+    // Verde só existe no cartão, quando o WhatsApp conecta de fato.
     return (
       <>
-        <Caixa tom="sucesso">
+        <Caixa tom={ultimo.kind === "change_number" ? "atencao" : "neutro"}>
           {ultimo.kind === "change_number" ? (
             <>
-              <p className="font-semibold">Pronto para o número novo, final {ultimo.newLast4}.</p>
+              <p className="font-semibold">Troca aplicada: a conexão agora espera o número final {ultimo.newLast4}.</p>
               <p className="mt-0.5">
-                Falta conectar: use <b>Conectar WhatsApp</b>, acima, e leia o QR com o celular desse número.
+                O WhatsApp final {ultimo.oldLast4} saiu desta conexão, mas ela ainda não está pronta: use{" "}
+                <b>Conectar WhatsApp</b>, acima, e leia o QR com o celular do número final {ultimo.newLast4}.
                 Se o QR for lido por outro número, o envio fica bloqueado.
               </p>
             </>
@@ -85,6 +88,21 @@ function Desfecho({ ultimo, liberada, estado, ocupado, aoRepetir }) {
           <Caixa tom="atencao">
             O WhatsApp não confirmou o desligamento. No celular do número final {ultimo.oldLast4}, abra
             Aparelhos conectados e remova o aparelho do Núcleo Major se ele ainda aparecer.
+          </Caixa>
+        )}
+        {/* O QR foi lido pelo número errado depois da troca. O aviso do
+            cartão foi escrito para outro caso (a sessão restaurada de outra
+            conta); aqui, desconectar e ler de novo é justamente o conserto. */}
+        {conexao?.connection?.status === "identity_mismatch" && (
+          <Caixa tom="erro">
+            <p className="font-semibold">
+              O QR foi lido por outro número{conexao.connection.phoneMasked ? ` (${conexao.connection.phoneMasked})` : ""}.
+            </p>
+            <p className="mt-0.5">
+              Nada sai por esta conexão enquanto isso. Para corrigir, escolha <b>Só desconectar</b>, abaixo
+              (o aparelho errado sai), e leia o QR de novo com o celular do número final{" "}
+              {ultimo.newLast4 || ultimo.oldLast4}.
+            </p>
           </Caixa>
         )}
       </>
@@ -165,18 +183,29 @@ export function TrocaDeWhatsApp({ organizationId, conexao, aoMudar = null }) {
     FASES_DA_TROCA.APLICANDO,
     FASES_DA_TROCA.AGUARDANDO_OUTRA_PESSOA,
   ].includes(leitura.fase);
-  const destaque = comPedido
-    || (leitura.ultimo?.status === "applied" && liberada)
-    || podeRepetir(leitura.ultimo, estado);
+  // Aplicada e ainda sem o número conectado: falta ler o QR.
+  const aguardandoConexao = leitura.ultimo?.status === "applied" && liberada;
+  const destaque = comPedido || aguardandoConexao || podeRepetir(leitura.ultimo, estado);
   const mostrar = aberto || destaque;
 
   useEffect(() => {
     if (!mostrar) return undefined;
     const id = setInterval(() => {
       if (document.visibilityState === "visible") ler();
-    }, comPedido ? ESPERA_COM_PEDIDO_MS : ESPERA_ABERTA_MS);
+    }, comPedido || aguardandoConexao ? ESPERA_COM_PEDIDO_MS : ESPERA_ABERTA_MS);
     return () => clearInterval(id);
-  }, [mostrar, comPedido, ler]);
+  }, [mostrar, comPedido, aguardandoConexao, ler]);
+
+  // O cartão relê a conexão a cada 2,5 s. Quando o estado dela muda (o QR foi
+  // lido, a sessão caiu), esta seção relê também: sem isso, o cartão já diria
+  // "conectado" enquanto a seção ainda dizia que falta ler o QR.
+  const statusDaConexao = conexao?.connection?.status || "";
+  const statusVistoRef = useRef(statusDaConexao);
+  useEffect(() => {
+    if (statusVistoRef.current === statusDaConexao) return;
+    statusVistoRef.current = statusDaConexao;
+    ler();
+  }, [statusDaConexao, ler]);
 
   // Aplicado: o cartão precisa reler a conexão para mostrar o número esperado
   // novo e o botão de conectar.
@@ -454,7 +483,14 @@ export function TrocaDeWhatsApp({ organizationId, conexao, aoMudar = null }) {
   } else {
     conteudo = (
       <>
-        <Desfecho ultimo={leitura.ultimo} liberada={liberada} estado={estado} ocupado={ocupado} aoRepetir={repetir} />
+        <Desfecho
+          ultimo={leitura.ultimo}
+          liberada={liberada}
+          estado={estado}
+          ocupado={ocupado}
+          aoRepetir={repetir}
+          conexao={conexao}
+        />
         {leitura.fase === FASES_DA_TROCA.AGUARDANDO_OUTRA_PESSOA && (
           <Caixa tom="atencao">
             Outra pessoa da equipe começou uma troca nesta conexão e ainda não confirmou.
