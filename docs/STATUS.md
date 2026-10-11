@@ -377,6 +377,20 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261014100000_canal_oficial_do_whatsapp.sql` aplicada em 11/10/2026
+  pelo SQL Editor (ADR-0008, fundação; PR #58), na mesma transação do
+  `insert` do sha256 do `WHATSAPP_CLOUD_INTAKE_TOKEN` em
+  `private.whatsapp_cloud_intake`. O portal do PR ainda não foi publicado.
+  - Primeiro ensaio com `raise` no fim: a conferência da própria migration
+    abortou em "anon nao pode reservar a fila". O Supabase dá `EXECUTE` a
+    `anon` em toda função nova de `public`, e o `revoke ... from public` não
+    tira. Corrigido para `from public, anon, authenticated` nas três funções,
+    com teste que trava a regressão.
+  - Segundo ensaio: só o `P0001` do ensaio. Aplicação: "Success".
+  - Conferido por consulta: 1 token; `whatsapp_cloud_numbers` com RLS;
+    `private.whatsapp_cloud_inbox` criada; `anon` executa receber e **não**
+    executa reservar nem concluir.
+
 - `20261013100000_analises_ficam_com_a_empresa.sql` aplicada em 11/10/2026
   pelo SQL Editor (ADR-0007, etapa 1; PR #57). O portal do PR ainda não foi
   publicado: o merge vem depois desta migration.

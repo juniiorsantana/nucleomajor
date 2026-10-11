@@ -10,5 +10,6 @@ com referência ao anterior.
 | [0003](ADR-0003-OPTIONAL-EXTENSION.md) | Extensão Chrome opcional | Aceito |
 | [0004](ADR-0004-CUSTOMER-ROLLOUT.md) | Rollout controlado do atendimento externo | Aceito |
 | [0005](ADR-0005-WHATSAPP-CONNECTIONS.md) | Conexão como unidade operacional | Aceito |
+| [0008](ADR-0008-CANAL-OFICIAL-E-COEXISTENCIA.md) | Canal oficial (Cloud API) e coexistência substituem o Bridge por conexão | Aceito |
 
 Template mínimo: contexto, decisão, consequências, alternativas e data.
