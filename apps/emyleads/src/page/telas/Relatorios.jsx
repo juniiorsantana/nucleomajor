@@ -5,6 +5,7 @@ import {
 import { api } from "../../data/client";
 import { fmtMoeda } from "../../lib/formato";
 import { CabecalhoTela, Seletor } from "../ui";
+import { AnalisesDaEmpresa } from "./relatorios/AnalisesDaEmpresa";
 import {
   PRESETS, aplicarFiltros, funilDaSafra, leadsDoPeriodo, metricasDoPeriodo, paraCsv, periodoDoMes,
   periodoDoPreset, periodoPersonalizado, porOrigem, rotuloDoMes, serieMensal, variacao,
@@ -548,6 +549,13 @@ export default function Relatorios({ dados, aoAbrirContato }) {
               )}
             </Bloco>
           )}
+
+          <Bloco
+            titulo="Análises das conversas"
+            subtitulo="As análises feitas pela IA, de todos os WhatsApps da empresa. Abrem mesmo sem a conversa."
+          >
+            <AnalisesDaEmpresa />
+          </Bloco>
         </div>
       </div>
     </>

@@ -22,6 +22,7 @@ function criarConsulta(tabela, resultado, chamadas) {
     select: vi.fn((campos) => ((alvo.campos = campos), alvo)),
     eq: vi.fn((coluna, valor) => (alvo.filtros.push([coluna, valor]), alvo)),
     is: vi.fn((coluna, valor) => (alvo.filtros.push([coluna, valor]), alvo)),
+    in: vi.fn((coluna, valores) => (alvo.filtros.push([coluna, valores]), alvo)),
     order: vi.fn((coluna, opcoes) => ((alvo.ordem = [coluna, opcoes]), alvo)),
     limit: vi.fn((quantas) => ((alvo.limite = quantas), alvo)),
     then: (resolver) => resolver(resultado),
@@ -1097,5 +1098,64 @@ describe("análise da conversa", () => {
       ["contact_phone", "5565999990001"],
     ]);
     expect(consulta.limite).toBe(10);
+  });
+
+  // As análises ficam com a empresa (20261013100000, ADR-0007).
+  const comTabelas = (resultados) => {
+    const chamadas = [];
+    const supabase = { from: vi.fn((tabela) => criarConsulta(tabela, resultados[tabela], chamadas)) };
+    const area = { get: vi.fn(async () => ({ [WORKSPACE_KEY]: ORGANIZATION_ID })) };
+    return { web: criarOperacoesConversasWeb({ supabase, area }), chamadas };
+  };
+
+  it("pelo contato: só o contato gravado na análise, de qualquer WhatsApp, com a origem", async () => {
+    const linha = { id: "a1", contact_id: "k1", connection_id: null, connection_name: "WhatsApp principal", connection_last4: "5324" };
+    const { web, chamadas } = comTabelas({ conversation_analyses: { data: [linha], error: null } });
+    await expect(web["conversas.analisesDoContato"]({ contatoId: "k1" })).resolves.toEqual([linha]);
+    const consulta = consultaDe(chamadas, "conversation_analyses");
+    expect(consulta.filtros).toEqual([
+      ["organization_id", ORGANIZATION_ID],
+      ["contact_id", "k1"],
+    ]);
+    expect(consulta.campos).toContain("connection_name");
+    expect(consulta.campos).toContain("connection_last4");
+    expect(consulta.limite).toBe(10);
+  });
+
+  it("pelo contato: sem contato não consulta, e a falha vira erro para a ficha dizer", async () => {
+    const { web, chamadas } = comTabelas({});
+    await expect(web["conversas.analisesDoContato"]({ contatoId: null })).resolves.toEqual([]);
+    expect(chamadas).toHaveLength(0);
+
+    const { web: falha } = comTabelas({ conversation_analyses: { data: null, error: { message: "column does not exist" } } });
+    await expect(falha["conversas.analisesDoContato"]({ contatoId: "k1" })).rejects.toThrow(/análises deste contato/);
+  });
+
+  it("da empresa: as prontas, inclusive sem contato, com o nome de quem tem", async () => {
+    const { web, chamadas } = comTabelas({
+      conversation_analyses: {
+        data: [
+          { id: "a1", contact_id: "k1", contact_phone: "5565999990001" },
+          { id: "a2", contact_id: null, contact_phone: "5511988887777" },
+        ],
+        error: null,
+      },
+      contacts: { data: [{ id: "k1", name: "Rodrigo Alves" }], error: null },
+    });
+    const linhas = await web["conversas.analisesDaEmpresa"]({ limite: 999 });
+    expect(linhas.map((l) => [l.id, l.contact_name])).toEqual([
+      ["a1", "Rodrigo Alves"],
+      ["a2", ""],
+    ]);
+    const analises = consultaDe(chamadas, "conversation_analyses");
+    expect(analises.filtros).toEqual([
+      ["organization_id", ORGANIZATION_ID],
+      ["status", "done"],
+    ]);
+    expect(analises.limite).toBe(200);
+    expect(consultaDe(chamadas, "contacts").filtros).toEqual([
+      ["organization_id", ORGANIZATION_ID],
+      ["id", ["k1"]],
+    ]);
   });
 });

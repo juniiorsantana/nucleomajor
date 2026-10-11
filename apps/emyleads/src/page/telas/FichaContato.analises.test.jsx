@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
     listar: vi.fn(),
     mensagens: vi.fn(),
     analises: vi.fn(),
+    analisesDoContato: vi.fn(),
     analise: vi.fn(),
     creditosDeAnalise: vi.fn(),
     pedirAnalise: vi.fn(),
@@ -55,9 +56,10 @@ beforeEach(() => {
   api.conversas.listar.mockResolvedValue([conversa]);
   api.conversas.mensagens.mockResolvedValue([]);
   api.conversas.creditosDeAnalise.mockResolvedValue({ limit: 30, used: 2, left: 28, renewsAt: "2026-10-22T00:00:00Z" });
-  api.conversas.analises.mockResolvedValue([
+  api.conversas.analisesDoContato.mockResolvedValue([
     { id: "a1", kind: "completa", status: "done", result: { schema_version: "analysis_report.v2", summary: "Lead bom." },
-      completed_at: "2026-10-04T12:00:00Z", saved_at: "2026-10-04T12:05:00Z", service_score: 45 },
+      completed_at: "2026-10-04T12:00:00Z", saved_at: "2026-10-04T12:05:00Z", service_score: 45,
+      contact_id: "k1", connection_id: null, connection_name: "WhatsApp principal (8362)", connection_last4: "5324" },
   ]);
 });
 
@@ -74,7 +76,9 @@ describe("As análises da conversa na ficha do lead", () => {
     expect(bloco).toBeTruthy();
     expect(bloco.textContent).toContain("Análise da conversa");
     expect(bloco.textContent).toContain("Completa");
-    expect(api.conversas.analises).toHaveBeenCalledWith({ id: conversa.id });
+    // A lista vem pelo contato, não pela conversa (20261013100000).
+    expect(api.conversas.analisesDoContato).toHaveBeenCalledWith({ contatoId: "k1" });
+    expect(api.conversas.analises).not.toHaveBeenCalled();
     expect([...bloco.querySelectorAll("button")].some((b) => b.textContent.trim() === "Analisar conversa")).toBe(true);
   });
 
@@ -94,10 +98,30 @@ describe("As análises da conversa na ficha do lead", () => {
     expect(document.body.textContent).not.toContain("Usar na conversa");
   });
 
-  it("lead sem conversa não mostra o bloco", async () => {
+  it("lead sem conversa e sem análise não mostra o bloco", async () => {
     api.conversas.listar.mockResolvedValue([]);
+    api.conversas.analisesDoContato.mockResolvedValue([]);
     await render(<FichaContato {...props({ podeAnalisar: true })} />);
     expect(document.body.querySelector("[data-analise-da-conversa]")).toBeNull();
+  });
+
+  it("lead sem conversa ainda vê as análises, com o WhatsApp de origem, e não pode pedir outra", async () => {
+    api.conversas.listar.mockResolvedValue([]);
+    await render(<FichaContato {...props({ podeAnalisar: true })} />);
+    const bloco = document.body.querySelector('[data-analise-da-conversa="ficha"]');
+    expect(bloco).toBeTruthy();
+    expect(bloco.textContent).toContain("Completa");
+    expect(bloco.textContent).toContain("WhatsApp principal · final 5324");
+    expect([...bloco.querySelectorAll("button")].some((b) => b.textContent.trim() === "Analisar conversa")).toBe(false);
+    expect(api.conversas.creditosDeAnalise).not.toHaveBeenCalled();
+  });
+
+  it("se a lista não carrega, a ficha diz isso em vez de parecer vazia", async () => {
+    api.conversas.analisesDoContato.mockRejectedValue(new Error("falhou"));
+    await render(<FichaContato {...props({ podeAnalisar: false })} />);
+    expect(document.body.querySelector('[role="alert"]').textContent).toContain(
+      "Não foi possível carregar as análises deste contato."
+    );
   });
 
   it("quem não é dono nem admin vê só as salvas, sem o botão de pedir", async () => {
