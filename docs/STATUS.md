@@ -57,21 +57,30 @@ novo entra pelo QR de sempre. Portal e migration
   pedido daqui; a trava de pareamento do Bridge ficou presa. **Às 23:42 o
   Bridge da 8362 foi reiniciado**, com a autorização do dono no chat. Ele
   voltou esperando o final 5324 (`controle_da_sessao.json`, geração 2), sem
-  sessão e sem tocar no histórico. Falta o dono ler o QR com o celular final
-  5324. Isso não depende da liberação: o QR do número já definido sai a
-  qualquer hora.
+  sessão e sem tocar no histórico. **Em 11/10, de manhã, o dono leu o QR
+  com o celular final 5324, e o portal mostrou a conexão conectada no 5324.**
+  O Bridge que está no ar pareou normalmente; ele só trava se a troca for
+  feita com o QR aberto.
 - **A correção do Bridge** está no runtime, `feat/troca-voluntaria`
-  (`643f1f7`), sem push e sem deploy: a troca fecha o pareamento pelo
-  conector, a trava solta na hora, e cada pareamento tem a sua rodada.
-  Compila e passa no `go vet`, com os testes compilados; os testes rodam no
-  Linux. **Ela precisa ir para a VPS antes da tela nova** (PR
-  `feat/conectar-whatsapp-simples`), que oferece trocar o número com o QR
-  aberto.
-- **A tela nova (PR `feat/conectar-whatsapp-simples`, sem merge):**
-  desconectar é uma ação só, e o número se escolhe na hora de conectar de
-  novo; o QR do número novo vem sozinho; o nome da conexão aparece sem o
-  número ("WhatsApp principal (8362)" continuava dizendo 8362 depois da
-  troca); as recusas do QR chegam em português. Capturas em
+  (`643f1f7` e `674e138`, da revisão do Codex), no GitHub e sem deploy: a
+  troca fecha o QR aberto por `ResetConnection` (o whatsmeow avisa o canal
+  e tira o handler dele), cada pareamento tem a sua rodada, e abrir ou fechar
+  um pareamento ocupa o ciclo. Compila e passa no `go vet`; os testes rodam
+  no Linux. **Ela precisa ir para a VPS antes da tela nova** (PR #55), que
+  oferece trocar o número com o QR aberto.
+- **A tela nova (PR #55, `feat/conectar-whatsapp-simples`, sem merge):**
+  - desconectar é uma ação só, e o número se escolhe na hora de conectar de
+    novo;
+  - o QR do número novo vem sozinho;
+  - o nome da conexão aparece sem o número, porque "WhatsApp principal
+    (8362)" continuava dizendo 8362 depois da troca;
+  - um lápis ao lado do nome abre o editor, só para quem administra; o nome
+    vai direto para `whatsapp_connections.name`, sem migration;
+  - no celular, o nome quebra a linha em vez de ser cortado;
+  - as recusas do QR chegam em português.
+
+  Até o merge, produção mostra a tela antiga, com "Trocar ou desconectar o
+  número" e o nome antigo. Capturas em
   [`docs/troca-de-numero/bancada-2026-10-11/`](troca-de-numero/bancada-2026-10-11/README.md).
 
 ## MCP do portal, só leitura (09/10/2026)

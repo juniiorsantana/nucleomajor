@@ -42,3 +42,20 @@ O QR do número novo (entre `08` e `10`) aparece sozinho, sem clique: a bancada
 o lê em 6 s, rápido demais para a captura. O teste
 `TrocaDeWhatsApp.interactive.test.jsx` prende esse passo ("outro número:
 confere o número inteiro, troca, e o QR do número novo aparece sozinho").
+
+## O nome da conexão (11/10/2026)
+
+Depois da troca para o final 5324, o dono conectou o número novo e o cartão
+seguiu dizendo "WhatsApp principal (8362)": o nome é um texto gravado na
+conexão, e a troca não mexe nele. O único campo de nome na tela era o de
+"Adicionar WhatsApp", que cria outra conexão. Agora um lápis ao lado do nome
+abre o editor; ele só aparece para quem administra a empresa. Foi o dono que
+pediu o lápis, sem texto. No celular, o nome quebra a linha em vez de ser
+cortado.
+
+| Arquivo | O que mostra |
+|---|---|
+| `11-lapis-ao-lado-do-nome.jpg` | O lápis ao lado do nome |
+| `12-mudar-o-nome.jpg` | O editor: o nome já sem o número, e o aviso de que o número não precisa estar nele |
+| `13-nome-novo.jpg` | Salvo: "Atendimento Major", e o número na linha de baixo |
+| `14-celular-nome-novo.png` | O mesmo no celular (390 px): o nome inteiro, em duas linhas, com o lápis |
