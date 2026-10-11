@@ -61,13 +61,22 @@ novo entra pelo QR de sempre. Portal e migration
   com o celular final 5324, e o portal mostrou a conexão conectada no 5324.**
   O Bridge que está no ar pareou normalmente; ele só trava se a troca for
   feita com o QR aberto.
-- **A correção do Bridge** está no runtime, `feat/troca-voluntaria`
-  (`643f1f7` e `674e138`, da revisão do Codex), no GitHub e sem deploy: a
-  troca fecha o QR aberto por `ResetConnection` (o whatsmeow avisa o canal
-  e tira o handler dele), cada pareamento tem a sua rodada, e abrir ou fechar
-  um pareamento ocupa o ciclo. Compila e passa no `go vet`; os testes rodam
-  no Linux. **Ela precisa ir para a VPS antes da tela nova** (PR #55), que
-  oferece trocar o número com o QR aberto.
+- **A correção do Bridge está no ar só na Major desde 11/10/2026, 12:12**
+  (`643f1f7` e `674e138`, runtime `feat/troca-voluntaria`, com o "autorizado"
+  do dono no chat). A troca fecha o QR aberto por `ResetConnection` (o
+  whatsmeow avisa o canal e tira o handler dele), cada pareamento tem a sua
+  rodada, e abrir ou fechar um pareamento ocupa o ciclo.
+  - Release `troca-voluntaria-qr`: cópia de `troca-voluntaria` com os cinco
+    arquivos do Bridge trocados. Antes da troca, os arquivos de produção
+    batiam com `78f1c4c`.
+  - Na VPS: `go vet` OK e `go test -race`: 152 passaram, 0 falharam, 1 pulado.
+  - Só o `release.conf` do Bridge `8ee1e6d0…` foi repontado; o anterior está
+    em `~/backups/`. O assistente, a a502 e o symlink compartilhado não foram
+    tocados.
+  - Reconectou em menos de 1 s, sem QR: `connected`, `•••• 5324`,
+    `sendBlocked=false`.
+  - Rollback: voltar o `release.conf` para `troca-voluntaria`, que guarda o
+    binário anterior.
 - **A tela nova (PR #55, `feat/conectar-whatsapp-simples`, sem merge):**
   - desconectar é uma ação só, e o número se escolhe na hora de conectar de
     novo;
@@ -79,8 +88,8 @@ novo entra pelo QR de sempre. Portal e migration
   - no celular, o nome quebra a linha em vez de ser cortado;
   - as recusas do QR chegam em português.
 
-  Até o merge, produção mostra a tela antiga, com "Trocar ou desconectar o
-  número" e o nome antigo. Capturas em
+  Mergeado em 11/10/2026, depois do Bridge corrigido no ar, com a
+  autorização do dono. Capturas em
   [`docs/troca-de-numero/bancada-2026-10-11/`](troca-de-numero/bancada-2026-10-11/README.md).
 
 ## MCP do portal, só leitura (09/10/2026)
