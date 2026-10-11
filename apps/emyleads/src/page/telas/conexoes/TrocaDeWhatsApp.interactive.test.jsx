@@ -32,6 +32,7 @@ const gatewayApi = {
   trocaCancelar: vi.fn(),
   trocaRepetir: vi.fn(),
   trocaReenviar: vi.fn(),
+  renomear: vi.fn(),
 };
 const configApi = { ler: vi.fn() };
 const organizacoesApi = { robos: vi.fn() };
@@ -238,6 +239,106 @@ describe("o cartão", () => {
     await clicar("Conectar WhatsApp");
     expect(container.textContent).toContain("Já existe um QR aberto para esta conexão.");
     expect(container.textContent).not.toContain("pairing_in_progress");
+  });
+});
+
+/*
+ * O nome é o rótulo da empresa, e não o número: em 10/10/2026 o cartão
+ * continuou dizendo "WhatsApp principal (8362)" depois da troca para o final
+ * 5324, e o único campo de nome na tela era o de "Adicionar WhatsApp", que
+ * cria outra conexão.
+ */
+describe("o nome da conexão", () => {
+  const campoDoNome = () => container.querySelector("section:has(details) form input");
+  const titulo = () => container.querySelector("section:has(details) h2").textContent;
+  // Um lápis só, ao lado do nome: o rótulo é para quem não enxerga o ícone.
+  const lapis = () => container.querySelector('button[aria-label="Mudar o nome da conexão"]');
+
+  async function abrirNome() {
+    if (!lapis()) throw new Error(`o lápis não está na tela: ${container.textContent}`);
+    await act(async () => lapis().click());
+    await assentar();
+  }
+
+  async function salvarNome(valor) {
+    await digitar(campoDoNome(), valor);
+    await act(async () =>
+      campoDoNome().closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    );
+    await assentar();
+  }
+
+  it("o dono muda o nome pelo cartão, e o número continua na linha dele", async () => {
+    gatewayApi.renomear.mockImplementation(async ({ nome }) => {
+      cartao = { ...cartao, name: nome };
+      return { connectionId: CONEXAO, nome };
+    });
+    await montar();
+    await abrirNome();
+    // O campo abre com o nome que o cartão mostra, já sem o número.
+    expect(campoDoNome().value).toBe("WhatsApp principal");
+
+    await salvarNome("  Atendimento Major  ");
+    expect(gatewayApi.renomear).toHaveBeenCalledWith({
+      organizationId: ORG,
+      connectionId: CONEXAO,
+      nome: "Atendimento Major",
+    });
+    expect(titulo()).toBe("Atendimento Major");
+    expect(campoDoNome()).toBeNull();
+    expect(container.textContent).toContain("•••• 8362");
+    expect(lapis()).not.toBeNull();
+  });
+
+  it("nome vazio não sai da tela, e o mesmo nome só fecha", async () => {
+    await montar();
+    await abrirNome();
+    await salvarNome("   ");
+    expect(container.textContent).toContain("Escreva um nome para a conexão.");
+    expect(gatewayApi.renomear).not.toHaveBeenCalled();
+
+    await salvarNome("WhatsApp principal (8362)");
+    expect(gatewayApi.renomear).not.toHaveBeenCalled();
+    expect(campoDoNome()).toBeNull();
+  });
+
+  it("a recusa do banco aparece no campo, e o nome fica como estava", async () => {
+    gatewayApi.renomear.mockRejectedValue(new Error("Só quem administra a empresa pode mudar o nome da conexão."));
+    await montar();
+    await abrirNome();
+    await salvarNome("Atendimento Major");
+    const formulario = campoDoNome().closest("form");
+    expect(formulario.querySelector("[role=alert]").textContent).toBe(
+      "Só quem administra a empresa pode mudar o nome da conexão."
+    );
+    expect(titulo()).toBe("WhatsApp principal");
+  });
+
+  it("Cancelar fecha sem mudar nada", async () => {
+    await montar();
+    await abrirNome();
+    await digitar(campoDoNome(), "Outro nome");
+    await clicar("Cancelar", { exato: true });
+    expect(campoDoNome()).toBeNull();
+    expect(gatewayApi.renomear).not.toHaveBeenCalled();
+    expect(titulo()).toBe("WhatsApp principal");
+  });
+
+  it("o lápis abre o editor e some enquanto ele está aberto", async () => {
+    await montar();
+    expect(campoDoNome()).toBeNull();
+    await abrirNome();
+    expect(campoDoNome()).not.toBeNull();
+    expect(lapis()).toBeNull();
+  });
+
+  it("só quem administra a empresa vê o lápis", async () => {
+    await act(async () => {
+      root.render(<Conexoes organizacao={{ ...organizacao, papel: "member" }} usuario={{ id: "u1", nome: "Ana" }} />);
+    });
+    await assentar();
+    expect(titulo()).toBe("WhatsApp principal");
+    expect(lapis()).toBeNull();
   });
 });
 

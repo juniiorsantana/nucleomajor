@@ -31,6 +31,8 @@ const CHAVE_CREDENCIAIS = "emyleads.gateway.credenciais";
 const CHAVE_INSTALACAO = "emyleads.gateway.instalacao";
 const TIMEOUT_MS = 4000;
 const HEARTBEAT_TTL_MS = 90_000;
+// O mesmo limite do campo na tela (MudarNome). O banco aceita até 120.
+const TAMANHO_MAXIMO_DO_NOME = 60;
 
 /** Escopo de organização: vale para todas as conexões daquele workspace. */
 const ORGANIZACAO_INTEIRA = "*";
@@ -593,6 +595,36 @@ export function criarOperacoesGateway() {
           token,
         })
       );
+    },
+
+    /**
+     * Muda o nome da conexão: o rótulo que a equipe vê no cartão. O número não
+     * mora no nome; ele vem do WhatsApp conectado, e a troca de número não
+     * mexe no nome. Quem barra é a política de update de whatsapp_connections
+     * (só quem administra a empresa), e não esta função.
+     */
+    "gateway.renomear": async ({ organizationId, connectionId, nome } = {}) => {
+      const organizacao = exigirOrganizacao(organizationId);
+      const limpo = String(nome || "").trim();
+      if (!limpo) throw erroGateway("Escreva um nome para a conexão.", "nome-vazio");
+      if (limpo.length > TAMANHO_MAXIMO_DO_NOME) {
+        throw erroGateway(`Use até ${TAMANHO_MAXIMO_DO_NOME} letras no nome.`, "nome-longo");
+      }
+      const { data, error } = await obterSupabaseWeb()
+        .from("whatsapp_connections")
+        .update({ name: limpo })
+        .eq("organization_id", organizacao)
+        .eq("id", connectionId)
+        .select("id,name");
+      if (error) {
+        throw erroGateway("Não deu para mudar o nome agora. Tente de novo.", "renomear-falhou", { causa: error.message });
+      }
+      // Sem linha de volta, nada mudou: a política não deixou, ou a conexão
+      // não é desta empresa. Um update barrado pela RLS não dá erro.
+      if (!data?.length) {
+        throw erroGateway("Só quem administra a empresa pode mudar o nome da conexão.", "renomear-sem-permissao");
+      }
+      return { connectionId, nome: data[0].name };
     },
 
     "gateway.parear": async ({ organizationId, connectionId, remoto = false } = {}) => {

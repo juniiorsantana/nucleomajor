@@ -11,6 +11,7 @@ import {
   Link2,
   LoaderCircle,
   MessagesSquare,
+  Pencil,
   Plus,
   QrCode,
   RefreshCw,
@@ -25,6 +26,7 @@ import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } f
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
 import { ClaudeEChatGPT } from "./conexoes/ClaudeEChatGPT";
 import { FASES, mensagemDoPareamento, nomeSemNumero, resumirConexao } from "./conexoes/estadoDaConexao";
+import { MudarNome } from "./conexoes/MudarNome";
 import { textoDoBloqueio } from "./conexoes/regrasDaTroca";
 import { SeloEstado } from "./conexoes/SeloEstado";
 import { AndamentoDaTroca, DesconectarWhatsApp, EscolherNumero, useTrocaDeWhatsApp } from "./conexoes/TrocaDeWhatsApp";
@@ -382,6 +384,7 @@ function CartaoConexao({
   aoDefinirAutomacao,
   aoDefinirDono,
   aoEncerrar,
+  aoRenomear,
 }) {
   const estado = conexao.connection || {};
   const leitura = resumirConexao(conexao);
@@ -467,9 +470,14 @@ function CartaoConexao({
   const mostrarQr = runtimeOnline && !conectado && !divergente && (emPareamento || !!qr || ocupado === "parear");
   const aguardandoQr = ocupado === "parear" || (emPareamento && !leitura.qrExpirado) || (!!qr && !emPareamento);
   const somenteLeitura = !!conexao.remoteManaged;
-  // Um painel por vez: desconectar, ou escolher o número na hora de conectar
-  // ("escolher-outro" já abre em "Outro número", vindo do QR).
+  // Um painel por vez: mudar o nome, desconectar, ou escolher o número na hora
+  // de conectar ("escolher-outro" já abre em "Outro número", vindo do QR).
   const [painel, setPainel] = useState(null);
+  // O nome mora no banco, e quem muda é quem administra: a política de
+  // update de whatsapp_connections confere o cargo de novo.
+  const podeRenomear = Boolean(conexao.remoteManaged && podeGerenciar && aoRenomear);
+  const palavrasDoNome = (conexao.name ? nomeSemNumero(conexao.name) : "Conexão sem nome").split(" ");
+  const ultimaPalavraDoNome = palavrasDoNome.pop();
   const escolhendo = painel === "escolher" || painel === "escolher-outro";
   useEffect(() => {
     if (painel === "desconectar" && !troca.podeDesconectar && !troca.ocupado) setPainel(null);
@@ -508,8 +516,25 @@ function CartaoConexao({
           <Smartphone size={20} strokeWidth={1.75} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold text-fg">
-            {conexao.name ? nomeSemNumero(conexao.name) : "Conexão sem nome"}
+          {/* O nome quebra a linha em vez de cortar: no celular, com o selo
+              ao lado, "WhatsApp da Major" virava "WhatsA…". O lápis fica
+              preso à última palavra; sozinho numa linha, ele parecia solto. */}
+          <h2 className="break-words text-[15px] font-semibold text-fg">
+            {palavrasDoNome.length > 0 && `${palavrasDoNome.join(" ")} `}
+            <span className="whitespace-nowrap">
+              {ultimaPalavraDoNome}
+              {podeRenomear && painel !== "nome" && (
+                <button
+                  type="button"
+                  onClick={() => setPainel("nome")}
+                  aria-label="Mudar o nome da conexão"
+                  title="Mudar o nome"
+                  className="-my-1.5 ml-0.5 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl align-middle text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                </button>
+              )}
+            </span>
           </h2>
           <p className="mt-0.5 text-[12.5px] tabular-nums text-sub">{linhaDoNumero}</p>
         </div>
@@ -519,6 +544,10 @@ function CartaoConexao({
           {leitura.selo}
         </SeloEstado>
       </div>
+
+      {painel === "nome" && (
+        <MudarNome nome={conexao.name} aoSalvar={aoRenomear} aoFechar={() => setPainel(null)} />
+      )}
 
       {divergente && (
         <div className="mx-5 mb-4 flex items-start gap-3 rounded-none border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] leading-relaxed text-danger">
@@ -1259,6 +1288,12 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                       api.gateway.reconectar({ organizationId, connectionId: conexao.connectionId })
                     )
                   }
+                  // Sem `executar`: a recusa aparece no próprio campo do nome,
+                  // e não no topo da tela.
+                  aoRenomear={async (nome) => {
+                    await api.gateway.renomear({ organizationId, connectionId: conexao.connectionId, nome });
+                    await carregar({ silencioso: true });
+                  }}
                   aoRevogar={() =>
                     executar(`revogar|${conexao.connectionId}`, () =>
                       api.gateway.revogar({ organizationId, connectionId: conexao.connectionId })
