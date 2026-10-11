@@ -377,6 +377,24 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- `20261013100000_analises_ficam_com_a_empresa.sql` aplicada em 11/10/2026
+  pelo SQL Editor (ADR-0007, etapa 1; PR #57). O portal do PR ainda não foi
+  publicado: o merge vem depois desta migration.
+  - Antes: Postgres 17.6; os corpos de `fatos_da_conversa`,
+    `conversation_analysis_request` e `linha_do_tempo_da_analise` iguais aos
+    do repositório (md5 sem CR); a visão `conversation_intelligence` com as
+    mesmas colunas, na mesma ordem; 31 análises (18 com contato), 264 leituras.
+  - Ensaio com `raise` no fim: só o `P0001`, e conferido por consulta que nada
+    ficou. Ensaio extra, com a foto do contato antes: 27 iguais, 4 ganham
+    contato (a mesma pessoa, o mesmo telefone), 0 perdem, 0 trocam de pessoa.
+  - O texto colado foi conferido por sha256 contra o arquivo, com LF.
+  - Depois: os 5 corpos de função iguais aos da migration; colunas
+    `connection_name`, `connection_last4` e `contact_id` nas duas tabelas; FKs
+    `*_conexao` e `*_contato` com `SET NULL` (`n`); os dois gatilhos
+    `*_origem` e os dois índices `*_contato`; análises 31, com contato 22,
+    com final e nome 31; leituras 264, com contato 142; a visão com 112
+    linhas; `authenticated` não executa as funções privadas novas.
+
 - `20261012100000_a_troca_voluntaria_de_numero.sql` aplicada em 10/10/2026,
   por volta das 20:26 (Brasília), pelo SQL Editor.
   - Antes: os pré-requisitos do roteiro, passo 1, todos `true`; nenhuma
