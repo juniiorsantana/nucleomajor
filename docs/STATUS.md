@@ -48,6 +48,31 @@ novo entra pelo QR de sempre. Portal e migration
   `private.connection_change_mode(...) = 'off'`.
 - **Antes da troca real:** decidir o que as automações fazem durante a troca
   (D3). A troca em si é do dono, com o número novo e o QR.
+- **A primeira troca real, feita pelo dono, 10/10/2026 (Brasília):** às 23:31
+  ele usou "Só desconectar" (geração 1), às 23:32 apareceu o QR do mesmo
+  número, e às 23:34 ele trocou para o número final **5324** (geração 2) com
+  esse QR aberto. A troca foi aplicada, mas o QR do número novo nunca veio:
+  todo pedido voltava `pairing_in_progress`. Causa: sem sessão, a troca
+  fechava só o socket, e o whatsmeow não fecha o canal do QR num `Disconnect`
+  pedido daqui; a trava de pareamento do Bridge ficou presa. **Às 23:42 o
+  Bridge da 8362 foi reiniciado**, com a autorização do dono no chat. Ele
+  voltou esperando o final 5324 (`controle_da_sessao.json`, geração 2), sem
+  sessão e sem tocar no histórico. Falta o dono ler o QR com o celular final
+  5324. Isso não depende da liberação: o QR do número já definido sai a
+  qualquer hora.
+- **A correção do Bridge** está no runtime, `feat/troca-voluntaria`
+  (`643f1f7`), sem push e sem deploy: a troca fecha o pareamento pelo
+  conector, a trava solta na hora, e cada pareamento tem a sua rodada.
+  Compila e passa no `go vet`, com os testes compilados; os testes rodam no
+  Linux. **Ela precisa ir para a VPS antes da tela nova** (PR
+  `feat/conectar-whatsapp-simples`), que oferece trocar o número com o QR
+  aberto.
+- **A tela nova (PR `feat/conectar-whatsapp-simples`, sem merge):**
+  desconectar é uma ação só, e o número se escolhe na hora de conectar de
+  novo; o QR do número novo vem sozinho; o nome da conexão aparece sem o
+  número ("WhatsApp principal (8362)" continuava dizendo 8362 depois da
+  troca); as recusas do QR chegam em português. Capturas em
+  [`docs/troca-de-numero/bancada-2026-10-11/`](troca-de-numero/bancada-2026-10-11/README.md).
 
 ## MCP do portal, só leitura (09/10/2026)
 
