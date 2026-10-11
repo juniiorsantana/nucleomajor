@@ -991,6 +991,8 @@ async function staticFile(req, res, url) {
   else if (pathname === "/planos" || pathname === "/planos/") relative = "planos/index.html";
   // O Meta exige esta URL para publicar o app que recebe os leads dos formulários.
   else if (pathname === "/privacidade" || pathname === "/privacidade/") relative = "privacidade/index.html";
+  // O App Review do WhatsApp olha os Termos de Serviço cadastrados no app.
+  else if (pathname === "/termos-de-uso" || pathname === "/termos-de-uso/") relative = "termos-de-uso/index.html";
   // A página dos anúncios para clínicas. `/clinicas` é o endereço curto.
   else if (["/clinicas", "/clinicas/", "/clinicas/raio-x", "/clinicas/raio-x/"].includes(pathname)) relative = "clinicas/raio-x/index.html";
   else if (pathname === "/juniiorsantana7/") relative = "juniiorsantana7/index.html";

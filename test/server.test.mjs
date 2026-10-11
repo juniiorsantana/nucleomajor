@@ -48,6 +48,13 @@ test("publica configuração, a página SaaS, o app e a página de convite", asy
     assert.match(await privacidade.text(), /Política de privacidade/);
   }
 
+  // O App Review do WhatsApp olha os Termos de Serviço cadastrados no app.
+  for (const caminho of ["/termos-de-uso", "/termos-de-uso/"]) {
+    const termos = await fetch(`${origin}${caminho}`);
+    assert.equal(termos.status, 200, caminho);
+    assert.match(await termos.text(), /Termos de uso[\s\S]*64\.833\.198\/0001-77/);
+  }
+
   const appResponse = await fetch(`${origin}/app`);
   assert.equal(appResponse.status, 200);
   assert.match(await appResponse.text(), /EmyLeads · Núcleo Major/i);
