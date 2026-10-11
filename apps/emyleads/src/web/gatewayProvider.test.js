@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const channels = [];
   const removed = [];
+  const consultas = [];
   const rows = { whatsapp_connections: [], connection_runtime_status: [] };
   const supabase = {
     channel: vi.fn((name) => {
@@ -22,16 +23,19 @@ const mocks = vi.hoisted(() => {
     rpc: vi.fn(async () => ({ data: null, error: null })),
     from: vi.fn((table) => {
       const query = {
+        table,
         select: vi.fn(() => query),
+        update: vi.fn(() => query),
         eq: vi.fn(() => query),
         neq: vi.fn(() => query),
         order: vi.fn(() => query),
         then(resolve) { return Promise.resolve(resolve({ data: rows[table] || [], error: null })); },
       };
+      consultas.push(query);
       return query;
     }),
   };
-  return { channels, removed, rows, supabase };
+  return { channels, removed, rows, supabase, consultas };
 });
 
 vi.mock("./supabaseClient.js", () => ({ obterSupabaseWeb: () => mocks.supabase }));
@@ -275,5 +279,44 @@ describe("troca voluntária de WhatsApp", () => {
     }).catch((e) => e);
     expect(erro.codigo).toBe("troca-recusada");
     expect(erro.motivo).toBe("connection change is not enabled for this connection");
+  });
+});
+
+describe("WebGatewayProvider: o nome da conexão", () => {
+  const organizationId = "338e44ca-36ab-437c-b8ac-aa7c60fee64a";
+  const connectionId = "8ee1e6d0-a9d0-4041-b6ea-878716a34a71";
+
+  beforeEach(() => {
+    mocks.consultas.length = 0;
+    mocks.supabase.from.mockClear();
+    mocks.rows.whatsapp_connections = [];
+  });
+
+  it("grava só o nome, sem os espaços das pontas, na conexão desta empresa", async () => {
+    mocks.rows.whatsapp_connections = [{ id: connectionId, name: "Atendimento Major" }];
+    const resposta = await criarOperacoesGateway()["gateway.renomear"]({
+      organizationId, connectionId, nome: "  Atendimento Major ",
+    });
+    expect(resposta).toEqual({ connectionId, nome: "Atendimento Major" });
+    const [consulta] = mocks.consultas;
+    expect(consulta.table).toBe("whatsapp_connections");
+    expect(consulta.update).toHaveBeenCalledWith({ name: "Atendimento Major" });
+    expect(consulta.eq).toHaveBeenCalledWith("organization_id", organizationId);
+    expect(consulta.eq).toHaveBeenCalledWith("id", connectionId);
+  });
+
+  it("sem linha de volta, a política barrou: a recusa diz quem pode", async () => {
+    const erro = await criarOperacoesGateway()["gateway.renomear"]({
+      organizationId, connectionId, nome: "Atendimento Major",
+    }).catch((e) => e);
+    expect(erro.codigo).toBe("renomear-sem-permissao");
+    expect(erro.message).toBe("Só quem administra a empresa pode mudar o nome da conexão.");
+  });
+
+  it("nome vazio ou longo demais nem chega ao banco", async () => {
+    const renomear = criarOperacoesGateway()["gateway.renomear"];
+    await expect(renomear({ organizationId, connectionId, nome: "   " })).rejects.toMatchObject({ codigo: "nome-vazio" });
+    await expect(renomear({ organizationId, connectionId, nome: "x".repeat(61) })).rejects.toMatchObject({ codigo: "nome-longo" });
+    expect(mocks.supabase.from).not.toHaveBeenCalled();
   });
 });

@@ -163,6 +163,56 @@ export function resumirConexao(conexao, agora = Date.now()) {
 }
 
 /**
+ * O nome da conexão sem o número.
+ *
+ * O número tem linha própria no cartão. Um nome como "WhatsApp principal
+ * (8362)" continuou dizendo 8362 depois da troca para outro número, em
+ * 10/10/2026, e quem olhava concluiu que a troca não tinha pegado.
+ */
+export function nomeSemNumero(nome) {
+  const original = String(nome || "").trim();
+  const limpo = original
+    .replace(/\s*[([]\s*(?:•+\s*)?\+?\d[\d\s.-]{2,}\s*[)\]]\s*$/, "")
+    .replace(/\s*[-–—·]\s*(?:•+\s*)?\+?\d[\d\s.-]{2,}$/, "")
+    .trim();
+  return limpo || original || "WhatsApp";
+}
+
+// O que a VPS devolve quando o QR não sai, em língua de gente. O código cru
+// ("pairing_in_progress") apareceu no topo da tela em 10/10/2026, e quem
+// estava com o celular na mão não tinha o que fazer com ele.
+const MOTIVOS_DO_PAREAMENTO = [
+  ["pairing_in_progress", "Já existe um QR aberto para esta conexão. Espere alguns segundos e toque em Conectar WhatsApp de novo."],
+  ["session_exists", "Este WhatsApp já está conectado. Não é preciso ler outro QR."],
+  ["bridge_offline", "A VPS desta conexão não respondeu. Tente de novo em alguns segundos."],
+  ["bridge_unavailable", "A VPS desta conexão não respondeu. Tente de novo em alguns segundos."],
+  ["bridge_credentials_unavailable", "A VPS desta conexão está sem credencial. Fale com a equipe do Núcleo Major."],
+  ["pairing_unsupported", "A VPS desta conexão precisa ser atualizada para mostrar o QR. Fale com a equipe do Núcleo Major."],
+  ["connection_not_registered", "Esta conexão não está registrada na VPS. Fale com a equipe do Núcleo Major."],
+  ["too many pairing requests", "Muitos pedidos de QR em pouco tempo. Espere um minuto e tente de novo."],
+  ["organization admin required", "Conectar o número é permissão de administrador."],
+  ["connection is not available", "Esta conexão não está disponível para esta empresa."],
+  ["expired", "A VPS demorou para responder. Tente de novo."],
+];
+
+/**
+ * A recusa de um QR em português; o código cru nunca vai para a tela.
+ *
+ * O pareamento remoto (`pareamento-*` no provider) devolve o slug da VPS ou a
+ * frase da RPC, em inglês: esses são traduzidos. O serviço local já fala
+ * português, e a frase dele passa como veio.
+ */
+export function mensagemDoPareamento(erro) {
+  const texto = String(erro?.message || erro || "").trim();
+  const remoto = String(erro?.codigo || "").startsWith("pareamento-");
+  if (texto && !remoto) return texto;
+  for (const [trecho, frase] of MOTIVOS_DO_PAREAMENTO) {
+    if (texto.includes(trecho)) return frase;
+  }
+  return "Não foi possível mostrar o QR agora. Tente de novo em alguns segundos.";
+}
+
+/**
  * A conexão que a caixa de entrada considera "a" conexão da empresa.
  *
  * Hoje existe uma. Se houver mais de uma, a remota (VPS) vem antes da local,

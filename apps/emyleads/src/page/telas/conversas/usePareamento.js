@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../data/client";
+import { mensagemDoPareamento } from "../conexoes/estadoDaConexao";
 
 /**
  * Pede o pareamento e lê o QR enquanto o modal estiver aberto.
@@ -38,7 +39,7 @@ export function usePareamento({ organizationId, conexao, aberto }) {
         setQr(lido || { erro: "" });
         pausaRef.current = 0;
       } catch (e) {
-        setQr({ erro: e?.message || "Não foi possível ler o QR." });
+        setQr({ erro: mensagemDoPareamento(e) });
         pausaRef.current = Date.now() + PAUSA_APOS_RECUSA_MS;
       } finally {
         lendoRef.current = false;
@@ -61,7 +62,7 @@ export function usePareamento({ organizationId, conexao, aberto }) {
       // da VPS leva até 20 s para dizer "estou em pareamento".
       await ler(true);
     } catch (e) {
-      setQr({ erro: e?.message || "Não foi possível iniciar a conexão." });
+      setQr({ erro: mensagemDoPareamento(e) });
     } finally {
       setPedindo(false);
     }

@@ -8,6 +8,8 @@ import {
   motivoParaNaoComecar,
   normalizarTelefone,
   podeCancelar,
+  podeDesconectar,
+  podeEscolherOutroNumero,
   podeRepetir,
   telefoneLegivel,
   telefoneValido,
@@ -97,6 +99,36 @@ describe("faseDaTroca", () => {
   });
 });
 
+describe("desconectar e escolher o número (desde 11/10/2026)", () => {
+  const liberada = { sessionReleasedAt: daqui(-60000), runtime: { whatsappStatus: "whatsapp_disconnected", fresh: true } };
+
+  it("desconectar: com o WhatsApp de pé, ou com o QR lido pelo celular errado depois de uma troca", () => {
+    expect(podeDesconectar(estado())).toBe(true);
+    expect(podeDesconectar(estado({
+      sessionReleasedAt: daqui(-60000),
+      runtime: { whatsappStatus: "identity_mismatch", fresh: true },
+    }))).toBe(true);
+    // Já desconectado, sem liberação, sem VPS ou sem cargo: nada a desconectar daqui.
+    expect(podeDesconectar(estado(liberada))).toBe(false);
+    expect(podeDesconectar(estado({ mode: "off", actorAllowed: false }))).toBe(false);
+    expect(podeDesconectar(estado({ actorAllowed: false }))).toBe(false);
+    expect(podeDesconectar(estado({ runtime: { whatsappStatus: "connected", fresh: false } }))).toBe(false);
+    expect(podeDesconectar(null)).toBe(false);
+  });
+
+  it("outro número: só depois de desconectar por aqui, na liberação direta", () => {
+    expect(podeEscolherOutroNumero(estado(liberada))).toBe(true);
+    expect(podeEscolherOutroNumero(estado({ ...liberada, runtime: { whatsappStatus: "awaiting_qr", fresh: true } }))).toBe(true);
+    // Conectado: primeiro desconecta. Caiu sozinho: é com a equipe.
+    expect(podeEscolherOutroNumero(estado())).toBe(false);
+    expect(podeEscolherOutroNumero(estado({ runtime: { whatsappStatus: "logged_out", fresh: true } }))).toBe(false);
+    // O código iria para o WhatsApp antigo, que está desconectado.
+    expect(podeEscolherOutroNumero(estado({ ...liberada, mode: "whatsapp_code" }))).toBe(false);
+    expect(podeEscolherOutroNumero(estado({ ...liberada, actorAllowed: false }))).toBe(false);
+    expect(podeEscolherOutroNumero(estado({ ...liberada, runtime: { whatsappStatus: "whatsapp_disconnected", fresh: false } }))).toBe(false);
+  });
+});
+
 describe("repetir e cancelar", () => {
   const falhou = pedido({ status: "failed", confirmedAt: daqui(-60 * 60 * 1000), errorCode: "bridge_offline" });
 
@@ -127,8 +159,8 @@ describe("o que dizer", () => {
   it("traduz a recusa do banco e nunca mostra o texto cru", () => {
     expect(mensagemDaRecusa(new Error("direct connection change requires a platform administrator")))
       .toBe("Nesta fase, a troca deste número é feita pela equipe do Núcleo Major.");
-    expect(mensagemDaRecusa({ motivo: "old whatsapp is not connected" })).toContain("precisa estar conectado");
-    expect(mensagemDaRecusa(new Error("same number: reconnect instead of changing"))).toContain("Conectar WhatsApp");
+    expect(mensagemDaRecusa({ motivo: "old whatsapp is not connected" })).toContain("fale com a equipe do Núcleo Major");
+    expect(mensagemDaRecusa(new Error("same number: reconnect instead of changing"))).toContain("Esse já é o número desta conexão");
     const desconhecida = mensagemDaRecusa(new Error("relation x does not exist at character 42"));
     expect(desconhecida).toBe("Não foi possível concluir agora. Tente de novo em instantes.");
   });

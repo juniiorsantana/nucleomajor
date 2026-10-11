@@ -11,6 +11,7 @@ import {
   Link2,
   LoaderCircle,
   MessagesSquare,
+  Pencil,
   Plus,
   QrCode,
   RefreshCw,
@@ -24,9 +25,11 @@ import { fmtRelativo } from "../../lib/formato";
 import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } from "../../ui/atendimento";
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
 import { ClaudeEChatGPT } from "./conexoes/ClaudeEChatGPT";
-import { FASES, resumirConexao } from "./conexoes/estadoDaConexao";
+import { FASES, mensagemDoPareamento, nomeSemNumero, resumirConexao } from "./conexoes/estadoDaConexao";
+import { MudarNome } from "./conexoes/MudarNome";
+import { textoDoBloqueio } from "./conexoes/regrasDaTroca";
 import { SeloEstado } from "./conexoes/SeloEstado";
-import { TrocaDeWhatsApp } from "./conexoes/TrocaDeWhatsApp";
+import { AndamentoDaTroca, DesconectarWhatsApp, EscolherNumero, useTrocaDeWhatsApp } from "./conexoes/TrocaDeWhatsApp";
 import { PedirConexao } from "./conversas/ConexaoDoWhatsApp";
 
 const ROTULOS = {
@@ -298,7 +301,7 @@ function DetalhesAtendimento({ resumo, ocupado, somenteLeitura = false, aoDefini
  * bridge fora do ar produziam a mesma tela — a de "aguarde" —, e quem estava
  * com o celular na mão esperava um código que nunca ia chegar.
  */
-function PainelQr({ qr, final4, aguardando }) {
+function PainelQr({ qr, final4, aguardando, aoTrocarNumero = null }) {
   if (qr?.status === "awaiting_qr" && qr?.imageData) {
     return (
       <div className="mx-5 mb-4 grid gap-4 rounded-none border border-dashed border-line-strong p-4 sm:grid-cols-[auto_1fr] sm:items-center">
@@ -314,6 +317,15 @@ function PainelQr({ qr, final4, aguardando }) {
             <li>Aponte a câmera para o código.</li>
           </ol>
           <p className="mt-2 text-[11.5px] text-faint">O código vale só para esta conexão e se renova sozinho enquanto a tela estiver aberta.</p>
+          {aoTrocarNumero && (
+            <button
+              type="button"
+              onClick={aoTrocarNumero}
+              className="mt-2 min-h-11 cursor-pointer text-left text-[12px] font-medium text-accent-forte underline-offset-2 hover:underline"
+            >
+              Vai usar o celular de outro número? Trocar o número
+            </button>
+          )}
         </div>
       </div>
     );
@@ -372,6 +384,7 @@ function CartaoConexao({
   aoDefinirAutomacao,
   aoDefinirDono,
   aoEncerrar,
+  aoRenomear,
 }) {
   const estado = conexao.connection || {};
   const leitura = resumirConexao(conexao);
@@ -433,7 +446,21 @@ function CartaoConexao({
    * é o que a RPC guarda; na conexão local, quem tem a máquina já tem o
    * aparelho na mão.
    */
-  const podeConectar = !conectado && !divergente && runtimeOnline && (!conexao.remoteManaged || podeGerenciar);
+  const troca = useTrocaDeWhatsApp({
+    organizationId,
+    conexao,
+    // Só na VPS e só para quem administra: quem barra de verdade é o banco,
+    // que confere a liberação da conexão e o cargo.
+    ativa: Boolean(conexao.remoteManaged && podeGerenciar),
+    aoMudar: aoRecarregar,
+    // A troca foi pedida aqui e a VPS aplicou: o QR do número novo vem sem
+    // ninguém precisar clicar de novo.
+    aoTrocar: aoParear,
+  });
+  // Com uma desconexão ou troca a caminho, conectar agora pediria o QR do
+  // número que está saindo: o botão volta quando a VPS terminar.
+  const trocaEmCurso = troca.emAndamento || troca.esperandoCartao;
+  const podeConectar = !conectado && !divergente && runtimeOnline && (!conexao.remoteManaged || podeGerenciar) && !trocaEmCurso;
   /*
    * O QR aparece antes de o heartbeat dizer "estou em pareamento": a leitura
    * forçada depois do clique já o traz, e o estado da VPS leva até 20 s para
@@ -443,6 +470,40 @@ function CartaoConexao({
   const mostrarQr = runtimeOnline && !conectado && !divergente && (emPareamento || !!qr || ocupado === "parear");
   const aguardandoQr = ocupado === "parear" || (emPareamento && !leitura.qrExpirado) || (!!qr && !emPareamento);
   const somenteLeitura = !!conexao.remoteManaged;
+  // Um painel por vez: mudar o nome, desconectar, ou escolher o número na hora
+  // de conectar ("escolher-outro" já abre em "Outro número", vindo do QR).
+  const [painel, setPainel] = useState(null);
+  // O nome mora no banco, e quem muda é quem administra: a política de
+  // update de whatsapp_connections confere o cargo de novo.
+  const podeRenomear = Boolean(conexao.remoteManaged && podeGerenciar && aoRenomear);
+  const palavrasDoNome = (conexao.name ? nomeSemNumero(conexao.name) : "Conexão sem nome").split(" ");
+  const ultimaPalavraDoNome = palavrasDoNome.pop();
+  const escolhendo = painel === "escolher" || painel === "escolher-outro";
+  useEffect(() => {
+    if (painel === "desconectar" && !troca.podeDesconectar && !troca.ocupado) setPainel(null);
+    if (escolhendo && conectado) setPainel(null);
+  }, [painel, escolhendo, conectado, troca.podeDesconectar, troca.ocupado]);
+  // O número que sai se alguém desconectar agora: o do aparelho pareado,
+  // que no número divergente não é o esperado.
+  const final4Pareado = String(estado.phoneMasked || conexao.expectedPhoneMasked || "").replace(/\D/g, "").slice(-4);
+  const linhaDoNumero = !leitura.numero
+    ? "Número confirmado no pareamento"
+    : conectado || divergente
+      ? leitura.numero
+      : `${leitura.numero} · ainda não conectado`;
+  const conectar = troca.podeEscolherOutroNumero && !emPareamento
+    ? () => {
+        troca.limpar();
+        setPainel("escolher");
+      }
+    : aoParear;
+  const notaDaTroca = !troca.ativa || escolhendo
+    ? ""
+    : ["indisponivel", "so-equipe"].includes(troca.leitura.bloqueio)
+      ? textoDoBloqueio(troca.leitura.bloqueio)
+      : troca.leitura.bloqueio === "whatsapp-fora" && !conectado && !divergente
+        ? textoDoBloqueio("whatsapp-fora")
+        : "";
 
   return (
     <section className="rounded-none border border-line bg-bg">
@@ -455,12 +516,27 @@ function CartaoConexao({
           <Smartphone size={20} strokeWidth={1.75} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold text-fg">
-            {conexao.name || "Conexão sem nome"}
+          {/* O nome quebra a linha em vez de cortar: no celular, com o selo
+              ao lado, "WhatsApp da Major" virava "WhatsA…". O lápis fica
+              preso à última palavra; sozinho numa linha, ele parecia solto. */}
+          <h2 className="break-words text-[15px] font-semibold text-fg">
+            {palavrasDoNome.length > 0 && `${palavrasDoNome.join(" ")} `}
+            <span className="whitespace-nowrap">
+              {ultimaPalavraDoNome}
+              {podeRenomear && painel !== "nome" && (
+                <button
+                  type="button"
+                  onClick={() => setPainel("nome")}
+                  aria-label="Mudar o nome da conexão"
+                  title="Mudar o nome"
+                  className="-my-1.5 ml-0.5 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-ctl align-middle text-faint transition-colors hover:bg-surface-hover hover:text-fg"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                </button>
+              )}
+            </span>
           </h2>
-          <p className="mt-0.5 text-[12.5px] tabular-nums text-sub">
-            {leitura.numero || "Número confirmado no pareamento"}
-          </p>
+          <p className="mt-0.5 text-[12.5px] tabular-nums text-sub">{linhaDoNumero}</p>
         </div>
         <SeloEstado tom={leitura.tom}>
           {leitura.fase === FASES.CONECTADO && <CheckCircle2 size={13} className="mr-1.5" aria-hidden="true" />}
@@ -469,15 +545,29 @@ function CartaoConexao({
         </SeloEstado>
       </div>
 
+      {painel === "nome" && (
+        <MudarNome nome={conexao.name} aoSalvar={aoRenomear} aoFechar={() => setPainel(null)} />
+      )}
+
       {divergente && (
         <div className="mx-5 mb-4 flex items-start gap-3 rounded-none border border-danger/25 bg-danger/5 px-4 py-3 text-[12.5px] leading-relaxed text-danger">
           <ShieldAlert size={17} className="mt-0.5 flex-none" aria-hidden="true" />
-          <p>
-            O aparelho pareado é {estado.phoneMasked || "outro número"}, mas esta
-            conexão esperava {estado.expectedPhoneMasked || "outro número"}. O
-            envio está bloqueado. Corrija pelo administrador — parear de novo
-            apagaria a sessão de quem está certo.
-          </p>
+          {troca.podeDesconectar ? (
+            // Depois de uma troca, o QR lido pelo celular errado se conserta
+            // daqui: desconectar tira o aparelho errado e libera um QR novo.
+            <p>
+              O QR foi lido pelo celular {estado.phoneMasked || "de outro número"}, mas esta conexão
+              espera {estado.expectedPhoneMasked || conexao.expectedPhoneMasked || "outro número"}. Nada
+              sai por aqui enquanto isso: desconecte abaixo e leia o QR de novo com o celular certo.
+            </p>
+          ) : (
+            <p>
+              O aparelho pareado é {estado.phoneMasked || "outro número"}, mas esta
+              conexão esperava {estado.expectedPhoneMasked || "outro número"}. O
+              envio está bloqueado. Corrija pelo administrador — parear de novo
+              apagaria a sessão de quem está certo.
+            </p>
+          )}
         </div>
       )}
 
@@ -491,7 +581,27 @@ function CartaoConexao({
         </p>
       </div>
 
-      {mostrarQr && <PainelQr qr={qr} final4={final4} aguardando={aguardandoQr} />}
+      <AndamentoDaTroca troca={troca} mostrarMensagens={!painel} />
+
+      {escolhendo && (
+        <EscolherNumero
+          troca={troca}
+          final4={final4}
+          outroPrimeiro={painel === "escolher-outro"}
+          // Com o QR deste número já na tela, "o mesmo número" é só fechar.
+          aoMesmoNumero={emPareamento ? () => {} : aoParear}
+          aoFechar={() => setPainel(null)}
+        />
+      )}
+
+      {mostrarQr && !escolhendo && (
+        <PainelQr
+          qr={qr}
+          final4={final4}
+          aguardando={aguardandoQr}
+          aoTrocarNumero={troca.podeEscolherOutroNumero ? () => setPainel("escolher-outro") : null}
+        />
+      )}
 
       <InterruptorAtendimento
         resumo={resumo}
@@ -501,11 +611,11 @@ function CartaoConexao({
         aoDefinirAutomacao={aoDefinirAutomacao}
       />
 
-      {(podeConectar || (!conexao.remoteManaged && runtimeOnline && !emPareamento)) && (
+      {!escolhendo && (podeConectar || (!conexao.remoteManaged && runtimeOnline && !emPareamento)) && (
         <div className="flex flex-wrap items-center gap-2 px-5 pb-4">
           {podeConectar && (
             <BotaoPrimario
-              onClick={aoParear}
+              onClick={conectar}
               disabled={!!ocupado || (emPareamento && !leitura.qrExpirado)}
               className="min-h-11 !py-2.5"
             >
@@ -539,11 +649,18 @@ function CartaoConexao({
         <p className="px-5 pb-4 text-[12px] text-sub">Conectar o número é permissão de administrador.</p>
       )}
 
-      {/* Só na VPS e só para quem administra: quem barra de verdade é o
-          banco, que confere a liberação da conexão e o cargo. */}
-      {conexao.remoteManaged && podeGerenciar && (
-        <TrocaDeWhatsApp organizationId={organizationId} conexao={conexao} aoMudar={aoRecarregar} />
+      {/* Desconectar é uma ação só, sem escolher número: a escolha fica para
+          a hora de conectar de novo. */}
+      {troca.podeDesconectar && !escolhendo && (
+        <DesconectarWhatsApp
+          troca={troca}
+          final4={final4Pareado}
+          aberto={painel === "desconectar"}
+          aoAbrir={() => setPainel("desconectar")}
+          aoFechar={() => setPainel(null)}
+        />
       )}
+      {notaDaTroca && <p className="px-5 pb-4 text-[11.5px] leading-relaxed text-faint">{notaDaTroca}</p>}
 
       <details className="group border-t border-line">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-[12.5px] font-medium text-sub transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
@@ -854,7 +971,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
               });
               return [c.connectionId, qr || { erro: "" }];
             } catch (e) {
-              return [c.connectionId, { erro: e?.message || "Não foi possível ler o QR." }];
+              return [c.connectionId, { erro: mensagemDoPareamento(e) }];
             }
           })
         );
@@ -1150,11 +1267,17 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                   ocupado={ocupado.endsWith(conexao.connectionId) ? ocupado.split("|")[0] : ""}
                   aoParear={() =>
                     executar(`parear|${conexao.connectionId}`, async () => {
-                      await api.gateway.parear({
-                        organizationId,
-                        connectionId: conexao.connectionId,
-                        remoto: conexao.remoteManaged,
-                      });
+                      try {
+                        await api.gateway.parear({
+                          organizationId,
+                          connectionId: conexao.connectionId,
+                          remoto: conexao.remoteManaged,
+                        });
+                      } catch (e) {
+                        // O código cru da VPS ("pairing_in_progress") não
+                        // diz nada a quem está com o celular na mão.
+                        throw new Error(mensagemDoPareamento(e));
+                      }
                       // Sem esperar o heartbeat: quem clicou quer o código
                       // agora, e o estado da VPS leva até 20s para chegar.
                       await lerQrs(conexao.connectionId);
@@ -1165,6 +1288,12 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
                       api.gateway.reconectar({ organizationId, connectionId: conexao.connectionId })
                     )
                   }
+                  // Sem `executar`: a recusa aparece no próprio campo do nome,
+                  // e não no topo da tela.
+                  aoRenomear={async (nome) => {
+                    await api.gateway.renomear({ organizationId, connectionId: conexao.connectionId, nome });
+                    await carregar({ silencioso: true });
+                  }}
                   aoRevogar={() =>
                     executar(`revogar|${conexao.connectionId}`, () =>
                       api.gateway.revogar({ organizationId, connectionId: conexao.connectionId })

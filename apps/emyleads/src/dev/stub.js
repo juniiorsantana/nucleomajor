@@ -667,6 +667,11 @@ const operacoesBancada = {
     ];
     return { success: true };
   },
+  "gateway.renomear": async ({ connectionId, nome }) => {
+    const limpo = String(nome || "").trim();
+    conexoesDev = conexoesDev.map((c) => (c.connectionId === connectionId ? { ...c, name: limpo } : c));
+    return { connectionId, nome: limpo };
+  },
   "gateway.parear": async ({ connectionId }) => {
     conexoesDev = conexoesDev.map((c) =>
       c.connectionId === connectionId

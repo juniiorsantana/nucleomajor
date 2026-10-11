@@ -45,6 +45,31 @@ export function motivoParaNaoComecar(estado) {
 }
 
 /**
+ * Desconectar agora? Com o WhatsApp de pé, ou com o QR lido pelo celular
+ * errado depois de uma troca, quando desconectar é justamente o conserto. Só
+ * decide se o botão aparece: quem barra é o banco.
+ */
+export function podeDesconectar(estado) {
+  if (!estado || motivoParaNaoComecar(estado)) return false;
+  return ["connected", "identity_mismatch"].includes(estado.runtime?.whatsappStatus);
+}
+
+/**
+ * Conectar outro número agora, em vez do número desta conexão?
+ *
+ * Só com a conexão desconectada por aqui (pelo portal) e na liberação direta.
+ * O número que caiu sozinho é outro caminho, que ainda não existe; e no modo
+ * com código o código vai para o WhatsApp antigo, que precisaria estar de pé.
+ */
+export function podeEscolherOutroNumero(estado) {
+  if (!estado || motivoParaNaoComecar(estado)) return false;
+  const status = estado.runtime?.whatsappStatus;
+  return estado.mode === "direct"
+    && Boolean(estado.sessionReleasedAt)
+    && !["connected", "identity_mismatch", "connecting", "reconnecting"].includes(status);
+}
+
+/**
  * A fase da troca nesta conexão.
  *
  * `ultimo` é o pedido mais recente que já terminou (aplicado, falhou,
@@ -100,10 +125,10 @@ export function podeCancelar(pedido) {
 }
 
 const TEXTOS_DO_BLOQUEIO = {
-  indisponivel: "A troca de número ainda não foi liberada para esta conexão. Fale com a equipe do Núcleo Major.",
+  indisponivel: "Para trocar o número deste WhatsApp, fale com a equipe do Núcleo Major.",
   "so-equipe": "Nesta fase, a troca deste número é feita pela equipe do Núcleo Major.",
   "vps-fora": "A VPS desta conexão não está respondendo agora. A troca começa quando ela voltar.",
-  "whatsapp-fora": "Para trocar ou desconectar, o WhatsApp desta conexão precisa estar conectado. Se o número caiu ou foi banido, fale com a equipe do Núcleo Major.",
+  "whatsapp-fora": "Para conectar outro número no lugar deste, fale com a equipe do Núcleo Major.",
 };
 
 export function textoDoBloqueio(bloqueio) {
@@ -121,7 +146,7 @@ const RECUSAS = [
   ["runtime is not online", "A VPS desta conexão não está respondendo agora. Tente de novo em alguns minutos."],
   ["old whatsapp is not connected", TEXTOS_DO_BLOQUEIO["whatsapp-fora"]],
   ["invalid phone", "Número inválido. Digite com DDD, por exemplo (65) 99999-7777."],
-  ["same number", "Esse já é o número desta conexão. Para conectá-lo de novo, use Conectar WhatsApp."],
+  ["same number", "Esse já é o número desta conexão. Para conectá-lo, escolha a primeira opção: o QR aparece direto."],
   ["too many change requests", "Muitas tentativas na última hora. Espere um pouco antes de tentar de novo."],
   ["a confirmed change is already in progress", "Já existe uma troca confirmada em andamento nesta conexão."],
   ["another change is in progress", "Já existe outra troca em andamento nesta conexão."],

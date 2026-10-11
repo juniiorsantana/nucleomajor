@@ -48,6 +48,49 @@ novo entra pelo QR de sempre. Portal e migration
   `private.connection_change_mode(...) = 'off'`.
 - **Antes da troca real:** decidir o que as automações fazem durante a troca
   (D3). A troca em si é do dono, com o número novo e o QR.
+- **A primeira troca real, feita pelo dono, 10/10/2026 (Brasília):** às 23:31
+  ele usou "Só desconectar" (geração 1), às 23:32 apareceu o QR do mesmo
+  número, e às 23:34 ele trocou para o número final **5324** (geração 2) com
+  esse QR aberto. A troca foi aplicada, mas o QR do número novo nunca veio:
+  todo pedido voltava `pairing_in_progress`. Causa: sem sessão, a troca
+  fechava só o socket, e o whatsmeow não fecha o canal do QR num `Disconnect`
+  pedido daqui; a trava de pareamento do Bridge ficou presa. **Às 23:42 o
+  Bridge da 8362 foi reiniciado**, com a autorização do dono no chat. Ele
+  voltou esperando o final 5324 (`controle_da_sessao.json`, geração 2), sem
+  sessão e sem tocar no histórico. **Em 11/10, de manhã, o dono leu o QR
+  com o celular final 5324, e o portal mostrou a conexão conectada no 5324.**
+  O Bridge que está no ar pareou normalmente; ele só trava se a troca for
+  feita com o QR aberto.
+- **A correção do Bridge está no ar só na Major desde 11/10/2026, 12:12**
+  (`643f1f7` e `674e138`, runtime `feat/troca-voluntaria`, com o "autorizado"
+  do dono no chat). A troca fecha o QR aberto por `ResetConnection` (o
+  whatsmeow avisa o canal e tira o handler dele), cada pareamento tem a sua
+  rodada, e abrir ou fechar um pareamento ocupa o ciclo.
+  - Release `troca-voluntaria-qr`: cópia de `troca-voluntaria` com os cinco
+    arquivos do Bridge trocados. Antes da troca, os arquivos de produção
+    batiam com `78f1c4c`.
+  - Na VPS: `go vet` OK e `go test -race`: 152 passaram, 0 falharam, 1 pulado.
+  - Só o `release.conf` do Bridge `8ee1e6d0…` foi repontado; o anterior está
+    em `~/backups/`. O assistente, a a502 e o symlink compartilhado não foram
+    tocados.
+  - Reconectou em menos de 1 s, sem QR: `connected`, `•••• 5324`,
+    `sendBlocked=false`.
+  - Rollback: voltar o `release.conf` para `troca-voluntaria`, que guarda o
+    binário anterior.
+- **A tela nova (PR #55, `feat/conectar-whatsapp-simples`, sem merge):**
+  - desconectar é uma ação só, e o número se escolhe na hora de conectar de
+    novo;
+  - o QR do número novo vem sozinho;
+  - o nome da conexão aparece sem o número, porque "WhatsApp principal
+    (8362)" continuava dizendo 8362 depois da troca;
+  - um lápis ao lado do nome abre o editor, só para quem administra; o nome
+    vai direto para `whatsapp_connections.name`, sem migration;
+  - no celular, o nome quebra a linha em vez de ser cortado;
+  - as recusas do QR chegam em português.
+
+  Mergeado em 11/10/2026, depois do Bridge corrigido no ar, com a
+  autorização do dono. Capturas em
+  [`docs/troca-de-numero/bancada-2026-10-11/`](troca-de-numero/bancada-2026-10-11/README.md).
 
 ## MCP do portal, só leitura (09/10/2026)
 
