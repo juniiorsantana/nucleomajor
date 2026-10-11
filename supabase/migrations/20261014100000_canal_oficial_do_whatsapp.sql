@@ -231,7 +231,7 @@ begin
 end;
 $$;
 
-revoke all on function public.nucleo_whatsapp_cloud_receive(text, jsonb) from public;
+revoke all on function public.nucleo_whatsapp_cloud_receive(text, jsonb) from public, anon, authenticated;
 grant execute on function public.nucleo_whatsapp_cloud_receive(text, jsonb) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -333,7 +333,7 @@ begin
 end;
 $$;
 
-revoke all on function public.nucleo_whatsapp_cloud_inbox_claim(integer, uuid) from public;
+revoke all on function public.nucleo_whatsapp_cloud_inbox_claim(integer, uuid) from public, anon, authenticated;
 grant execute on function public.nucleo_whatsapp_cloud_inbox_claim(integer, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -390,7 +390,7 @@ begin
 end;
 $$;
 
-revoke all on function public.nucleo_whatsapp_cloud_inbox_complete(bigint[], text) from public;
+revoke all on function public.nucleo_whatsapp_cloud_inbox_complete(bigint[], text) from public, anon, authenticated;
 grant execute on function public.nucleo_whatsapp_cloud_inbox_complete(bigint[], text) to authenticated;
 
 -- ---------------------------------------------------------------------------

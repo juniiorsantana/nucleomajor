@@ -77,6 +77,10 @@ test("anon só recebe; reservar e concluir são do robô autenticado", () => {
   assert.match(executavel, /grant execute on function public\.nucleo_whatsapp_cloud_inbox_complete\(bigint\[\], text\) to authenticated;/);
   assert.doesNotMatch(executavel, /inbox_claim\(integer, uuid\) to anon/);
   assert.doesNotMatch(executavel, /inbox_complete\(bigint\[\], text\) to anon/);
+  // O Supabase dá EXECUTE a anon em toda função nova de `public`: revogar só
+  // de `public` deixa anon reservar a fila (o ensaio de 11/10/2026 pegou).
+  assert.match(executavel, /revoke all on function public\.nucleo_whatsapp_cloud_inbox_claim\(integer, uuid\) from public, anon, authenticated;/);
+  assert.match(executavel, /revoke all on function public\.nucleo_whatsapp_cloud_inbox_complete\(bigint\[\], text\) from public, anon, authenticated;/);
 });
 
 test("o token de acesso da Meta não é guardado no banco", () => {

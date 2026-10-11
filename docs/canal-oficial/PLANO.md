@@ -11,9 +11,11 @@ Piloto escolhido pelo dono em 11/10/2026: **número final 5324** (conexão
 | App | **AdsMajor** (`1210997597353143`), portfólio Major Hub, com o produto WhatsApp |
 | Verificação da empresa | Verificada em 07/02/2026 |
 | Integridade do WhatsApp | **Restrita**: "não foi possível encontrar o site". Site corrigido (rodapé com razão social e CNPJ, `/privacidade`) e recurso aberto no Suporte Direto, caso `28798439879820232` |
+| Configurações do app | Ícone 1024×1024 (o da Emy Leads) subido em 11/10/2026: o app deixou de ser "inelegível para envio". Termos de Serviço ainda apontam para `facebook.com` |
 | App Review (`whatsapp_business_messaging`, `whatsapp_business_management`) | Rascunho nunca enviado. Precisa de vídeo do fluxo funcionando |
 | Verificação de acesso (Tech Provider) | Não iniciada |
-| Webhook, Embedded Signup, número | Nada configurado |
+| Webhook | Banco pronto (migration aplicada em 11/10/2026). Falta publicar o portal, pôr as variáveis na Hostinger e cadastrar a URL na Meta |
+| Embedded Signup, número | Nada configurado |
 
 ## Etapas
 
@@ -25,8 +27,15 @@ Piloto escolhido pelo dono em 11/10/2026: **número final 5324** (conexão
       `private.whatsapp_cloud_inbox`, receber/reservar/concluir.
 - [x] Runtime: cliente do Graph (`whatsapp-assistant/cloud_graph.py`, commit `b753f2b` na branch
       `feat/canal-oficial` do `whatsapp-mcp-hardened`).
-- [ ] Ensaio da migration no SQL Editor com `raise exception` no fim, depois
-      aplicação (só com o dono de acordo).
+- [x] Ensaio da migration no SQL Editor com `raise exception` no fim, depois
+      aplicação (só com o dono de acordo). Aplicada em 11/10/2026; ver
+      `STATUS.md`, "Banco aplicado". O primeiro ensaio pegou `anon` com
+      `EXECUTE` em reservar/concluir; corrigido antes de aplicar.
+- [ ] Publicar o portal (merge do PR #58) e pôr `WHATSAPP_CLOUD_VERIFY_TOKEN`
+      e `WHATSAPP_CLOUD_INTAKE_TOKEN` na Hostinger.
+- [ ] Cadastrar `https://nucleomajor.com/api/webhooks/whatsapp-cloud` na Meta
+      (AdsMajor → WhatsApp → Configuração) e assinar `messages` e
+      `smb_message_echoes`.
 
 ### 2. Adaptador na VPS (próximo)
 - [ ] Processo `whatsapp-cloud@<conexão>` com as rotas do Bridge
