@@ -21,6 +21,7 @@ import {
 } from "../../../domain/analiseDaConversa";
 import { ehAnaliseV2, ehRelatorioV2 } from "../../../domain/vendedorV2";
 import { fmtRelativo } from "../../../lib/formato";
+import { nomeSemNumero } from "../conexoes/estadoDaConexao";
 import { RelatorioDaAnalise } from "./RelatorioDaAnalise";
 import { RelatorioDoVendedor } from "./RelatorioDoVendedor";
 
@@ -32,6 +33,17 @@ const VIDA_DO_RASCUNHO_MS = 7 * 24 * 60 * 60 * 1000;
 
 const dataCurta = (valor) =>
   valor ? new Date(valor).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
+
+/**
+ * De qual WhatsApp veio a análise: "WhatsApp principal · final 5324". O nome
+ * aparece sem o número, que tem o próprio lugar.
+ */
+export function textoDaOrigem(origem) {
+  if (!origem) return "";
+  const nome = origem.nome ? nomeSemNumero(origem.nome) : "";
+  const final4 = origem.final4 ? `final ${origem.final4}` : "";
+  return [nome, final4].filter(Boolean).join(" · ");
+}
 
 /** O que a ficha lista: as salvas e os rascunhos prontos que ainda valem. */
 function analisesDaFicha(linhas, agora = Date.now()) {
@@ -63,6 +75,9 @@ export function AnaliseDaConversa({
   aoVerMensagem,
   // "ficha": dentro da ficha do lead (Leads), com o espaçamento dela.
   variante = "conversa",
+  // Na ficha: as análises do contato, de qualquer WhatsApp, mesmo sem a
+  // conversa (20261013100000). Sem procurar pelo telefone.
+  contatoId = null,
 }) {
   const [creditos, setCreditos] = useState(null);
   const [lista, setLista] = useState([]);
@@ -70,22 +85,36 @@ export function AnaliseDaConversa({
   const [fase, setFase] = useState(null); // null | "escolher" | "ver"
   const [pedindo, setPedindo] = useState(false);
   const [erro, setErro] = useState("");
-  const conversaRef = useRef(conversa.id);
-  conversaRef.current = conversa.id;
+  const [naoCarregou, setNaoCarregou] = useState(false);
+  const porContato = Boolean(contatoId);
+  const idDaConversa = conversa?.id || null;
+  // Analisar precisa da conversa: sem ela, a ficha só mostra o que já existe.
+  const podeAnalisar = podePedir && Boolean(idDaConversa);
+  const chave = porContato ? `contato:${contatoId}` : idDaConversa;
+  const chaveRef = useRef(chave);
+  chaveRef.current = chave;
 
   const carregar = useCallback(async () => {
-    const id = conversa.id;
+    const minha = chave;
+    let falhou = false;
+    const leitura = porContato
+      ? Promise.resolve().then(() => api.conversas.analisesDoContato({ contatoId })).catch(() => {
+          falhou = true;
+          return [];
+        })
+      : Promise.resolve().then(() => api.conversas.analises({ id: idDaConversa })).catch(() => []);
     const [saldo, linhas] = await Promise.all([
-      podePedir ? Promise.resolve().then(() => api.conversas.creditosDeAnalise()).catch(() => null) : null,
-      Promise.resolve().then(() => api.conversas.analises({ id })).catch(() => []),
+      podeAnalisar ? Promise.resolve().then(() => api.conversas.creditosDeAnalise()).catch(() => null) : null,
+      leitura,
     ]);
-    if (conversaRef.current !== id) return;
+    if (chaveRef.current !== minha) return;
+    setNaoCarregou(falhou);
     setCreditos(saldo);
     setLista(linhas || []);
     // Uma análise pedida antes de recarregar a página continua sendo seguida.
     const pendente = (linhas || []).map(analiseDoBanco).find((analise) => emAndamento(analise.situacao));
     if (pendente) setAtual((anterior) => anterior || pendente);
-  }, [conversa.id, podePedir]);
+  }, [chave, porContato, contatoId, idDaConversa, podeAnalisar]);
 
   useEffect(() => {
     setAtual(null);
@@ -123,7 +152,7 @@ export function AnaliseDaConversa({
     setPedindo(true);
     setErro("");
     try {
-      const dados = await api.conversas.pedirAnalise({ id: conversa.id, tipo });
+      const dados = await api.conversas.pedirAnalise({ id: idDaConversa, tipo });
       const nova = analiseDoBanco({ kind: tipo, ...dados });
       setAtual(nova);
       if (nova.creditos) setCreditos(nova.creditos);
@@ -142,7 +171,12 @@ export function AnaliseDaConversa({
     setFase("ver");
     try {
       const completa = analiseDoBanco(await api.conversas.analise({ analiseId: analise.id }));
-      if (completa) setAtual((anterior) => (anterior?.id === completa.id ? completa : anterior));
+      // A consulta de andamento não traz a origem: fica a que veio da lista.
+      if (completa) {
+        setAtual((anterior) =>
+          anterior?.id === completa.id ? { ...completa, origem: completa.origem || anterior.origem } : anterior
+        );
+      }
     } catch {
       // Sem a consulta, fica o que a lista trouxe.
     }
@@ -157,8 +191,10 @@ export function AnaliseDaConversa({
 
   const daFicha = analisesDaFicha(lista);
   const andando = atual && emAndamento(atual.situacao);
-  if (!podePedir && daFicha.length === 0) return null;
-  if (podePedir && creditos === null && daFicha.length === 0 && !andando) return null;
+  if (!naoCarregou) {
+    if (!podeAnalisar && daFicha.length === 0) return null;
+    if (podeAnalisar && creditos === null && daFicha.length === 0 && !andando) return null;
+  }
 
   return (
     <div
@@ -170,6 +206,12 @@ export function AnaliseDaConversa({
         <FileSearch size={13} strokeWidth={2.2} className="flex-none text-ia" />
         <span className="text-[11px] font-bold uppercase tracking-[.08em] text-faint">Análise da conversa</span>
       </div>
+
+      {naoCarregou && (
+        <p role="alert" className="mt-2 text-[11.5px] text-danger">
+          Não foi possível carregar as análises deste contato.
+        </p>
+      )}
 
       {andando && (
         <button
@@ -191,8 +233,13 @@ export function AnaliseDaConversa({
               onClick={() => abrir(analise)}
               className="flex w-full cursor-pointer items-center gap-2 rounded-ctl px-1.5 py-1.5 text-left text-[11.5px] transition-colors hover:bg-surface-hover"
             >
-              <span className="min-w-0 flex-1 truncate text-fg">
-                {NOME_DO_TIPO[analise.tipo] || "Análise"} · {dataCurta(analise.concluidaEm)}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-fg">
+                  {NOME_DO_TIPO[analise.tipo] || "Análise"} · {dataCurta(analise.concluidaEm)}
+                </span>
+                {porContato && analise.origem && (
+                  <span className="block truncate text-[10.5px] text-faint">{textoDaOrigem(analise.origem)}</span>
+                )}
               </span>
               {analise.notaDoAtendimento != null && (
                 <span className="text-[10.5px] font-semibold tabular-nums text-sub">
@@ -210,7 +257,7 @@ export function AnaliseDaConversa({
         </div>
       )}
 
-      {podePedir && creditos && (
+      {podeAnalisar && creditos && (
         <>
           <button
             type="button"
@@ -229,13 +276,13 @@ export function AnaliseDaConversa({
 
       {fase && (
         <DialogoDaAnalise
-          conversa={conversa}
+          conversa={conversa || { id: null, nome: contato?.nome || "" }}
           fase={fase}
           atual={atual}
           creditos={creditos}
           pedindo={pedindo}
           erro={erro}
-          podePedir={podePedir}
+          podePedir={podeAnalisar}
           contexto={{ contato, negocio, estagios, etiquetas }}
           aoPedir={pedir}
           aoRefazer={() => {
@@ -290,7 +337,7 @@ export async function aplicarSugestao(sugestao, { contato, negocio, estagios, et
   }
 }
 
-function DialogoDaAnalise({
+export function DialogoDaAnalise({
   conversa,
   fase,
   atual,
@@ -360,6 +407,9 @@ function DialogoDaAnalise({
                 <h2 id={tituloId} className="text-[15px] font-semibold text-fg">{titulo}</h2>
                 <p className="mt-0.5 truncate text-[12px] text-sub">{conversa.nome}</p>
               </>
+            )}
+            {atual?.origem && (
+              <p className="mt-0.5 truncate text-[11.5px] text-faint">Pelo WhatsApp {textoDaOrigem(atual.origem)}</p>
             )}
           </div>
           <button

@@ -217,10 +217,14 @@ export default function FichaContato({
           {/* As análises da conversa também na ficha do lead (04/10/2026): no
               celular a tela de Conversas não abre, e a ficha abre em qualquer
               aparelho. O relatório abre em tela cheia no celular. */}
-          {conversa?.id && (
+          {/* A lista vem pelo contato (20261013100000): as análises ficam
+              mesmo sem a conversa, de qualquer WhatsApp da empresa. Analisar
+              ainda precisa da conversa aberta. */}
+          {contato?.id && (
             <AnaliseDaConversa
-              conversa={conversa}
+              conversa={conversa?.id ? conversa : null}
               contato={contato}
+              contatoId={contato.id}
               negocio={abertas[0] || null}
               estagios={estagios}
               podePedir={podeAnalisar}

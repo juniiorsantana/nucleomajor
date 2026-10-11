@@ -46,6 +46,9 @@ const CAMPOS_MENSAGEM =
  * banco disser que a coluna não existe, refaz sem ela e as próximas já vão sem.
  */
 const CAMPO_TRANSCRICAO = "transcribed_at";
+// O que a lista de análises traz (a conversa, a ficha e Relatórios). O
+// relatório completo vem depois, pela consulta de andamento.
+const COLUNAS_DA_ANALISE = "id,kind,status,error_code,result,requested_at,completed_at,saved_at,service_score,scores";
 
 export function faltaColunaDeTranscricao(error) {
   if (!error) return false;
@@ -845,13 +848,63 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
       const organizationId = await organizacao();
       const { data, error } = await supabase
         .from("conversation_analyses")
-        .select("id,kind,status,error_code,result,requested_at,completed_at,saved_at,service_score,scores")
+        .select(COLUNAS_DA_ANALISE)
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
         .eq("contact_phone", alvo.chat)
         .order("requested_at", { ascending: false })
         .limit(10);
       return error ? [] : data || [];
+    },
+
+    /**
+     * As análises de um contato, de qualquer WhatsApp da empresa, mesmo que
+     * a conversa ou a conexão não existam mais (20261013100000, ADR-0007).
+     * Só pelo contato gravado na análise: sem procurar pelo telefone, que
+     * poderia juntar a análise a outra pessoa. Falha vira erro, para a ficha
+     * dizer que não carregou em vez de parecer vazia.
+     */
+    "conversas.analisesDoContato": async ({ contatoId }) => {
+      if (!contatoId) return [];
+      const organizationId = await organizacao();
+      const { data, error } = await supabase
+        .from("conversation_analyses")
+        .select(`${COLUNAS_DA_ANALISE},contact_id,connection_id,connection_name,connection_last4`)
+        .eq("organization_id", organizationId)
+        .eq("contact_id", contatoId)
+        .order("requested_at", { ascending: false })
+        .limit(10);
+      if (error) throw erroConversas("Não foi possível carregar as análises deste contato.", "analises-do-contato-falhou");
+      return data || [];
+    },
+
+    /**
+     * As análises da empresa, inclusive as que não têm contato (telefone que
+     * nunca virou contato, ou que bate com mais de um). A RLS decide salvas e
+     * rascunhos, como na conversa. O nome do contato vem numa segunda leitura.
+     */
+    "conversas.analisesDaEmpresa": async ({ limite = 50 } = {}) => {
+      const organizationId = await organizacao();
+      const { data, error } = await supabase
+        .from("conversation_analyses")
+        .select(`${COLUNAS_DA_ANALISE},contact_id,contact_phone,connection_id,connection_name,connection_last4`)
+        .eq("organization_id", organizationId)
+        .eq("status", "done")
+        .order("requested_at", { ascending: false })
+        .limit(Math.max(1, Math.min(200, Number(limite) || 50)));
+      if (error) throw erroConversas("Não foi possível carregar as análises.", "analises-da-empresa-falhou");
+      const linhas = data || [];
+      const ids = [...new Set(linhas.map((linha) => linha.contact_id).filter(Boolean))];
+      let nomes = new Map();
+      if (ids.length) {
+        const { data: contatos } = await supabase
+          .from("contacts")
+          .select("id,name")
+          .eq("organization_id", organizationId)
+          .in("id", ids);
+        nomes = new Map((contatos || []).map((c) => [c.id, c.name || ""]));
+      }
+      return linhas.map((linha) => ({ ...linha, contact_name: linha.contact_id ? nomes.get(linha.contact_id) || "" : "" }));
     },
   };
 }

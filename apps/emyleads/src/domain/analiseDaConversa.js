@@ -118,7 +118,20 @@ export function analiseDoBanco(dados) {
     // A linha do tempo (20261005100000): as mensagens que o analista leu, só
     // com o instante e o lado. Vem só pela consulta de andamento.
     linhaDoTempo: dados.timeline || null,
+    // De qual WhatsApp veio (20261013100000): nome e final do número gravados
+    // na análise, que ficam mesmo se a conexão sair. Sem conexão não quer
+    // dizer "WhatsApp removido": a tela só mostra a origem.
+    origem: origemDaAnalise(dados),
+    contatoId: dados.contactId || dados.contact_id || null,
+    nomeDoContato: dados.contact_name || "",
+    telefone: dados.contact_phone || "",
   };
+}
+
+function origemDaAnalise(dados) {
+  const nome = String(dados.connection_name || dados.connectionName || "").trim();
+  const final4 = String(dados.connection_last4 || dados.connectionLast4 || "").trim();
+  return nome || final4 ? { nome, final4 } : null;
 }
 
 /**
