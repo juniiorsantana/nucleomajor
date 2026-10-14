@@ -29,7 +29,10 @@ Claude / ChatGPT
     ferramentas, não do token.
   - **Como funciona:** a tela `/app/oauth/consent`, que é a única porta de
     aprovação, só aprova o que volta por https para `claude.ai`, `claude.com`
-    ou `chatgpt.com` (e subdomínios). Para qualquer outro destino, a tela diz
+    ou `chatgpt.com` (e subdomínios), e o retorno local de aplicativos de
+    linha de comando (Codex, Claude Code): `http://localhost`, `127.0.0.1` ou
+    `[::1]`, em qualquer porta (RFC 8252; o código volta ao computador de quem
+    aprovou). Para qualquer outro destino, a tela diz
     "Este aplicativo não é reconhecido" e só oferece Recusar, sem levar a
     pessoa ao site de quem pediu. O retorno automático de um pedido já
     aprovado passa pela mesma trava.

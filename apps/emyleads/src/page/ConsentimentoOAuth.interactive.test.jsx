@@ -102,9 +102,17 @@ describe("ConsentimentoOAuth", () => {
       "https://claude.com/api/mcp/auth_callback",
       "https://chatgpt.com/connector_platform_oauth_redirect",
       "https://www.claude.ai/cb",
+      "http://localhost:8765/callback",
+      "http://127.0.0.1:41234/callback",
+      "http://[::1]:8765/callback",
     ]) expect(destinoConfiavel(bom), bom).toBe(true);
     for (const ruim of [
       "http://claude.ai/api/mcp/auth_callback",
+      "http://localhost.golpe.com/callback",
+      "http://127.0.0.1.golpe.com/callback",
+      "http://localhost@golpe.com/callback",
+      "http://golpe.com/?volta=localhost",
+      "https://localhost:8765/callback",
       "https://claude.ai.golpe.com/cb",
       "https://golpeclaude.ai/cb",
       "https://golpe.com/?volta=claude.ai",
