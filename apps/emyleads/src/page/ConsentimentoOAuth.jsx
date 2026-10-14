@@ -46,11 +46,20 @@ function hostDe(endereco) {
 /** Para onde o código de acesso pode voltar: os donos do Claude e do ChatGPT. */
 const DESTINOS_CONFIAVEIS = ["claude.ai", "claude.com", "chatgpt.com"];
 
+/**
+ * Aplicativos de linha de comando (Codex, Claude Code) recebem o código num
+ * servidor local aberto por eles, em porta qualquer (RFC 8252). O código volta
+ * para o computador de quem aprovou, não para um terceiro; e o PKCE impede
+ * que outro programa o troque por token.
+ */
+const LOOPBACK = ["localhost", "127.0.0.1", "[::1]"];
+
 export function destinoConfiavel(endereco) {
   try {
     const url = new URL(endereco);
-    if (url.protocol !== "https:") return false;
     const host = url.hostname.toLowerCase();
+    if (url.protocol === "http:" && !url.username && !url.password) return LOOPBACK.includes(host);
+    if (url.protocol !== "https:") return false;
     return DESTINOS_CONFIAVEIS.some((dominio) => host === dominio || host.endsWith(`.${dominio}`));
   } catch {
     return false;
