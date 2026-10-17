@@ -95,6 +95,20 @@ test('só as páginas de /clinicas/ liberam o Pixel da Meta na CSP', async t => 
   const csp = async path => (await fetch(`http://127.0.0.1:${server.address().port}${path}`)).headers.get('content-security-policy');
   assert.match(await csp('/clinicas'), /script-src[^;]*https:\/\/connect\.facebook\.net/);
   assert.match(await csp('/clinicas/raio-x/pixel.js'), /connect\.facebook\.net/);
+  assert.match(await csp('/clinicas/atendimento'), /connect\.facebook\.net/);
   assert.doesNotMatch(await csp('/privacidade'), /facebook/);
   assert.doesNotMatch(await csp('/'), /facebook/);
+});
+
+test('/clinicas fica com o Raio-X e /clinicas/atendimento abre a landing de venda', async t => {
+  const { createServer } = await import('../src/server.mjs');
+  const server = createServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close());
+  const titulo = async path => {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`);
+    assert.equal(res.status, 200, path);
+    return (await res.text()).match(/<title>([^<]*)<\/title>/)?.[1] || '';
+  };
+  assert.match(await titulo('/clinicas'), /Encha sua agenda/);
+  assert.match(await titulo('/clinicas/atendimento'), /Do contato ao agendamento/);
+  assert.match(await titulo('/clinicas/atendimento/'), /Do contato ao agendamento/);
 });

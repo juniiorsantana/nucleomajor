@@ -1042,6 +1042,10 @@ async function staticFile(req, res, url) {
   else if (pathname === "/termos-de-uso" || pathname === "/termos-de-uso/") relative = "termos-de-uso/index.html";
   // A página dos anúncios para clínicas. `/clinicas` é o endereço curto.
   else if (["/clinicas", "/clinicas/", "/clinicas/raio-x", "/clinicas/raio-x/"].includes(pathname)) relative = "clinicas/raio-x/index.html";
+  // A landing de venda (vídeo e formulário que manda o lead por e-mail). Os
+  // caminhos dela são absolutos (/clinicas/styles.css), então a barra no fim
+  // não quebra nada.
+  else if (pathname === "/clinicas/atendimento" || pathname === "/clinicas/atendimento/") relative = "clinicas/index.html";
   else if (pathname === "/juniiorsantana7/") relative = "juniiorsantana7/index.html";
   else if (isAppRoute) relative = "app/index.html";
   else relative = pathname.replace(/^\//, "");
