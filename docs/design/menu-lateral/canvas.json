@@ -1,0 +1,46 @@
+{
+  "artboards": [
+    { "file": "Antes.dc.html", "x": 0, "y": 0, "w": 680, "h": 920, "title": "Como está hoje" },
+    { "file": "Main.dc.html", "x": 800, "y": 0, "w": 1440, "h": 900, "title": "Proposta — protótipo clicável", "is_interactive": true },
+    { "file": "Punho.dc.html", "x": 0, "y": 1060, "w": 1000, "h": 540, "title": "Onde mora o punho" },
+    { "file": "Escuro.dc.html", "x": 1120, "y": 1060, "w": 680, "h": 920, "title": "Tema escuro" }
+  ],
+  "annotations": [
+    {
+      "id": "problema",
+      "x": 0,
+      "y": -150,
+      "w": 300,
+      "text": "Hoje o menu recolhe indo a w-0: leva marca, navegação E o cartão da conta juntos. Sobra uma calha de 16px com um chevron duplo solto, sem fundo e sem âncora."
+    },
+    {
+      "id": "proposta",
+      "x": 800,
+      "y": -150,
+      "w": 440,
+      "text": "Recolher vira barra de ícones de 68px — você continua navegando e voltando.\n\nClique no punho (topo do menu) para alternar, e nos itens para trocar de tela. No modo ícone, passe o mouse para ver a dica."
+    },
+    {
+      "id": "grupos",
+      "x": 1900,
+      "y": 960,
+      "w": 320,
+      "text": "Os 11 itens ganham 4 grupos: Atendimento, Gestão, Automação, Ambiente. No modo ícone os rótulos viram linhas finas — mesmo ritmo, sem texto."
+    },
+    {
+      "id": "punho-nota",
+      "x": 0,
+      "y": 960,
+      "w": 360,
+      "text": "Três lugares possíveis para o punho. A é o recomendado: tem âncora, nunca colide com o cabeçalho da tela e sobrevive ao toque."
+    },
+    {
+      "id": "escuro-nota",
+      "x": 1120,
+      "y": 960,
+      "w": 340,
+      "text": "Nada de cor nova: o tema escuro sai inteiro dos tokens que já existem em ui/theme.css."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -1,0 +1,2351 @@
+diff --git a/docs/ATENDIMENTO-DE-LEADS.md b/docs/ATENDIMENTO-DE-LEADS.md
+index 58da6cf..975bdff 100644
+--- a/docs/ATENDIMENTO-DE-LEADS.md
++++ b/docs/ATENDIMENTO-DE-LEADS.md
+@@ -7,11 +7,33 @@ sequência. O diagnóstico que motivou cada item está
+ no portal, em `docs/intelligence/ATENDIMENTO-DE-LEADS.md` (achados C, D, I,
+ K, L, N); aqui fica o que o runtime passou a fazer e como implantar.
+ 
++## Fase 1 da correção de 13/09/2026 (branch `fix/fase1-atendimento`)
++
++O dono respondeu um amigo pelo celular e a IA continuou falando; o amigo leu
++"Um instante, estou vendo isso." e "Nosso atendimento está temporariamente
++indisponível". Diagnóstico e decisões no portal, em
++`docs/atendimento/PLANO-CORRECAO-ATENDIMENTO.md`. O que mudou:
++
++| Antes | Depois |
++|---|---|
++| Frase fixa "Um instante, estou vendo isso." aos 25 s (`ASSISTANT_CUSTOMER_WAIT_SECONDS`) | **Não existe mais.** Só "digitando" |
++| Falha de contexto ou de modelo mandava aviso técnico ao contato | Contato não recebe nada; a equipe recebe `TEAM_NO_REPLY_NOTICE` com motivo e últimas mensagens. Agente desligado no meio do turno = só silêncio, sem handoff |
++| Resposta barrada pelo filtro virava "Não consegui concluir a resposta agora…" | Não sai nada; a equipe é avisada |
++| Mensagem da conta a até 20 s de uma saída da IA era lida como da IA (hora OU texto) | Com texto, só é da IA se o **texto** bate (folga de 10 min); hora sozinha só para mídia sem texto, 5 s. O "Eaaae" do dono voltou a ser do dono |
++| Pausa de 30 min contados da última mensagem da equipe (`EMYLEADS_HUMAN_PAUSE_MINUTES`) | **Equipe escreveu (celular ou portal) = conversa da equipe até devolverem no portal** (`assumir_pela_equipe`, sem prazo). Busca até `EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS` atrás, a partir do marco da última devolução |
++| Nada conferido antes de enviar | O worker confere no começo do turno e **antes de enviar**: equipe escreveu depois da mensagem do contato, freio de mão, dono trocado, ou mensagem nova do mesmo contato na fila → `reply.discarded` e nada sai |
++| Lembrete de espera também para conversa que a equipe atende | Só para transferência que ninguém da equipe respondeu |
++
++Variáveis: sai `ASSISTANT_CUSTOMER_WAIT_SECONDS` e `EMYLEADS_HUMAN_PAUSE_MINUTES`
++(ignoradas se ficarem no env); entra
++`EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS=12` (0 desliga a regra; teto 24). O
++`arbitro.db` ganha a coluna `devolvida_em` por migração automática no start.
++
+ ## O que muda para o lead
+ 
+ | Antes | Depois |
+ |---|---|
+-| Triagem no modelo pequeno gerava 1–2 "aberturas" e as enviava antes da resposta (três mensagens por turno, emojis, promessas) | Nenhuma abertura. O lead vê **"digitando"** durante a execução e, se ela passar de 25 s, uma única frase fixa: "Um instante, estou vendo isso." |
++| Triagem no modelo pequeno gerava 1–2 "aberturas" e as enviava antes da resposta (três mensagens por turno, emojis, promessas) | Nenhuma abertura. O lead vê **"digitando"** durante a execução. (A frase fixa de espera que existia aqui saiu em 13/09/2026.) |
+ | "Pergunta simples" caía no modelo pequeno, sem persona aplicada | Lead sempre no modelo forte (`complex_model`) |
+ | Prompt reaproveitado do operador: mandava usar ferramentas que não existiam no turno, sem data/hora/fuso, sem histórico | Prompt próprio: data/hora em `America/Cuiaba`, nome de exibição do contato, **últimas 12 mensagens da conversa** (dos dois lados), só as ferramentas do turno, regra explícita de honestidade |
+ | System prompt padrão do CLI (assistente de programação) | `--system-prompt` próprio de atendimento; o hash dele entra no contrato da sessão, então mudar o texto descarta sessões antigas |
+@@ -29,7 +51,6 @@ suíte antiga passa inteira.
+ ## Variáveis de ambiente novas (env da unit `whatsapp-assistant@`)
+ 
+ ```
+-ASSISTANT_CUSTOMER_WAIT_SECONDS=25      # 0 desliga a frase de espera (fica só a presença)
+ ASSISTANT_CUSTOMER_HISTORY_LIMIT=12     # 0 desliga o histórico; teto 40
+ ASSISTANT_CUSTOMER_TIMEZONE=America/Cuiaba
+ ASSISTANT_CUSTOMER_SYSTEM_PROMPT=1      # 0 volta ao system prompt padrão do CLI
+diff --git a/whatsapp-assistant/arbitro.py b/whatsapp-assistant/arbitro.py
+index c338230..0da66a4 100644
+--- a/whatsapp-assistant/arbitro.py
++++ b/whatsapp-assistant/arbitro.py
+@@ -87,6 +87,19 @@ MOTIVOS_DE_HANDOFF_AUTOMATICO = (MOTIVO_FALHA_DO_MODELO, MOTIVO_FALHA_DO_CONTEXT
+ # voltou a ser atendida: o que houve ali já passou.
+ MOTIVO_ESPERA_VENCIDA = "espera do handoff automático venceu"
+ 
++# Alguém da equipe escreveu na conversa: a IA sai e só volta quando devolverem.
++#
++# Decisão do dono em 13/09/2026, no lugar da pausa de 30 minutos. Ele respondeu
++# um amigo pelo celular e a IA continuou falando; meia hora depois ela voltaria
++# de qualquer jeito. Conversa em que a equipe entrou é da equipe.
++#
++# Dois motivos para o painel distinguir por onde a pessoa escreveu. Os dois
++# querem dizer "gente atendendo", e é por isso que o lembrete de espera não
++# dispara para eles: seria avisar a equipe de uma conversa que ela mesma atende.
++MOTIVO_EQUIPE_RESPONDEU = "a equipe respondeu pelo WhatsApp"
++MOTIVO_RESPONDIDO_NO_PORTAL = "a equipe respondeu pelo portal"
++MOTIVOS_DA_EQUIPE = (MOTIVO_EQUIPE_RESPONDEU, MOTIVO_RESPONDIDO_NO_PORTAL)
++
+ # Motivos terminais. Slugs estáveis: o texto em português vive na interface, e
+ # melhorar uma frase nunca pode quebrar histórico já gravado.
+ PODE_RESPONDER = "pode-responder"
+@@ -161,7 +174,13 @@ CREATE TABLE IF NOT EXISTS conversa_sessao (
+     -- de verdade — atendente pelo portal, ou o assistente chamando a
+     -- transferência — não ganha prazo nenhum: devolver a conversa de quem
+     -- assumiu é decisão de gente, nunca de relógio.
+-    dono_ate       TEXT
++    dono_ate       TEXT,
++    -- Quando a conversa passou a ser da IA vinda de outro dono.
++    --
++    -- É o marco da detecção de gente: o que a equipe escreveu antes de devolver
++    -- a conversa já foi decidido, e contar de novo tiraria a IA da conversa no
++    -- mesmo segundo em que alguém a devolveu.
++    devolvida_em   TEXT
+ );
+ 
+ -- No máximo uma sessão aberta por conversa. Índice parcial, e não checagem em
+@@ -198,6 +217,7 @@ class Sessao:
+     agente_ate: Optional[str] = None
+     humano_ate: Optional[str] = None
+     dono_ate: Optional[str] = None
++    devolvida_em: Optional[str] = None
+ 
+     @property
+     def aberta(self) -> bool:
+@@ -223,6 +243,7 @@ class Sessao:
+             "agentWindowUntil": self.agente_ate,
+             "humanPauseUntil": self.humano_ate,
+             "handoffUntil": self.dono_ate,
++            "returnedToAiAt": self.devolvida_em,
+         }
+ 
+ 
+@@ -276,6 +297,8 @@ class Arbitro:
+             self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN agente_ate TEXT")
+         if "humano_ate" not in cols:
+             self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN humano_ate TEXT")
++        if "devolvida_em" not in cols:
++            self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN devolvida_em TEXT")
+         if "dono_ate" not in cols:
+             self._db.execute("ALTER TABLE conversa_sessao ADD COLUMN dono_ate TEXT")
+             # E cura as conversas que o defeito já deixou mudas.
+@@ -397,6 +420,7 @@ class Arbitro:
+             agente_ate=linha["agente_ate"],
+             humano_ate=linha["humano_ate"],
+             dono_ate=linha["dono_ate"],
++            devolvida_em=linha["devolvida_em"],
+         )
+ 
+     def sessao_aberta(self, connection_id: str, contato: str) -> Optional[Sessao]:
+@@ -479,10 +503,20 @@ class Arbitro:
+         ia = dono == DONO_IA
+         with self._lock, self._db as db:
+             linha = self._abrir_locked(db, connection_id, contato, dono)
++            # Voltar para a IA marca a hora.
++            #
++            # Só a TRANSIÇÃO marca: a porta de entrada reafirma `ia` a cada
++            # mensagem de cliente, e remarcar ali empurraria o marco para agora
++            # — a resposta que a equipe acabou de dar ficaria para trás dele e
++            # nunca seria vista.
++            devolvida_em = linha["devolvida_em"]
++            if ia and linha["dono"] != DONO_IA:
++                devolvida_em = _agora()
+             db.execute(
+                 "UPDATE conversa_sessao"
+                 " SET dono = ?, motivo = ?, atendente_id = ?, atendente_nome = ?,"
+-                " agente_id = ?, agente_nome = ?, routing_context = ?, dono_ate = ?"
++                " agente_id = ?, agente_nome = ?, routing_context = ?, dono_ate = ?,"
++                " devolvida_em = ?"
+                 " WHERE id = ?",
+                 (
+                     dono,
+@@ -493,6 +527,7 @@ class Arbitro:
+                     (str(agente_nome).strip() or None) if ia else None,
+                     (str(routing_context).strip() or None) if ia else None,
+                     (str(dono_ate).strip() or None) if humano else None,
++                    devolvida_em,
+                     linha["id"],
+                 ),
+             )
+@@ -554,6 +589,64 @@ class Arbitro:
+             dono_ate=limite.isoformat(timespec="milliseconds"),
+         )
+ 
++    def assumir_pela_equipe(
++        self,
++        connection_id: str,
++        contato: str,
++        motivo: str = MOTIVO_EQUIPE_RESPONDEU,
++    ) -> Sessao:
++        """Alguém da equipe escreveu nesta conversa. A IA sai até devolverem.
++
++        Sem prazo, ao contrário de `assumir_por_falha`: aqui existe uma pessoa
++        do outro lado, e decisão de gente não vence por relógio. Substitui a
++        pausa de 30 minutos (`pausar_por_humano`), que devolvia a conversa à IA
++        no meio de um atendimento.
++
++        Não pisa em quem já está registrado: uma conversa atribuída a alguém
++        pelo portal continua dela, e uma que a equipe já assumiu não é reescrita
++        a cada mensagem. O handoff automático (com prazo) e o pedido do cliente
++        viram atendimento da equipe — é exatamente o que aconteceu.
++        """
++        with self._lock:
++            atual = self._sessao(self._linha_aberta(self._db, connection_id, contato))
++        if (
++            atual is not None
++            and atual.dono == DONO_HUMANO
++            and not atual.dono_ate
++            and (str(atual.atendente_id or "").strip() or atual.motivo in MOTIVOS_DA_EQUIPE)
++        ):
++            return atual
++        return self.definir_dono(connection_id, contato, DONO_HUMANO, motivo)
++
++    def marco_da_ia(self, connection_id: str, contato: str) -> Optional[datetime]:
++        """Desde quando a IA responde esta conversa sem ninguém da equipe no meio.
++
++        O mais recente entre a devolução para a IA da sessão aberta e o
++        encerramento da sessão anterior. O que a equipe escreveu antes disso já
++        foi decidido: encerrar ou devolver é o gesto de quem terminou.
++        """
++        with self._lock:
++            aberta = self._linha_aberta(self._db, connection_id, contato)
++            fechada = self._db.execute(
++                "SELECT fechada_em FROM conversa_sessao"
++                " WHERE connection_id = ? AND contato = ? AND fechada_em IS NOT NULL"
++                " ORDER BY fechada_em DESC LIMIT 1",
++                (str(connection_id), str(contato)),
++            ).fetchone()
++        marcos = []
++        for bruto in (
++            aberta["devolvida_em"] if aberta is not None else None,
++            fechada["fechada_em"] if fechada is not None else None,
++        ):
++            if not bruto:
++                continue
++            try:
++                quando = datetime.fromisoformat(str(bruto))
++            except ValueError:
++                continue
++            marcos.append(quando if quando.tzinfo else quando.replace(tzinfo=timezone.utc))
++        return max(marcos) if marcos else None
++
+     def listar(self, connection_id: str, abertas: bool = True, limite: int = 100) -> List[Sessao]:
+         condicao = "fechada_em IS NULL" if abertas else "fechada_em IS NOT NULL"
+         with self._lock:
+diff --git a/whatsapp-assistant/config.py b/whatsapp-assistant/config.py
+index 248afea..542ecbe 100644
+--- a/whatsapp-assistant/config.py
++++ b/whatsapp-assistant/config.py
+@@ -116,21 +116,23 @@ class Config:
+     # da unit e um restart.
+     operator_trigger: str = "/major"
+     operator_window_minutes: float = 10.0
+-    # Quando uma pessoa responde a conversa, o agente cala por este tempo.
++    # Quando alguém da equipe escreve numa conversa de cliente, a IA sai dela até
++    # devolverem pelo portal (decisão de 13/09/2026). Este é até onde, para trás,
++    # o runtime procura uma resposta de gente que ainda não viu.
+     #
+     # Zero desliga a regra inteira — a mesma saída de emergência do gatilho, e
+     # pela mesma razão: uma regra que só se desfaz com deploy é uma regra que
+-    # ninguém desfaz às onze da noite.
+-    human_pause_minutes: float = 30.0
++    # ninguém desfaz às onze da noite. Teto de 24 h, abaixo da retenção das
++    # saídas do agente (`presenca_humana.RETENCAO_HORAS`).
++    human_takeover_lookback_hours: float = 12.0
+     # O turno de cliente (lead) tem caminho próprio.
+     #
+     # Ele não recebe as "aberturas" da triagem nem cai no modelo pequeno: o
+-    # lead vê o indicador "digitando" e, se a execução demorar mais que
+-    # `customer_wait_seconds`, uma única frase fixa de espera. Zero desliga a
+-    # frase (fica só a presença). O prompt de cliente é montado em
+-    # `America/Cuiaba` por padrão — a VPS marca UTC, e "boa noite" às duas da
+-    # manhã de Cuiabá chegava ao modelo como cinco da manhã.
+-    customer_wait_seconds: float = 25.0
++    # lead vê o indicador "digitando" enquanto a IA pensa, e nada mais — a frase
++    # fixa de espera ("Um instante, estou vendo isso.") saiu em 13/09/2026. O
++    # prompt de cliente é montado em `America/Cuiaba` por padrão — a VPS marca
++    # UTC, e "boa noite" às duas da manhã de Cuiabá chegava ao modelo como cinco
++    # da manhã.
+     customer_history_limit: int = 12
+     customer_timezone: str = "America/Cuiaba"
+     # `--system-prompt` próprio no turno de cliente, no lugar do system prompt
+@@ -256,11 +258,8 @@ class Config:
+             operator_window_minutes=max(
+                 1.0, _env_float("EMYLEADS_OPERATOR_WINDOW_MINUTES", 10.0)
+             ),
+-            human_pause_minutes=max(
+-                0.0, _env_float("EMYLEADS_HUMAN_PAUSE_MINUTES", 30.0)
+-            ),
+-            customer_wait_seconds=max(
+-                0.0, _env_float("ASSISTANT_CUSTOMER_WAIT_SECONDS", 25.0)
++            human_takeover_lookback_hours=max(
++                0.0, min(24.0, _env_float("EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS", 12.0))
+             ),
+             customer_history_limit=max(
+                 0, min(40, _env_int("ASSISTANT_CUSTOMER_HISTORY_LIMIT", 12))
+diff --git a/whatsapp-assistant/main.py b/whatsapp-assistant/main.py
+index 834055a..edae9da 100644
+--- a/whatsapp-assistant/main.py
++++ b/whatsapp-assistant/main.py
+@@ -63,11 +63,11 @@ def main() -> int:
+     # ferramenta de transferência é confirmada no Supabase, a conversa entra
+     # imediatamente em modo humano antes de a resposta final ser enviada.
+     arbitro = Arbitro(cfg.state_db.parent / "arbitro.db")
+-    # Quem responde primeiro cala o outro: se uma pessoa está atendendo, o
+-    # agente espera. Só existe quando a pausa está ligada — zero minutos
++    # Quem responde primeiro cala o outro: se uma pessoa da equipe escreveu, a
++    # IA sai da conversa. Só existe quando a regra está ligada — zero horas
+     # devolve o comportamento anterior sem tirar código do ar.
+     presenca = None
+-    if cfg.human_pause_minutes > 0:
++    if cfg.human_takeover_lookback_hours > 0:
+         presenca = presenca_humana.PresencaHumana(
+             messages_db=messages.configured_messages_db(),
+             registro=cfg.state_db.parent / "saidas.db",
+@@ -76,7 +76,9 @@ def main() -> int:
+         # gente. Instalado aqui, uma vez, porque instalar em cada envio seria
+         # esquecer num deles.
+         send.registrar_saidas(presenca.anotar_saida_do_agente)
+-    worker = Worker(cfg, store, arbitro=arbitro)
++    # O worker confere de novo antes de enviar: a pessoa pode ter respondido
++    # enquanto o modelo pensava, e a porta de entrada já tinha decidido.
++    worker = Worker(cfg, store, arbitro=arbitro, presenca=presenca)
+     worker.start()
+ 
+     notification_worker = None
+@@ -147,7 +149,7 @@ def main() -> int:
+             human_send_token=cfg.human_send_token or "",
+             interval=cfg.runtime_commands_poll_seconds,
+             instance_id=heartbeat.instance_id if heartbeat is not None else "",
+-            pausa_humana_minutos=cfg.human_pause_minutes,
++            equipe_assume=cfg.human_takeover_lookback_hours > 0,
+         )
+         command_poller.start()
+     conversation_syncer = None
+@@ -194,7 +196,7 @@ def main() -> int:
+         operator_trigger=cfg.operator_trigger,
+         operator_window_minutes=cfg.operator_window_minutes,
+         presenca_humana=presenca,
+-        human_pause_minutes=cfg.human_pause_minutes,
++        human_takeover_hours=cfg.human_takeover_lookback_hours,
+         waiting_reminder=worker.remind_team_of_waiting_contact,
+     )
+     server.serve_in_thread(httpd)
+@@ -226,7 +228,7 @@ def main() -> int:
+         ),
+         # E qual regra está no ar para o cliente. Mesma razão: "a IA respondeu
+         # por cima de mim" precisa poder ser conferido sem adivinhação.
+-        human_pause_minutes=cfg.human_pause_minutes or None,
++        human_takeover_lookback_hours=cfg.human_takeover_lookback_hours or None,
+     )
+ 
+     return _wait_forever(
+diff --git a/whatsapp-assistant/presenca_humana.py b/whatsapp-assistant/presenca_humana.py
+index 642d317..dcb11b3 100644
+--- a/whatsapp-assistant/presenca_humana.py
++++ b/whatsapp-assistant/presenca_humana.py
+@@ -52,17 +52,32 @@ from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+ from typing import Optional, Sequence
+ 
+-# Quanto o relógio do WhatsApp pode discordar do nosso.
++# Quanto o relógio do WhatsApp pode discordar do nosso, para mensagem SEM texto.
+ #
+ # O `timestamp` do `messages.db` é a hora que o servidor do WhatsApp carimbou;
+-# a nossa é a hora em que o envio retornou. Segundos de diferença são normais.
+-# A tolerância existe para reconhecer o próprio envio quando o texto não bate —
+-# mídia sem legenda, por exemplo, chega com conteúdo vazio.
+-TOLERANCIA_SEGUNDOS = 20.0
++# a nossa é a hora em que o envio retornou. Hora sozinha só decide quando não há
++# texto a comparar — mídia sem legenda. Curta de propósito: em 13/09/2026 a
++# folga de 20 s valia também para mensagem com texto, e o "Eaaae" que o dono
++# mandou um segundo antes da resposta da IA foi lido como da IA.
++TOLERANCIA_SEGUNDOS = 5.0
++
++# Até onde o mesmo texto ainda é o nosso envio.
++#
++# O texto é a prova forte: o Bridge grava exatamente o que o runtime mandou. A
++# janela existe só para um "ok" digitado por gente agora não ser confundido com
++# o "ok" que a IA mandou de manhã.
++TOLERANCIA_TEXTO_MINUTOS = 10.0
+ 
+ # Por quanto tempo guardamos o que o agente mandou. Precisa cobrir com folga a
+-# janela da pausa; além disso é lixo.
+-RETENCAO_HORAS = 6
++# maior janela de busca (`EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS`, teto 24 h):
++# uma resposta da IA esquecida aqui dentro da janela seria lida como gente, e a
++# IA sairia sozinha da conversa.
++RETENCAO_HORAS = 48
++
++# Quantas saídas da conta, das mais novas para as mais velhas, olhamos por
++# conversa. Com janela de horas, 40 não bastava: uma conversa animada com a IA
++# empurraria a resposta de gente para fora da lista.
++LIMITE_DE_SAIDAS = 200
+ 
+ SCHEMA = """
+ CREATE TABLE IF NOT EXISTS saida_do_agente (
+@@ -161,46 +176,57 @@ class PresencaHumana:
+             )
+             db.execute("DELETE FROM saida_do_agente WHERE quando < ?", (corte,))
+ 
+-    def _nossa(self, chaves: Sequence[str], quando: datetime, conteudo: str) -> bool:
+-        """Reconhece o próprio envio por hora OU por texto.
+-
+-        Dois critérios porque cada um falha sozinho num caso real: o texto não
+-        serve para mídia (chega com conteúdo vazio), e a hora não serve quando o
+-        envio demora a ser carimbado. Reconhecer demais aqui custa uma pausa que
+-        não aconteceu; reconhecer de menos custa um agente mudo.
++    def _anotacoes(self, chaves: Sequence[str], desde: datetime) -> list:
++        """O que o agente mandou nesta conversa a partir de `desde`, já com hora.
+ 
+-        `chaves` é um conjunto, e não uma chave, porque a mesma conversa tem
+-        mais de um nome: procurar por um só era o bug que fazia o agente se
+-        calar depois da primeira resposta.
++        Uma leitura só por pergunta, e a comparação fica em Python: o carimbo do
++        bridge vem no fuso local (`-03:00`) e a anotação é gravada em UTC.
++        Comparadas como string, "11:54-03:00" e "14:54+00:00" são o mesmo
++        instante e ordenam-se ao contrário.
+         """
+         if not chaves:
+-            return False
+-        # Para UTC antes de virar texto, sempre.
+-        #
+-        # O carimbo do bridge vem no fuso local (`-03:00`) e a anotação é
+-        # gravada em UTC. Comparadas como string, "11:54-03:00" e "14:54+00:00"
+-        # são o mesmo instante e ordenam-se ao contrário — o que faria o agente
+-        # não reconhecer o próprio envio e se calar sozinho.
+-        referencia = quando.astimezone(timezone.utc)
+-        inicio = (referencia - self.tolerancia).isoformat(timespec="milliseconds")
+-        fim = (referencia + self.tolerancia).isoformat(timespec="milliseconds")
++            return []
++        inicio = desde.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+         vagas = ",".join("?" for _ in chaves)
+         with self._lock:
+-            por_hora = self._db.execute(
+-                f"SELECT 1 FROM saida_do_agente WHERE chat IN ({vagas})"
+-                " AND quando BETWEEN ? AND ? LIMIT 1",
+-                (*chaves, inicio, fim),
+-            ).fetchone()
+-            if por_hora is not None:
+-                return True
+-            texto = str(conteudo or "").strip()
+-            if not texto:
+-                return False
+-            igual = self._db.execute(
+-                f"SELECT 1 FROM saida_do_agente WHERE chat IN ({vagas}) AND texto = ? LIMIT 1",
+-                (*chaves, texto[:400]),
+-            ).fetchone()
+-        return igual is not None
++            linhas = self._db.execute(
++                f"SELECT quando, texto FROM saida_do_agente WHERE chat IN ({vagas})"
++                " AND quando >= ?",
++                (*chaves, inicio),
++            ).fetchall()
++        saida = []
++        for linha in linhas:
++            quando = _instante(linha["quando"])
++            if quando is not None:
++                saida.append((quando, str(linha["texto"] or "").strip()[:400]))
++        return saida
++
++    def _nossa(self, anotacoes: Sequence, quando: datetime, conteudo: str) -> bool:
++        """Reconhece o próprio envio pelo TEXTO; pela hora, só quando não há texto.
++
++        A primeira versão aceitava hora OU texto, com 20 s de folga, e errou no
++        único momento que importa. Em 13/09/2026 o dono respondeu "Eaaae" um
++        segundo antes de a IA enviar e "Simmm" um segundo depois; as duas caíram
++        na folga de hora de um envio da IA e viraram "nossas". A IA continuou
++        falando por cima dele.
++
++        Texto não mente: o Bridge grava exatamente o que o runtime mandou. Então
++        mensagem com texto só é nossa se o texto bate com uma anotação próxima.
++        Sem texto (mídia sem legenda) sobra a hora, com folga curta.
++
++        `anotacoes` já vem de todas as chaves da conversa: a mesma conversa tem
++        mais de um nome, e procurar por um só era o bug que fazia o agente se
++        calar depois da primeira resposta.
++        """
++        referencia = quando.astimezone(timezone.utc)
++        texto = str(conteudo or "").strip()[:400]
++        if texto:
++            folga = timedelta(minutes=TOLERANCIA_TEXTO_MINUTOS)
++            return any(
++                anotado == texto and abs(hora - referencia) <= folga
++                for hora, anotado in anotacoes
++            )
++        return any(abs(hora - referencia) <= self.tolerancia for hora, _ in anotacoes)
+ 
+     # --------------------------------------------------- o que é de gente
+ 
+@@ -209,12 +235,17 @@ class PresencaHumana:
+         chat_jid: str,
+         janela_minutos: float,
+         tambem: Sequence[str] = (),
++        desde: Optional[datetime] = None,
+     ) -> Optional[datetime]:
+         """A hora da última mensagem que uma PESSOA mandou nesta conversa.
+ 
+-        Só olha para dentro da janela: uma resposta humana de ontem não pausa
+-        nada hoje, e limitar o intervalo é também o que mantém a consulta barata
+-        num banco sem índice por conversa.
++        Só olha para dentro da janela: uma resposta humana de ontem não tira a
++        IA de nada hoje, e limitar o intervalo é também o que mantém a consulta
++        barata num banco sem índice por conversa.
++
++        `desde` estreita a janela por baixo. É o marco de quando a conversa
++        voltou para a IA, ou a hora da mensagem do contato que o turno está
++        respondendo: o que a equipe escreveu antes disso já foi considerado.
+ 
+         `tambem` são os outros nomes que ESTA conversa tem para quem chama.
+         Existe por causa do LID: quando o WhatsApp endereça a conversa por
+@@ -237,7 +268,11 @@ class PresencaHumana:
+                 if chave
+             )
+         )
+-        desde = datetime.now(timezone.utc) - timedelta(minutes=float(janela_minutos))
++        limite = datetime.now(timezone.utc) - timedelta(minutes=float(janela_minutos))
++        if desde is not None:
++            if desde.tzinfo is None:
++                desde = desde.replace(tzinfo=timezone.utc)
++            limite = max(limite, desde)
+         try:
+             banco = sqlite3.connect(f"file:{self.messages_db}?mode=ro", uri=True)
+         except sqlite3.Error:
+@@ -247,20 +282,49 @@ class PresencaHumana:
+             linhas = banco.execute(
+                 "SELECT timestamp, content FROM messages"
+                 " WHERE chat_jid = ? AND is_from_me = 1"
+-                " ORDER BY timestamp DESC LIMIT 40",
+-                (chat,),
++                " ORDER BY timestamp DESC LIMIT ?",
++                (chat, LIMITE_DE_SAIDAS),
+             ).fetchall()
+         except sqlite3.Error:
+             return None
+         finally:
+             banco.close()
+ 
++        # A folga do texto vai por baixo do limite: uma saída da IA carimbada
++        # logo depois do marco pode ter sido anotada um pouco antes dele.
++        anotacoes = self._anotacoes(
++            chaves, limite - timedelta(minutes=TOLERANCIA_TEXTO_MINUTOS)
++        )
+         for linha in linhas:
+             quando = _instante(linha["timestamp"])
+-            if quando is None or quando < desde:
++            if quando is None or quando < limite:
+                 # A lista vem da mais nova para a mais velha: a primeira que cai
+                 # fora da janela encerra a busca.
+                 break
+-            if not self._nossa(chaves, quando, linha["content"]):
++            if not self._nossa(anotacoes, quando, linha["content"]):
+                 return quando
+         return None
++
++    def instante_da_mensagem(self, message_id: str, chat_jid: str) -> Optional[datetime]:
++        """Quando o WhatsApp carimbou esta mensagem — a do contato que o turno responde.
++
++        É o marco da pergunta "alguém da equipe falou DEPOIS que o contato
++        escreveu?". Ausente ou ilegível devolve None, e quem chama escolhe o
++        próprio marco.
++        """
++        if not message_id or not chat_jid or not self.messages_db.exists():
++            return None
++        try:
++            banco = sqlite3.connect(f"file:{self.messages_db}?mode=ro", uri=True)
++        except sqlite3.Error:
++            return None
++        try:
++            linha = banco.execute(
++                "SELECT timestamp FROM messages WHERE id = ? AND chat_jid = ?",
++                (str(message_id), str(chat_jid)),
++            ).fetchone()
++        except sqlite3.Error:
++            return None
++        finally:
++            banco.close()
++        return _instante(linha[0]) if linha else None
+diff --git a/whatsapp-assistant/runtime_commands.py b/whatsapp-assistant/runtime_commands.py
+index c05aa31..7fada39 100644
+--- a/whatsapp-assistant/runtime_commands.py
++++ b/whatsapp-assistant/runtime_commands.py
+@@ -15,7 +15,7 @@ from typing import Optional
+ 
+ import audit
+ import send
+-from arbitro import DONOS, DONO_HUMANO, DONO_IA, Arbitro
++from arbitro import DONOS, DONO_HUMANO, DONO_IA, MOTIVO_RESPONDIDO_NO_PORTAL, Arbitro
+ from bridge_control import BridgeUnavailable
+ from connection_manager import ConnectionManager
+ from connections import ConnectionRegistry
+@@ -136,7 +136,7 @@ class RuntimeCommandPoller:
+         human_send_token: str = "",
+         interval: float = 2.0,
+         instance_id: str = "",
+-        pausa_humana_minutos: float = 0.0,
++        equipe_assume: bool = False,
+     ) -> None:
+         self.verifier = verifier
+         self.registry = registry
+@@ -155,10 +155,10 @@ class RuntimeCommandPoller:
+         # recusaria a maior parte da caixa de entrada.
+         self.human_send_token = str(human_send_token or "").strip()
+         self.interval = max(1.0, float(interval))
+-        # Quanto tempo a IA fica calada depois de alguém escrever pelo portal.
+-        # Zero desliga — mesmo interruptor da regra do celular, para as duas
+-        # não poderem discordar.
+-        self.pausa_humana_minutos = max(0.0, float(pausa_humana_minutos or 0.0))
++        # Alguém escreveu pelo portal: a conversa passa para a equipe até ser
++        # devolvida. Desligado junto com a regra do celular, para as duas não
++        # poderem discordar.
++        self.equipe_assume = bool(equipe_assume)
+         self.instance_id = instance_id or str(uuid.uuid4())
+         self._stop = threading.Event()
+         self._thread: Optional[threading.Thread] = None
+@@ -349,11 +349,15 @@ class RuntimeCommandPoller:
+         #
+         # Só conversa direta: grupo não tem sessão de atendimento, e o próprio
+         # porteiro já recusa turno de operador em grupo.
+-        if tipo == "direto" and self.arbitro is not None and self.pausa_humana_minutos > 0:
+-            self.arbitro.pausar_por_humano(
++        #
++        # Desde 13/09/2026 isto não é mais uma pausa de 30 minutos: quem
++        # escreveu pelo portal está atendendo, e a IA só volta quando alguém
++        # devolver a conversa.
++        if tipo == "direto" and self.arbitro is not None and self.equipe_assume:
++            self.arbitro.assumir_pela_equipe(
+                 str(getattr(connection, "connection_id", "") or ""),
+                 chat,
+-                self.pausa_humana_minutos,
++                MOTIVO_RESPONDIDO_NO_PORTAL,
+             )
+ 
+         self._complete(command_id, "completed", "", {"sent": True})
+diff --git a/whatsapp-assistant/server.py b/whatsapp-assistant/server.py
+index 8d99ad8..9cb63a3 100644
+--- a/whatsapp-assistant/server.py
++++ b/whatsapp-assistant/server.py
+@@ -23,6 +23,8 @@ from arbitro import (
+     IGNORADO_HANDOFF,
+     IGNORADO_SEM_GATILHO,
+     JANELA_PADRAO_MINUTOS,
++    MOTIVO_EQUIPE_RESPONDEU,
++    MOTIVOS_DA_EQUIPE,
+     Arbitro,
+ )
+ from bridge_control import BridgeUnavailable
+@@ -58,7 +60,8 @@ class InboundHandler(BaseHTTPRequestHandler):
+     # Quem sabe dizer se uma pessoa respondeu esta conversa pelo celular.
+     # Ausente = a regra não existe, e o agente responde como antes.
+     presenca_humana: Optional[object] = None
+-    human_pause_minutes: float = 0.0
++    # Até onde, para trás, procurar uma resposta da equipe. Zero desliga.
++    human_takeover_hours: float = 0.0
+     # Quem avisa a equipe que um contato transferido e sem atendente escreveu
+     # de novo. Ausente = ninguem e lembrado, como antes.
+     waiting_reminder: Optional[Callable[[str, str, str], None]] = None
+@@ -771,38 +774,49 @@ class InboundHandler(BaseHTTPRequestHandler):
+                         "customer_rollout",
+                         routing_context=customer_routing_context,
+                     )
+-            # Tem gente atendendo esta conversa?
++            # Alguém da equipe já escreveu nesta conversa?
+             #
+             # Só para cliente. Na conversa da equipe o agente já entra calado —
+-            # ele responde por convite (`/major`), e pausar o que já está
+-            # pausado só teria o efeito de calar o agente logo depois de ele
+-            # ter sido chamado.
++            # ele responde por convite (`/major`), e tirá-lo dali só teria o
++            # efeito de calar o agente logo depois de ele ter sido chamado.
+             #
+-            # A pausa é escrita ANTES de decidir, e não depois, porque quem
+-            # decide lê a sessão: gravar depois faria a regra valer só a partir
+-            # da mensagem seguinte — e a mensagem seguinte pode não vir.
++            # Se escreveu, a conversa é da equipe até alguém devolvê-la no
++            # portal (13/09/2026) — não mais uma pausa de 30 minutos. A escrita
++            # vem ANTES de decidir, porque quem decide lê a sessão: gravar
++            # depois faria a regra valer só a partir da mensagem seguinte — e a
++            # mensagem seguinte pode não vir.
+             if (
+                 not operator_turn
+                 and self.presenca_humana is not None
+-                and self.human_pause_minutes > 0
++                and self.human_takeover_hours > 0
+             ):
++                contato_da_sessao = sender or chat_jid
+                 # `sender` vai junto porque é ele que o envio anotou.
+                 #
+                 # O bridge arquiva a mensagem sob `chat_jid` e entrega o
+                 # telefone canônico em `sender_phone`; numa conversa endereçada
+                 # por LID os dois são números diferentes, e a resposta do
+                 # próprio agente — anotada pelo telefone — não era reconhecida
+-                # ao procurar só pelo `chat_jid`. O turno inteiro virava "tem
+-                # gente atendendo" e o agente se calava por 30 minutos.
++                # ao procurar só pelo `chat_jid`.
++                #
++                # O marco é o da devolução: o que a equipe escreveu antes de
++                # devolver a conversa não a tira da IA de novo.
+                 humano_em = self.presenca_humana.ultima_resposta_humana(
+-                    chat_jid, self.human_pause_minutes, tambem=(sender,)
++                    chat_jid,
++                    self.human_takeover_hours * 60,
++                    tambem=(sender,),
++                    desde=self.arbitro.marco_da_ia(connection_id, contato_da_sessao),
+                 )
+                 if humano_em is not None:
+-                    self.arbitro.pausar_por_humano(
+-                        connection_id,
+-                        sender or chat_jid,
+-                        self.human_pause_minutes,
+-                        desde=humano_em,
++                    sessao_da_equipe = self.arbitro.assumir_pela_equipe(
++                        connection_id, contato_da_sessao, MOTIVO_EQUIPE_RESPONDEU
++                    )
++                    audit.log(
++                        "conversation.team_took_over",
++                        message_id=message_id,
++                        connection_id=connection_id,
++                        session_id=sessao_da_equipe.id,
++                        via="whatsapp",
+                     )
+ 
+             decisao = self.arbitro.decidir(
+@@ -899,6 +913,10 @@ class InboundHandler(BaseHTTPRequestHandler):
+                 # insistiu: ignorar a mensagem continua certo; ignorar a
+                 # equipe, nao. Em 11/09/2026 foi "e urgente amigo" para uma
+                 # transferencia que so existia no painel.
++                #
++                # Conversa que a propria equipe esta atendendo nao tem ninguem
++                # esperando: lembrar ali seria avisar o dono de cada mensagem
++                # do amigo com quem ele conversa pelo celular.
+                 sessao_ignorada = getattr(decisao, "sessao", None)
+                 if (
+                     decisao.motivo == IGNORADO_HANDOFF
+@@ -906,6 +924,7 @@ class InboundHandler(BaseHTTPRequestHandler):
+                     and self.waiting_reminder is not None
+                     and sessao_ignorada is not None
+                     and not str(getattr(sessao_ignorada, "atendente_id", "") or "").strip()
++                    and getattr(sessao_ignorada, "motivo", None) not in MOTIVOS_DA_EQUIPE
+                 ):
+                     try:
+                         self.waiting_reminder(
+@@ -1103,7 +1122,7 @@ def build_server(
+     operator_trigger: str = "",
+     operator_window_minutes: float = JANELA_PADRAO_MINUTOS,
+     presenca_humana: Optional[object] = None,
+-    human_pause_minutes: float = 0.0,
++    human_takeover_hours: float = 0.0,
+     waiting_reminder: Optional[Callable[[str, str, str], None]] = None,
+ ) -> ThreadingHTTPServer:
+     handler = type(
+@@ -1124,7 +1143,7 @@ def build_server(
+             "operator_trigger": str(operator_trigger or "").strip(),
+             "operator_window_minutes": float(operator_window_minutes or JANELA_PADRAO_MINUTOS),
+             "presenca_humana": presenca_humana,
+-            "human_pause_minutes": max(0.0, float(human_pause_minutes or 0.0)),
++            "human_takeover_hours": max(0.0, float(human_takeover_hours or 0.0)),
+             "waiting_reminder": staticmethod(waiting_reminder) if waiting_reminder else None,
+         },
+     )
+diff --git a/whatsapp-assistant/test_arbitro.py b/whatsapp-assistant/test_arbitro.py
+index 2cd1926..779b0fe 100644
+--- a/whatsapp-assistant/test_arbitro.py
++++ b/whatsapp-assistant/test_arbitro.py
+@@ -13,6 +13,7 @@ from arbitro import (
+     IGNORADO_HUMANO_ATENDENDO,
+     IGNORADO_PAUSADO,
+     IGNORADO_SEM_CONEXAO,
++    MOTIVO_EQUIPE_RESPONDEU,
+     MOTIVO_FALHA_DO_CONTEXTO,
+     MOTIVO_FALHA_DO_MODELO,
+     PODE_RESPONDER,
+@@ -737,6 +738,91 @@ class HandoffAutomaticoTest(unittest.TestCase):
+             segundo.close()
+ 
+ 
++class EquipeAssumeTest(unittest.TestCase):
++    """A equipe escreveu: a conversa é dela até alguém devolver (13/09/2026).
++
++    Substitui a pausa de 30 minutos. O dono respondeu um amigo pelo celular, a
++    IA continuou falando, e meia hora depois voltaria de qualquer jeito.
++    """
++
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.arbitro = Arbitro(Path(self.tmp.name) / "arbitro.db")
++        self.arbitro.definir_ia(CONN_A, True)
++        self.arbitro.definir_dono(CONN_A, CONTATO, DONO_IA)
++
++    def tearDown(self):
++        self.arbitro.close()
++        self.tmp.cleanup()
++
++    def test_a_equipe_assume_sem_prazo(self):
++        sessao = self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.assertEqual(sessao.dono, DONO_HUMANO)
++        self.assertEqual(sessao.motivo, MOTIVO_EQUIPE_RESPONDEU)
++        self.assertIsNone(sessao.dono_ate)
++        d = self.arbitro.decidir(CONN_A, CONTATO)
++        self.assertFalse(d.responder)
++        self.assertEqual(d.motivo, IGNORADO_HANDOFF)
++
++    def test_conversa_atribuida_a_alguem_nao_e_reescrita(self):
++        self.arbitro.assumir(CONN_A, CONTATO, "atribuído pelo portal", "a-1", "Aline")
++        sessao = self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.assertEqual(sessao.atendente_nome, "Aline")
++        self.assertEqual(sessao.motivo, "atribuído pelo portal")
++
++    def test_handoff_por_falha_vira_da_equipe_e_perde_o_prazo(self):
++        """Com prazo, a conversa voltaria à IA no meio do atendimento de gente."""
++        self.arbitro.assumir_por_falha(CONN_A, CONTATO)
++        sessao = self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.assertIsNone(sessao.dono_ate)
++        self.assertEqual(sessao.motivo, MOTIVO_EQUIPE_RESPONDEU)
++
++    def test_pedido_de_transferencia_vira_da_equipe(self):
++        self.arbitro.assumir(CONN_A, CONTATO, "assistente solicitou transferência humana")
++        sessao = self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.assertEqual(sessao.motivo, MOTIVO_EQUIPE_RESPONDEU)
++
++    def test_devolver_marca_o_marco_e_religa(self):
++        self.assertIsNone(self.arbitro.marco_da_ia(CONN_A, CONTATO))
++        self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.arbitro.definir_dono(CONN_A, CONTATO, DONO_IA, "definido pelo portal")
++        marco = self.arbitro.marco_da_ia(CONN_A, CONTATO)
++        self.assertIsNotNone(marco)
++        self.assertLess(abs((datetime.now(timezone.utc) - marco).total_seconds()), 5)
++        self.assertTrue(self.arbitro.decidir(CONN_A, CONTATO).responder)
++
++    def test_reafirmar_ia_nao_empurra_o_marco(self):
++        """A porta de entrada reafirma `ia` a cada mensagem; o marco não pode andar junto."""
++        self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.arbitro.definir_dono(CONN_A, CONTATO, DONO_IA)
++        primeiro = self.arbitro.marco_da_ia(CONN_A, CONTATO)
++        self.arbitro.definir_dono(CONN_A, CONTATO, DONO_IA, "customer_rollout")
++        self.assertEqual(self.arbitro.marco_da_ia(CONN_A, CONTATO), primeiro)
++
++    def test_sessao_encerrada_tambem_e_marco(self):
++        self.arbitro.assumir_pela_equipe(CONN_A, CONTATO)
++        self.arbitro.fechar(CONN_A, CONTATO, "concluído pela fila da organização")
++        self.assertIsNotNone(self.arbitro.marco_da_ia(CONN_A, CONTATO))
++
++    def test_banco_antigo_ganha_a_coluna_do_marco(self):
++        caminho = Path(self.tmp.name) / "antigo.db"
++        banco = sqlite3.connect(caminho)
++        banco.execute(
++            "CREATE TABLE conversa_sessao (id TEXT PRIMARY KEY, connection_id TEXT NOT NULL,"
++            " contato TEXT NOT NULL, dono TEXT NOT NULL, aberta_em TEXT NOT NULL,"
++            " ultima_em TEXT NOT NULL, mensagens INTEGER NOT NULL DEFAULT 0,"
++            " fechada_em TEXT, motivo TEXT)"
++        )
++        banco.commit()
++        banco.close()
++        antigo = Arbitro(caminho)
++        try:
++            antigo.definir_dono(CONN_A, CONTATO, DONO_HUMANO)
++            self.assertIsNone(antigo.sessao_aberta(CONN_A, CONTATO).devolvida_em)
++        finally:
++            antigo.close()
++
++
+ class CuraDasConversasMudasTest(unittest.TestCase):
+     """A migração não só abre o banco antigo: ela cura o que o defeito deixou.
+ 
+diff --git a/whatsapp-assistant/test_config.py b/whatsapp-assistant/test_config.py
+index 52a9b9d..6972bbf 100644
+--- a/whatsapp-assistant/test_config.py
++++ b/whatsapp-assistant/test_config.py
+@@ -63,27 +63,32 @@ class TurnoDeClienteConfigTest(unittest.TestCase):
+     def test_padroes_do_turno_de_cliente(self):
+         with self._env():
+             for name in (
+-                "ASSISTANT_CUSTOMER_WAIT_SECONDS", "ASSISTANT_CUSTOMER_HISTORY_LIMIT",
+-                "ASSISTANT_CUSTOMER_TIMEZONE", "ASSISTANT_CUSTOMER_SYSTEM_PROMPT",
++                "ASSISTANT_CUSTOMER_HISTORY_LIMIT", "ASSISTANT_CUSTOMER_TIMEZONE",
++                "ASSISTANT_CUSTOMER_SYSTEM_PROMPT", "EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS",
+             ):
+                 os.environ.pop(name, None)
+             cfg = Config.from_env()
+ 
+-        self.assertEqual(cfg.customer_wait_seconds, 25.0)
++        self.assertFalse(hasattr(cfg, "customer_wait_seconds"), "a frase de espera saiu em 13/09/2026")
++        self.assertEqual(cfg.human_takeover_lookback_hours, 12.0)
+         self.assertEqual(cfg.customer_history_limit, 12)
+         self.assertEqual(cfg.customer_timezone, "America/Cuiaba")
+         self.assertTrue(cfg.customer_system_prompt_enabled)
+ 
+-    def test_env_desliga_espera_e_system_prompt_e_limita_historico(self):
++    def test_janela_da_equipe_tem_teto_e_zero_desliga(self):
++        with self._env(EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS="72"):
++            self.assertEqual(Config.from_env().human_takeover_lookback_hours, 24.0)
++        with self._env(EMYLEADS_HUMAN_TAKEOVER_LOOKBACK_HOURS="0"):
++            self.assertEqual(Config.from_env().human_takeover_lookback_hours, 0.0)
++
++    def test_env_desliga_system_prompt_e_limita_historico(self):
+         with self._env(
+-            ASSISTANT_CUSTOMER_WAIT_SECONDS="0",
+             ASSISTANT_CUSTOMER_HISTORY_LIMIT="500",
+             ASSISTANT_CUSTOMER_TIMEZONE="America/Sao_Paulo",
+             ASSISTANT_CUSTOMER_SYSTEM_PROMPT="0",
+         ):
+             cfg = Config.from_env()
+ 
+-        self.assertEqual(cfg.customer_wait_seconds, 0.0)
+         self.assertEqual(cfg.customer_history_limit, 40, "o histórico tem teto: prompt não é lugar de transcrição inteira")
+         self.assertEqual(cfg.customer_timezone, "America/Sao_Paulo")
+         self.assertFalse(cfg.customer_system_prompt_enabled)
+diff --git a/whatsapp-assistant/test_gateway_server.py b/whatsapp-assistant/test_gateway_server.py
+index dfd9d5c..9e6daac 100644
+--- a/whatsapp-assistant/test_gateway_server.py
++++ b/whatsapp-assistant/test_gateway_server.py
+@@ -8,7 +8,7 @@ from types import SimpleNamespace
+ from pathlib import Path
+ 
+ import server
+-from arbitro import Arbitro, DONO_HUMANO
++from arbitro import Arbitro, DONO_HUMANO, MOTIVO_EQUIPE_RESPONDEU
+ from bridge_control import BridgeResponse, BridgeUnavailable
+ from connection_manager import ConnectionManager
+ from connections import Connection, ConnectionRegistry
+@@ -94,10 +94,10 @@ class BaseGateway(unittest.TestCase):
+     # Vazio reproduz o comportamento anterior ao gatilho: todo turno de
+     # operador responde. Quem testa o gatilho sobrescreve.
+     operator_trigger = ""
+-    # Zero reproduz o comportamento anterior à pausa: a IA responde mesmo com
+-    # gente atendendo. Quem testa a pausa sobrescreve os dois.
++    # Zero reproduz o comportamento anterior à regra: a IA responde mesmo com
++    # gente atendendo. Quem testa a regra sobrescreve os dois.
+     presenca_humana = None
+-    human_pause_minutes = 0.0
++    human_takeover_hours = 0.0
+ 
+     """Montagem compartilhada. Sem test_ aqui: quem tem teste sao as filhas."""
+ 
+@@ -163,7 +163,7 @@ class BaseGateway(unittest.TestCase):
+             operator_trigger=self.operator_trigger,
+             operator_window_minutes=10.0,
+             presenca_humana=self.presenca_humana,
+-            human_pause_minutes=self.human_pause_minutes,
++            human_takeover_hours=self.human_takeover_hours,
+             waiting_reminder=lambda connection_id, contato, texto: self.lembretes.append(
+                 (connection_id, contato, texto)
+             ),
+@@ -888,17 +888,21 @@ class GatilhoDaEquipeTest(BaseGateway):
+ 
+ 
+ 
+-class PausaHumanaTest(BaseGateway):
+-    """A IA cala quando tem gente atendendo o cliente.
++class EquipeAssumeTest(BaseGateway):
++    """Alguém da equipe escreveu: a conversa passa para a equipe até devolverem.
+ 
+     O que está sob prova aqui é de novo um silêncio — e, como no gatilho, ele
+     não aparece em nenhum log de resposta. A diferença é o público: o gatilho
+     protege a conversa da equipe de uma voz a mais; esta regra protege o
+     cliente de ser atendido por duas bocas ao mesmo tempo.
++
++    Até 13/09/2026 era uma pausa de 30 minutos que não mudava o dono. O dono
++    respondeu um amigo pelo celular e a IA seguiu falando; a decisão dele foi
++    que conversa em que a equipe entrou é da equipe, até alguém devolver.
+     """
+ 
+     operator_trigger = "/major"
+-    human_pause_minutes = 30.0
++    human_takeover_hours = 12.0
+     CLIENTE = "5511988887777"
+     OPERADOR = "556599999999"
+ 
+@@ -906,17 +910,22 @@ class PausaHumanaTest(BaseGateway):
+         """Responde o que o teste mandar, sem tocar no banco do bridge.
+ 
+         O `messages.db` de verdade tem teste próprio, em `test_presenca_humana`.
+-        Aqui o que interessa é o que o porteiro FAZ com a resposta.
++        Aqui o que interessa é o que o porteiro FAZ com a resposta — inclusive
++        respeitar o marco: resposta de gente anterior a `desde` não conta.
+         """
+ 
+         def __init__(self):
+             self.quando = None
+             self.perguntas = []
+             self.identidades = []
++            self.marcos = []
+ 
+-        def ultima_resposta_humana(self, chat_jid, janela_minutos, tambem=()):
++        def ultima_resposta_humana(self, chat_jid, janela_minutos, tambem=(), desde=None):
+             self.perguntas.append((chat_jid, janela_minutos))
+             self.identidades.append(tuple(tambem))
++            self.marcos.append(desde)
++            if self.quando is not None and desde is not None and self.quando < desde:
++                return None
+             return self.quando
+ 
+     def setUp(self):
+@@ -944,34 +953,64 @@ class PausaHumanaTest(BaseGateway):
+         self.assertEqual(status, 202)
+         self.assertEqual(len(self.enfileiradas), 1)
+ 
+-    def test_com_gente_atendendo_a_ia_cala(self):
++    def test_com_gente_atendendo_a_conversa_passa_para_a_equipe(self):
+         self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=2)
+         status, body = self._cliente()
+         self.assertEqual(status, 200)
+-        self.assertEqual(body["reason"], "ignored_human_active")
++        self.assertEqual(body["reason"], "ignored_handoff")
+         self.assertEqual(self.enfileiradas, [])
++        sessao = self.arbitro.sessao_aberta(CONN_A1, self.CLIENTE)
++        self.assertEqual(sessao.dono, "humano")
++        self.assertEqual(sessao.motivo, MOTIVO_EQUIPE_RESPONDEU)
++        self.assertIsNone(sessao.dono_ate)
+ 
+-    def test_a_pausa_conta_da_mensagem_da_pessoa_e_nao_de_agora(self):
+-        """Vinte e nove minutos atrás deixa um minuto de pausa; trinta e um, nada.
++    def test_a_ia_nao_volta_sozinha(self):
++        """Horas depois, sem ninguém da equipe escrever de novo, continua da equipe.
+ 
+-        Sem isto a pausa andaria para frente a cada mensagem do cliente, e uma
+-        conversa em que alguém respondeu uma vez ficaria sem IA para sempre.
++        A pausa antiga devolvia a conversa à IA meia hora depois da última
++        mensagem de gente — no meio de um atendimento que seguia pelo celular.
+         """
+-        self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=31)
+-        status, _ = self._cliente("CLI-VELHO")
+-        self.assertEqual(status, 202, "resposta humana vencida nao pausa mais nada")
++        self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=2)
++        self._cliente("CLI-1")
++        self.presenca_humana.quando = None
++        status, body = self._cliente("CLI-2")
++        self.assertEqual(status, 200)
++        self.assertEqual(body["reason"], "ignored_handoff")
++
++    def test_devolver_religa_a_ia_e_o_passado_nao_tira_de_novo(self):
++        """O que a equipe escreveu antes de devolver não conta de novo."""
++        self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=5)
++        self._cliente("CLI-1")
++        self.arbitro.definir_dono(CONN_A1, self.CLIENTE, "ia", "definido pelo portal")
++        status, _ = self._cliente("CLI-2")
++        self.assertEqual(status, 202)
++        self.assertIsNotNone(self.presenca_humana.marcos[-1])
+ 
+-    def test_a_pausa_nao_muda_o_dono_da_conversa(self):
+-        """Responder uma mensagem não é assumir um atendimento.
++    def test_conversa_da_equipe_nao_gera_lembrete_de_espera(self):
++        """Lembrar a equipe de uma conversa que ela mesma atende é ruído.
+ 
+-        Se trocasse o dono, o painel encheria de conversas atribuídas a quem
+-        só mandou um "já te respondo" do celular.
++        Com a regra nova, cada mensagem de um amigo do dono viraria um aviso
++        para o próprio dono a cada 15 minutos.
+         """
++        self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=2)
++        self._cliente("CLI-1")
++        self._cliente("CLI-2")
++        self.assertEqual(self.lembretes, [])
++
++    def test_transferencia_que_ninguem_respondeu_ainda_lembra(self):
++        self.arbitro.assumir(CONN_A1, self.CLIENTE, "assistente solicitou transferência humana")
++        status, _ = self._cliente("CLI-1")
++        self.assertEqual(status, 200)
++        self.assertEqual(len(self.lembretes), 1)
++
++    def test_transferencia_que_a_equipe_respondeu_para_de_lembrar(self):
++        self.arbitro.assumir(CONN_A1, self.CLIENTE, "assistente solicitou transferência humana")
+         self.presenca_humana.quando = datetime.now(timezone.utc) - timedelta(minutes=1)
+-        self._cliente()
+-        sessao = self.arbitro.sessao_aberta(CONN_A1, self.CLIENTE)
+-        self.assertEqual(sessao.dono, "ia")
+-        self.assertIsNotNone(sessao.humano_ate)
++        self._cliente("CLI-1")
++        self.assertEqual(self.lembretes, [])
++        self.assertEqual(
++            self.arbitro.sessao_aberta(CONN_A1, self.CLIENTE).motivo, MOTIVO_EQUIPE_RESPONDEU
++        )
+ 
+     def test_a_conversa_da_equipe_nao_e_consultada(self):
+         """Lá o agente já entra calado, e só fala por convite.
+@@ -1001,7 +1040,7 @@ class PausaHumanaTest(BaseGateway):
+         self._cliente()
+         self.assertEqual(
+             self.presenca_humana.perguntas,
+-            [(f"{self.CLIENTE}@s.whatsapp.net", 30.0)],
++            [(f"{self.CLIENTE}@s.whatsapp.net", 720.0)],
+         )
+ 
+     def test_a_pergunta_leva_junto_o_telefone_que_o_envio_anota(self):
+diff --git a/whatsapp-assistant/test_presenca_humana.py b/whatsapp-assistant/test_presenca_humana.py
+index a659da9..6adde57 100644
+--- a/whatsapp-assistant/test_presenca_humana.py
++++ b/whatsapp-assistant/test_presenca_humana.py
+@@ -198,5 +198,77 @@ class PresencaHumanaTest(unittest.TestCase):
+         self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 30))
+ 
+ 
++class DonoEIaNoMesmoSegundoTest(PresencaHumanaTest):
++    """13/09/2026: o dono respondeu no mesmo segundo em que a IA enviava.
++
++    Herda o `setUp` da classe acima (e roda os casos dela de novo, o que é
++    barato e prova que nada ali mudou de sentido).
++    """
++
++    def test_a_conversa_de_13_09_tem_gente(self):
++        """Linha do tempo real, em segundos relativos ao envio da IA.
++
++        "Eaaae" um segundo antes, "Um instante…" e a resposta no mesmo segundo,
++        "Simmm" um segundo depois. A regra antiga (hora OU texto, 20 s) lia as
++        duas mensagens do dono como da IA, e a IA seguia falando.
++        """
++        self._mensagem(self._atras(segundos=2), texto="Eaaae")
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Um instante, estou vendo isso.")
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Eai! Show, nos vemos daqui a pouco")
++        self._mensagem(self._atras(segundos=1), texto="Um instante, estou vendo isso.", chat=LID)
++        self._mensagem(self._atras(segundos=1), texto="Eai! Show, nos vemos daqui a pouco", chat=LID)
++        self._mensagem(self._atras(segundos=2), texto="Eaaae", chat=LID)
++        self._mensagem(self._atras(segundos=0), texto="Simmm", chat=LID)
++        self.assertIsNotNone(
++            self.presenca.ultima_resposta_humana(LID, 30, tambem=(TELEFONE,))
++        )
++
++    def test_so_as_mensagens_da_ia_no_mesmo_segundo_nao_tem_gente(self):
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Um instante, estou vendo isso.")
++        self.presenca.anotar_saida_do_agente(TELEFONE, "Eai! Show")
++        self._mensagem(self._atras(segundos=1), texto="Um instante, estou vendo isso.", chat=LID)
++        self._mensagem(self._atras(segundos=1), texto="Eai! Show", chat=LID)
++        self.assertIsNone(
++            self.presenca.ultima_resposta_humana(LID, 30, tambem=(TELEFONE,))
++        )
++
++    def test_mesmo_texto_muito_depois_e_gente(self):
++        """O "ok" que a IA mandou há meia hora não torna nosso o "ok" de agora."""
++        self.presenca.anotar_saida_do_agente(CHAT, "ok")
++        self._mensagem(self._atras(minutos=30), texto="ok")
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 60))
++
++    def test_midia_sem_texto_longe_do_envio_e_gente(self):
++        """Áudio mandado do celular 30 s depois da IA é de gente."""
++        self.presenca.anotar_saida_do_agente(CHAT, "claro")
++        self._mensagem(self._atras(segundos=30), texto="")
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 30))
++
++    def test_desde_ignora_o_que_veio_antes_do_marco(self):
++        """Depois de devolvida para a IA, a conversa não sai de novo pelo que já passou."""
++        self._mensagem(self._atras(minutos=10), texto="respondi antes de devolver")
++        marco = datetime.now(timezone.utc) - timedelta(minutes=5)
++        self.assertIsNone(self.presenca.ultima_resposta_humana(CHAT, 60, desde=marco))
++        marco = datetime.now(timezone.utc) - timedelta(minutes=15)
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 60, desde=marco))
++
++    def test_janela_de_horas_passa_por_muitas_respostas_da_ia(self):
++        """Com 40 linhas a resposta de gente sumia atrás de uma conversa animada."""
++        self._mensagem(self._atras(minutos=90), texto="assumi esta conversa")
++        for i in range(60):
++            texto = f"resposta {i}"
++            self.presenca.anotar_saida_do_agente(CHAT, texto)
++            self._mensagem(self._atras(minutos=60 - i), texto=texto)
++        self.assertIsNotNone(self.presenca.ultima_resposta_humana(CHAT, 120))
++
++    def test_instante_da_mensagem_do_contato(self):
++        quando = self._atras(minutos=3)
++        self._mensagem(quando, minha=0, texto="Eai mano")
++        lido = self.presenca.instante_da_mensagem(f"M{self.n}", CHAT)
++        self.assertIsNotNone(lido)
++        self.assertLess(abs((lido - quando).total_seconds()), 1.5)
++        self.assertIsNone(self.presenca.instante_da_mensagem("nao-existe", CHAT))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/whatsapp-assistant/test_runtime_commands.py b/whatsapp-assistant/test_runtime_commands.py
+index 9415e74..1bbefc6 100644
+--- a/whatsapp-assistant/test_runtime_commands.py
++++ b/whatsapp-assistant/test_runtime_commands.py
+@@ -5,7 +5,7 @@ from unittest import mock
+ 
+ import send
+ from bridge_control import BridgeResponse
+-from arbitro import Arbitro
++from arbitro import MOTIVO_RESPONDIDO_NO_PORTAL, Arbitro
+ from connection_manager import ConnectionManager
+ from connections import Connection, ConnectionRegistry
+ from bridge_control import BridgeUnavailable
+@@ -70,7 +70,7 @@ class Bancada:
+         response=None,
+         api_base_url=BASE,
+         human_send_token=HUMAN_TOKEN,
+-        pausa_humana_minutos=0.0,
++        equipe_assume=False,
+     ):
+         directory = tempfile.TemporaryDirectory()
+         root = Path(directory.name)
+@@ -97,7 +97,7 @@ class Bancada:
+             api_base_url=api_base_url,
+             human_send_token=human_send_token,
+             instance_id="6e0b5ed8-badb-421b-a28d-5f6d0926745c",
+-            pausa_humana_minutos=pausa_humana_minutos,
++            equipe_assume=equipe_assume,
+         )
+         return directory, poller, verifier, control, arbitro
+ 
+@@ -727,14 +727,17 @@ if __name__ == "__main__":
+     unittest.main()
+ 
+ 
+-class PausaPeloPortalTests(Bancada, unittest.TestCase):
+-    """Escrever para um cliente pelo portal também cala a IA.
++class EquipeAssumePeloPortalTests(Bancada, unittest.TestCase):
++    """Escrever para um cliente pelo portal tira a IA da conversa até devolverem.
+ 
+     O caminho do celular precisa DESCOBRIR que houve gente, lendo o banco do
+     bridge. Aqui não há o que descobrir: a mensagem acabou de passar por esta
+     função. Avisar direto cobre ainda o intervalo em que a linha nem chegou ao
+     `messages.db` — que é justamente quando o cliente responde na hora e a IA
+     atropelaria.
++
++    Até 13/09/2026 isto era uma pausa de 30 minutos; agora a conversa passa
++    para a equipe e só volta à IA quando alguém devolver.
+     """
+ 
+     def _envio(self, tipo="direto", chat="5511987654321"):
+@@ -743,42 +746,76 @@ class PausaPeloPortalTests(Bancada, unittest.TestCase):
+             {"chat": chat, "kind": tipo, "text": "Bom dia, Marina!"},
+         )
+ 
+-    def test_enviar_pelo_portal_pausa_a_ia(self):
++    def test_enviar_pelo_portal_passa_a_conversa_para_a_equipe(self):
+         directory, poller, _verifier, _control, arbitro = self._runtime(
+-            self._envio(), pausa_humana_minutos=30.0
++            self._envio(), equipe_assume=True
+         )
+         try:
+             arbitro.definir_ia(CONN, True)
+             arbitro.definir_dono(CONN, "5511987654321", "ia")
+             with mock.patch.object(send, "send_human_message", return_value="sent"):
+                 poller.poll_once()
+-            self.assertTrue(arbitro.pausa_humana_ativa(CONN, "5511987654321"))
++            sessao = arbitro.sessao_aberta(CONN, "5511987654321")
++            self.assertEqual(sessao.dono, "humano")
++            self.assertEqual(sessao.motivo, MOTIVO_RESPONDIDO_NO_PORTAL)
++            self.assertIsNone(sessao.dono_ate, "gente não vence por relógio")
+             self.assertFalse(arbitro.decidir(CONN, "5511987654321").responder)
+         finally:
+             arbitro.close()
+             directory.cleanup()
+ 
+-    def test_envio_que_falhou_nao_pausa_nada(self):
+-        """A mensagem não saiu; ninguém está atendendo coisa nenhuma. Pausar
+-        aqui calaria a IA por meia hora por causa de um bridge fora do ar."""
++    def test_devolver_pelo_portal_religa_a_ia(self):
+         directory, poller, _verifier, _control, arbitro = self._runtime(
+-            self._envio(), pausa_humana_minutos=30.0
++            self._envio(), equipe_assume=True
++        )
++        try:
++            arbitro.definir_ia(CONN, True)
++            arbitro.definir_dono(CONN, "5511987654321", "ia")
++            with mock.patch.object(send, "send_human_message", return_value="sent"):
++                poller.poll_once()
++            arbitro.definir_dono(CONN, "5511987654321", "ia", "definido pelo portal")
++            self.assertTrue(arbitro.decidir(CONN, "5511987654321").responder)
++            self.assertIsNotNone(arbitro.marco_da_ia(CONN, "5511987654321"))
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_conversa_atribuida_a_alguem_continua_dela(self):
++        directory, poller, _verifier, _control, arbitro = self._runtime(
++            self._envio(), equipe_assume=True
++        )
++        try:
++            arbitro.assumir(CONN, "5511987654321", "atribuído pelo portal", ATENDENTE, "Marina")
++            with mock.patch.object(send, "send_human_message", return_value="sent"):
++                poller.poll_once()
++            sessao = arbitro.sessao_aberta(CONN, "5511987654321")
++            self.assertEqual(sessao.atendente_nome, "Marina")
++            self.assertEqual(sessao.motivo, "atribuído pelo portal")
++        finally:
++            arbitro.close()
++            directory.cleanup()
++
++    def test_envio_que_falhou_nao_tira_a_ia(self):
++        """A mensagem não saiu; ninguém está atendendo coisa nenhuma. Tirar a IA
++        aqui calaria a conversa por causa de um bridge fora do ar."""
++        directory, poller, _verifier, _control, arbitro = self._runtime(
++            self._envio(), equipe_assume=True
+         )
+         try:
+             with mock.patch.object(
+                 send, "send_human_message", side_effect=send.SendError("bridge inalcancavel")
+             ):
+                 poller.poll_once()
+-            self.assertFalse(arbitro.pausa_humana_ativa(CONN, "5511987654321"))
++            self.assertIsNone(arbitro.sessao_aberta(CONN, "5511987654321"))
+         finally:
+             arbitro.close()
+             directory.cleanup()
+ 
+-    def test_grupo_nao_tem_pausa(self):
++    def test_grupo_nao_tem_dono(self):
+         """Grupo não tem sessão de atendimento — o próprio porteiro recusa turno
+-        de operador em grupo, e não há IA para calar."""
++        de operador em grupo, e não há IA para tirar."""
+         directory, poller, _verifier, _control, arbitro = self._runtime(
+-            self._envio(tipo="grupo", chat="120363044"), pausa_humana_minutos=30.0
++            self._envio(tipo="grupo", chat="120363044"), equipe_assume=True
+         )
+         try:
+             with mock.patch.object(send, "send_human_message", return_value="sent"):
+@@ -788,12 +825,12 @@ class PausaPeloPortalTests(Bancada, unittest.TestCase):
+             arbitro.close()
+             directory.cleanup()
+ 
+-    def test_com_a_pausa_desligada_o_envio_nao_mexe_na_sessao(self):
+-        """Zero minutos é a saída de emergência, e ela precisa desligar os DOIS
++    def test_com_a_regra_desligada_o_envio_nao_mexe_na_sessao(self):
++        """Zero horas é a saída de emergência, e ela precisa desligar os DOIS
+         caminhos — o do celular e o do portal. Um interruptor que apaga metade
+         da regra é pior que nenhum."""
+         directory, poller, _verifier, _control, arbitro = self._runtime(
+-            self._envio(), pausa_humana_minutos=0.0
++            self._envio(), equipe_assume=False
+         )
+         try:
+             with mock.patch.object(send, "send_human_message", return_value="sent"):
+diff --git a/whatsapp-assistant/test_worker.py b/whatsapp-assistant/test_worker.py
+index eaabd71..3eaa0c1 100644
+--- a/whatsapp-assistant/test_worker.py
++++ b/whatsapp-assistant/test_worker.py
+@@ -10,12 +10,13 @@ import threading
+ import time
+ import unittest
+ from dataclasses import replace
++from datetime import datetime, timezone
+ from pathlib import Path
+ 
+ import runner
+ import send
+ import worker as worker_mod
+-from arbitro import MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
++from arbitro import Arbitro, MOTIVO_EQUIPE_RESPONDEU, MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
+ from config import Config
+ from intelligence import IntelligenceContext, IntelligenceContextError
+ from operator_verification import OperatorVerificationError
+@@ -45,6 +46,42 @@ def make_config(tmp: Path, coalesce: float = 0.2) -> Config:
+     )
+ 
+ 
++class ArbitroFalsoBase:
++    """O que o worker pergunta antes de enviar, com a resposta de "ainda é da IA".
++
++    Os árbitros falsos abaixo registram transferências; herdar daqui é o que os
++    deixa passar pela conferência de 13/09/2026 sem fingir mais do que isso.
++    """
++
++    def ia_ativa(self, connection_id):
++        return True
++
++    def sessao_aberta(self, connection_id, contato):
++        return None
++
++    def pausa_humana_ativa(self, connection_id, contato):
++        return False
++
++    def marco_da_ia(self, connection_id, contato):
++        return None
++
++
++class PresencaFalsa:
++    """Diz ao worker se alguém da equipe escreveu, sem banco do bridge."""
++
++    def __init__(self, quando=None):
++        self.quando = quando
++        self.perguntas = []
++
++    def instante_da_mensagem(self, message_id, chat_jid):
++        from datetime import datetime, timedelta, timezone
++        return datetime.now(timezone.utc) - timedelta(seconds=30)
++
++    def ultima_resposta_humana(self, chat_jid, janela_minutos, tambem=(), desde=None):
++        self.perguntas.append((chat_jid, desde))
++        return self.quando() if callable(self.quando) else self.quando
++
++
+ class WorkerTest(unittest.TestCase):
+     def setUp(self):
+         self.tmp_dir = tempfile.TemporaryDirectory()
+@@ -444,7 +481,7 @@ class WorkerTest(unittest.TestCase):
+         class FakeSession:
+             id = "session-falha"
+ 
+-        class FakeArbitro:
++        class FakeArbitro(ArbitroFalsoBase):
+             def __init__(self):
+                 self.assumidas = []
+                 self.por_falha = []
+@@ -489,6 +526,12 @@ class WorkerTest(unittest.TestCase):
+             [],
+             "assumir sem prazo é para quem assume de verdade, e aqui não há ninguém",
+         )
++        # 13/09/2026: o contato não recebe "Nosso assistente está temporariamente
++        # indisponível". Um aviso só, para a equipe, com o motivo.
++        self.assertTrue(self.wait_for(lambda: len(self.sent) == 1))
++        self.assertEqual(self.sent[0][0], self.cfg.owner)
++        self.assertIn(worker_mod.MOTIVO_SEM_RESPOSTA_MODELO, self.sent[0][1])
++        self.assertFalse(hasattr(worker_mod, "CUSTOMER_MODEL_FAILURE_NOTICE"))
+ 
+     def test_contexto_indisponivel_entrega_a_conversa_com_prazo(self):
+         """O mesmo prazo do handoff por modelo, e pelo mesmo motivo.
+@@ -500,7 +543,7 @@ class WorkerTest(unittest.TestCase):
+         class FakeSession:
+             id = "session-contexto"
+ 
+-        class FakeArbitro:
++        class FakeArbitro(ArbitroFalsoBase):
+             def __init__(self):
+                 self.assumidas = []
+                 self.por_falha = []
+@@ -528,14 +571,52 @@ class WorkerTest(unittest.TestCase):
+         )
+         self.worker.start()
+ 
+-        self.assertTrue(self.wait_for(lambda: len(self.sent) == 1))
+-        self.assertEqual(self.sent[0][1], worker_mod.INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE)
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-SEM-CONTEXTO") == COMPLETED))
++        # O aviso vai para a equipe; o contato não lê "atendimento indisponível".
++        self.assertEqual([destino for destino, _ in self.sent], [self.cfg.owner])
++        self.assertIn(worker_mod.MOTIVO_SEM_RESPOSTA_CONTEXTO, self.sent[0][1])
+         self.assertEqual(
+             fake_arbitro.por_falha,
+             [(connection_id, "5566999999999", MOTIVO_FALHA_DO_CONTEXTO)],
+         )
+         self.assertEqual(fake_arbitro.assumidas, [])
+ 
++    def test_agente_desligado_no_meio_do_turno_so_cala(self):
++        """13/09/2026: o dono desligou o agente e o amigo recebeu "indisponível".
++
++        O contexto falhou porque o perfil tinha acabado de ser desligado. Isso
++        não é falha: sem handoff, sem aviso à equipe, sem mensagem ao contato.
++        """
++        class FakeArbitro(ArbitroFalsoBase):
++            def assumir_por_falha(self, *args, **kwargs):
++                raise AssertionError("desligar o agente não é falha")
++
++        class RolloutDesligado:
++            def intelligence_context(self, *args, **kwargs):
++                raise OperatorVerificationError("Supabase recusou (HTTP 400, código P0001)")
++
++            def customer_assistant_access(self, requester_phone):
++                return {"schemaVersion": "customer-rollout-1", "allowed": False,
++                        "mode": "off", "reason": "profile_inactive"}
++
++        self.worker.arbitro = FakeArbitro()
++        self.worker._operator_verifier = RolloutDesligado()
++        self.worker.cfg = replace(self.cfg, intelligence_required=True)
++        self.enqueue_chat(
++            "M-DESLIGADO",
++            "5566999999999@s.whatsapp.net",
++            sender="5566999999999",
++            owner_turn=False,
++            agent_id="11111111-1111-4111-8111-111111111111",
++            organization_id="338e44ca-36ab-437c-b8ac-aa7c60fee64a",
++            connection_id="438e44ca-36ab-437c-b8ac-aa7c60fee64a",
++        )
++        self.worker.start()
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-DESLIGADO") == "ignored"))
++        self.assertEqual(self.sent, [])
++        self.assertEqual(self.runs, [])
++
+     def _contexto_de_cliente(self):
+         """Contexto mínimo de cliente: o que faz `is_customer_turn` valer."""
+         instructions = (
+@@ -1535,7 +1616,8 @@ class WorkerTest(unittest.TestCase):
+         self.worker.start()
+         self.assertTrue(self.wait_for(lambda: len(self.sent) == 1))
+         self.assertEqual(self.runs, [])
+-        self.assertEqual(self.sent[0][1], worker_mod.INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE)
++        self.assertEqual(self.sent[0][0], self.cfg.owner, "o aviso é da equipe, nunca do contato")
++        self.assertIn(worker_mod.MOTIVO_SEM_RESPOSTA_CONTEXTO, self.sent[0][1])
+ 
+     def test_cliente_com_skill_nao_recebe_vault_nem_arquivos_locais(self):
+         instructions = "# Vendas\n\n" + "Atenda usando somente conhecimento externo publicado pela organização. " * 3
+@@ -1627,7 +1709,7 @@ class TurnoDeClienteTest(WorkerTest):
+ 
+     def test_lead_recebe_uma_resposta_so_com_presenca_e_modelo_forte(self):
+         """Nem abertura da triagem, nem ACK fixo, nem modelo pequeno."""
+-        self.worker.cfg = replace(self.cfg, progress_model="haiku", customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg, progress_model="haiku")
+         self._atende_como_cliente()
+         self.worker.start()
+         self._enfileira_lead()
+@@ -1642,8 +1724,11 @@ class TurnoDeClienteTest(WorkerTest):
+             "o lead vê 'digitando' no lugar das aberturas",
+         )
+ 
+-    def test_frase_de_espera_so_sai_quando_a_execucao_demora(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0.15)
++    def test_execucao_demorada_nao_manda_frase_de_espera(self):
++        """13/09/2026: "Um instante, estou vendo isso." saiu meio segundo antes da resposta.
++
++        A frase saiu do código. Demorar mostra "digitando", e só.
++        """
+         self._atende_como_cliente()
+ 
+         def demorado(_prompt):
+@@ -1655,20 +1740,8 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead()
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(
+-            self.sent,
+-            [(self.LEAD, worker_mod.CUSTOMER_WAIT_NOTICE), (self.LEAD, "ok")],
+-        )
+-
+-    def test_execucao_rapida_nao_manda_a_frase_de_espera(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=2.0)
+-        self._atende_como_cliente()
+-        self.worker.start()
+-        self._enfileira_lead()
+-
+-        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        time.sleep(0.3)
+         self.assertEqual(self.sent, [(self.LEAD, "ok")])
++        self.assertFalse(hasattr(worker_mod, "CUSTOMER_WAIT_NOTICE"))
+ 
+     def test_prompt_do_lead_tem_hora_historico_nome_e_so_ferramentas_do_turno(self):
+         self._patch(
+@@ -1739,7 +1812,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.system_prompts, [None])
+ 
+     def test_resposta_ao_lead_com_termo_interno_e_bloqueada(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         self.run_behaviour = lambda _prompt: runner.RunResult(
+             reply="Não tenho acesso a essa ferramenta nesta sessão.",
+@@ -1749,13 +1822,15 @@ class TurnoDeClienteTest(WorkerTest):
+         self._enfileira_lead()
+ 
+         self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
+-        self.assertEqual(self.sent, [(self.LEAD, worker_mod.CUSTOMER_UNCERTAIN_NOTICE)])
++        # O contato não lê "Não consegui concluir a resposta agora"; a equipe fica sabendo.
++        self.assertEqual([destino for destino, _ in self.sent], [self.cfg.owner])
++        self.assertIn(worker_mod.MOTIVO_SEM_RESPOSTA_BLOQUEADA, self.sent[0][1])
+ 
+     def _arbitro_falso(self):
+         class FakeSession:
+             id = "session-lead"
+ 
+-        class FakeArbitro:
++        class FakeArbitro(ArbitroFalsoBase):
+             def __init__(self):
+                 self.assumidas = []
+ 
+@@ -1787,7 +1862,7 @@ class TurnoDeClienteTest(WorkerTest):
+ 
+     def test_promessa_de_transferencia_sem_ferramenta_e_cumprida_pelo_runtime(self):
+         """'Vou conectar você com o Júnior agora' sem ferramenta: o runtime conecta."""
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1817,7 +1892,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.sent[1], (self.LEAD, "Vou conectar você com o Júnior agora. Um momento!"))
+ 
+     def test_promessa_sem_ferramenta_vira_resposta_honesta_quando_a_rpc_falha(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         self._verificador_de_handoff(falha=OperatorVerificationError("Supabase recusou"))
+@@ -1833,7 +1908,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(arbitro.assumidas, [], "sem transferência de verdade, ninguém assume")
+ 
+     def test_promessa_sem_credencial_tambem_vira_resposta_honesta(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         self.worker._operator_verifier = None
+@@ -1849,7 +1924,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(arbitro.assumidas, [])
+ 
+     def test_transferencia_feita_pela_ferramenta_nao_e_pedida_duas_vezes(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1866,7 +1941,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(len(arbitro.assumidas), 1)
+ 
+     def test_resposta_sem_promessa_nao_aciona_transferencia(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1888,7 +1963,7 @@ class TurnoDeClienteTest(WorkerTest):
+         """"Como eu falo com o Júnior?" não passa pelo modelo: o runtime
+         transfere, avisa o dono e responde o lead. Em produção o modelo tinha
+         a ferramenta na mão e não a chamou."""
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1921,7 +1996,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.sent[1], (self.LEAD, worker_mod.CUSTOMER_HANDOFF_DONE_NOTICE))
+ 
+     def test_pedido_de_pessoa_com_rpc_fora_responde_a_verdade_e_avisa_mesmo_assim(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         arbitro = self._arbitro_falso()
+         self._verificador_de_handoff(falha=OperatorVerificationError("Supabase recusou"))
+@@ -1937,7 +2012,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.sent[1], (self.LEAD, worker_mod.CUSTOMER_HANDOFF_UNAVAILABLE_NOTICE))
+ 
+     def test_nomes_da_equipe_vem_da_configuracao(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0, team_names=("marina",))
++        self.worker.cfg = replace(self.cfg, team_names=("marina",))
+         self._atende_como_cliente()
+         self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1949,7 +2024,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.runs, [])
+ 
+     def test_conversa_normal_nao_e_lida_como_pedido_de_pessoa(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         self._arbitro_falso()
+         verificador = self._verificador_de_handoff()
+@@ -1962,7 +2037,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.sent, [(self.LEAD, "ok")])
+ 
+     def test_transferencia_pela_ferramenta_avisa_o_dono(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         self._arbitro_falso()
+         self._verificador_de_handoff()
+@@ -1982,7 +2057,7 @@ class TurnoDeClienteTest(WorkerTest):
+ 
+     def test_aviso_vai_para_os_telefones_configurados_e_nunca_para_o_proprio_contato(self):
+         self.worker.cfg = replace(
+-            self.cfg, customer_wait_seconds=0,
++            self.cfg,
+             handoff_notify_phones=("5565911111111", self.LEAD),
+         )
+         self._atende_como_cliente()
+@@ -1997,7 +2072,7 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertNotIn(self.cfg.owner, destinos)
+ 
+     def test_falha_no_aviso_nao_derruba_a_resposta_ao_lead(self):
+-        self.worker.cfg = replace(self.cfg, customer_wait_seconds=0)
++        self.worker.cfg = replace(self.cfg)
+         self._atende_como_cliente()
+         self._arbitro_falso()
+         self._verificador_de_handoff()
+@@ -2051,6 +2126,151 @@ class TurnoDeClienteTest(WorkerTest):
+         self.assertEqual(self.sent, [])
+ 
+ 
++class ConversaQueSaiuDaIaTest(TurnoDeClienteTest):
++    """A conferência antes de enviar, que faltou em 13/09/2026.
++
++    O dono respondeu o amigo pelo celular às 09:13:05; a IA enviou às 09:13:06 e
++    às 09:13:16 respostas que já estavam a caminho. Cada teste aqui é um jeito
++    de a conversa deixar de ser da IA ENQUANTO o turno roda.
++    """
++
++    CONN = "438e44ca-36ab-437c-b8ac-aa7c60fee64a"
++
++    def _arbitro_de_verdade(self):
++        # Diretório próprio: o `tearDown` apaga `self.tmp` antes dos cleanups, e
++        # no Windows um SQLite aberto não deixa apagar a pasta.
++        pasta = tempfile.TemporaryDirectory()
++        self.addCleanup(pasta.cleanup)
++        arbitro = Arbitro(Path(pasta.name) / "arbitro-real.db")
++        self.addCleanup(arbitro.close)
++        arbitro.definir_ia(self.CONN, True)
++        arbitro.definir_dono(self.CONN, self.LEAD, "ia")
++        self.worker.arbitro = arbitro
++        return arbitro
++
++    def test_equipe_respondeu_enquanto_o_modelo_pensava_nada_sai(self):
++        arbitro = self._arbitro_de_verdade()
++        respondeu = threading.Event()
++        self.worker.presenca = PresencaFalsa(
++            quando=lambda: datetime.now(timezone.utc) if respondeu.is_set() else None
++        )
++        self._atende_como_cliente()
++
++        def modelo(_prompt):
++            respondeu.set()  # o dono manda "Eaaae" pelo celular agora
++            return runner.RunResult(
++                reply="Eai! Show, nos vemos daqui a pouco", session_id=None,
++                exit_code=0, duration_ms=1, tools_used=[],
++            )
++
++        self.run_behaviour = modelo
++        self.worker.start()
++        self._enfileira_lead(texto="Eai mano")
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
++        self.assertEqual(self.sent, [], "a resposta da IA não pode chegar por cima do dono")
++        self.assertEqual(len(self.runs), 1)
++        sessao = arbitro.sessao_aberta(self.CONN, self.LEAD)
++        self.assertEqual(sessao.dono, "humano")
++        self.assertEqual(sessao.motivo, MOTIVO_EQUIPE_RESPONDEU)
++
++    def test_equipe_respondeu_antes_do_turno_o_modelo_nem_roda(self):
++        self._arbitro_de_verdade()
++        self.worker.presenca = PresencaFalsa(quando=datetime.now(timezone.utc))
++        self._atende_como_cliente()
++        self.worker.start()
++        self._enfileira_lead(texto="Tdo certo pra hoje?")
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
++        self.assertEqual(self.runs, [])
++        self.assertEqual(self.sent, [])
++        self.assertEqual(self.presences, [], "nem 'digitando' para uma conversa que é da equipe")
++
++    def test_assumida_pelo_portal_no_meio_do_turno_nada_sai(self):
++        arbitro = self._arbitro_de_verdade()
++        self._atende_como_cliente()
++
++        def modelo(_prompt):
++            arbitro.assumir(self.CONN, self.LEAD, "atribuído pelo portal", "a-1", "Aline")
++            return runner.RunResult(reply="ok", session_id=None, exit_code=0, duration_ms=1, tools_used=[])
++
++        self.run_behaviour = modelo
++        self.worker.start()
++        self._enfileira_lead()
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
++        self.assertEqual(self.sent, [])
++
++    def test_freio_de_mao_no_meio_do_turno_nada_sai(self):
++        arbitro = self._arbitro_de_verdade()
++        self._atende_como_cliente()
++
++        def modelo(_prompt):
++            arbitro.definir_ia(self.CONN, False)
++            return runner.RunResult(reply="ok", session_id=None, exit_code=0, duration_ms=1, tools_used=[])
++
++        self.run_behaviour = modelo
++        self.worker.start()
++        self._enfileira_lead()
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == COMPLETED))
++        self.assertEqual(self.sent, [])
++
++    def test_mensagem_nova_do_contato_vira_uma_resposta_so(self):
++        """ "Eai mano" e "Tdo certo pra hoje?", 19 s depois, eram duas respostas."""
++        self._atende_como_cliente()
++        chamadas = []
++
++        def modelo(_prompt):
++            chamadas.append(1)
++            if len(chamadas) == 1:
++                self.enqueue_chat(
++                    "M-LEAD-2", f"{self.LEAD}@s.whatsapp.net", sender=self.LEAD, owner_turn=False,
++                    agent_id="11111111-1111-4111-8111-111111111111",
++                    organization_id="338e44ca-36ab-437c-b8ac-aa7c60fee64a",
++                    connection_id=self.CONN,
++                )
++                return runner.RunResult(reply="resposta ao primeiro", session_id=None,
++                                        exit_code=0, duration_ms=1, tools_used=[])
++            return runner.RunResult(reply="resposta às duas", session_id=None,
++                                    exit_code=0, duration_ms=1, tools_used=[])
++
++        self.run_behaviour = modelo
++        self.worker.start()
++        self._enfileira_lead(texto="Eai mano")
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD-2") == COMPLETED))
++        self.assertEqual(self.store.status_of("M-LEAD"), COMPLETED)
++        self.assertEqual(self.sent, [(self.LEAD, "resposta às duas")])
++
++    def test_modelo_caiu_depois_que_a_equipe_entrou_nao_vira_handoff_por_falha(self):
++        """Handoff por falha vence em 30 min e devolveria à IA uma conversa de gente."""
++        class FakeArbitro(ArbitroFalsoBase):
++            def assumir_pela_equipe(self, connection_id, contato, motivo=""):
++                return type("S", (), {"id": "s-equipe"})()
++
++            def assumir_por_falha(self, *args, **kwargs):
++                raise AssertionError("a conversa já é da equipe")
++
++        self.worker.arbitro = FakeArbitro()
++        respondeu = threading.Event()
++        self.worker.presenca = PresencaFalsa(
++            quando=lambda: datetime.now(timezone.utc) if respondeu.is_set() else None
++        )
++        self._atende_como_cliente()
++
++        def modelo(_prompt):
++            respondeu.set()
++            raise runner.RunnerError("claude saiu com 1", code="model_unavailable")
++
++        self.run_behaviour = modelo
++        self.worker.start()
++        self._enfileira_lead()
++
++        self.assertTrue(self.wait_for(lambda: self.store.status_of("M-LEAD") == FAILED))
++        time.sleep(0.2)
++        self.assertEqual(self.sent, [])
++
+ 
+ class RoteamentoDeInteligenciaTest(unittest.TestCase):
+     """Qual resolvedor responde o turno, por modo, e o isolamento da sombra.
+diff --git a/whatsapp-assistant/worker.py b/whatsapp-assistant/worker.py
+index 0a8373d..10241c7 100644
+--- a/whatsapp-assistant/worker.py
++++ b/whatsapp-assistant/worker.py
+@@ -14,7 +14,7 @@ import re
+ import threading
+ import time
+ import uuid
+-from datetime import datetime, timezone
++from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+ from typing import List, Optional, Tuple, Union
+ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+ import audit
+ import runner
+ import send
+-from arbitro import Arbitro, MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
++from arbitro import DONO_IA, Arbitro, MOTIVO_FALHA_DO_CONTEXTO, MOTIVO_FALHA_DO_MODELO
+ from config import Config, load_api_token
+ from intelligence import IntelligenceContext, IntelligenceContextError
+ from messages import fetch_bodies, fetch_chat_name, fetch_recent_history
+@@ -73,11 +73,6 @@ MODEL_FAILURE_GREETING_NOTICE = (
+     "Tente novamente em alguns instantes."
+ )
+ 
+-CUSTOMER_MODEL_FAILURE_NOTICE = (
+-    "Nosso assistente está temporariamente indisponível. "
+-    "Encaminhei sua conversa para a equipe."
+-)
+-
+ # O turno de cliente (lead) tem caminho próprio a partir daqui.
+ #
+ # Em produção o lead recebia três mensagens por turno: duas "aberturas" que a
+@@ -88,9 +83,14 @@ CUSTOMER_MODEL_FAILURE_NOTICE = (
+ # abaixo existem para essas duas coisas: o lead vê "digitando" em vez de
+ # aberturas, e uma promessa de transferência sem ferramenta é cumprida pelo
+ # runtime ou substituída por uma resposta honesta. Nunca enviada como veio.
+-
+-# Uma frase só, fixa, sem promessa nem emoji, e só quando a execução demora.
+-CUSTOMER_WAIT_NOTICE = "Um instante, estou vendo isso."
++#
++# Três frases fixas saíram daqui em 13/09/2026, as três por terem chegado a um
++# contato real: "Um instante, estou vendo isso." (timer de 25 s, que disparou
++# meio segundo antes da resposta), "Nosso atendimento está temporariamente
++# indisponível" (falha de contexto) e "Nosso assistente está temporariamente
++# indisponível" (falha do modelo). O contato não tem o que fazer com aviso
++# técnico: quando a IA não consegue responder, ela fica calada e quem fica
++# sabendo é a equipe (`TEAM_NO_REPLY_NOTICE`).
+ 
+ # System prompt do turno de cliente. Substitui o do CLI, que é de um
+ # assistente de programação — a persona do agente lutava contra ele. Texto
+@@ -120,9 +120,6 @@ CUSTOMER_INTERNAL_REPLY_RE = re.compile(
+     r"contexto\s+confi[aá]vel|runtime_context|agent_soul|skill_instructions|"
+     r"configura(?:ç|c)[aã]o interna)"
+ )
+-CUSTOMER_UNCERTAIN_NOTICE = (
+-    "Não consegui concluir a resposta agora. Me diz de novo o que você precisa?"
+-)
+ 
+ # "Vou conectar você com o Júnior agora" sem ferramenta é a pior mensagem que
+ # um lead pode receber: ele espera alguém que não vem. O negativo de "não"
+@@ -180,6 +177,17 @@ TEAM_WAITING_NOTICE = (
+     "transferida e ninguém assumiu. Última mensagem: “{texto}”.\n"
+     "Assuma pelo painel (Conversas) ou responda direto por aqui."
+ )
++# A IA não conseguiu responder um contato e ficou calada com ele. Quem precisa
++# saber é a equipe — com o motivo em palavras de gente e as últimas mensagens,
++# para responder sem abrir o painel.
++TEAM_NO_REPLY_NOTICE = (
++    "A IA não respondeu {quem} no WhatsApp da Major ({motivo}).\n"
++    "Últimas mensagens:\n{historico}\n"
++    "Responda direto por aqui ou pelo painel (Conversas)."
++)
++MOTIVO_SEM_RESPOSTA_CONTEXTO = "não conseguiu ler as regras de atendimento agora"
++MOTIVO_SEM_RESPOSTA_MODELO = "o modelo de IA falhou"
++MOTIVO_SEM_RESPOSTA_BLOQUEADA = "a resposta foi barrada pelo filtro de segurança"
+ 
+ DIAS_DA_SEMANA = ("segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo")
+ 
+@@ -200,11 +208,6 @@ INTELLIGENCE_UNAVAILABLE_INTERNAL_NOTICE = (
+     "Por segurança, não executei nenhuma ação. Tente novamente em instantes."
+ )
+ 
+-INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE = (
+-    "Nosso atendimento está temporariamente indisponível. "
+-    "Tente novamente em alguns instantes."
+-)
+-
+ # Falha fechada para qualquer tentativa do modelo de discutir a própria
+ # infraestrutura. O texto original nunca é enviado nem registrado.
+ INTERNAL_REPLY_RE = re.compile(
+@@ -294,10 +297,20 @@ def _split_attachment(reply: str) -> Tuple[str, str]:
+ 
+ 
+ class Worker:
+-    def __init__(self, cfg: Config, store: Store, arbitro: Optional[Arbitro] = None):
++    def __init__(
++        self,
++        cfg: Config,
++        store: Store,
++        arbitro: Optional[Arbitro] = None,
++        presenca=None,
++    ):
+         self.cfg = cfg
+         self.store = store
+         self.arbitro = arbitro
++        # Quem sabe dizer se alguém da equipe escreveu enquanto o modelo pensava.
++        # A porta de entrada já perguntou, mas antes do modelo; a pergunta que
++        # faltava em 13/09/2026 era a de ANTES DE ENVIAR.
++        self.presenca = presenca
+         self.queue: "queue.Queue[WorkItem]" = queue.Queue()
+         self.session_path = cfg.state_db.parent / "session.json"
+         self._operator_verifier = OperatorVerifier.from_environment()
+@@ -384,8 +397,13 @@ class Worker:
+         is_operator: bool,
+         is_greeting: bool,
+     ) -> str:
++        """O aviso de falha do modelo, e só para operador.
++
++        Contato não recebe aviso técnico (13/09/2026): quem chama cala com ele e
++        avisa a equipe. Vazio aqui é "não mande nada".
++        """
+         if not is_operator:
+-            return CUSTOMER_MODEL_FAILURE_NOTICE
++            return ""
+         if exc.code == "model_quota_exhausted":
+             return MODEL_QUOTA_GREETING_NOTICE if is_greeting else MODEL_QUOTA_NOTICE
+         if is_greeting:
+@@ -775,33 +793,28 @@ class Worker:
+             and bool(batch[0].organization_id or batch[0].connection_id)
+             and not is_group
+         ):
+-            notice = (
+-                INTELLIGENCE_UNAVAILABLE_INTERNAL_NOTICE
+-                if is_operator_turn
+-                else INTELLIGENCE_UNAVAILABLE_CUSTOMER_NOTICE
+-            )
+-            if not is_operator_turn and self.arbitro and batch[0].connection_id:
+-                # Com prazo: ninguém foi chamado para esta conversa. O
+-                # contexto some quando o Supabase recusa, e recusa de Supabase
+-                # passa — a conversa não pode ficar muda até alguém reparar.
+-                session = self.arbitro.assumir_por_falha(
+-                    batch[0].connection_id,
+-                    recipient,
+-                    MOTIVO_FALHA_DO_CONTEXTO,
+-                )
+-                audit.log(
+-                    "intelligence.handoff",
+-                    run_id=run_id,
+-                    connection_id=batch[0].connection_id,
+-                    session_id=session.id,
+-                )
++            if not is_operator_turn:
++                self._customer_context_unavailable(batch, recipient, token, run_id, ids)
++                return
+             try:
+-                send.send_message(self.cfg.api_base_url, token or "", recipient, notice)
++                send.send_message(
++                    self.cfg.api_base_url, token or "", recipient, INTELLIGENCE_UNAVAILABLE_INTERNAL_NOTICE
++                )
+             except send.SendError as send_exc:
+                 self._fail(ids, run_id, "intelligence", str(send_exc), started)
+                 return
+             self.store.mark_completed(ids)
+             return
++        # Alguém da equipe escreveu enquanto a mensagem esperava na fila?
++        #
++        # A porta de entrada perguntou quando a mensagem chegou; entre lá e aqui
++        # há o agrupamento e o turno anterior do mesmo worker. Perguntar antes do
++        # modelo também poupa uma execução inteira que seria jogada fora.
++        if is_customer_turn and not is_group:
++            motivo_de_descarte = self._conversa_saiu_da_ia(batch, run_id, etapa="inicio")
++            if motivo_de_descarte:
++                self._descartar_turno(ids, run_id, motivo_de_descarte, etapa="inicio")
++                return
+         # Pediu gente, passa para gente — antes do modelo, e sem ele. É o
+         # mesmo desenho da confirmação de operador acima: decisão que precisa
+         # ser garantia não passa por escolha de ferramenta.
+@@ -813,8 +826,9 @@ class Worker:
+             final_model = self.cfg.complex_model
+             initial_messages = []
+         elif is_customer_turn:
+-            # O lead não recebe abertura nenhuma: recebe "digitando" (abaixo)
+-            # e, se demorar, uma frase fixa. As aberturas eram geradas sem
++            # O lead não recebe abertura nenhuma: recebe "digitando" (abaixo),
++            # e só. A frase fixa de espera saiu em 13/09/2026, depois de chegar
++            # meio segundo antes da resposta de verdade. As aberturas eram geradas sem
+             # persona nem skill e chegavam como promessa e emoji; e o modelo
+             # pequeno da triagem, sem ferramenta, foi quem descreveu a empresa
+             # errado. Lead vale o modelo forte.
+@@ -863,19 +877,6 @@ class Worker:
+                 # do Bridge ainda não expuser a rota.
+                 audit.log("presence.failed", run_id=run_id, stage="start", error=str(exc))
+ 
+-        # A frase de espera do lead sai só se a execução demorar de verdade.
+-        # Timer, e não mensagem antecipada: a maioria dos turnos termina antes
+-        # e o lead recebe uma resposta só. Cancelado assim que o modelo volta.
+-        wait_timer = None
+-        if is_customer_turn and self.cfg.customer_wait_seconds > 0:
+-            wait_timer = threading.Timer(
+-                self.cfg.customer_wait_seconds,
+-                self._send_customer_wait_notice,
+-                args=(token, recipient, run_id),
+-            )
+-            wait_timer.daemon = True
+-            wait_timer.start()
+-
+         task_intent = is_operator_turn and (
+             self._has_task_intent(batch)
+             or bool(intelligence_context and intelligence_context.skill_slug == "tarefas")
+@@ -953,40 +954,48 @@ class Worker:
+                 is_operator=is_operator_turn,
+                 is_greeting=bool(SIMPLE_GREETING_RE.fullmatch(incoming_text)),
+             )
+-            if (
+-                is_customer_turn
+-                and not is_group
+-                and self.arbitro
+-                and batch[0].connection_id
+-            ):
+-                # Com prazo, pelo mesmo motivo do handoff por contexto: o
+-                # modelo cair não torna esta conversa de ninguém para sempre.
+-                session = self.arbitro.assumir_por_falha(
+-                    batch[0].connection_id,
+-                    recipient,
+-                    MOTIVO_FALHA_DO_MODELO,
+-                )
+-                audit.log(
+-                    "model.handoff",
+-                    run_id=run_id,
+-                    connection_id=batch[0].connection_id,
+-                    session_id=session.id,
+-                    error_code=e.code,
++            if is_customer_turn and not is_group:
++                # O contato não recebe aviso nenhum; a equipe recebe.
++                #
++                # Se alguém da equipe entrou enquanto o modelo rodava, a conversa
++                # já é dela: nem handoff por falha (que venceria em 30 minutos
++                # e devolveria à IA uma conversa de gente), nem aviso.
++                if not self._conversa_saiu_da_ia(batch, run_id, etapa="falha_do_modelo"):
++                    if self.arbitro and batch[0].connection_id:
++                        # Com prazo, pelo mesmo motivo do handoff por contexto:
++                        # o modelo cair não torna esta conversa de ninguém para sempre.
++                        session = self.arbitro.assumir_por_falha(
++                            batch[0].connection_id,
++                            recipient,
++                            MOTIVO_FALHA_DO_MODELO,
++                        )
++                        audit.log(
++                            "model.handoff",
++                            run_id=run_id,
++                            connection_id=batch[0].connection_id,
++                            session_id=session.id,
++                            error_code=e.code,
++                        )
++                    self._notify_team_of_handoff(
++                        token, batch, run_id, MOTIVO_SEM_RESPOSTA_MODELO, modelo=TEAM_NO_REPLY_NOTICE
++                    )
++                self._fail(
++                    ids, run_id, "runner", str(e), started,
++                    error_code=e.code, notify_owner=False,
+                 )
++                return
+             self._fail(
+                 ids,
+                 run_id,
+                 "runner",
+                 str(e),
+                 started,
+-                recipient=recipient if (is_operator_turn or is_customer_turn) and not is_group else None,
++                recipient=recipient if is_operator_turn and not is_group else None,
+                 notice=notice,
+                 error_code=e.code,
+             )
+             return
+         finally:
+-            if wait_timer is not None:
+-                wait_timer.cancel()
+             if presence_started:
+                 try:
+                     send.set_chat_presence(
+@@ -1022,6 +1031,33 @@ class Worker:
+             str(tool).endswith("nucleo_transferir_atendimento_humano")
+             for tool in (result.tools_used or [])
+         )
++        if is_customer_turn and not is_group:
++            # A pergunta que faltou em 13/09/2026: alguém da equipe respondeu
++            # enquanto o modelo pensava? Se sim, esta resposta chegaria por cima
++            # da pessoa — e é jogada fora.
++            #
++            # Mensagem nova do mesmo contato na fila também descarta: a resposta
++            # foi pensada sem ela, e o próximo turno responde as duas juntas
++            # (o histórico entra no prompt). Não vale para uma transferência já
++            # feita pela ferramenta: aquela confirmação o contato precisa ler.
++            motivo_de_descarte = self._conversa_saiu_da_ia(
++                batch, run_id, etapa="envio", checar_rajada=not handoff_executed
++            )
++            if motivo_de_descarte:
++                self._descartar_turno(ids, run_id, motivo_de_descarte, etapa="envio")
++                return
++            if not reply_text.strip():
++                if handoff_executed:
++                    reply_text = CUSTOMER_HANDOFF_DONE_NOTICE
++                else:
++                    # Barrada pelo filtro ou vazia. Antes ia ao contato um "Não
++                    # consegui concluir a resposta agora"; agora ninguém de fora
++                    # lê isso, e a equipe fica sabendo.
++                    self._notify_team_of_handoff(
++                        token, batch, run_id, MOTIVO_SEM_RESPOSTA_BLOQUEADA, modelo=TEAM_NO_REPLY_NOTICE
++                    )
++                    self._descartar_turno(ids, run_id, "reply_blocked", etapa="envio")
++                    return
+         handoff_motivo = "o assistente pediu a transferência"
+         if is_customer_turn and not handoff_executed and not is_group:
+             reply_text, handoff_executed = self._fulfil_customer_handoff_promise(
+@@ -1748,7 +1784,14 @@ Mensagens do usuário:
+         recipient: Optional[str] = None,
+         notice: Optional[str] = None,
+         error_code: str = "",
++        notify_owner: bool = True,
+     ) -> None:
++        """Marca a falha e avisa quem precisa saber.
++
++        `notify_owner=False` é o turno de cliente: quem chama já avisou a
++        equipe com contexto, e o aviso genérico ao dono seria o segundo alerta
++        da mesma falha.
++        """
+         self.store.mark_failed(ids, f"{stage}: {error}")
+         audit.log(
+             "run.failed",
+@@ -1774,7 +1817,7 @@ Mensagens do usuário:
+                 audit.log("operator_notice.sent", run_id=run_id)
+             except send.SendError as exc:
+                 audit.log("operator_notice.failed", run_id=run_id, error=str(exc))
+-        else:
++        elif notify_owner:
+             self._notify_failure(run_id, stage)
+ 
+     def _notify_failure(self, run_id: str, stage: str) -> None:
+@@ -1930,11 +1973,14 @@ Mensagens do usuário:
+         Até aqui a resposta ao cliente saía crua: o filtro só existia para o
+         operador, e o lead é justamente quem não pode ler "não tenho acesso a
+         essa ferramenta nesta sessão".
++
++        Vazio quer dizer "não mande nada": barrada ou em branco, quem chama
++        cala com o contato e avisa a equipe.
+         """
+         if CUSTOMER_INTERNAL_REPLY_RE.search(str(reply or "")):
+             audit.log("reply.blocked", run_id=run_id, reason="internal_runtime_reference", audience="customer")
+-            return CUSTOMER_UNCERTAIN_NOTICE
+-        return str(reply or "").strip() or CUSTOMER_UNCERTAIN_NOTICE
++            return ""
++        return str(reply or "").strip()
+ 
+     def _customer_system_prompt(
+         self, intelligence_context: Optional[IntelligenceContext]
+@@ -1947,13 +1993,179 @@ Mensagens do usuário:
+             return ""
+         return CUSTOMER_SYSTEM_PROMPT
+ 
+-    def _send_customer_wait_notice(self, token: Optional[str], recipient: str, run_id: str) -> None:
+-        """Roda no timer: a execução passou do limite e o lead ainda não viu nada."""
+-        try:
+-            send.send_message(self.cfg.api_base_url, token or "", recipient, CUSTOMER_WAIT_NOTICE)
+-            audit.log("customer.wait_notice", run_id=run_id)
+-        except send.SendError as exc:
+-            audit.log("customer.wait_notice_failed", run_id=run_id, error=str(exc))
++    def _conversa_saiu_da_ia(
++        self,
++        batch: List[Pending],
++        run_id: str,
++        *,
++        etapa: str,
++        checar_rajada: bool = False,
++    ) -> str:
++        """Esta conversa ainda é da IA? Devolve o motivo de não ser, ou vazio.
++
++        Existe porque em 13/09/2026 a porta de entrada decidiu e o turno seguiu
++        sozinho: o dono respondeu o amigo pelo celular às 09:13:05, e a IA
++        enviou às 09:13:06 e às 09:13:16 respostas que já estavam a caminho.
++
++        Três perguntas, na ordem do que é mais grave errar:
++
++        1. alguém da equipe escreveu depois da primeira mensagem deste lote (ou
++           depois de a conversa ter voltado para a IA)? Se sim, a conversa passa
++           para a equipe aqui mesmo — a próxima mensagem já chega ignorada;
++        2. o freio de mão foi puxado, ou a sessão mudou de dono no meio (alguém
++           assumiu pelo portal)?
++        3. com `checar_rajada`, o mesmo contato mandou mensagem nova que está na
++           fila? A resposta foi pensada sem ela.
++
++        Falha aberto como a presença: sem banco, sem árbitro ou sem hora legível,
++        a pergunta correspondente responde "ainda é da IA".
++        """
++        first = batch[0]
++        contato = first.sender or first.chat_jid
++        connection_id = first.connection_id
++        horas = float(getattr(self.cfg, "human_takeover_lookback_hours", 0.0) or 0.0)
++
++        if self.presenca is not None and horas > 0:
++            desde = None
++            for item in batch:
++                quando = self.presenca.instante_da_mensagem(item.wa_id or item.message_id, item.chat_jid)
++                if quando is not None and (desde is None or quando < desde):
++                    desde = quando
++            if desde is None:
++                # Sem a hora da mensagem, só o que é recente: o que veio antes
++                # dela a porta de entrada já viu.
++                desde = datetime.now(timezone.utc) - timedelta(minutes=2)
++            if self.arbitro is not None and connection_id:
++                marco = self.arbitro.marco_da_ia(connection_id, contato)
++                if marco is not None and marco > desde:
++                    desde = marco
++            humano_em = self.presenca.ultima_resposta_humana(
++                first.chat_jid, horas * 60, tambem=(first.sender,), desde=desde
++            )
++            if humano_em is not None:
++                session_id = None
++                if self.arbitro is not None and connection_id:
++                    session_id = self.arbitro.assumir_pela_equipe(connection_id, contato).id
++                audit.log(
++                    "conversation.team_took_over",
++                    run_id=run_id,
++                    connection_id=connection_id or None,
++                    session_id=session_id,
++                    via="whatsapp",
++                    stage=etapa,
++                )
++                return "human_active"
++
++        if self.arbitro is not None and connection_id:
++            if not self.arbitro.ia_ativa(connection_id):
++                return "ai_paused"
++            sessao = self.arbitro.sessao_aberta(connection_id, contato)
++            if sessao is not None and (
++                sessao.dono != DONO_IA or self.arbitro.pausa_humana_ativa(connection_id, contato)
++            ):
++                return "owner_changed"
++
++        if checar_rajada and self._chegou_mensagem_nova(batch):
++            return "newer_message"
++        return ""
++
++    def _chegou_mensagem_nova(self, batch: List[Pending]) -> bool:
++        """O mesmo contato escreveu de novo enquanto este turno rodava?
++
++        A mensagem nova já passou pela porta de entrada e está na fila deste
++        worker. "Eai mano" e "Tdo certo pra hoje?", com 19 s entre elas, viraram
++        duas respostas em 13/09/2026; descartar a primeira deixa o próximo turno
++        responder as duas, com a primeira no histórico.
++        """
++        first = batch[0]
++        ids = {item.message_id for item in batch}
++        with self.queue.mutex:
++            pendentes = list(self.queue.queue)
++        return any(
++            isinstance(item, Pending)
++            and item.chat_jid == first.chat_jid
++            and item.connection_id == first.connection_id
++            and item.message_id not in ids
++            for item in pendentes
++        )
++
++    def _descartar_turno(self, ids: List[str], run_id: str, motivo: str, *, etapa: str) -> None:
++        """Encerra o turno sem enviar nada. Concluído, e não falho: não há o que repetir."""
++        self.store.mark_completed(ids)
++        audit.log(
++            "reply.discarded",
++            run_id=run_id,
++            message_ids=ids,
++            reason=motivo,
++            stage=etapa,
++            sent=False,
++        )
++
++    def _customer_context_unavailable(
++        self,
++        batch: List[Pending],
++        recipient: str,
++        token: Optional[str],
++        run_id: str,
++        ids: List[str],
++    ) -> None:
++        """O contexto de cliente não veio. O contato não fica sabendo; a equipe sim.
++
++        Em 13/09/2026 o dono desligou o agente no meio de uma conversa; o
++        Supabase recusou o contexto (P0001) e o amigo dele recebeu "Nosso
++        atendimento está temporariamente indisponível", mais um handoff por
++        falha de 30 minutos.
++
++        Por isso a primeira pergunta é se o agente ainda atende este contato: se
++        não atende mais, é só silêncio — sem handoff e sem aviso, porque não
++        houve falha nenhuma. Se atende, é falha de verdade: handoff com prazo
++        (como antes) e a equipe avisada no WhatsApp.
++        """
++        first = batch[0]
++        if self._operator_verifier is not None:
++            try:
++                acesso = self._operator_verifier.customer_assistant_access(first.sender or first.chat_jid)
++            except Exception as exc:  # noqa: BLE001 - na dúvida, trata como falha real
++                audit.log("customer_rollout.recheck_failed", run_id=run_id, error=type(exc).__name__)
++                acesso = None
++            if isinstance(acesso, dict) and acesso.get("allowed") is False:
++                for message_id in ids:
++                    self.store.mark_ignored(message_id, "customer_rollout_denied")
++                audit.log(
++                    "customer_rollout.denied",
++                    run_id=run_id,
++                    connection_id=first.connection_id or None,
++                    mode=acesso.get("mode"),
++                    reason=acesso.get("reason"),
++                    stage="turno",
++                )
++                return
++
++        motivo_de_descarte = self._conversa_saiu_da_ia(batch, run_id, etapa="contexto")
++        if motivo_de_descarte:
++            self._descartar_turno(ids, run_id, motivo_de_descarte, etapa="contexto")
++            return
++
++        if self.arbitro and first.connection_id:
++            # Com prazo: ninguém foi chamado para esta conversa. O contexto some
++            # quando o Supabase recusa, e recusa de Supabase passa — a conversa
++            # não pode ficar muda até alguém reparar.
++            session = self.arbitro.assumir_por_falha(
++                first.connection_id,
++                recipient,
++                MOTIVO_FALHA_DO_CONTEXTO,
++            )
++            audit.log(
++                "intelligence.handoff",
++                run_id=run_id,
++                connection_id=first.connection_id,
++                session_id=session.id,
++            )
++        self._notify_team_of_handoff(
++            token, batch, run_id, MOTIVO_SEM_RESPOSTA_CONTEXTO, modelo=TEAM_NO_REPLY_NOTICE
++        )
++        self.store.mark_completed(ids)
++        audit.log("customer_notice.suppressed", run_id=run_id, stage="intelligence", sent=False)
+ 
+     def _customer_now(self) -> datetime:
+         try:
+@@ -2208,6 +2420,7 @@ Mensagens do usuário:
+         batch: List[Pending],
+         run_id: str,
+         motivo: str,
++        modelo: str = TEAM_HANDOFF_NOTICE,
+     ) -> None:
+         """Avisa a equipe no WhatsApp que uma conversa passou para gente.
+ 
+@@ -2217,6 +2430,9 @@ Mensagens do usuário:
+         vai pela rota do agente para o dono da conexão (allowlist do Bridge)
+         e para os telefones de EMYLEADS_HANDOFF_NOTIFY_PHONES. Falha de aviso
+         nunca derruba a resposta ao lead: é registrada e a vida segue.
++
++        `modelo` troca o texto e mantém o resto: `TEAM_NO_REPLY_NOTICE` é o
++        mesmo aviso para quando a IA não conseguiu responder e ficou calada.
+         """
+         first = batch[0]
+         contato = first.sender or first.chat_jid
+@@ -2237,7 +2453,7 @@ Mensagens do usuário:
+             [(item.wa_id or item.message_id, item.chat_jid) for item in batch], cfg=self.cfg
+         )
+         linhas += [f"- contato: {str(body or '')[:160]}" for body in atuais if str(body or "").strip()]
+-        texto = TEAM_HANDOFF_NOTICE.format(
++        texto = modelo.format(
+             quem=quem,
+             motivo=motivo,
+             historico="\n".join(linhas[-8:]) or "- (sem texto)",

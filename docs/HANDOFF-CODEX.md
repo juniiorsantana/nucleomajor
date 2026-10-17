@@ -57,6 +57,12 @@ Supabase/Postgres (assistant_profiles, RPCs nucleo_*)
 
 O portal web (este repo) fala com o Supabase diretamente; não fala com a VPS.
 
+> **Acesso e topologia da VPS de runtime:** estão em
+> `docs/HANDOFF-CODEX-VPS.local.md`, arquivo **local e não versionado**
+> (`*.local.md` no `.gitignore`). Este repositório é público — credenciais,
+> IPs e caminhos de chave não entram aqui. Se o arquivo não existir na sua
+> cópia, peça ao Junior.
+
 ## 3/4. Pastas principais e onde fica cada coisa
 
 | Área | Caminho |

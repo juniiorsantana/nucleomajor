@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+    .seg { display: flex; gap: 3px; border-radius: 11px; background: #f5f6f8; padding: 3px; border: 1px solid #e6e9ed; }
+    .sg { display: flex; flex-grow: 1; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; padding: 9px 12px; font-size: 12.5px; font-weight: 500; color: #667085; }
+    .sg:hover { color: #121730; }
+    .sg.on { background: #ffffff; color: #121730; font-weight: 600; box-shadow: 0 1px 3px rgba(18,23,48,.14); }
+    .pil { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: #ffffff; border: 1px solid #e6e9ed; padding: 5px 12px; font-size: 11px; color: #667085; box-shadow: 0 1px 1px rgba(18,23,48,.04); }
+    .sel { border-radius: 8px; border: 1px solid #e6e9ed; background: #ffffff; padding: 6px 10px; font-size: 11.5px; color: #667085; }
+    .fundo { background-color: #f5f6f8; background-image: radial-gradient(#dfe3e9 1px, transparent 1px); background-size: 22px 22px; }
+    .a-bot { color: #667085; }
+    .a-ia { color: #3d29db; }
+    .a-hum { color: #4f3cfc; }
+    .pt { flex: none; width: 9px; height: 9px; border-radius: 999px; }
+    .pt.bot { background: #667085; }
+    .pt.ia { background: #4f3cfc; }
+    .pt.hum { background: #16a34a; }
+    .avz { border-radius: 9px; padding: 8px 10px; font-size: 11.5px; line-height: 17px; }
+    .avz.atencao { border: 1px solid #e7cfae; background: #fdf8f2; color: #b45309; }
+    .avz.calmo { border: 1px solid #c6e9d3; background: #f3faf5; color: #15803d; }
+  </style>
+</helmet>
+
+<div style="width: 620px; height: 540px; display: flex; flex-direction: column; background: #ffffff; color: #121730; box-sizing: border-box; overflow: hidden; padding: 18px 20px 18px;">
+
+  <div style="flex: none; display: flex; align-items: flex-start; gap: 11px;">
+    <span style="display: flex; width: 34px; height: 34px; flex: none; align-items: center; justify-content: center; border-radius: 10px; background: #eeebff; color: #3d29db;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg>
+    </span>
+    <span style="min-width: 0; flex-grow: 1;">
+      <h1 style="margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.02em;">Quem responde esta conversa</h1>
+      <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 18px; color: #667085; text-wrap: pretty;">Um botão, três donos possíveis, um de cada vez. É esse controle que impede o contato de receber duas respostas para a mesma mensagem.</p>
+    </span>
+  </div>
+
+  <div class="seg" style="flex: none; margin-top: 15px;">
+    <sc-for list="{{donos}}" as="d" hint-placeholder-count="3">
+      <button class="{{d.cls}}" onClick="{{d.usar}}">
+        <sc-if value="{{d.ehBot}}" hint-placeholder-val="{{true}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="16" height="11" rx="2.5"></rect><path d="M12 9V5M9.5 3h5"></path></svg></sc-if>
+        <sc-if value="{{d.ehIa}}" hint-placeholder-val="{{false}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5z"></path><path d="M19 16l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"></path></svg></sc-if>
+        <sc-if value="{{d.ehHum}}" hint-placeholder-val="{{false}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg></sc-if>
+        {{d.rotulo}}
+      </button>
+    </sc-for>
+  </div>
+
+  <div style="flex: none; margin-top: 14px; border-radius: 12px; border: 1px solid #e6e9ed; padding: 13px 15px;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <span class="{{clsPonto}}"></span>
+      <span style="font-size: 13.5px; font-weight: 600;">{{explicacao}}</span>
+    </div>
+
+    <sc-if value="{{ehBot}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; align-items: center; gap: 9px; margin-top: 11px;">
+        <span style="flex: none; font-size: 11.5px; color: #98a2b3;">Regra armada agora</span>
+        <span class="sel">Primeiro contato</span>
+        <span style="font-size: 11px; color: #98a2b3;">é a que responderia a próxima mensagem</span>
+        <button style="margin-left: auto; flex: none; border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: #dc2626;">Parar este bot</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ehIa}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; align-items: center; gap: 9px; margin-top: 11px;">
+        <span style="flex: none; font-size: 11.5px; color: #98a2b3;">Agente responsável</span>
+        <span class="sel">Comercial · Agro</span>
+        <span style="font-size: 11px; color: #98a2b3;">usa o conhecimento publicado para clientes</span>
+        <button style="margin-left: auto; flex: none; border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: #3d29db;">Trocar agente</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ehHum}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; align-items: center; gap: 9px; margin-top: 11px;">
+        <span style="flex: none; font-size: 11.5px; color: #98a2b3;">Assumiu</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px;">
+          <span style="display: flex; width: 21px; height: 21px; align-items: center; justify-content: center; border-radius: 999px; background: #4f3cfc; color: #ffffff; font-size: 9px; font-weight: 600;">JU</span>
+          <span style="font-size: 12.5px;">Juniior</span>
+          <span style="font-size: 11px; color: #98a2b3;">às 09:31</span>
+        </span>
+        <button style="margin-left: auto; flex: none; border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: #3d29db;">Devolver ao robô</button>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="flex-grow: 1; min-height: 0; margin-top: 14px; display: flex; gap: 12px;">
+    <div style="min-width: 0; flex-grow: 1; display: flex; flex-direction: column;">
+      <span style="flex: none; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">O que aparece na conversa</span>
+      <div class="fundo" style="flex-grow: 1; min-height: 0; margin-top: 7px; border-radius: 11px; border: 1px solid #e6e9ed; padding: 12px 12px; display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+        <div style="display: flex; justify-content: center;">
+          <span class="pil">
+            <sc-if value="{{ehBot}}" hint-placeholder-val="{{true}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><rect x="4" y="9" width="16" height="11" rx="2.5"></rect><path d="M12 9V5"></path></svg></sc-if>
+            <sc-if value="{{ehIa}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f3cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5z"></path></svg></sc-if>
+            <sc-if value="{{ehHum}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg></sc-if>
+            {{evento}}
+          </span>
+        </div>
+        <div style="display: flex; justify-content: flex-end;">
+          <span style="position: relative; max-width: 84%; border-radius: 12px; border-top-right-radius: 4px; border: 1px solid #ddd7ff; background: #eeebff; padding: 7px 10px; font-size: 12.5px; line-height: 18px; color: #121730;">
+            <span class="{{clsAutor}}" style="display: block; font-size: 10.5px; font-weight: 600; margin-bottom: 1px;">{{autor}}</span>
+            {{exemplo}}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 224px; flex: none; display: flex; flex-direction: column;">
+      <span style="flex: none; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Na caixa de escrita</span>
+      <div style="flex-grow: 1; min-height: 0; margin-top: 7px; border-radius: 11px; border: 1px solid #e6e9ed; background: #f5f6f8; padding: 12px; display: flex; flex-direction: column; justify-content: center; gap: 9px;">
+        <div class="{{clsAviso}}">{{aviso}}</div>
+        <div style="display: flex; align-items: center; gap: 5px; border-radius: 12px; border: 1px solid #e6e9ed; background: #ffffff; padding: 5px 7px;">
+          <span style="flex-grow: 1; font-size: 12px; color: #98a2b3;">Escreva uma mensagem</span>
+          <span style="display: flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; border-radius: 9px; background: #4f3cfc; color: #ffffff;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5L11 13"></path><path d="M21.5 2.5l-6.7 19-3.8-8.5-8.5-3.8z"></path></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":620,"height":540}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { dono: "humano" };
+  }
+
+  base() {
+    return {
+      bot: {
+        rotulo: "Robô do CRM",
+        explicacao: "As regras dos chatbots atendem esta conversa.",
+        evento: "Robô do CRM respondeu pela regra Primeiro contato",
+        autor: "Robô do CRM",
+        clsAutor: "a-bot",
+        exemplo: "Bom dia! Sou o assistente da Major Hub. Me conta rapidinho o que você precisa.",
+        aviso: "O robô também responde. Assuma antes de escrever, ou vocês dois falam.",
+        tomAviso: "atencao",
+        ponto: "#667085"
+      },
+      ia: {
+        rotulo: "Agente de IA",
+        explicacao: "O agente de IA responde esta conversa.",
+        evento: "Agente de IA assumiu a conversa",
+        autor: "Agente de IA",
+        clsAutor: "a-ia",
+        exemplo: "Mandei dois cases no seu e-mail. O de maior resultado foi uma revenda que triplicou os orçamentos.",
+        aviso: "A IA continua respondendo enquanto você digita. Assuma para calar os dois.",
+        tomAviso: "atencao",
+        ponto: "#4f3cfc"
+      },
+      humano: {
+        rotulo: "Atendente",
+        explicacao: "Alguém assumiu. Nenhum automatismo responde.",
+        evento: "Juniior assumiu — motivo: pedido de condição comercial",
+        autor: "Juniior",
+        clsAutor: "a-hum",
+        exemplo: "Bom dia, Mariana! Dá sim. Seguro os R$ 3.200/mês até 31/10.",
+        aviso: "Só você escreve. Nada sai daqui sem passar por uma pessoa.",
+        tomAviso: "calmo",
+        ponto: "#16a34a"
+      }
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const tudo = this.base();
+    const atual = tudo[s.dono];
+    const ordem = ["bot", "ia", "humano"];
+
+    const pontos = { bot: "pt bot", ia: "pt ia", humano: "pt hum" };
+
+    return {
+      donos: ordem.map((id) => ({
+        rotulo: tudo[id].rotulo,
+        cls: s.dono === id ? "sg on" : "sg",
+        ehBot: id === "bot",
+        ehIa: id === "ia",
+        ehHum: id === "humano",
+        usar: () => this.setState({ dono: id })
+      })),
+      ehBot: s.dono === "bot",
+      ehIa: s.dono === "ia",
+      ehHum: s.dono === "humano",
+      explicacao: atual.explicacao,
+      evento: atual.evento,
+      autor: atual.autor,
+      clsAutor: atual.clsAutor,
+      exemplo: atual.exemplo,
+      aviso: atual.aviso,
+      clsAviso: atual.tomAviso === "calmo" ? "avz calmo" : "avz atencao",
+      clsPonto: pontos[s.dono]
+    };
+  }
+}
+</script>
+</body>
+</html>

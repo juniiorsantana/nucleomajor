@@ -18,3 +18,11 @@ playwright-report/
 !apps/emyleads/.env.test
 npm-debug.log*
 public/painel/
+
+# handoffs locais com dados de acesso — nunca versionar (repo publico)
+*.local.md
+
+# pastas locais de ferramentas (Codex, rascunhos de design) — nunca versionar
+.codex/
+.codex-temp/
+.design/

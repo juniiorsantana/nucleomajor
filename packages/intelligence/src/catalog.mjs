@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { INSTRUCTIONS_MAX, INSTRUCTIONS_MIN } from "./skill-limits.mjs";
 import { TOOL_NAMES, isKnownTool } from "./tools.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -144,7 +145,7 @@ export function validateSkillPackage(skill, instructions, tests) {
   requireStringArray(skill.guardrails, "guardrails", errors, { min: 1 });
   requireStringArray(skill.handoff, "handoff", errors, { min: 1 });
   validateWorkflow(skill, errors);
-  requireText(instructions, "instructions.md", errors, { min: 80, max: 20000 });
+  requireText(instructions, "instructions.md", errors, { min: INSTRUCTIONS_MIN, max: INSTRUCTIONS_MAX });
   if (!String(instructions || "").startsWith("# ")) errors.push("instructions.md deve começar com um título H1");
 
   if (!isObject(tests) || !Array.isArray(tests.cases) || tests.cases.length < 2) {

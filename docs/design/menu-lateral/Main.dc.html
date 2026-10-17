@@ -1,0 +1,306 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    * { box-sizing: border-box; }
+
+    .item {
+      display: flex; align-items: center; gap: 12px; width: 100%; height: 40px;
+      border: 0; border-radius: 10px; font-family: inherit; font-size: 14px; line-height: 1.2;
+      text-align: left; cursor: pointer; position: relative;
+      background: transparent; color: #667085; font-weight: 500;
+      transition: background-color .12s ease, color .12s ease;
+    }
+    .item:hover { background: #eef0f3; color: #121730; }
+    .item.on { background: #eeebff; color: #3d29db; font-weight: 600; }
+    .item.on:hover { background: #eeebff; }
+    .item .rot { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item svg { flex: none; }
+
+    /* A dica só existe no modo ícone — no menu aberto o rótulo já está na tela. */
+    .tip {
+      display: none; position: absolute; left: calc(100% + 12px); top: 50%;
+      transform: translateY(-50%); z-index: 30;
+      background: #121730; color: #ffffff; font-size: 12px; font-weight: 500;
+      padding: 6px 10px; border-radius: 7px; white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity .12s ease;
+      box-shadow: 0 6px 18px rgba(18, 23, 48, .22);
+    }
+    .rail .tip { display: block; }
+    .rail .item:hover .tip, .rail .conta:hover .tip { opacity: 1; }
+
+    .punho {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; flex: none; border: 0; border-radius: 8px;
+      background: transparent; color: #98a2b3; cursor: pointer;
+      transition: background-color .12s ease, color .12s ease;
+    }
+    .punho:hover { background: #eef0f3; color: #121730; }
+
+    .grupo {
+      margin: 16px 0 4px; padding: 0 12px;
+      font-size: 10.5px; font-weight: 600; letter-spacing: .06em;
+      text-transform: uppercase; color: #98a2b3;
+    }
+    .grupo.primeiro { margin-top: 2px; }
+    .sep { height: 1px; background: #e6e9ed; margin: 10px 8px; }
+
+    .conta {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      border: 1px solid #e6e9ed; border-radius: 12px; background: transparent;
+      padding: 10px 12px; text-align: left; cursor: pointer; font-family: inherit;
+      position: relative; transition: background-color .12s ease;
+    }
+    .conta:hover { background: #eef0f3; }
+    .rail .conta { border: 0; padding: 0; justify-content: center; height: 40px; border-radius: 10px; }
+
+    .linha { display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 20px; border-bottom: 1px solid #e6e9ed; }
+    .barra { height: 9px; border-radius: 999px; background: #e6e9ed; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; overflow: hidden; background: #f5f6f8; color: #121730; font-size: 14px">
+
+  <!-- MENU LATERAL -->
+  <aside class="menu {{modo}}" style="width: {{largura}}px; flex: none; display: flex; flex-direction: column; background: #ffffff; border-right: 1px solid #e6e9ed; transition: width .2s ease; overflow: visible">
+
+    <!-- Topo: marca + punho. O punho mora aqui porque aqui ele tem âncora:
+         não flutua sobre o cabeçalho de nenhuma tela. -->
+    <div style="display: flex; align-items: center; justify-content: {{lay.just}}; gap: 10px; height: 64px; padding: {{lay.padTopo}}; flex: none">
+      <img src="marca.png" alt="" style="width: 32px; height: 32px; flex: none">
+      <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}">
+        <span style="flex: 1; min-width: 0; font-size: 19px; letter-spacing: -0.02em; white-space: nowrap">
+          <span style="font-weight: 700; color: #121730">Emy</span><span style="font-weight: 500; color: #4f3cfc">Leads</span>
+        </span>
+        <button class="punho" onClick="{{alternar}}" title="Esconder o menu (Ctrl+B)" aria-label="Esconder o menu">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path>
+          </svg>
+        </button>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{recolhido}}">
+      <div style="display: flex; justify-content: center; padding: 0 0 10px; flex: none">
+        <button class="punho" onClick="{{alternar}}" title="Mostrar o menu (Ctrl+B)" aria-label="Mostrar o menu">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m14 9 3 3-3 3"></path>
+          </svg>
+        </button>
+      </div>
+    </sc-if>
+
+    <!-- NAVEGAÇÃO -->
+    <nav aria-label="Navegação principal" style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: {{lay.padNav}}; overflow: visible">
+
+      <sc-if value="{{mostrarRotulo}}" hint-placeholder-val="{{true}}"><p class="grupo primeiro">Atendimento</p></sc-if>
+
+      <button class="item {{s.assistente.cls}}" onClick="{{go.assistente}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Assistente</span></sc-if>
+        <span class="tip">Assistente</span>
+      </button>
+
+      <button class="item {{s.conversas.cls}}" onClick="{{go.conversas}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Conversas</span></sc-if>
+        <span class="tip">Conversas</span>
+      </button>
+
+      <sc-if value="{{mostrarRotulo}}" hint-placeholder-val="{{true}}"><p class="grupo">Gestão</p></sc-if>
+      <sc-if value="{{mostrarSep}}"><div class="sep"></div></sc-if>
+
+      <button class="item {{s.contatos.cls}}" onClick="{{go.contatos}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Contatos</span></sc-if>
+        <span class="tip">Contatos</span>
+      </button>
+
+      <button class="item {{s.funil.cls}}" onClick="{{go.funil}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Funil</span></sc-if>
+        <span class="tip">Funil</span>
+      </button>
+
+      <button class="item {{s.tarefas.cls}}" onClick="{{go.tarefas}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path><path d="m9 11 3 3L22 4"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Tarefas</span></sc-if>
+        <span class="tip">Tarefas</span>
+      </button>
+
+      <button class="item {{s.agenda.cls}}" onClick="{{go.agenda}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Agenda</span></sc-if>
+        <span class="tip">Agenda</span>
+      </button>
+
+      <sc-if value="{{mostrarRotulo}}" hint-placeholder-val="{{true}}"><p class="grupo">Automação</p></sc-if>
+      <sc-if value="{{mostrarSep}}"><div class="sep"></div></sc-if>
+
+      <button class="item {{s.conhecimento.cls}}" onClick="{{go.conhecimento}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="8" height="18" x="3" y="3" rx="1"></rect><path d="M7 3v18"></path><path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Inteligência</span></sc-if>
+        <span class="tip">Inteligência</span>
+      </button>
+
+      <button class="item {{s.chatbots.cls}}" onClick="{{go.chatbots}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Chatbots</span></sc-if>
+        <span class="tip">Chatbots</span>
+      </button>
+
+      <sc-if value="{{mostrarRotulo}}" hint-placeholder-val="{{true}}"><p class="grupo">Ambiente</p></sc-if>
+      <sc-if value="{{mostrarSep}}"><div class="sep"></div></sc-if>
+
+      <button class="item {{s.conexoes.cls}}" onClick="{{go.conexoes}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9a2 2 0 0 1-2-2V5h6v2a2 2 0 0 1-2 2Z"></path><path d="M3 5V3"></path><path d="M7 5V3"></path><path d="M19 15V6.5a3.5 3.5 0 0 0-7 0v11a3.5 3.5 0 0 1-7 0V9"></path><path d="M17 21v-2"></path><path d="M21 21v-2"></path><path d="M22 19h-6v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2Z"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Conexões</span></sc-if>
+        <span class="tip">Conexões</span>
+      </button>
+
+      <button class="item {{s.equipe.cls}}" onClick="{{go.equipe}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 21a8 8 0 0 0-16 0"></path><circle cx="10" cy="8" r="5"></circle><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"></path>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Equipe</span></sc-if>
+        <span class="tip">Equipe</span>
+      </button>
+
+      <button class="item {{s.config.cls}}" onClick="{{go.config}}" style="justify-content: {{lay.just}}; padding: {{lay.padItem}}">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}"><span class="rot">Configurações</span></sc-if>
+        <span class="tip">Configurações</span>
+      </button>
+    </nav>
+
+    <!-- RODAPÉ: a conta é a única coisa que nunca sai da tela, aberta ou recolhida. -->
+    <div style="padding: 12px; flex: none">
+      <button class="conta">
+        <span style="display: flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border-radius: 999px; background: #eeebff; color: #3d29db; font-size: 11.5px; font-weight: 600">AR</span>
+        <sc-if value="{{aberto}}" hint-placeholder-val="{{true}}">
+          <span style="flex: 1; min-width: 0">
+            <span style="display: block; font-size: 13px; font-weight: 600; color: #121730; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ana Ribeiro</span>
+            <span style="display: block; font-size: 11.5px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Núcleo Major · Administrador</span>
+          </span>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="m6 9 6 6 6-6"></path></svg>
+        </sc-if>
+        <span class="tip">Ana Ribeiro · Núcleo Major</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- CONTEÚDO (contexto para o menu ser julgado na tela, não isolado) -->
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 24px; flex: none; background: #ffffff; border-bottom: 1px solid #e6e9ed; padding: 16px 32px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; color: #121730">Contatos</h1>
+      <div style="flex: 1; display: flex; justify-content: center">
+        <div style="position: relative; width: 100%; max-width: 490px">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%)"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+          <div style="border: 1px solid #e6e9ed; border-radius: 10px; background: #ffffff; padding: 10px 56px 10px 44px; font-size: 14px; color: #98a2b3">Buscar contatos</div>
+          <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; font-weight: 500; color: #98a2b3">&#8984;K</span>
+        </div>
+      </div>
+      <div style="flex: none; display: flex; align-items: center; gap: 8px; border-radius: 10px; background: #4f3cfc; color: #ffffff; padding: 12px 20px; font-size: 14px; font-weight: 600">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        Adicionar contato
+      </div>
+    </header>
+
+    <div style="flex: 1; min-height: 0; padding: 24px 32px">
+      <div style="border: 1px solid #e6e9ed; border-radius: 14px; background: #ffffff; overflow: hidden; height: 100%">
+        <div class="linha" style="background: #f5f6f8; height: 44px">
+          <div class="barra" style="width: 64px; height: 8px"></div>
+          <div class="barra" style="width: 92px; height: 8px"></div>
+          <div class="barra" style="width: 78px; height: 8px; margin-left: auto"></div>
+        </div>
+        <sc-for list="{{linhas}}" as="linha" hint-placeholder-count="7">
+          <div class="linha">
+            <span style="flex: none; width: 34px; height: 34px; border-radius: 999px; background: #eef0f3"></span>
+            <div class="barra" style="width: {{linha.a}}px"></div>
+            <div class="barra" style="width: {{linha.b}}px; background: #eef0f3"></div>
+            <div class="barra" style="width: 84px; margin-left: auto; background: #eef0f3"></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"mostrarGrupos":{"editor":"boolean","default":true,"section":"Menu"},"larguraRail":{"editor":"range","default":68,"min":56,"max":88,"step":2,"unit":"px","section":"Menu"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { recolhido: false, ativa: "contatos" };
+  }
+
+  renderVals() {
+    const aberto = !this.state.recolhido;
+    const grupos = this.props.mostrarGrupos ?? true;
+    const ids = [
+      "assistente", "conversas", "contatos", "funil", "tarefas",
+      "agenda", "conhecimento", "chatbots", "conexoes", "equipe", "config",
+    ];
+    const go = {};
+    const s = {};
+    ids.forEach((id) => {
+      go[id] = () => this.setState({ ativa: id });
+      s[id] = { cls: this.state.ativa === id ? "on" : "" };
+    });
+
+    return {
+      aberto,
+      recolhido: this.state.recolhido,
+      modo: aberto ? "aberto" : "rail",
+      largura: aberto ? 256 : (this.props.larguraRail ?? 68),
+      mostrarRotulo: aberto && grupos,
+      mostrarSep: !aberto && grupos,
+      lay: {
+        padTopo: aberto ? "0 12px 0 20px" : "0",
+        padNav: aberto ? "6px 12px 0" : "2px 12px 0",
+        padItem: aberto ? "0 12px" : "0",
+        just: aberto ? "flex-start" : "center",
+      },
+      alternar: () => this.setState({ recolhido: !this.state.recolhido }),
+      go,
+      s,
+      linhas: [
+        { a: 148, b: 104 }, { a: 116, b: 132 }, { a: 172, b: 96 },
+        { a: 132, b: 118 }, { a: 158, b: 88 }, { a: 124, b: 126 },
+        { a: 166, b: 110 },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

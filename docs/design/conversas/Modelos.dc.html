@@ -1,0 +1,227 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+    input { font: inherit; }
+    .chip { border-radius: 999px; border: 1px solid #e6e9ed; background: #ffffff; padding: 5px 11px; font-size: 11.5px; font-weight: 500; color: #667085; white-space: nowrap; }
+    .chip:hover { border-color: #d3d8de; color: #121730; }
+    .chip.on { border-color: #4f3cfc; background: #eeebff; color: #3d29db; font-weight: 600; }
+    .mod { display: flex; align-items: flex-start; gap: 11px; width: 100%; text-align: left; border-radius: 11px; border: 1px solid #e6e9ed; background: #ffffff; padding: 11px 13px; box-sizing: border-box; }
+    .mod:hover { border-color: #d3d8de; background: #fbfbfc; }
+    .mod.on { border-color: #4f3cfc; background: #fbfaff; box-shadow: 0 0 0 1px #4f3cfc; }
+    .modic { display: flex; width: 28px; height: 28px; flex: none; align-items: center; justify-content: center; border-radius: 8px; background: #f5f6f8; color: #667085; }
+    .mod.on .modic { background: #eeebff; color: #3d29db; }
+    .var { border-radius: 4px; background: #eeebff; color: #3d29db; padding: 1px 5px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .prim { display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 10px; background: #4f3cfc; color: #ffffff; padding: 10px 18px; font-size: 13px; font-weight: 600; }
+    .prim:hover { filter: brightness(1.1); }
+    .sec { display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 10px; border: 1px solid #e6e9ed; padding: 10px 16px; font-size: 13px; font-weight: 600; color: #667085; }
+    .sec:hover { border-color: #d3d8de; color: #121730; }
+    .scr::-webkit-scrollbar { width: 8px; }
+    .scr::-webkit-scrollbar-thumb { background: #d3d8de; border-radius: 999px; }
+    .scr::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</helmet>
+
+<div style="width: 620px; height: 780px; display: flex; flex-direction: column; background: #ffffff; color: #121730; box-sizing: border-box; overflow: hidden;">
+
+  <div style="flex: none; padding: 18px 20px 14px; border-bottom: 1px solid #eef0f3;">
+    <div style="display: flex; align-items: flex-start; gap: 11px;">
+      <span style="display: flex; width: 34px; height: 34px; flex: none; align-items: center; justify-content: center; border-radius: 10px; background: #eeebff; color: #3d29db;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"></path><path d="M8.5 10h7M8.5 13.5h4.5"></path></svg>
+      </span>
+      <span style="min-width: 0; flex-grow: 1;">
+        <h1 style="margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.02em;">Mensagens padrão</h1>
+        <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 18px; color: #667085; text-wrap: pretty;">O texto sai com o nome e a empresa de quem está do outro lado — sempre revisado antes de sair.</p>
+      </span>
+      <span style="flex: none; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; border: 1px solid #e6e9ed; padding: 3px 8px; font-size: 10.5px; color: #667085;">atalho <strong style="font-weight: 700; color: #121730;">/</strong></span>
+    </div>
+  </div>
+
+  <div style="flex: none; padding: 12px 20px 0;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="flex: none; font-size: 11.5px; color: #98a2b3;">Prévia para</span>
+      <sc-for list="{{contatos}}" as="p" hint-placeholder-count="3">
+        <button class="{{p.cls}}" onClick="{{p.usar}}">{{p.nome}}</button>
+      </sc-for>
+    </div>
+
+    <div style="position: relative; margin-top: 11px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" style="position: absolute; left: 12px; top: 10px;"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input value="{{busca}}" onChange="{{aoBuscar}}" placeholder="Buscar por título ou pelo texto da mensagem" style="width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #e6e9ed; background: #ffffff; padding: 9px 12px 9px 36px; font-size: 13px; color: #121730; outline: none;">
+    </div>
+
+    <div class="scr" style="display: flex; gap: 5px; margin-top: 10px; overflow-x: auto; padding-bottom: 3px;">
+      <sc-for list="{{categorias}}" as="k" hint-placeholder-count="4">
+        <button class="{{k.cls}}" onClick="{{k.usar}}">{{k.rotulo}}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="scr" style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 12px 20px 14px; display: flex; flex-direction: column; gap: 7px;">
+    <sc-for list="{{modelos}}" as="t" hint-placeholder-count="5">
+      <button class="{{t.cls}}" onClick="{{t.usar}}">
+        <span class="modic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg></span>
+        <span style="min-width: 0; flex-grow: 1;">
+          <span style="display: flex; align-items: center; gap: 7px;">
+            <span style="font-size: 13px; font-weight: 600; color: #121730;">{{t.titulo}}</span>
+            <span class="var">{{t.variaveis}}</span>
+            <sc-if value="{{t.temVariacoes}}" hint-placeholder-val="{{false}}">
+              <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: #98a2b3;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path></svg>
+                {{t.textoVariacoes}}
+              </span>
+            </sc-if>
+          </span>
+          <span style="display: block; margin-top: 3px; font-size: 12px; line-height: 18px; color: #667085;">{{t.previa}}</span>
+        </span>
+      </button>
+    </sc-for>
+    <sc-if value="{{semResultado}}" hint-placeholder-val="{{false}}">
+      <span style="display: block; padding: 26px 0; text-align: center; font-size: 12.5px; color: #98a2b3;">Nenhuma mensagem padrão com esse termo.</span>
+    </sc-if>
+  </div>
+
+  <div style="flex: none; border-top: 1px solid #e6e9ed; background: #f5f6f8; padding: 14px 20px 16px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Como vai chegar</span>
+      <sc-if value="{{temVariacoesEscolhida}}" hint-placeholder-val="{{false}}">
+        <button onClick="{{sortear}}" style="display: inline-flex; align-items: center; gap: 5px; border-radius: 7px; border: 1px solid #e6e9ed; background: #ffffff; padding: 3px 9px; font-size: 10.5px; font-weight: 600; color: #3d29db;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"></path></svg>
+          Sortear outra variação
+        </button>
+      </sc-if>
+      <span style="margin-left: auto; font-size: 11px; color: #98a2b3;">{{contatoAtual.nome}} · {{contatoAtual.empresa}}</span>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 9px;">
+      <div style="position: relative; max-width: 88%; border-radius: 12px; border-top-right-radius: 4px; border: 1px solid #ddd7ff; background: #eeebff; padding: 9px 12px 9px; font-size: 13px; line-height: 19px; color: #121730; box-shadow: 0 1px 1px rgba(18,23,48,.06);">
+        <span style="display: block; font-size: 10.5px; font-weight: 600; color: #4f3cfc; margin-bottom: 1px;">Juniior</span>
+        {{textoPronto}}<span style="display: inline-block; width: 58px; height: 1px;"></span>
+        <span style="position: absolute; right: 11px; bottom: 7px; display: flex; align-items: center; gap: 3px; font-size: 10.5px; color: #98a2b3;">
+          agora
+          <svg width="15" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l3 3 6.5-8"></path></svg>
+        </span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 13px;">
+      <span style="min-width: 0; flex-grow: 1; font-size: 11px; line-height: 16px; color: #98a2b3; text-wrap: pretty;">Inserir deixa o texto na caixa para você ajustar. Enviar manda direto, sem revisão.</span>
+      <button class="sec">Inserir na caixa</button>
+      <button class="prim">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5L11 13"></path><path d="M21.5 2.5l-6.7 19-3.8-8.5-8.5-3.8z"></path></svg>
+        Enviar agora
+      </button>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":620,"height":780}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { contato: "mariana", categoria: "todas", busca: "", modelo: "t1", variacao: 0 };
+  }
+
+  contatosBase() {
+    return [
+      { id: "mariana", nome: "Mariana Costa", empresa: "Agro Forte" },
+      { id: "joao", nome: "João Silva", empresa: "Clínica Integrar" },
+      { id: "fernanda", nome: "Fernanda Ribeiro", empresa: "Vet Campo" }
+    ];
+  }
+
+  modelosBase() {
+    return [
+      { id: "t1", cat: "primeiro", titulo: "Primeiro contato", vars: "{nome} {empresa}", variacoes: [
+        "Oi, {nome}! Aqui é o Juniior, da Major Hub. Obrigado pelo contato. Me conta rapidinho o que a {empresa} está precisando agora?",
+        "Oi, {nome}, tudo bem? Juniior aqui, da Major Hub. Vi que você chamou a gente. O que a {empresa} está querendo resolver?",
+        "{nome}, bom te ver por aqui! Sou o Juniior, da Major Hub. Me conta o que a {empresa} precisa que eu já te oriento."
+      ] },
+      { id: "t2", cat: "proposta", titulo: "Enviar proposta", vars: "{nome} {empresa}", variacoes: [
+        "{nome}, segue a proposta da {empresa} em PDF. Qualquer dúvida me chama por aqui. A validade é de 15 dias."
+      ] },
+      { id: "t3", cat: "follow", titulo: "Sem resposta há 3 dias", vars: "{nome}", variacoes: [
+        "Oi, {nome}! Passando só pra saber se você chegou a ver a proposta. Se preferir, marco 15 minutos pra gente conversar.",
+        "{nome}, tudo certo por aí? Fico à disposição pra tirar qualquer dúvida da proposta — inclusive por chamada, se ficar melhor."
+      ] },
+      { id: "t4", cat: "proposta", titulo: "Confirmar reunião", vars: "{nome}", variacoes: [
+        "{nome}, confirmando nossa conversa de amanhã às 14h. Vou te chamar por aqui mesmo. Fica bom pra você?"
+      ] },
+      { id: "t5", cat: "pos", titulo: "Relatório do mês", vars: "{nome} {empresa}", variacoes: [
+        "{nome}, subi o relatório do mês na pasta da {empresa}. Quer que eu te explique os números numa call rápida?"
+      ] },
+      { id: "t6", cat: "pos", titulo: "Cobrança gentil", vars: "{nome} {empresa}", variacoes: [
+        "Oi, {nome}! A mensalidade da {empresa} venceu ontem. Te mando o boleto de novo ou prefere o Pix?"
+      ] }
+    ];
+  }
+
+  renderTexto(texto, contato) {
+    const primeiro = String(contato.nome || "").trim().split(" ")[0] || "";
+    return String(texto).split("{nome}").join(primeiro).split("{empresa}").join(contato.empresa || "");
+  }
+
+  renderVals() {
+    const s = this.state;
+    const contatos = this.contatosBase();
+    const contatoAtual = contatos.filter((c) => c.id === s.contato)[0] || contatos[0];
+    const termo = String(s.busca || "").trim().toLowerCase();
+
+    const catsDef = [["todas", "Todas"], ["primeiro", "Primeiro contato"], ["proposta", "Proposta"], ["follow", "Follow-up"], ["pos", "Pós-venda"]];
+
+    const visiveis = this.modelosBase()
+      .filter((t) => s.categoria === "todas" || t.cat === s.categoria)
+      .filter((t) => {
+        if (!termo) return true;
+        const alvo = (t.titulo + " " + t.variacoes.join(" ")).toLowerCase();
+        return alvo.indexOf(termo) !== -1;
+      });
+
+    const escolhida = this.modelosBase().filter((t) => t.id === s.modelo)[0] || this.modelosBase()[0];
+    const indice = s.variacao % escolhida.variacoes.length;
+    const textoPronto = this.renderTexto(escolhida.variacoes[indice], contatoAtual);
+
+    return {
+      contatos: contatos.map((c) => ({
+        nome: c.nome,
+        cls: c.id === s.contato ? "chip on" : "chip",
+        usar: () => this.setState({ contato: c.id })
+      })),
+      contatoAtual: contatoAtual,
+      busca: s.busca,
+      aoBuscar: (e) => this.setState({ busca: e.target.value }),
+      categorias: catsDef.map((k) => ({
+        rotulo: k[1],
+        cls: s.categoria === k[0] ? "chip on" : "chip",
+        usar: () => this.setState({ categoria: k[0] })
+      })),
+      modelos: visiveis.map((t) => ({
+        titulo: t.titulo,
+        variaveis: t.vars,
+        temVariacoes: t.variacoes.length !== 1,
+        textoVariacoes: t.variacoes.length + " variações",
+        previa: this.renderTexto(t.variacoes[0], contatoAtual),
+        cls: t.id === s.modelo ? "mod on" : "mod",
+        usar: () => this.setState({ modelo: t.id, variacao: 0 })
+      })),
+      semResultado: visiveis.length === 0,
+      textoPronto: textoPronto,
+      temVariacoesEscolhida: escolhida.variacoes.length !== 1,
+      sortear: () => this.setState({ variacao: s.variacao + 1 })
+    };
+  }
+}
+</script>
+</body>
+</html>

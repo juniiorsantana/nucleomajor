@@ -50,6 +50,7 @@ const ORCAMENTO_LEAD = orcamentoLeadConfig();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 8;
 const attempts = new Map();
+const campaignAttempts = new Map();
 
 class HttpError extends Error {
   constructor(status, message, code = "portal-error") {
@@ -619,6 +620,52 @@ function countAttempt(key) {
   attempts.set(key, recent);
 }
 
+async function campaignLead(req, res) {
+  if (req.method !== "POST") throw new HttpError(405, "Método não permitido.", "method-not-allowed");
+  const ip = String(req.socket.remoteAddress || "unknown");
+  const now = Date.now();
+  const recent = (campaignAttempts.get(ip) || []).filter((time) => now - time < 60_000);
+  if (recent.length >= 5) throw new HttpError(429, "Aguarde um minuto antes de tentar novamente.", "rate-limited");
+  recent.push(now);
+  campaignAttempts.set(ip, recent);
+
+  const data = await readJson(req);
+  if (data.website) return json(res, 200, { received: true });
+  const field = (key, max) => String(data[key] || "").trim().slice(0, max);
+  const name = field("name", 120);
+  const phone = field("phone", 20);
+  const email = field("email", 254);
+  const clinic = field("clinic", 160);
+  const city = field("city", 100);
+  const teamSize = field("teamSize", 10);
+  if (!name || !clinic || !city || !/^\S+@\S+\.\S+$/.test(email) || phone.replace(/\D/g, "").length < 10 || !["1", "2-3", "4+"].includes(teamSize) || data.consent !== true) {
+    throw new HttpError(400, "Confira os campos e autorize o contato antes de enviar.", "invalid-lead");
+  }
+  const to = String(process.env.CAMPAIGN_LEADS_TO || "").trim();
+  if (!/^\S+@\S+\.\S+$/.test(to)) throw new HttpError(503, "O canal de contato ainda não está configurado. Tente novamente mais tarde.", "lead-channel-unavailable");
+  let mailer;
+  try { mailer = createMailer(); } catch { throw new HttpError(503, "O canal de contato ainda não está configurado. Tente novamente mais tarde.", "lead-channel-unavailable"); }
+  const tracking = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"];
+  const lines = [
+    "Novo contato — LP Núcleo Major para clínicas", "",
+    `Nome: ${name}`, `Clínica: ${clinic}`, `Cidade: ${city}`, `WhatsApp: ${phone}`,
+    `E-mail: ${email}`, `Equipe no WhatsApp: ${teamSize}`, "Consentimento de contato: sim", "",
+    ...tracking.map((key) => `${key}: ${field(key, 200) || "—"}`),
+  ];
+  try {
+    await mailer.transport.sendMail({
+      from: `${mailer.config.fromName} <${mailer.config.fromEmail}>`,
+      to,
+      replyTo: email,
+      subject: `Novo lead de clínica — ${clinic.replace(/[\r\n]/g, " ")}`,
+      text: lines.join("\n"),
+    });
+  } catch {
+    throw new HttpError(502, "Não foi possível enviar seus dados agora. Tente novamente em instantes.", "lead-delivery-failed");
+  }
+  return json(res, 200, { received: true });
+}
+
 async function markDelivery(token, organizationId, inviteId, delivered, failureReason = null) {
   try {
     await supabaseRequest("/rest/v1/rpc/mark_organization_invite_delivery", token, {
@@ -995,6 +1042,10 @@ async function staticFile(req, res, url) {
   else if (pathname === "/termos-de-uso" || pathname === "/termos-de-uso/") relative = "termos-de-uso/index.html";
   // A página dos anúncios para clínicas. `/clinicas` é o endereço curto.
   else if (["/clinicas", "/clinicas/", "/clinicas/raio-x", "/clinicas/raio-x/"].includes(pathname)) relative = "clinicas/raio-x/index.html";
+  // A landing de venda (vídeo e formulário que manda o lead por e-mail). Os
+  // caminhos dela são absolutos (/clinicas/styles.css), então a barra no fim
+  // não quebra nada.
+  else if (pathname === "/clinicas/atendimento" || pathname === "/clinicas/atendimento/") relative = "clinicas/index.html";
   else if (pathname === "/juniiorsantana7/") relative = "juniiorsantana7/index.html";
   else if (isAppRoute) relative = "app/index.html";
   else relative = pathname.replace(/^\//, "");
@@ -1050,6 +1101,7 @@ export function createServer({ apiHandler = api, billingHandler = billingWebhook
       if (url.pathname === "/api/billing/asaas" && req.method === "POST") return await billingHandler(req, res, url);
       if (url.pathname === "/api/lead" && req.method === "POST") return await leadHandler(req, res, url);
       if (url.pathname === "/api/clinic-diagnostic" && req.method === "POST") return await clinicHandler(req, res, url);
+      if (url.pathname === "/api/campaign-leads") return await campaignLead(req, res);
       if (url.pathname === "/api/orcamento" && req.method === "POST") return await orcamentoHandler(req, res, url);
       // Antes da sessão: quem chama é o Meta, que se identifica pela assinatura.
       if (url.pathname === "/api/webhooks/meta-leads") return await metaLeadsHandler(req, res, url);
