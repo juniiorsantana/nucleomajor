@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const migration = await readFile(new URL("../FASE3-MIGRATION-SQL.sql", import.meta.url), "utf8");
-const validation = await readFile(new URL("../FASE3-VALIDAR-SQL.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../supabase/migrations/20260907010000_fluxos_execucao_persistida.sql", import.meta.url), "utf8");
+const validation = await readFile(new URL("../scripts/sql/validar-fluxos-execucao.sql", import.meta.url), "utf8");
 
 const triples = (sql) =>
   [...sql.matchAll(/\('(private|public)', '([^']+)', '([0-9a-f]{32})'/g)].map((match) => match.slice(1));
