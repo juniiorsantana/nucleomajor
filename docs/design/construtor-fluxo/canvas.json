@@ -1,0 +1,30 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Construtor", "is_interactive": true },
+    { "file": "Funcoes.dc.html", "x": 0, "y": 1080, "w": 1508, "h": 1080, "title": "Funções novas" }
+  ],
+  "annotations": [
+    {
+      "id": "nota-conexoes",
+      "x": 1560,
+      "y": 0,
+      "w": 300,
+      "text": "As conexões\n\nSaíram os rótulos flutuantes \"entrada\" e \"saída\" de cada porta. Quem tem mais de um caminho passa a listá-los DENTRO do cartão, com a porta alinhada à linha — o rótulo virou a própria saída.\n\nA linha nasce cinza e acende em roxo quando o bloco de uma das pontas está escolhido, então dá para seguir um caminho com o olho. Passando o mouse por cima aparecem dois botões: + insere um bloco no meio e refaz a ligação, x remove.\n\nCada saída segue para um bloco só. A flexibilidade vem de ter várias saídas nomeadas, não de espalhar uma."
+    },
+    {
+      "id": "nota-construcao",
+      "x": 1560,
+      "y": 380,
+      "w": 300,
+      "text": "Três jeitos de criar um bloco\n\n1. Arrastar da lista para o mapa.\n2. Clicar no + que aparece ao lado de qualquer saída — o bloco nasce já ligado.\n3. Puxar uma conexão e soltar no vazio — abre o seletor ali mesmo e o bloco nasce conectado.\n\nO terceiro é o que mais muda a sensação: você desenha o caminho e o construtor pergunta o que vai ali, em vez de exigir que você busque o bloco antes de saber onde ele entra."
+    },
+    {
+      "id": "nota-backend",
+      "x": 1560,
+      "y": 760,
+      "w": 300,
+      "text": "Sem backend, de propósito\n\nOs sete blocos novos não têm endpoint nenhum. Os valores dos painéis são exemplo (etiquetas, horários, opções) e servem para julgar a usabilidade antes de escrever a primeira migration.\n\nO que já está decidido e vale levar para o modelo: condição devolve SEMPRE duas saídas, Sim e Não, e \"Pedir para escolher\" devolve uma saída por opção — é isso que faz o grafo ramificar sem inventar regra nova."
+    }
+  ],
+  "launch": { "view": "focused", "file": "Main.dc.html" }
+}

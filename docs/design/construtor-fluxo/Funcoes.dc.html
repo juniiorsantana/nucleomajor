@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: #121730; background: #f5f6f8; -webkit-font-smoothing: antialiased; }
+    a { color: #3d29db; text-decoration: none; }
+    a:hover { color: #4f3cfc; }
+    button { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; }
+    .rotulo { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #98a2b3; }
+    .painel { display: flex; flex-direction: column; width: 326px; border: 1px solid #e6e9ed; border-radius: 14px; background: #fff; overflow: hidden; box-shadow: 0 8px 24px rgba(18,23,48,.06); }
+    .painel-topo { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e6e9ed; }
+    .painel-icone { display: flex; width: 27px; height: 27px; flex: none; align-items: center; justify-content: center; border-radius: 8px; }
+    .painel-corpo { display: flex; flex-direction: column; gap: 15px; padding: 16px; }
+    .campo-nome { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: #667085; }
+    .entrada { width: 100%; border: 1px solid #e6e9ed; border-radius: 9px; padding: 9px 11px; background: #fff; font-size: 12.5px; color: #121730; }
+    .ajuda { margin: 6px 0 0; font-size: 10.5px; line-height: 1.5; color: #98a2b3; }
+    .cartao { border: 1px solid #e6e9ed; border-radius: 11px; padding: 12px; background: #f5f6f8; }
+    .cartao-titulo { margin: 0; font-size: 11px; font-weight: 600; }
+    .cartao-texto { margin: 5px 0 0; font-size: 10.5px; line-height: 1.5; color: #667085; }
+    .nota { border: 1px solid rgba(79,60,252,.2); border-radius: 10px; padding: 11px 12px; background: #eeebff; font-size: 11px; line-height: 1.55; color: #3d29db; }
+    .dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    .dia { display: flex; height: 46px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #e6e9ed; border-radius: 9px; background: #fff; font-size: 10.5px; font-weight: 600; color: #667085; }
+    .dia-on { border-color: #b45309; background: #f6eae2; color: #b45309; }
+    .ponto { width: 5px; height: 5px; border-radius: 50%; background: #d3d8de; }
+    .ponto-on { background: #b45309; }
+    .segmento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; border: 1px solid #e6e9ed; border-radius: 10px; padding: 3px; background: #f5f6f8; }
+    .seg { display: flex; height: 32px; align-items: center; justify-content: center; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: #667085; }
+    .seg-on { background: #fff; color: #121730; box-shadow: 0 1px 3px rgba(18,23,48,.12); }
+    .fichas { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ficha { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e6e9ed; border-radius: 999px; padding: 7px 12px; background: #fff; font-size: 11px; font-weight: 600; color: #667085; }
+    .opcao-linha { display: flex; align-items: center; gap: 7px; }
+    .opcao-ordem { display: flex; width: 22px; height: 22px; flex: none; align-items: center; justify-content: center; border-radius: 6px; background: #e5effe; color: #2563eb; font-size: 9.5px; font-weight: 700; }
+    .icone-botao { display: flex; width: 32px; height: 32px; flex: none; align-items: center; justify-content: center; border-radius: 8px; color: #98a2b3; }
+    .adicionar { display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; border: 1px dashed #d3d8de; border-radius: 9px; padding: 10px; font-size: 11.5px; font-weight: 600; color: #667085; }
+    .marca { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  </style>
+</helmet>
+
+<div style="display: flex; flex-direction: column; gap: 34px; width: 1508px; min-height: 1080px; padding: 48px; background: #f5f6f8;">
+
+  <div>
+    <p class="rotulo" style="margin: 0;">Construtor de fluxo · blocos novos</p>
+    <h1 style="margin: 7px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -.025em;">As sete funções que ainda não existem</h1>
+    <p style="margin: 9px 0 0; max-width: 720px; font-size: 13px; line-height: 1.6; color: #667085; text-wrap: pretty;">Cada painel é o que aparece à direita quando o bloco está escolhido no mapa. Nenhum deles tem backend ainda — os valores mostrados são exemplo, e as três condições devolvem sempre duas saídas, Sim e Não, para que nenhuma conversa fique parada num caminho que não existe.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 36px; align-items: start;">
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #b45309; background: #f6eae2;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Condição</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Dias da semana</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Dias em que o fluxo segue pelo Sim</p>
+          <div class="dias">
+            <div class="dia dia-on"><span>Seg</span><span class="ponto ponto-on"></span></div>
+            <div class="dia dia-on"><span>Ter</span><span class="ponto ponto-on"></span></div>
+            <div class="dia dia-on"><span>Qua</span><span class="ponto ponto-on"></span></div>
+            <div class="dia dia-on"><span>Qui</span><span class="ponto ponto-on"></span></div>
+            <div class="dia dia-on"><span>Sex</span><span class="ponto ponto-on"></span></div>
+            <div class="dia"><span>Sáb</span><span class="ponto"></span></div>
+            <div class="dia"><span>Dom</span><span class="ponto"></span></div>
+          </div>
+          <p class="ajuda">Seg, Ter, Qua, Qui, Sex</p>
+        </div>
+        <div class="nota">Qualquer outro dia sai pelo Não. Nenhuma conversa fica parada: as duas saídas existem sempre.</div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #b45309; background: #f6eae2;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M12 6.5V12l3.5 2"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Condição</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Horário</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+          <div>
+            <span class="campo-nome">A partir das</span>
+            <div class="entrada" style="font-variant-numeric: tabular-nums;">08:00</div>
+          </div>
+          <div>
+            <span class="campo-nome">Até as</span>
+            <div class="entrada" style="font-variant-numeric: tabular-nums;">18:00</div>
+          </div>
+        </div>
+        <div class="cartao">
+          <p class="cartao-titulo">Fuso do horário</p>
+          <p class="cartao-texto">America/Sao_Paulo, o mesmo da organização. Quem escreve de outro estado é medido por este relógio, não pelo dele.</p>
+        </div>
+        <div class="nota">Quem escrever entre 08:00 e 18:00 sai pelo Sim. Fora disso, pelo Não.</div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #b45309; background: #f6eae2;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8M7.5 7.5h.01"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Condição</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Tem etiqueta</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Sai pelo Sim quem tiver</p>
+          <div class="fichas">
+            <span class="ficha" style="border-color: #b45309; background: #f6eae2; color: #b45309;"><span class="ponto ponto-on" style="width: 6px; height: 6px;"></span>Cliente</span>
+            <span class="ficha"><span class="ponto"></span>Lead quente</span>
+            <span class="ficha"><span class="ponto"></span>Sem resposta</span>
+            <span class="ficha" style="border-color: #b45309; background: #f6eae2; color: #b45309;"><span class="ponto ponto-on" style="width: 6px; height: 6px;"></span>VIP</span>
+            <span class="ficha"><span class="ponto"></span>Orçamento enviado</span>
+          </div>
+          <p class="ajuda">Basta UMA das etiquetas marcadas para o contato sair pelo Sim.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #667085; background: #eef0f3;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Espera</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Aguardar intervalo</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <span class="campo-nome">Esperar</span>
+          <div class="entrada" style="font-variant-numeric: tabular-nums;">30</div>
+        </div>
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Unidade</p>
+          <div class="segmento">
+            <span class="seg seg-on">Minutos</span>
+            <span class="seg">Horas</span>
+            <span class="seg">Dias</span>
+          </div>
+        </div>
+        <div class="cartao">
+          <p class="cartao-titulo">Se o contato escrever antes</p>
+          <p class="cartao-texto">A espera é cancelada e o fluxo segue na hora. Esperar não é silenciar o contato.</p>
+        </div>
+        <div class="nota">O fluxo para aqui por 30 minutos e depois segue sozinho.</div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #2563eb; background: #e5effe;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M11 6h10M11 12h10M11 18h6"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Pergunta</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Pedir para escolher</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <span class="campo-nome">Pergunta enviada</span>
+          <div class="entrada" style="min-height: 66px; line-height: 1.5;">Oi! Como posso te ajudar hoje?</div>
+        </div>
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Opções do contato</p>
+          <div style="display: flex; flex-direction: column; gap: 7px;">
+            <div class="opcao-linha">
+              <span class="opcao-ordem">1</span>
+              <span class="entrada">Agendar horário</span>
+              <span class="icone-botao"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg></span>
+            </div>
+            <div class="opcao-linha">
+              <span class="opcao-ordem">2</span>
+              <span class="entrada">Saber o preço</span>
+              <span class="icone-botao"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg></span>
+            </div>
+            <div class="opcao-linha">
+              <span class="opcao-ordem">3</span>
+              <span class="entrada">Falar com alguém</span>
+              <span class="icone-botao"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg></span>
+            </div>
+          </div>
+          <div class="adicionar" style="margin-top: 9px;">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            Adicionar opção
+          </div>
+          <p class="ajuda">Cada opção vira uma saída própria no bloco — é por elas que o fluxo se divide.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #2563eb; background: #e5effe;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Pergunta</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Pedir para digitar</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <span class="campo-nome">Pergunta enviada</span>
+          <div class="entrada" style="min-height: 66px; line-height: 1.5;">Para qual serviço você quer o preço?</div>
+        </div>
+        <div>
+          <span class="campo-nome">Guardar a resposta em</span>
+          <div class="entrada" style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;">servico</div>
+          <p class="ajuda">Depois, escreva {servico} em qualquer mensagem para repetir o que ele digitou.</p>
+        </div>
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Formato aceito</p>
+          <div class="fichas">
+            <span class="ficha" style="border-color: #4f3cfc; background: #eeebff; color: #3d29db;">Texto livre</span>
+            <span class="ficha">Número</span>
+            <span class="ficha">E-mail</span>
+            <span class="ficha">Telefone</span>
+          </div>
+          <p class="ajuda">Se a resposta não couber no formato, o contato é convidado a tentar de novo uma vez.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo">
+        <span class="painel-icone" style="color: #16a34a; background: #dcfce7;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M10 9v6M14 9v6"></path></svg>
+        </span>
+        <div>
+          <p class="rotulo" style="margin: 0;">Contato</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Status esperando</h2>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div>
+          <p class="campo-nome" style="margin-bottom: 8px;">Marcar a conversa como</p>
+          <div class="fichas">
+            <span class="ficha" style="border-color: #16a34a; background: #dcfce7; color: #16a34a;">Esperando</span>
+            <span class="ficha">Em atendimento</span>
+            <span class="ficha">Resolvida</span>
+          </div>
+        </div>
+        <div class="cartao">
+          <p class="cartao-titulo">O que muda na prática</p>
+          <p class="cartao-texto">A conversa aparece na fila de Atendimentos com este rótulo. Ninguém é notificado — é organização, não chamado.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1508,"height":1080}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

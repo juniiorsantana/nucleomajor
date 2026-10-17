@@ -1,0 +1,709 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+    textarea, input { font: inherit; }
+
+    /* trilho de navegação — o menu lateral que recolhe */
+    .rail { width: 256px; flex: none; display: flex; flex-direction: column; background: #ffffff; border-right: 1px solid #e6e9ed; transition: width .18s ease; overflow: hidden; }
+    .rail.mini { width: 64px; }
+    .rail.mini .rlab, .rail.mini .rmarca, .rail.mini .rnome { display: none; }
+    .rail.mini .rl { justify-content: center; padding-left: 0; padding-right: 0; }
+    .rail.mini .rtopo { justify-content: center; }
+    .rail.mini .rpes { justify-content: center; padding-left: 0; padding-right: 0; }
+    .rl { display: flex; align-items: center; gap: 12px; width: 100%; border-radius: 10px; padding: 9px 11px; font-size: 13.5px; font-weight: 500; color: #667085; text-align: left; box-sizing: border-box; }
+    .rl:hover { background: #eef0f3; color: #121730; }
+    .rl.on { background: #eeebff; color: #3d29db; font-weight: 600; }
+    .rbdg { margin-left: auto; border-radius: 999px; background: #4f3cfc; color: #ffffff; font-size: 10.5px; font-weight: 700; padding: 1px 6px; font-variant-numeric: tabular-nums; }
+    .rpes { display: flex; align-items: center; gap: 9px; width: 100%; border-radius: 10px; padding: 7px 9px; box-sizing: border-box; }
+    .rpes:hover { background: #eef0f3; }
+
+    /* coluna da lista */
+    .chip { border-radius: 999px; border: 1px solid #e6e9ed; background: #ffffff; padding: 4px 10px; font-size: 11.5px; font-weight: 500; color: #667085; white-space: nowrap; }
+    .chip:hover { border-color: #d3d8de; color: #121730; }
+    .chip.on { border-color: #4f3cfc; background: #eeebff; color: #3d29db; font-weight: 600; }
+    .cv { display: flex; align-items: stretch; gap: 11px; width: 100%; padding: 0 12px; text-align: left; box-sizing: border-box; }
+    .cv:hover { background: #f5f6f8; }
+    .cv.on { background: #eeebff; }
+    .cvava { position: relative; flex: none; align-self: center; }
+    .avat { display: flex; width: 46px; height: 46px; align-items: center; justify-content: center; border-radius: 999px; background: #eeebff; color: #3d29db; font-size: 15px; font-weight: 600; }
+    .dono { position: absolute; right: -2px; bottom: -2px; display: flex; width: 17px; height: 17px; align-items: center; justify-content: center; border-radius: 999px; border: 2px solid #ffffff; color: #ffffff; }
+    .d-bot { background: #667085; }
+    .d-ia { background: #4f3cfc; }
+    .d-hum { background: #16a34a; }
+    .cvt { min-width: 0; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 10px 0; border-bottom: 1px solid #eef0f3; }
+    .cvl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .cvn { font-size: 13.5px; font-weight: 600; color: #121730; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cvh { margin-left: auto; flex: none; font-size: 11px; color: #98a2b3; font-variant-numeric: tabular-nums; }
+    .cvh.novo { color: #3d29db; font-weight: 600; }
+    .cvp { font-size: 12.5px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bdg { margin-left: auto; flex: none; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #4f3cfc; color: #ffffff; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* a conversa */
+    .fundo { background-color: #f5f6f8; background-image: radial-gradient(#dfe3e9 1px, transparent 1px); background-size: 22px 22px; }
+    .cen { display: flex; justify-content: center; margin: 12px 0 4px; }
+    .pil { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: #ffffff; border: 1px solid #e6e9ed; padding: 4px 11px; font-size: 10.5px; color: #667085; box-shadow: 0 1px 1px rgba(18,23,48,.04); }
+    .pil.data { font-weight: 700; letter-spacing: .07em; color: #98a2b3; }
+    .nlid { display: flex; align-items: center; gap: 10px; margin: 16px 4px 4px; }
+    .nlid .ln { flex-grow: 1; height: 1px; background: #ded8ff; }
+    .nlid .nlt { font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #3d29db; }
+    .lin { display: flex; margin-top: 6px; }
+    .lin.sai { justify-content: flex-end; }
+    .bol { position: relative; max-width: 78%; border-radius: 12px; padding: 7px 10px 7px; font-size: 13px; line-height: 19px; box-sizing: border-box; box-shadow: 0 1px 1px rgba(18,23,48,.06); }
+    .bol.entra { background: #ffffff; border: 1px solid #e6e9ed; border-top-left-radius: 4px; color: #121730; }
+    .bol.sai { background: #eeebff; border: 1px solid #ddd7ff; border-top-right-radius: 4px; color: #121730; }
+    .txt { white-space: pre-wrap; }
+    .esp { display: inline-block; width: 40px; height: 1px; }
+    .esp.tk { width: 58px; }
+    .met { position: absolute; right: 10px; bottom: 6px; display: flex; align-items: center; gap: 3px; font-size: 10.5px; color: #98a2b3; font-variant-numeric: tabular-nums; }
+    .tk { display: flex; color: #98a2b3; }
+    .tk.lido { color: #4f3cfc; }
+    .aut { display: block; font-size: 10.5px; font-weight: 600; margin-bottom: 1px; }
+    .a-bot { color: #667085; }
+    .a-ia { color: #3d29db; }
+    .a-hum { color: #4f3cfc; }
+    .cit { display: block; border-left: 3px solid #4f3cfc; border-radius: 5px; background: rgba(79,60,252,.07); padding: 4px 8px; margin-bottom: 4px; }
+    .citq { display: block; font-size: 10.5px; font-weight: 600; color: #3d29db; }
+    .citt { display: block; font-size: 11.5px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* rodapé: faixa de atendimento, folhas e caixa de escrita */
+    .seg { display: flex; gap: 2px; border-radius: 9px; background: #f5f6f8; padding: 2px; border: 1px solid #e6e9ed; }
+    .sg { display: flex; align-items: center; gap: 5px; border-radius: 7px; padding: 4px 9px; font-size: 11px; font-weight: 500; color: #667085; white-space: nowrap; }
+    .sg:hover { color: #121730; }
+    .sg.on { background: #ffffff; color: #121730; font-weight: 600; box-shadow: 0 1px 2px rgba(18,23,48,.12); }
+    .ib { display: flex; width: 32px; height: 32px; flex: none; align-items: center; justify-content: center; border-radius: 9px; color: #667085; }
+    .ib:hover { background: #eef0f3; color: #121730; }
+    .ib.on { background: #eeebff; color: #3d29db; }
+    .mod { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; border-radius: 10px; border: 1px solid #e6e9ed; background: #ffffff; padding: 9px 11px; box-sizing: border-box; }
+    .mod:hover { border-color: #4f3cfc; background: #fbfaff; }
+    .var { border-radius: 4px; background: #eeebff; color: #3d29db; padding: 1px 5px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+    .atj { display: flex; align-items: center; gap: 9px; border-radius: 10px; border: 1px solid #e6e9ed; background: #ffffff; padding: 9px 11px; font-size: 12px; font-weight: 500; color: #121730; text-align: left; }
+    .atj:hover { border-color: #4f3cfc; background: #fbfaff; color: #3d29db; }
+    .atjic { display: flex; width: 26px; height: 26px; flex: none; align-items: center; justify-content: center; border-radius: 7px; background: #f5f6f8; color: #667085; }
+    .atj:hover .atjic { background: #eeebff; color: #3d29db; }
+
+    /* ficha */
+    .ficha { width: 296px; flex: none; background: #ffffff; border-left: 1px solid #e6e9ed; display: flex; flex-direction: column; }
+    .ficha.off { display: none; }
+    .fbt { display: flex; flex-direction: column; align-items: center; gap: 5px; border-radius: 10px; border: 1px solid #e6e9ed; padding: 9px 4px; font-size: 10.5px; font-weight: 500; color: #667085; }
+    .fbt:hover { border-color: #4f3cfc; color: #3d29db; background: #fbfaff; }
+    .scr::-webkit-scrollbar { width: 8px; height: 8px; }
+    .scr::-webkit-scrollbar-thumb { background: #d3d8de; border-radius: 999px; }
+    .scr::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: #f5f6f8; color: #121730; box-sizing: border-box; overflow: hidden;">
+
+  <nav class="{{clsRail}}">
+    <div class="rtopo" style="display: flex; align-items: center; gap: 9px; padding: 14px 12px 8px;">
+      <img src="marca.png" alt="" style="width: 32px; height: 32px; flex: none; border-radius: 8px;">
+      <span class="rmarca" style="font-size: 17px; letter-spacing: -.02em;"><strong style="font-weight: 700; color: #121730;">Emy</strong><span style="font-weight: 500; color: #4f3cfc;">Leads</span></span>
+      <button class="ib rmarca" onClick="{{alternarRail}}" title="Recolher o menu" style="margin-left: auto;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18M16 9l-3 3 3 3"></path></svg>
+      </button>
+    </div>
+    <sc-if value="{{railFechado}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; justify-content: center; padding: 0 0 6px;">
+        <button class="ib" onClick="{{alternarRail}}" title="Abrir o menu">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18M13 9l3 3-3 3"></path></svg>
+        </button>
+      </div>
+    </sc-if>
+
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; flex-grow: 1; min-height: 0;">
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"></path><path d="M19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"></path></svg><span class="rlab">Assistente</span></button>
+      <button class="rl on"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"></path></svg><span class="rlab">Conversas</span><span class="rbdg rlab">6</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"></path><circle cx="9" cy="7" r="3.4"></circle><path d="M22 20v-1.5a4 4 0 0 0-3-3.8M16.5 3.6a4 4 0 0 1 0 7"></path></svg><span class="rlab">Contatos</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg><span class="rlab">Funil</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M21 11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10"></path><path d="M9 11l3 3 9-9"></path></svg><span class="rlab">Tarefas</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg><span class="rlab">Agenda</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H12v18H6.5A2.5 2.5 0 0 0 4 22z"></path><path d="M14.5 3.2l3.9-1 2.6 14.6-3.9 1z"></path></svg><span class="rlab">Inteligência</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><rect x="3.5" y="8" width="17" height="12" rx="2.5"></rect><path d="M12 8V4.5M9.5 2.5h5"></path><circle cx="9" cy="14" r=".9" fill="currentColor" stroke="none"></circle><circle cx="15" cy="14" r=".9" fill="currentColor" stroke="none"></circle></svg><span class="rlab">Chatbots</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M5 3v6a4 4 0 0 0 8 0V3M7 3h4M17 21v-5a4 4 0 0 0-4-4"></path><path d="M15 3h4v4h-4z"></path></svg><span class="rlab">Conexões</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><circle cx="10" cy="8" r="3.4"></circle><path d="M3 20v-1.4A4.6 4.6 0 0 1 7.6 14h4.8a4.6 4.6 0 0 1 4.6 4.6V20"></path><path d="M17 4.6a3.4 3.4 0 0 1 0 6.6M21 20v-1.4a4.6 4.6 0 0 0-3-4.3"></path></svg><span class="rlab">Equipe</span></button>
+      <button class="rl"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2A1.6 1.6 0 0 0 7.3 19.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 14.9a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.3V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1.1z"></path></svg><span class="rlab">Configurações</span></button>
+    </div>
+
+    <div style="border-top: 1px solid #e6e9ed; padding: 9px 10px;">
+      <button class="rpes">
+        <span style="display: flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; border-radius: 999px; background: #4f3cfc; color: #ffffff; font-size: 11.5px; font-weight: 600;">JU</span>
+        <span class="rnome" style="min-width: 0; display: flex; flex-direction: column; text-align: left;">
+          <span style="font-size: 12.5px; font-weight: 600; color: #121730;">Juniior</span>
+          <span style="font-size: 10.5px; color: #98a2b3;">Major Hub</span>
+        </span>
+        <svg class="rnome" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" style="margin-left: auto;"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div style="width: 336px; flex: none; display: flex; flex-direction: column; background: #ffffff; border-right: 1px solid #e6e9ed;">
+    <div style="padding: 14px 14px 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <h1 style="margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.02em; color: #121730;">Conversas</h1>
+        <span style="border-radius: 999px; background: #f5f6f8; color: #667085; font-size: 10.5px; font-weight: 600; padding: 2px 7px;">{{totalTexto}}</span>
+        <button class="ib" title="Nova conversa" style="margin-left: auto;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+      </div>
+      <div style="position: relative; margin-top: 10px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" style="position: absolute; left: 11px; top: 9px;"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <input value="{{busca}}" onChange="{{aoBuscar}}" placeholder="Buscar conversa ou contato" style="width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #e6e9ed; background: #ffffff; padding: 8px 12px 8px 34px; font-size: 12.5px; color: #121730; outline: none;">
+      </div>
+      <div class="scr" style="display: flex; gap: 5px; margin-top: 10px; overflow-x: auto; padding-bottom: 3px;">
+        <sc-for list="{{filtros}}" as="f" hint-placeholder-count="4">
+          <button class="{{f.cls}}" onClick="{{f.usar}}">{{f.rotulo}}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div class="scr" style="flex-grow: 1; min-height: 0; overflow-y: auto;">
+      <sc-for list="{{conversas}}" as="c" hint-placeholder-count="6">
+        <button class="{{c.cls}}" onClick="{{c.abrir}}">
+          <span class="cvava">
+            <span class="avat">{{c.ini}}</span>
+            <sc-if value="{{c.ehBot}}" hint-placeholder-val="{{true}}"><span class="dono d-bot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="16" height="11" rx="2.5"></rect><path d="M12 9V5"></path></svg></span></sc-if>
+            <sc-if value="{{c.ehIa}}" hint-placeholder-val="{{false}}"><span class="dono d-ia"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5z"></path></svg></span></sc-if>
+            <sc-if value="{{c.ehHum}}" hint-placeholder-val="{{false}}"><span class="dono d-hum"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg></span></sc-if>
+          </span>
+          <span class="cvt">
+            <span class="cvl">
+              <span class="cvn">{{c.nome}}</span>
+              <sc-if value="{{c.fixado}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" style="flex: none;"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"></path></svg></sc-if>
+              <span class="{{c.clsHora}}">{{c.hora}}</span>
+            </span>
+            <span class="cvl">
+              <sc-if value="{{c.saiu}}" hint-placeholder-val="{{true}}"><span class="{{c.clsTick}}" style="flex: none;"><svg width="15" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l3 3 6.5-8"></path><path d="M6.5 9l6.5-8"></path></svg></span></sc-if>
+              <span class="cvp">{{c.previa}}</span>
+              <sc-if value="{{c.temNao}}" hint-placeholder-val="{{true}}"><span class="bdg">{{c.nao}}</span></sc-if>
+            </span>
+          </span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <section style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: #ffffff;">
+
+    <header style="flex: none; display: flex; align-items: center; gap: 11px; height: 62px; padding: 0 14px; border-bottom: 1px solid #e6e9ed; background: #ffffff;">
+      <span class="cvava">
+        <span class="avat" style="width: 38px; height: 38px; font-size: 13px;">{{atual.ini}}</span>
+      </span>
+      <span style="min-width: 0; display: flex; flex-direction: column;">
+        <span style="font-size: 14.5px; font-weight: 600; color: #121730; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{atual.nome}}</span>
+        <span style="display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: #667085;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366" style="flex: none;"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7L7 20.5A10 10 0 1 0 12 2zm5.5 14c-.3.7-1.5 1.3-2 1.4-.6.1-1.3.1-2-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.4 1.1-2.7.3-.3.6-.4.8-.4h.6c.2 0 .5 0 .7.5l1 2.4c.1.2.1.4 0 .6l-.3.5-.5.5c-.2.2-.3.3-.1.6.2.3.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.6 1.6.3.2.5.1.6 0l1-1.2c.2-.2.4-.2.6-.1l2.2 1c.3.2.5.2.6.4.1.1.1.8-.2 1.6z"></path></svg>
+          {{atual.telefone}} · {{atual.empresa}}
+        </span>
+      </span>
+      <span style="margin-left: auto; display: flex; align-items: center; gap: 3px;">
+        <button class="ib" title="Buscar na conversa"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></button>
+        <button class="ib" title="Marcar como não lida"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3.5 7l8.5 6 8.5-6"></path></svg></button>
+        <button class="{{clsFichaBt}}" onClick="{{alternarFicha}}" title="Ficha do contato"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M15 3v18"></path></svg></button>
+        <button class="ib" title="Mais"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="12" cy="19" r="1.7"></circle></svg></button>
+      </span>
+    </header>
+
+    <div class="fundo scr" style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 12px 18px 16px;">
+      <sc-for list="{{msgs}}" as="m" hint-placeholder-count="9">
+        <sc-if value="{{m.ehData}}" hint-placeholder-val="{{false}}"><span class="cen"><span class="pil data">{{m.txt}}</span></span></sc-if>
+        <sc-if value="{{m.ehNaoLidas}}" hint-placeholder-val="{{false}}"><span class="nlid"><span class="ln"></span><span class="nlt">{{m.txt}}</span><span class="ln"></span></span></sc-if>
+        <sc-if value="{{m.ehSistema}}" hint-placeholder-val="{{false}}">
+          <span class="cen"><span class="pil">
+            <sc-if value="{{m.icBot}}" hint-placeholder-val="{{true}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#667085" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="16" height="11" rx="2.5"></rect><path d="M12 9V5"></path></svg></sc-if>
+            <sc-if value="{{m.icIa}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4f3cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5z"></path></svg></sc-if>
+            <sc-if value="{{m.icHum}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg></sc-if>
+            {{m.txt}}
+          </span></span>
+        </sc-if>
+        <sc-if value="{{m.ehBolha}}" hint-placeholder-val="{{true}}">
+          <span class="{{m.clsLinha}}">
+            <span class="{{m.clsBolha}}">
+              <sc-if value="{{m.temAutor}}" hint-placeholder-val="{{false}}"><span class="{{m.clsAutor}}">{{m.autor}}</span></sc-if>
+              <sc-if value="{{m.temCitacao}}" hint-placeholder-val="{{false}}"><span class="cit"><span class="citq">{{m.citaQuem}}</span><span class="citt">{{m.citaTxt}}</span></span></sc-if>
+              <span class="txt">{{m.txt}}</span><span class="{{m.clsEsp}}"></span>
+              <span class="met">{{m.hora}}<sc-if value="{{m.temTick}}" hint-placeholder-val="{{true}}"><span class="{{m.clsTick}}"><svg width="15" height="11" viewBox="0 0 17 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6l3 3 6.5-8"></path><path d="M6.5 9l6.5-8"></path></svg></span></sc-if></span>
+            </span>
+          </span>
+        </sc-if>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{abaModelos}}" hint-placeholder-val="{{true}}">
+      <div style="flex: none; border-top: 1px solid #e6e9ed; background: #f5f6f8; padding: 11px 14px 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3d29db" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"></path><path d="M8.5 10h7M8.5 13.5h4.5"></path></svg>
+          <span style="font-size: 12.5px; font-weight: 600; color: #121730;">Mensagens padrão</span>
+          <span style="border-radius: 5px; border: 1px solid #e6e9ed; background: #ffffff; padding: 1px 5px; font-size: 10px; color: #667085;">digite / na caixa</span>
+          <button class="ib" onClick="{{fecharAba}}" title="Fechar" style="margin-left: auto; width: 26px; height: 26px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <div style="display: flex; gap: 5px; margin-top: 9px;">
+          <sc-for list="{{categorias}}" as="k" hint-placeholder-count="4">
+            <button class="{{k.cls}}" onClick="{{k.usar}}">{{k.rotulo}}</button>
+          </sc-for>
+        </div>
+        <div class="scr" style="display: flex; flex-direction: column; gap: 6px; margin-top: 9px; max-height: 146px; overflow-y: auto;">
+          <sc-for list="{{modelos}}" as="t" hint-placeholder-count="3">
+            <button class="mod" onClick="{{t.usar}}">
+              <span class="atjic" style="margin-top: 1px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg></span>
+              <span style="min-width: 0; flex-grow: 1;">
+                <span style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 12px; font-weight: 600; color: #121730;">{{t.titulo}}</span>
+                  <span class="var">{{t.variaveis}}</span>
+                </span>
+                <span style="display: block; margin-top: 2px; font-size: 11.5px; line-height: 17px; color: #667085;">{{t.previa}}</span>
+              </span>
+              <span style="flex: none; align-self: center; font-size: 11px; font-weight: 600; color: #3d29db;">Inserir</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{abaAtalhos}}" hint-placeholder-val="{{false}}">
+      <div style="flex: none; border-top: 1px solid #e6e9ed; background: #f5f6f8; padding: 11px 14px 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3d29db" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>
+          <span style="font-size: 12.5px; font-weight: 600; color: #121730;">Atalhos rápidos</span>
+          <span style="font-size: 11px; color: #98a2b3;">criam no CRM sem sair da conversa</span>
+          <button class="ib" onClick="{{fecharAba}}" title="Fechar" style="margin-left: auto; width: 26px; height: 26px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 9px;">
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10"></path><path d="M9 11l3 3 9-9"></path></svg></span>Nova tarefa</button>
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4M12 14v4M10 16h4"></path></svg></span>Agendar</button>
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v10l-6 6H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h12z"></path><path d="M20 14h-6v6"></path></svg></span>Nota interna</button>
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M16.5 6.5c-1-1.2-2.6-1.7-4.5-1.7-2.6 0-4.5 1.2-4.5 3.2S9.4 11 12 11.4s4.7 1.2 4.7 3.3-2 3.2-4.7 3.2c-2 0-3.6-.6-4.6-1.8"></path></svg></span>Novo negócio</button>
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg></span>Mover no funil</button>
+          <button class="atj"><span class="atjic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h8l10 10-8 8L3 11z"></path><circle cx="7.5" cy="7.5" r="1.4"></circle></svg></span>Etiqueta</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="flex: none; display: flex; align-items: center; gap: 10px; border-top: 1px solid #e6e9ed; background: #ffffff; padding: 8px 14px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#98a2b3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none;"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg>
+      <span style="flex: none; font-size: 11.5px; color: #98a2b3;">Atendimento</span>
+      <span class="seg">
+        <sc-for list="{{donos}}" as="d" hint-placeholder-count="3">
+          <button class="{{d.cls}}" onClick="{{d.usar}}" title="{{d.explica}}">
+            <sc-if value="{{d.ehBot}}" hint-placeholder-val="{{true}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="16" height="11" rx="2.5"></rect><path d="M12 9V5"></path></svg></sc-if>
+            <sc-if value="{{d.ehIa}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5z"></path></svg></sc-if>
+            <sc-if value="{{d.ehHum}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><path d="M4 14h3v6H4zM17 14h3v6h-3z"></path></svg></sc-if>
+            {{d.rotulo}}
+          </button>
+        </sc-for>
+      </span>
+      <span style="min-width: 0; font-size: 11.5px; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{explicacao}}</span>
+    </div>
+
+    <div style="flex: none; padding: 10px 14px 14px; background: #ffffff;">
+      <div style="display: flex; align-items: flex-end; gap: 6px; border-radius: 14px; border: 1px solid #e6e9ed; background: #ffffff; padding: 5px 7px; box-shadow: 0 6px 22px rgba(18,23,48,.06);">
+        <button class="ib" title="Anexar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-9 9a5.5 5.5 0 0 1-7.8-7.8l9.2-9.2a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.2a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"></path></svg></button>
+        <button class="{{clsBtModelos}}" onClick="{{abrirModelos}}" title="Mensagens padrão"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"></path><path d="M8.5 10h7M8.5 13.5h4.5"></path></svg></button>
+        <button class="{{clsBtAtalhos}}" onClick="{{abrirAtalhos}}" title="Atalhos rápidos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg></button>
+        <textarea value="{{rascunho}}" onChange="{{aoDigitar}}" onKeyDown="{{aoTeclar}}" rows="1" placeholder="Escreva uma mensagem" style="flex-grow: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent; padding: 9px 6px; font-size: 13.5px; line-height: 20px; color: #121730; max-height: 96px;"></textarea>
+        <button class="ib" title="Emoji"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"></path><circle cx="9" cy="9.5" r=".9" fill="currentColor" stroke="none"></circle><circle cx="15" cy="9.5" r=".9" fill="currentColor" stroke="none"></circle></svg></button>
+        <sc-if value="{{vazio}}" hint-placeholder-val="{{false}}">
+          <button class="ib" title="Gravar áudio" style="width: 38px; height: 38px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"></path></svg></button>
+        </sc-if>
+        <sc-if value="{{escrevendo}}" hint-placeholder-val="{{true}}">
+          <button onClick="{{enviar}}" title="Enviar" style="display: flex; width: 38px; height: 38px; flex: none; align-items: center; justify-content: center; border-radius: 11px; background: #4f3cfc; color: #ffffff;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5L11 13"></path><path d="M21.5 2.5l-6.7 19-3.8-8.5-8.5-3.8z"></path></svg></button>
+        </sc-if>
+      </div>
+      <div style="display: flex; align-items: center; gap: 5px; margin-top: 7px; padding-left: 4px; font-size: 10.5px; color: #98a2b3;">
+        <strong style="font-weight: 600; color: #667085;">Enter</strong> envia · <strong style="font-weight: 600; color: #667085;">Shift+Enter</strong> quebra linha · <strong style="font-weight: 600; color: #667085;">/</strong> abre as mensagens padrão
+      </div>
+    </div>
+  </section>
+
+  <aside class="{{clsFicha}}">
+    <div style="flex: none; display: flex; align-items: center; padding: 14px 14px 0;">
+      <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Ficha do contato</span>
+      <button class="ib" onClick="{{alternarFicha}}" title="Fechar ficha" style="margin-left: auto; width: 26px; height: 26px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+
+    <div class="scr" style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px;">
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+        <span class="avat" style="width: 62px; height: 62px; font-size: 21px;">{{atual.ini}}</span>
+        <span style="margin-top: 9px; font-size: 15.5px; font-weight: 600; color: #121730;">{{atual.nome}}</span>
+        <span style="margin-top: 2px; font-size: 12px; color: #667085;">{{atual.cargo}} · {{atual.empresa}}</span>
+        <span style="margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; border: 1px solid #e6e9ed; padding: 3px 10px; font-size: 11.5px; color: #667085;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7L7 20.5A10 10 0 1 0 12 2zm5.5 14c-.3.7-1.5 1.3-2 1.4-.6.1-1.3.1-2-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.4 1.1-2.7.3-.3.6-.4.8-.4h.6c.2 0 .5 0 .7.5l1 2.4c.1.2.1.4 0 .6l-.3.5-.5.5c-.2.2-.3.3-.1.6.2.3.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.6 1.6.3.2.5.1.6 0l1-1.2c.2-.2.4-.2.6-.1l2.2 1c.3.2.5.2.6.4.1.1.1.8-.2 1.6z"></path></svg>
+          {{atual.telefone}}
+        </span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 14px;">
+        <button class="fbt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10"></path><path d="M9 11l3 3 9-9"></path></svg>Tarefa</button>
+        <button class="fbt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Agenda</button>
+        <button class="fbt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v10l-6 6H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h12z"></path><path d="M20 14h-6v6"></path></svg>Nota</button>
+        <button class="fbt"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M16.5 6.5c-1-1.2-2.6-1.7-4.5-1.7-2.6 0-4.5 1.2-4.5 3.2S9.4 11 12 11.4s4.7 1.2 4.7 3.3-2 3.2-4.7 3.2c-2 0-3.6-.6-4.6-1.8"></path></svg>Negócio</button>
+      </div>
+
+      <div style="margin-top: 14px; border-radius: 11px; border: 1px solid #e6e9ed; padding: 11px 12px;">
+        <div style="display: flex; align-items: center; gap: 7px;">
+          <span style="border-radius: 8px; background: #fef3c7; color: #b45309; padding: 2px 8px; font-size: 11.5px; font-weight: 500;">Proposta</span>
+          <span style="margin-left: auto; font-size: 14px; font-weight: 600; color: #121730; font-variant-numeric: tabular-nums;">R$ 3.200</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 12.5px; font-weight: 500; color: #121730;">Gestão de tráfego pago</div>
+        <div style="margin-top: 2px; font-size: 11px; color: #98a2b3;">mensal · aberto há 6 dias · origem Indicação</div>
+      </div>
+
+      <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Tarefas</span>
+        <span style="margin-left: auto; font-size: 11px; color: #3d29db; font-weight: 600;">ver todas</span>
+      </div>
+      <div style="margin-top: 6px; display: flex; align-items: flex-start; gap: 8px; border-radius: 10px; border: 1px solid #f0d9d9; background: #fdf6f6; padding: 9px 10px;">
+        <span style="flex: none; margin-top: 1px; display: block; width: 15px; height: 15px; border-radius: 5px; border: 1px solid #d3d8de; background: #ffffff;"></span>
+        <span style="min-width: 0;">
+          <span style="display: block; font-size: 12px; font-weight: 500; color: #121730;">Confirmar reunião</span>
+          <span style="display: block; margin-top: 1px; font-size: 10.5px; font-weight: 600; color: #dc2626;">venceu ontem</span>
+        </span>
+      </div>
+
+      <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="flex: none; width: 92px; font-size: 11.5px; color: #98a2b3;">Responsável</span>
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 999px; background: #4f3cfc; color: #ffffff; font-size: 9px; font-weight: 600;">JU</span>
+            <span style="font-size: 12px; color: #121730;">Juniior</span>
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="flex: none; width: 92px; font-size: 11.5px; color: #98a2b3;">Origem</span>
+          <span style="font-size: 12px; color: #121730;">Indicação</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+          <span style="flex: none; width: 92px; font-size: 11.5px; color: #98a2b3;">Etiquetas</span>
+          <span style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <span style="border-radius: 5px; background: #f5f6f8; padding: 2px 7px; font-size: 10.5px; color: #667085;">indicacao</span>
+            <span style="border-radius: 5px; background: #f5f6f8; padding: 2px 7px; font-size: 10.5px; color: #667085;">lead-quente</span>
+          </span>
+        </div>
+      </div>
+
+      <div style="margin-top: 14px; border-top: 1px solid #eef0f3; padding-top: 11px;">
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #98a2b3;">Última nota</span>
+        <p style="margin: 6px 0 0; font-size: 12px; line-height: 18px; color: #667085; text-wrap: pretty;">Quer começar depois da colheita. Sensível a prazo, não a preço.</p>
+        <span style="display: block; margin-top: 4px; font-size: 10.5px; color: #98a2b3;">Juniior · há 2 dias</span>
+      </div>
+    </div>
+
+    <div style="flex: none; border-top: 1px solid #e6e9ed; padding: 10px 14px;">
+      <button style="display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; border: 1px solid #e6e9ed; padding: 9px; font-size: 12.5px; font-weight: 600; color: #3d29db;">
+        Abrir ficha completa
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </button>
+    </div>
+  </aside>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      rail: true,
+      ficha: true,
+      atual: "mariana",
+      filtro: "tudo",
+      busca: "",
+      rascunho: "",
+      aba: "modelos",
+      categoria: "todas",
+      extras: {},
+      donos: {}
+    };
+  }
+
+  contatos() {
+    return [
+      { id: "mariana", nome: "Mariana Costa", ini: "MC", empresa: "Agro Forte", cargo: "Gerente de marketing", telefone: "+55 66 9963-3771", hora: "09:41", nao: 2, dono: "humano", saiu: false, fixado: true, previa: "Pode mandar o contrato então?" },
+      { id: "joao", nome: "João Silva", ini: "JS", empresa: "Clínica Integrar", cargo: "Sócio-diretor", telefone: "+55 65 9881-2447", hora: "09:12", nao: 0, dono: "ia", saiu: true, lido: true, fixado: false, previa: "Fechado, João. Te mando a revisão ainda hoje." },
+      { id: "fernanda", nome: "Fernanda Ribeiro", ini: "FR", empresa: "Vet Campo", cargo: "Veterinária", telefone: "+55 66 9633-7712", hora: "ontem", nao: 1, dono: "bot", saiu: false, fixado: false, previa: "Vocês atendem em Rondonópolis também?" },
+      { id: "ricardo", nome: "Ricardo Nunes", ini: "RN", empresa: "Construtora Alvorada", cargo: "Diretor comercial", telefone: "+55 65 9844-5019", hora: "ontem", nao: 0, dono: "bot", saiu: false, fixado: false, previa: "Vou verificar com o financeiro e retorno." },
+      { id: "patricia", nome: "Patrícia Gomes", ini: "PG", empresa: "Studio Movimento", cargo: "Proprietária", telefone: "+55 65 9920-1774", hora: "seg", nao: 3, dono: "bot", saiu: false, fixado: false, previa: "Bom dia! Vi o perfil de vocês e queria um orçamento" },
+      { id: "lucas", nome: "Lucas Almeida", ini: "LA", empresa: "Odonto Prime", cargo: "Proprietário", telefone: "+55 65 9912-0448", hora: "seg", nao: 0, dono: "humano", saiu: true, lido: true, fixado: false, previa: "Relatório de agosto anexado. Qualquer coisa me chama." }
+    ];
+  }
+
+  conversaBase(id) {
+    if (id === "mariana") {
+      return [
+        { k: "data", txt: "ONTEM" },
+        { k: "m", de: "entra", hora: "16:02", txt: "Oi! Vi a proposta de tráfego que vocês fizeram pro pessoal da Odonto Prime. Vocês trabalham com agro também?" },
+        { k: "sis", ic: "bot", txt: "Robô do CRM respondeu pela regra Primeiro contato" },
+        { k: "m", de: "sai", hora: "16:02", autor: "Robô do CRM", tom: "bot", lido: true, txt: "Oi, Mariana! Trabalhamos sim. Hoje atendemos revendas, cooperativas e agroindústria em Mato Grosso. Posso te mandar dois cases do setor?" },
+        { k: "m", de: "entra", hora: "16:20", txt: "Pode mandar" },
+        { k: "sis", ic: "ia", txt: "Agente de IA assumiu a conversa" },
+        { k: "m", de: "sai", hora: "16:21", autor: "Agente de IA", tom: "ia", lido: true, txt: "Mandei dois cases no seu e-mail. O de maior resultado foi uma revenda que saiu de 40 para 180 orçamentos por mês em quatro meses." },
+        { k: "data", txt: "HOJE" },
+        { k: "m", de: "entra", hora: "09:22", txt: "Bom dia! Consegui falar com o meu sócio ontem." },
+        { k: "m", de: "entra", hora: "09:23", txt: "A gente quer começar depois da colheita, em outubro. Dá pra segurar o valor da proposta até lá?" },
+        { k: "sis", ic: "humano", txt: "Juniior assumiu — motivo: pedido de condição comercial" },
+        { k: "m", de: "sai", hora: "09:31", autor: "Juniior", tom: "humano", lido: true, cita: { quem: "Mariana Costa", txt: "Dá pra segurar o valor da proposta até lá?" }, txt: "Bom dia, Mariana! Dá sim. Seguro os R$ 3.200/mês até 31/10 e a gente já deixa o contrato assinado agora." },
+        { k: "nao", txt: "2 mensagens não lidas" },
+        { k: "m", de: "entra", hora: "09:40", txt: "Perfeito" },
+        { k: "m", de: "entra", hora: "09:41", txt: "Pode mandar o contrato então?" }
+      ];
+    }
+    return [
+      { k: "data", txt: "HOJE" },
+      { k: "m", de: "entra", hora: "08:58", txt: "Bom dia!" },
+      { k: "sis", ic: "bot", txt: "Robô do CRM respondeu pela regra Primeiro contato" },
+      { k: "m", de: "sai", hora: "08:58", autor: "Robô do CRM", tom: "bot", lido: true, txt: "Bom dia! Sou o assistente da Major Hub. Me conta rapidinho o que você precisa que eu já chamo alguém do time." }
+    ];
+  }
+
+  modelosBase() {
+    return [
+      { id: "t1", cat: "primeiro", titulo: "Primeiro contato", vars: "{nome} {empresa}", txt: "Oi, {nome}! Aqui é o Juniior, da Major Hub. Obrigado pelo contato. Me conta rapidinho o que a {empresa} está precisando agora?" },
+      { id: "t2", cat: "proposta", titulo: "Enviar proposta", vars: "{nome} {empresa}", txt: "{nome}, segue a proposta da {empresa} em PDF. Qualquer dúvida me chama por aqui. A validade é de 15 dias." },
+      { id: "t3", cat: "follow", titulo: "Sem resposta há 3 dias", vars: "{nome}", txt: "Oi, {nome}! Passando só pra saber se você chegou a ver a proposta. Se preferir, marco 15 minutos pra gente conversar." },
+      { id: "t4", cat: "proposta", titulo: "Confirmar reunião", vars: "{nome}", txt: "{nome}, confirmando nossa conversa de amanhã às 14h. Vou te chamar por aqui mesmo. Fica bom pra você?" },
+      { id: "t5", cat: "pos", titulo: "Relatório do mês", vars: "{nome} {empresa}", txt: "{nome}, subi o relatório do mês na pasta da {empresa}. Quer que eu te explique os números numa call rápida?" }
+    ];
+  }
+
+  renderTexto(texto, contato) {
+    const primeiro = String(contato.nome || "").trim().split(" ")[0] || "";
+    return String(texto).split("{nome}").join(primeiro).split("{empresa}").join(contato.empresa || "");
+  }
+
+  mensagens(id) {
+    const extra = this.state.extras[id] || [];
+    return this.conversaBase(id).concat(extra);
+  }
+
+  donoDe(id, padrao) {
+    const escolhido = this.state.donos[id];
+    return escolhido ? escolhido : padrao;
+  }
+
+  agora() {
+    const d = new Date();
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return h + ":" + m;
+  }
+
+  enviarTexto() {
+    const texto = String(this.state.rascunho || "").trim();
+    if (!texto) return;
+    const id = this.state.atual;
+    const antes = this.state.extras[id] || [];
+    const nova = { k: "m", de: "sai", hora: this.agora(), autor: "Juniior", tom: "humano", lido: false, txt: texto };
+    const extras = Object.assign({}, this.state.extras);
+    extras[id] = antes.concat([nova]);
+    this.setState({ extras: extras, rascunho: "", aba: null });
+  }
+
+  trocarDono(valor) {
+    const id = this.state.atual;
+    const textos = {
+      bot: "Devolvido ao Robô do CRM — as regras dos chatbots voltam a responder",
+      ia: "Passado para o Agente de IA — ele responde esta conversa",
+      humano: "Juniior assumiu — nenhum automatismo responde até devolver"
+    };
+    const donos = Object.assign({}, this.state.donos);
+    donos[id] = valor;
+    const antes = this.state.extras[id] || [];
+    const extras = Object.assign({}, this.state.extras);
+    extras[id] = antes.concat([{ k: "sis", ic: valor, txt: textos[valor] }]);
+    this.setState({ donos: donos, extras: extras });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const todos = this.contatos();
+    const termo = String(s.busca || "").trim().toLowerCase();
+
+    const passaFiltro = (c) => {
+      const dono = this.donoDe(c.id, c.dono);
+      if (s.filtro === "naolidas") return c.nao !== 0;
+      if (s.filtro === "humano") return dono === "humano";
+      if (s.filtro === "ia") return dono === "ia";
+      if (s.filtro === "bot") return dono === "bot";
+      return true;
+    };
+    const passaBusca = (c) => {
+      if (!termo) return true;
+      const alvo = (c.nome + " " + c.empresa + " " + c.previa).toLowerCase();
+      return alvo.indexOf(termo) !== -1;
+    };
+
+    const visiveis = todos.filter(passaFiltro).filter(passaBusca);
+    const atual = todos.filter((c) => c.id === s.atual)[0] || todos[0];
+    const donoAtual = this.donoDe(atual.id, atual.dono);
+
+    const conversas = visiveis.map((c) => {
+      const dono = this.donoDe(c.id, c.dono);
+      return {
+        id: c.id,
+        nome: c.nome,
+        ini: c.ini,
+        hora: c.hora,
+        previa: c.previa,
+        nao: c.nao,
+        temNao: c.nao !== 0,
+        fixado: c.fixado === true,
+        saiu: c.saiu === true,
+        clsTick: c.lido === true ? "tk lido" : "tk",
+        cls: c.id === s.atual ? "cv on" : "cv",
+        clsHora: c.nao !== 0 ? "cvh novo" : "cvh",
+        ehBot: dono === "bot",
+        ehIa: dono === "ia",
+        ehHum: dono === "humano",
+        abrir: () => this.setState({ atual: c.id })
+      };
+    });
+
+    const tons = { bot: "aut a-bot", ia: "aut a-ia", humano: "aut a-hum" };
+    const msgs = this.mensagens(atual.id).map((m) => {
+      const saiu = m.de === "sai";
+      let temAutor = false;
+      if (saiu) { if (m.autor) temAutor = true; }
+      return {
+        ehData: m.k === "data",
+        ehSistema: m.k === "sis",
+        ehNaoLidas: m.k === "nao",
+        ehBolha: m.k === "m",
+        txt: m.txt,
+        hora: m.hora,
+        icBot: m.ic === "bot",
+        icIa: m.ic === "ia",
+        icHum: m.ic === "humano",
+        clsLinha: saiu ? "lin sai" : "lin",
+        clsBolha: saiu ? "bol sai" : "bol entra",
+        clsEsp: saiu ? "esp tk" : "esp",
+        temTick: saiu,
+        clsTick: m.lido === true ? "tk lido" : "tk",
+        temAutor: temAutor,
+        autor: m.autor ? m.autor : "Juniior",
+        clsAutor: tons[m.tom] ? tons[m.tom] : "aut a-hum",
+        temCitacao: m.cita ? true : false,
+        citaQuem: m.cita ? m.cita.quem : "",
+        citaTxt: m.cita ? m.cita.txt : ""
+      };
+    });
+    msgs.reverse();
+
+    const filtrosDef = [
+      ["tudo", "Tudo"],
+      ["naolidas", "Não lidas"],
+      ["humano", "Com atendente"],
+      ["ia", "Na IA"],
+      ["bot", "No robô"]
+    ];
+    const filtros = filtrosDef.map((par) => ({
+      id: par[0],
+      rotulo: par[1],
+      cls: s.filtro === par[0] ? "chip on" : "chip",
+      usar: () => this.setState({ filtro: par[0] })
+    }));
+
+    const donosDef = [
+      ["bot", "Robô do CRM", "As regras dos chatbots atendem esta conversa."],
+      ["ia", "Agente de IA", "O agente de IA responde esta conversa."],
+      ["humano", "Atendente", "Alguém assumiu. Nenhum automatismo responde."]
+    ];
+    const donos = donosDef.map((d) => ({
+      id: d[0],
+      rotulo: d[1],
+      explica: d[2],
+      cls: donoAtual === d[0] ? "sg on" : "sg",
+      ehBot: d[0] === "bot",
+      ehIa: d[0] === "ia",
+      ehHum: d[0] === "humano",
+      usar: () => this.trocarDono(d[0])
+    }));
+    const explicacao = donosDef.filter((d) => d[0] === donoAtual).map((d) => d[2])[0] || "";
+
+    const catsDef = [
+      ["todas", "Todas"],
+      ["primeiro", "Primeiro contato"],
+      ["proposta", "Proposta"],
+      ["follow", "Follow-up"],
+      ["pos", "Pós-venda"]
+    ];
+    const categorias = catsDef.map((k) => ({
+      id: k[0],
+      rotulo: k[1],
+      cls: s.categoria === k[0] ? "chip on" : "chip",
+      usar: () => this.setState({ categoria: k[0] })
+    }));
+
+    const modelos = this.modelosBase()
+      .filter((t) => s.categoria === "todas" || t.cat === s.categoria)
+      .map((t) => {
+        const pronto = this.renderTexto(t.txt, atual);
+        return {
+          id: t.id,
+          titulo: t.titulo,
+          variaveis: t.vars,
+          previa: pronto,
+          usar: () => this.setState({ rascunho: pronto })
+        };
+      });
+
+    const escrevendo = String(s.rascunho || "").trim().length !== 0;
+
+    return {
+      clsRail: s.rail ? "rail" : "rail mini",
+      railFechado: !s.rail,
+      alternarRail: () => this.setState({ rail: !s.rail }),
+      clsFicha: s.ficha ? "ficha" : "ficha off",
+      clsFichaBt: s.ficha ? "ib on" : "ib",
+      alternarFicha: () => this.setState({ ficha: !s.ficha }),
+
+      busca: s.busca,
+      aoBuscar: (e) => this.setState({ busca: e.target.value }),
+      filtros: filtros,
+      conversas: conversas,
+      totalTexto: String(visiveis.length),
+
+      atual: atual,
+      msgs: msgs,
+
+      donos: donos,
+      explicacao: explicacao,
+
+      abaModelos: s.aba === "modelos",
+      abaAtalhos: s.aba === "atalhos",
+      clsBtModelos: s.aba === "modelos" ? "ib on" : "ib",
+      clsBtAtalhos: s.aba === "atalhos" ? "ib on" : "ib",
+      abrirModelos: () => this.setState({ aba: s.aba === "modelos" ? null : "modelos" }),
+      abrirAtalhos: () => this.setState({ aba: s.aba === "atalhos" ? null : "atalhos" }),
+      fecharAba: () => this.setState({ aba: null }),
+      categorias: categorias,
+      modelos: modelos,
+
+      rascunho: s.rascunho,
+      vazio: !escrevendo,
+      escrevendo: escrevendo,
+      aoDigitar: (e) => {
+        const valor = e.target.value;
+        if (valor === "/") return this.setState({ rascunho: "", aba: "modelos" });
+        this.setState({ rascunho: valor });
+      },
+      aoTeclar: (e) => {
+        if (e.key !== "Enter") return;
+        if (e.shiftKey) return;
+        e.preventDefault();
+        this.enviarTexto();
+      },
+      enviar: () => this.enviarTexto()
+    };
+  }
+}
+</script>
+</body>
+</html>

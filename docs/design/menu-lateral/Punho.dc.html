@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #3d29db; } a:hover { color: #4f3cfc; }
+    * { box-sizing: border-box; }
+    .op { width: 288px; display: flex; flex-direction: column; gap: 8px; }
+    .op h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: #121730; display: flex; align-items: center; gap: 8px; }
+    .op p { margin: 0; font-size: 12px; line-height: 1.45; color: #667085; min-height: 52px; }
+    .letra { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; border-radius: 6px; background: #eeebff; color: #3d29db; font-size: 11px; font-weight: 700; }
+    .quadro { height: 260px; border: 1px solid #e6e9ed; border-radius: 10px; overflow: hidden; background: #f5f6f8; display: flex; position: relative; }
+    .lado { width: 168px; flex: none; background: #ffffff; border-right: 1px solid #e6e9ed; display: flex; flex-direction: column; }
+    .mini { display: flex; align-items: center; gap: 10px; height: 34px; border-radius: 9px; padding: 0 10px; margin: 0 10px; font-size: 12.5px; font-weight: 500; color: #667085; }
+    .mini.on { background: #eeebff; color: #3d29db; font-weight: 600; }
+    .mini svg { flex: none; }
+    .punho { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; border-radius: 8px; color: #98a2b3; }
+    .punho.viva { background: #eef0f3; color: #121730; }
+  </style>
+</helmet>
+
+<div style="width: 1000px; height: 540px; background: #ffffff; padding: 32px; color: #121730">
+  <p style="margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Onde mora o punho</p>
+  <p style="margin: 0 0 20px; font-size: 12.5px; color: #667085; max-width: 620px">
+    O ícone muda de <strong style="font-weight: 600; color: #121730">ChevronsLeft</strong> para
+    <strong style="font-weight: 600; color: #121730">PanelLeftClose</strong> nas três: chevron duplo quer dizer
+    &laquo;voltar&raquo;, painel quer dizer &laquo;painel&raquo;.
+  </p>
+
+  <div style="display: flex; gap: 26px">
+
+    <!-- A -->
+    <div class="op">
+      <h2><span class="letra">A</span> No cabeçalho do menu
+        <span style="margin-left: auto; border-radius: 999px; background: #dcfce7; color: #16a34a; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px">Recomendado</span>
+      </h2>
+      <p>Ancorado ao lado da marca, sempre visível. Nunca cruza o cabeçalho de nenhuma tela, e a calha de 16px desaparece.</p>
+      <div class="quadro">
+        <div class="lado">
+          <div style="display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 14px; flex: none">
+            <img src="marca.png" alt="" style="width: 26px; height: 26px; flex: none">
+            <span style="flex: 1; min-width: 0; font-size: 15px; letter-spacing: -0.02em"><span style="font-weight: 700">Emy</span><span style="font-weight: 500; color: #4f3cfc">Leads</span></span>
+            <span class="punho viva"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></span>
+          </div>
+          <p style="margin: 8px 0 4px; padding: 0 12px; font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #98a2b3">Atendimento</p>
+          <div class="mini on"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Conversas</div>
+          <div class="mini"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>Contatos</div>
+        </div>
+        <div style="flex: 1"></div>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div class="op">
+      <h2><span class="letra">B</span> Na borda, ao aproximar</h2>
+      <p>Punho redondo montado sobre a divisa, revelado ao passar o mouse. Bonito e discreto — mas invisível para quem não descobre, e ausente no toque.</p>
+      <div class="quadro">
+        <div class="lado">
+          <div style="display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 14px; flex: none">
+            <img src="marca.png" alt="" style="width: 26px; height: 26px; flex: none">
+            <span style="font-size: 15px; letter-spacing: -0.02em"><span style="font-weight: 700">Emy</span><span style="font-weight: 500; color: #4f3cfc">Leads</span></span>
+          </div>
+          <p style="margin: 8px 0 4px; padding: 0 12px; font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #98a2b3">Atendimento</p>
+          <div class="mini on"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Conversas</div>
+          <div class="mini"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>Contatos</div>
+        </div>
+        <div style="flex: 1"></div>
+        <span style="position: absolute; left: 156px; top: 120px; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; border: 1px solid #d3d8de; background: #ffffff; color: #667085; box-shadow: 0 2px 8px rgba(18, 23, 48, .12)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"></path></svg>
+        </span>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="op">
+      <h2><span class="letra">C</span> No rodapé, junto da conta</h2>
+      <p>Libera o topo por inteiro. Mas o gesto é &laquo;quero mais espaço&raquo;, e a mão está no conteúdo, não no canto de baixo — vira uma viagem.</p>
+      <div class="quadro">
+        <div class="lado">
+          <div style="flex: 1"></div>
+          <div class="mini"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a8 8 0 0 0-16 0"></path><circle cx="10" cy="8" r="5"></circle></svg>Equipe</div>
+          <div class="mini"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>Configurações</div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 10px">
+            <div style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 1px solid #e6e9ed; border-radius: 11px; padding: 7px 9px">
+              <span style="display: flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 999px; background: #eeebff; color: #3d29db; font-size: 10px; font-weight: 600">AR</span>
+              <span style="min-width: 0; font-size: 11.5px; font-weight: 600; color: #121730; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Ana Ribeiro</span>
+            </div>
+            <span class="punho viva"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></span>
+          </div>
+        </div>
+        <div style="flex: 1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1000,"height":540}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

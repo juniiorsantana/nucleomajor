@@ -1,0 +1,1247 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: #121730; background: #f5f6f8; -webkit-font-smoothing: antialiased; }
+    a { color: #3d29db; text-decoration: none; }
+    a:hover { color: #4f3cfc; }
+    button { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+    input, select, textarea { font: inherit; color: inherit; }
+    .fina::-webkit-scrollbar { width: 8px; height: 8px; }
+    .fina::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 99px; background: #d3d8de; background-clip: content-box; }
+
+    .topo { display: flex; align-items: center; gap: 10px; height: 68px; flex: none; padding: 0 18px; border-bottom: 1px solid #e6e9ed; background: #fff; }
+    .topo-voltar { display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 9px; color: #667085; }
+    .topo-voltar:hover { background: #eef0f3; color: #121730; }
+    .topo-olho { font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: #4f3cfc; }
+    .topo-nome { margin: 2px 0 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+    .pilula { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 11px; font-size: 10.5px; font-weight: 600; }
+    .botao-linha { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e6e9ed; border-radius: 8px; padding: 8px 12px; font-size: 11.5px; font-weight: 600; color: #667085; background: #fff; }
+    .botao-linha:hover { border-color: #d3d8de; color: #121730; }
+    .botao-cheio { display: inline-flex; align-items: center; gap: 7px; border-radius: 8px; padding: 9px 15px; font-size: 12px; font-weight: 600; color: #fff; background: #4f3cfc; box-shadow: 0 1px 2px rgba(18,23,48,.16); }
+    .botao-cheio:hover { background: #3d29db; }
+
+    .paleta { display: flex; flex-direction: column; width: 224px; flex: none; border-right: 1px solid #e6e9ed; background: #fff; }
+    .paleta-topo { padding: 14px 14px 12px; border-bottom: 1px solid #e6e9ed; }
+    .rotulo { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #98a2b3; }
+    .busca { display: flex; align-items: center; gap: 7px; margin-top: 9px; border: 1px solid #e6e9ed; border-radius: 9px; padding: 0 9px; height: 32px; background: #f5f6f8; }
+    .busca input { width: 100%; border: 0; background: none; outline: none; font-size: 11.5px; }
+    .busca input::placeholder { color: #98a2b3; }
+    .paleta-lista { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; overflow-y: auto; padding: 12px 10px 16px; }
+    .grupo-titulo { padding: 0 4px; font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #98a2b3; }
+    .grupo-itens { display: flex; flex-direction: column; gap: 5px; margin-top: 7px; }
+    .bloco { display: flex; align-items: center; gap: 9px; width: 100%; border: 1px solid transparent; border-radius: 10px; padding: 7px 8px; text-align: left; cursor: grab; }
+    .bloco:hover { border-color: #e6e9ed; background: #f5f6f8; }
+    .bloco:active { cursor: grabbing; }
+    .bloco-icone { display: flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; border-radius: 9px; }
+    .bloco-nome { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: -.005em; }
+    .bloco-desc { display: block; margin-top: 1px; font-size: 10px; line-height: 1.35; color: #667085; }
+    .paleta-pe { border-top: 1px solid #e6e9ed; padding: 12px 14px; font-size: 10px; line-height: 1.5; color: #98a2b3; }
+
+    .mapa { position: relative; min-width: 0; flex: 1; overflow: hidden; background-color: #f5f6f8; background-image: radial-gradient(#d3d8de 1.1px, transparent 1.1px); background-size: 19px 19px; cursor: grab; }
+    .camada { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+    .fios { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+    .fio { fill: none; stroke-linecap: round; }
+    .fio-toque { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; cursor: pointer; }
+
+    .no { position: absolute; width: 276px; border: 1px solid #d3d8de; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgba(18,23,48,.07); cursor: grab; user-select: none; }
+    .no:hover { box-shadow: 0 12px 30px rgba(18,23,48,.11); }
+    .no-cab { display: flex; align-items: center; gap: 8px; height: 43px; padding: 0 11px; border-bottom: 1px solid #e6e9ed; }
+    .no-icone { display: flex; width: 27px; height: 27px; flex: none; align-items: center; justify-content: center; border-radius: 8px; }
+    .no-familia { font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+    .no-indice { margin-left: auto; font-size: 10px; font-variant-numeric: tabular-nums; color: #98a2b3; }
+    .no-corpo { padding: 14px; }
+    .no-titulo { display: block; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+    .no-resumo { margin: 4px 0 0; font-size: 11.5px; line-height: 1.45; color: #667085; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .no-saidas { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .saida { display: flex; align-items: center; height: 30px; border: 1px solid #e6e9ed; border-radius: 9px; padding: 0 10px; background: #f5f6f8; font-size: 11px; font-weight: 600; color: #667085; }
+    .saida-num { margin-right: 7px; font-size: 9px; font-weight: 700; color: #98a2b3; font-variant-numeric: tabular-nums; }
+    .saida-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .no-fim { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 10px; font-weight: 600; color: #98a2b3; }
+
+    .porta-in { position: absolute; left: -7px; top: 15px; width: 14px; height: 14px; border: 3px solid #fff; border-radius: 50%; background: #c3cad4; box-shadow: 0 0 0 1px #c3cad4; }
+    .porta-grupo { position: absolute; display: flex; align-items: center; gap: 7px; height: 16px; }
+    .porta-out { width: 14px; height: 14px; flex: none; border: 3px solid #fff; border-radius: 50%; cursor: crosshair; }
+    .porta-out:hover { transform: scale(1.22); }
+    .porta-mais { display: flex; width: 20px; height: 20px; align-items: center; justify-content: center; border: 1px solid #d3d8de; border-radius: 7px; background: #fff; color: #667085; opacity: 0; box-shadow: 0 2px 6px rgba(18,23,48,.12); }
+    .no:hover .porta-mais { opacity: 1; }
+    .porta-mais:hover { border-color: #4f3cfc; color: #4f3cfc; }
+
+    .fio-barra { position: absolute; z-index: 15; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid #e6e9ed; border-radius: 9px; background: #fff; box-shadow: 0 4px 14px rgba(18,23,48,.14); transform: translate(-50%, -50%); }
+    .fio-barra button { display: flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 6px; color: #667085; }
+    .fio-barra button:hover { background: #eef0f3; color: #121730; }
+    .fio-barra .risco:hover { background: rgba(220,38,38,.1); color: #dc2626; }
+
+    .seletor { position: absolute; z-index: 40; width: 238px; max-height: 340px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e6e9ed; border-radius: 13px; background: #fff; box-shadow: 0 18px 44px rgba(18,23,48,.2); }
+    .seletor-topo { padding: 11px 12px 10px; border-bottom: 1px solid #e6e9ed; }
+    .seletor-lista { min-height: 0; flex: 1; overflow-y: auto; padding: 8px; }
+
+    .controles { position: absolute; left: 16px; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #e6e9ed; border-radius: 10px; background: #fff; box-shadow: 0 6px 18px rgba(18,23,48,.1); }
+    .controles button { display: flex; height: 28px; min-width: 28px; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; border-radius: 7px; font-size: 11px; font-weight: 600; color: #667085; }
+    .controles button:hover { background: #eef0f3; color: #121730; }
+    .zoom-valor { display: flex; min-width: 44px; height: 28px; align-items: center; justify-content: center; font-size: 10.5px; color: #98a2b3; font-variant-numeric: tabular-nums; }
+    .dica { position: absolute; right: 16px; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 7px; border: 1px solid #e6e9ed; border-radius: 999px; padding: 7px 13px; background: rgba(255,255,255,.92); font-size: 10.5px; color: #667085; box-shadow: 0 6px 18px rgba(18,23,48,.08); }
+
+    .inspetor { display: flex; flex-direction: column; width: 326px; flex: none; border-left: 1px solid #e6e9ed; background: #fff; }
+    .inspetor-topo { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e6e9ed; }
+    .inspetor-corpo { min-height: 0; flex: 1; overflow-y: auto; padding: 16px; }
+    .campo-nome { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 600; color: #667085; }
+    .entrada { width: 100%; border: 1px solid #e6e9ed; border-radius: 9px; padding: 9px 11px; background: #fff; font-size: 12.5px; outline: none; }
+    .entrada:focus { border-color: #4f3cfc; box-shadow: 0 0 0 3px rgba(79,60,252,.12); }
+    .ajuda { margin: 6px 0 0; font-size: 10.5px; line-height: 1.5; color: #98a2b3; }
+    .secao { display: flex; flex-direction: column; gap: 15px; }
+    .cartao { border: 1px solid #e6e9ed; border-radius: 11px; padding: 12px; background: #f5f6f8; }
+    .nota { border: 1px solid rgba(79,60,252,.2); border-radius: 10px; padding: 11px 12px; background: #eeebff; font-size: 11px; line-height: 1.55; color: #3d29db; }
+    .dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    .dia { display: flex; height: 46px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #e6e9ed; border-radius: 9px; background: #fff; font-size: 10.5px; font-weight: 600; color: #667085; }
+    .segmento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; border: 1px solid #e6e9ed; border-radius: 10px; padding: 3px; background: #f5f6f8; }
+    .segmento button { height: 32px; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: #667085; }
+    .fichas { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ficha { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e6e9ed; border-radius: 999px; padding: 7px 12px; background: #fff; font-size: 11px; font-weight: 600; color: #667085; }
+    .opcao-linha { display: flex; align-items: center; gap: 7px; }
+    .opcao-ordem { display: flex; width: 22px; height: 22px; flex: none; align-items: center; justify-content: center; border-radius: 6px; font-size: 9.5px; font-weight: 700; }
+    .icone-botao { display: flex; width: 32px; height: 32px; flex: none; align-items: center; justify-content: center; border-radius: 8px; color: #98a2b3; }
+    .icone-botao:hover { background: rgba(220,38,38,.1); color: #dc2626; }
+    .adicionar { display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; border: 1px dashed #d3d8de; border-radius: 9px; padding: 10px; font-size: 11.5px; font-weight: 600; color: #667085; }
+    .adicionar:hover { border-color: #4f3cfc; color: #3d29db; }
+    .apagar { display: flex; width: 100%; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(220,38,38,.22); border-radius: 9px; padding: 11px; font-size: 11.5px; font-weight: 600; color: #dc2626; }
+    .apagar:hover { background: rgba(220,38,38,.08); }
+    .vazio { display: flex; flex-direction: column; align-items: center; padding: 46px 20px; text-align: center; }
+    .fantasma { position: fixed; z-index: 90; display: flex; align-items: center; gap: 9px; border: 1px solid #d3d8de; border-radius: 11px; padding: 8px 12px 8px 9px; background: #fff; box-shadow: 0 14px 34px rgba(18,23,48,.22); pointer-events: none; }
+  </style>
+</helmet>
+
+<div style="display: flex; flex-direction: column; width: 1440px; height: 900px; overflow: hidden; background: #f5f6f8;">
+
+  <header class="topo">
+    <button type="button" class="topo-voltar" aria-label="Voltar para chatbots">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
+    </button>
+    <div style="min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 7px;">
+        <span class="topo-olho">Construtor de fluxo</span>
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+      </div>
+      <h1 class="topo-nome">Boas-vindas e triagem</h1>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+      <span class="pilula" style="{{saude.estilo}}">
+        <span style="{{saude.pontoEstilo}}"></span>{{saude.texto}}
+      </span>
+      <button type="button" class="botao-linha" onClick="{{organizar}}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h7v6H3zM14 5h7v14h-7zM3 15h7v4H3z"></path></svg>
+        Organizar
+      </button>
+      <button type="button" class="botao-cheio">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"></path></svg>
+        Salvar fluxo
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex; min-height: 0; flex: 1;">
+
+    <aside class="paleta">
+      <div class="paleta-topo">
+        <p class="rotulo" style="margin: 0;">Blocos</p>
+        <div class="busca">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#98a2b3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35"></path></svg>
+          <input type="text" placeholder="Buscar bloco" value="{{busca}}" onChange="{{aoBuscar}}">
+        </div>
+      </div>
+      <div class="paleta-lista fina">
+        <sc-for list="{{grupos}}" as="g" hint-placeholder-count="4">
+          <div>
+            <p class="grupo-titulo" style="margin: 0;">{{g.nome}}</p>
+            <div class="grupo-itens">
+              <sc-for list="{{g.itens}}" as="b" hint-placeholder-count="3">
+                <button type="button" class="bloco" onMouseDown="{{b.pegar}}">
+                  <span class="bloco-icone" style="{{b.estiloIcone}}">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="{{b.icone}}"></path></svg>
+                  </span>
+                  <span style="min-width: 0; flex: 1;">
+                    <strong class="bloco-nome">{{b.nome}}</strong>
+                    <small class="bloco-desc">{{b.desc}}</small>
+                  </span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div class="paleta-pe">Arraste para o mapa, ou solte uma conexão no vazio para escolher o bloco já ligado.</div>
+    </aside>
+
+    <main class="mapa" id="mapa" style="{{cursorDoMapa}}" onMouseDown="{{pegarMapa}}">
+      <div class="camada" style="{{transformDoMapa}}">
+
+        <svg class="fios" width="6000" height="4000">
+          <sc-for list="{{fios}}" as="f" hint-placeholder-count="3">
+            <g>
+              <path class="fio" d="{{f.d}}" style="{{f.estilo}}"></path>
+              <path class="fio-toque" d="{{f.d}}" onMouseEnter="{{f.entrar}}" onMouseLeave="{{f.sair}}"></path>
+            </g>
+          </sc-for>
+          <sc-if value="{{puxando}}" hint-placeholder-val="{{true}}">
+            <path class="fio" d="{{fioNovo}}" style="stroke: #4f3cfc; stroke-width: 2.4; stroke-dasharray: 6 5;"></path>
+          </sc-if>
+        </svg>
+
+        <sc-for list="{{nos}}" as="no" hint-placeholder-count="4">
+          <div class="no" style="{{no.estilo}}" onMouseDown="{{no.pegar}}">
+            <div class="no-cab">
+              <span class="no-icone" style="{{no.estiloIcone}}">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{no.icone}}"></path></svg>
+              </span>
+              <span class="no-familia" style="{{no.estiloFamilia}}">{{no.familia}}</span>
+              <span class="no-indice">{{no.indice}}</span>
+            </div>
+            <div class="no-corpo">
+              <strong class="no-titulo">{{no.titulo}}</strong>
+              <p class="no-resumo">{{no.resumo}}</p>
+              <sc-if value="{{no.temRotulos}}" hint-placeholder-val="{{true}}">
+                <div class="no-saidas">
+                  <sc-for list="{{no.rotulos}}" as="s" hint-placeholder-count="2">
+                    <div class="saida" style="{{s.estilo}}">
+                      <span class="saida-num">{{s.ordem}}</span>
+                      <span class="saida-txt">{{s.rotulo}}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{no.terminal}}" hint-placeholder-val="{{true}}">
+                <span class="no-fim">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M9 9h6v6H9z"></path></svg>
+                  Encerra o fluxo aqui
+                </span>
+              </sc-if>
+            </div>
+            <sc-if value="{{no.temEntrada}}" hint-placeholder-val="{{true}}">
+              <span class="porta-in" style="{{no.estiloEntrada}}"></span>
+            </sc-if>
+            <sc-for list="{{no.portas}}" as="p" hint-placeholder-count="2">
+              <div class="porta-grupo" style="{{p.estilo}}">
+                <span class="porta-out" style="{{p.estiloPonto}}" onMouseDown="{{p.puxar}}"></span>
+                <button type="button" class="porta-mais" onMouseDown="{{p.parar}}" onClick="{{p.abrir}}" aria-label="Adicionar bloco ligado a esta saída">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{barra.visivel}}" hint-placeholder-val="{{true}}">
+        <div class="fio-barra" style="{{barra.estilo}}" onMouseEnter="{{barra.entrar}}" onMouseLeave="{{barra.sair}}">
+          <button type="button" onClick="{{barra.inserir}}" aria-label="Inserir bloco no meio desta conexão">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          <button type="button" class="risco" onClick="{{barra.remover}}" aria-label="Remover conexão">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{seletor.visivel}}" hint-placeholder-val="{{true}}">
+        <div class="seletor" style="{{seletor.estilo}}">
+          <div class="seletor-topo">
+            <p class="rotulo" style="margin: 0;">{{seletor.titulo}}</p>
+            <p style="margin: 5px 0 0; font-size: 10.5px; line-height: 1.45; color: #667085;">{{seletor.ajuda}}</p>
+          </div>
+          <div class="seletor-lista fina">
+            <sc-for list="{{seletor.itens}}" as="b" hint-placeholder-count="5">
+              <button type="button" class="bloco" onClick="{{b.escolher}}">
+                <span class="bloco-icone" style="{{b.estiloIcone}}">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="{{b.icone}}"></path></svg>
+                </span>
+                <span style="min-width: 0; flex: 1;">
+                  <strong class="bloco-nome">{{b.nome}}</strong>
+                  <small class="bloco-desc">{{b.desc}}</small>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <div class="controles">
+        <button type="button" onClick="{{menos}}" aria-label="Afastar">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"></path></svg>
+        </button>
+        <span class="zoom-valor">{{zoomTexto}}</span>
+        <button type="button" onClick="{{mais}}" aria-label="Aproximar">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+        <button type="button" onClick="{{ajustar}}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+          Ajustar
+        </button>
+      </div>
+
+      <div class="dica">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#4f3cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M12 16v-4M12 8h.01"></path></svg>
+        {{dica}}
+      </div>
+    </main>
+
+    <aside class="inspetor">
+      <div class="inspetor-topo">
+        <span class="no-icone" style="{{ins.estiloIcone}}">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ins.icone}}"></path></svg>
+        </span>
+        <div style="min-width: 0; flex: 1;">
+          <p class="rotulo" style="margin: 0;">{{ins.familia}}</p>
+          <h2 style="margin: 3px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em;">{{ins.titulo}}</h2>
+        </div>
+      </div>
+      <div class="inspetor-corpo fina">
+
+        <sc-if value="{{ins.vazio}}" hint-placeholder-val="{{true}}">
+          <div class="vazio">
+            <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; background: #eef0f3; color: #98a2b3;">
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></svg>
+            </span>
+            <p style="margin: 12px 0 0; font-size: 12px; font-weight: 600;">Escolha um bloco</p>
+            <p style="margin: 5px 0 0; font-size: 11px; line-height: 1.55; color: #667085;">O que ele faz e como se configura aparece aqui, sem ocupar espaço no mapa.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.gatilho}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <label class="campo-nome" for="nome-fluxo">Nome do fluxo</label>
+            <input id="nome-fluxo" class="entrada" type="text" value="{{ins.nome}}" onChange="{{ins.ed.nome}}">
+            <div class="nota">Este fluxo começa quando um contato conhecido escreve no WhatsApp. Só um gatilho por fluxo.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.mensagem}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <label class="campo-nome" for="texto-msg">Texto enviado</label>
+              <textarea id="texto-msg" class="entrada" rows="5" style="resize: vertical; line-height: 1.5;" value="{{ins.texto}}" onChange="{{ins.ed.texto}}"></textarea>
+              <p class="ajuda">Variáveis disponíveis: {nome} e {empresa}.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.escolher}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <label class="campo-nome" for="texto-escolher">Pergunta enviada</label>
+              <textarea id="texto-escolher" class="entrada" rows="3" style="resize: vertical; line-height: 1.5;" value="{{ins.texto}}" onChange="{{ins.ed.texto}}"></textarea>
+            </div>
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Opções do contato</p>
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <sc-for list="{{ins.opcoes}}" as="op" hint-placeholder-count="3">
+                  <div class="opcao-linha">
+                    <span class="opcao-ordem" style="{{op.estiloOrdem}}">{{op.ordem}}</span>
+                    <input class="entrada" type="text" value="{{op.rotulo}}" onChange="{{op.mudar}}">
+                    <button type="button" class="icone-botao" onClick="{{op.remover}}" aria-label="Remover opção">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+              <button type="button" class="adicionar" style="margin-top: 9px;" onClick="{{ins.ed.novaOpcao}}">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                Adicionar opção
+              </button>
+              <p class="ajuda">Cada opção vira uma saída própria no bloco — é por elas que o fluxo se divide.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.digitar}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <label class="campo-nome" for="pergunta-digitar">Pergunta enviada</label>
+              <textarea id="pergunta-digitar" class="entrada" rows="3" style="resize: vertical; line-height: 1.5;" value="{{ins.texto}}" onChange="{{ins.ed.texto}}"></textarea>
+            </div>
+            <div>
+              <label class="campo-nome" for="variavel">Guardar a resposta em</label>
+              <input id="variavel" class="entrada" type="text" value="{{ins.variavel}}" onChange="{{ins.ed.variavel}}">
+              <p class="ajuda">Depois, escreva {{ins.exemploVariavel}} em qualquer mensagem para repetir o que ele digitou.</p>
+            </div>
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Formato aceito</p>
+              <div class="fichas">
+                <sc-for list="{{ins.formatos}}" as="f" hint-placeholder-count="4">
+                  <button type="button" class="ficha" style="{{f.estilo}}" onClick="{{f.escolher}}">{{f.rotulo}}</button>
+                </sc-for>
+              </div>
+              <p class="ajuda">Se a resposta não couber no formato, o contato é convidado a tentar de novo uma vez.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.diasemana}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Dias em que o fluxo segue pelo Sim</p>
+              <div class="dias">
+                <sc-for list="{{ins.dias}}" as="d" hint-placeholder-count="7">
+                  <button type="button" class="dia" style="{{d.estilo}}" onClick="{{d.alternar}}">
+                    <span>{{d.curto}}</span>
+                    <span style="{{d.estiloPonto}}"></span>
+                  </button>
+                </sc-for>
+              </div>
+              <p class="ajuda">{{ins.resumoDias}}</p>
+            </div>
+            <div class="nota">Qualquer outro dia sai pelo Não. Nenhuma conversa fica parada: as duas saídas existem sempre.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.horario}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+              <div>
+                <label class="campo-nome" for="hora-de">A partir das</label>
+                <input id="hora-de" class="entrada" type="time" value="{{ins.de}}" onChange="{{ins.ed.de}}">
+              </div>
+              <div>
+                <label class="campo-nome" for="hora-ate">Até as</label>
+                <input id="hora-ate" class="entrada" type="time" value="{{ins.ate}}" onChange="{{ins.ed.ate}}">
+              </div>
+            </div>
+            <div class="cartao">
+              <p style="margin: 0; font-size: 11px; font-weight: 600;">Fuso do horário</p>
+              <p style="margin: 5px 0 0; font-size: 10.5px; line-height: 1.5; color: #667085;">America/Sao_Paulo, o mesmo da organização. Quem escreve de outro estado é medido por este relógio, não pelo dele.</p>
+            </div>
+            <div class="nota">{{ins.resumoHorario}}</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.etiqueta}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Sai pelo Sim quem tiver</p>
+              <div class="fichas">
+                <sc-for list="{{ins.etiquetas}}" as="e" hint-placeholder-count="5">
+                  <button type="button" class="ficha" style="{{e.estilo}}" onClick="{{e.alternar}}">
+                    <span style="{{e.estiloPonto}}"></span>{{e.nome}}
+                  </button>
+                </sc-for>
+              </div>
+              <p class="ajuda">Basta UMA das etiquetas marcadas para o contato sair pelo Sim.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.espera}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <label class="campo-nome" for="espera-valor">Esperar</label>
+              <input id="espera-valor" class="entrada" type="number" min="1" value="{{ins.valor}}" onChange="{{ins.ed.valor}}">
+            </div>
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Unidade</p>
+              <div class="segmento">
+                <sc-for list="{{ins.unidades}}" as="u" hint-placeholder-count="3">
+                  <button type="button" style="{{u.estilo}}" onClick="{{u.escolher}}">{{u.rotulo}}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div class="cartao">
+              <p style="margin: 0; font-size: 11px; font-weight: 600;">Se o contato escrever antes</p>
+              <p style="margin: 5px 0 0; font-size: 10.5px; line-height: 1.5; color: #667085;">A espera é cancelada e o fluxo segue na hora. Esperar não é silenciar o contato.</p>
+            </div>
+            <div class="nota">{{ins.resumoEspera}}</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.etiquetar}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Colocar no contato</p>
+              <div class="fichas">
+                <sc-for list="{{ins.etiquetas}}" as="e" hint-placeholder-count="5">
+                  <button type="button" class="ficha" style="{{e.estilo}}" onClick="{{e.alternar}}">
+                    <span style="{{e.estiloPonto}}"></span>{{e.nome}}
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.status}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Marcar a conversa como</p>
+              <div class="fichas">
+                <sc-for list="{{ins.situacoes}}" as="s" hint-placeholder-count="3">
+                  <button type="button" class="ficha" style="{{s.estilo}}" onClick="{{s.escolher}}">{{s.rotulo}}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div class="cartao">
+              <p style="margin: 0; font-size: 11px; font-weight: 600;">O que muda na prática</p>
+              <p style="margin: 5px 0 0; font-size: 10.5px; line-height: 1.5; color: #667085;">A conversa aparece na fila de Atendimentos com este rótulo. Ninguém é notificado — é organização, não chamado.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.transferir}}" hint-placeholder-val="{{true}}">
+          <div class="secao">
+            <div>
+              <p class="campo-nome" style="margin-bottom: 8px;">Entregar para</p>
+              <div class="fichas">
+                <sc-for list="{{ins.destinos}}" as="d" hint-placeholder-count="3">
+                  <button type="button" class="ficha" style="{{d.estilo}}" onClick="{{d.escolher}}">{{d.rotulo}}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div class="nota">Depois de transferir, quem continua a conversa é o novo dono. Por isso este bloco não tem saída.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ins.podeApagar}}" hint-placeholder-val="{{true}}">
+          <button type="button" class="apagar" style="margin-top: 18px;" onClick="{{ins.apagar}}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+            Remover bloco
+          </button>
+        </sc-if>
+
+      </div>
+    </aside>
+  </div>
+
+  <sc-if value="{{fantasma.visivel}}" hint-placeholder-val="{{true}}">
+    <div class="fantasma" style="{{fantasma.estilo}}">
+      <span class="bloco-icone" style="{{fantasma.estiloIcone}}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path d="{{fantasma.icone}}"></path></svg>
+      </span>
+      <strong class="bloco-nome">{{fantasma.nome}}</strong>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.seq = 20;
+    this.state = {
+      nome: "Boas-vindas e triagem",
+      nos: [
+        { id: "n1", tipo: "gatilho", x: 40, y: 250, cfg: {} },
+        { id: "n2", tipo: "horario", x: 370, y: 210, cfg: { de: "08:00", ate: "18:00" } },
+        { id: "n3", tipo: "escolher", x: 700, y: 40, cfg: { texto: "Oi! Como posso te ajudar hoje?", opcoes: [
+          { id: "o1", rotulo: "Agendar horário" },
+          { id: "o2", rotulo: "Saber o preço" },
+          { id: "o3", rotulo: "Falar com alguém" }
+        ] } },
+        { id: "n4", tipo: "mensagem", x: 700, y: 330, cfg: { texto: "Estamos fora do horário agora. Respondo assim que abrir, às 8h." } },
+        { id: "n5", tipo: "status", x: 1010, y: 20, cfg: { situacao: "esperando" } },
+        { id: "n6", tipo: "digitar", x: 1010, y: 170, cfg: { texto: "Para qual serviço você quer o preço?", variavel: "servico", formato: "texto" } },
+        { id: "n7", tipo: "transferir", x: 1010, y: 320, cfg: { destino: "pessoa" } }
+      ],
+      fios: [
+        { id: "f1", de: "n1", porta: "padrao", para: "n2" },
+        { id: "f2", de: "n2", porta: "sim", para: "n3" },
+        { id: "f3", de: "n2", porta: "nao", para: "n4" },
+        { id: "f4", de: "n3", porta: "o1", para: "n5" },
+        { id: "f5", de: "n3", porta: "o2", para: "n6" },
+        { id: "f6", de: "n3", porta: "o3", para: "n7" }
+      ],
+      sel: "n3",
+      arrasto: null,
+      hover: null,
+      pan: { x: 20, y: 60 },
+      zoom: 0.7,
+      seletor: null,
+      busca: ""
+    };
+  }
+
+  componentDidMount() {
+    this.mover = (e) => this.aoMover(e);
+    this.soltar = (e) => this.aoSoltar(e);
+    document.addEventListener("mousemove", this.mover);
+    document.addEventListener("mouseup", this.soltar);
+    this.ajustarMapa();
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener("mousemove", this.mover);
+    document.removeEventListener("mouseup", this.soltar);
+  }
+
+  /* ---------------- catálogo ---------------- */
+
+  familias() {
+    return {
+      gatilho: { cor: "#4f3cfc", fundo: "#eeebff", nome: "Gatilho" },
+      mensagem: { cor: "#2563eb", fundo: "#e5effe", nome: "Mensagem" },
+      pergunta: { cor: "#2563eb", fundo: "#e5effe", nome: "Pergunta" },
+      condicao: { cor: "#b45309", fundo: "#f6eae2", nome: "Condição" },
+      espera: { cor: "#667085", fundo: "#eef0f3", nome: "Espera" },
+      contato: { cor: "#16a34a", fundo: "#dcfce7", nome: "Contato" },
+      saida: { cor: "#3d29db", fundo: "#eeebff", nome: "Transferência" }
+    };
+  }
+
+  icones() {
+    return {
+      gatilho: "M4.9 19.1a10 10 0 0 1 0-14.2M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M16.2 7.8a6 6 0 0 1 0 8.4M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4",
+      mensagem: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM7 9h10M7 13h5",
+      escolher: "M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17M11 6h10M11 12h10M11 18h6",
+      digitar: "M4 7V4h16v3M9 20h6M12 4v16",
+      diasemana: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2",
+      horario: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M12 6.5V12l3.5 2",
+      etiqueta: "M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8M7.5 7.5h.01",
+      espera: "M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2",
+      etiquetar: "M9.6 3H4a1 1 0 0 0-1 1v5.6a2 2 0 0 0 .6 1.4l7.4 7.4a2 2 0 0 0 2.8 0l5.6-5.6a2 2 0 0 0 0-2.8L11 3.6A2 2 0 0 0 9.6 3M7 7h.01M15 21l6-6",
+      status: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M10 9v6M14 9v6",
+      transferir: "M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6M8.6 13.5l6.8 3.9M15.4 6.6L8.6 10.5"
+    };
+  }
+
+  tipos() {
+    return {
+      gatilho: { fam: "gatilho", nome: "Nova mensagem", desc: "Contato escreve no WhatsApp", grupo: null },
+      mensagem: { fam: "mensagem", nome: "Enviar mensagem", desc: "Responde no WhatsApp", grupo: "Falar com o contato" },
+      escolher: { fam: "pergunta", nome: "Pedir para escolher", desc: "Oferece opções para ele", grupo: "Falar com o contato" },
+      digitar: { fam: "pergunta", nome: "Pedir para digitar", desc: "Captura o que ele escrever", grupo: "Falar com o contato" },
+      diasemana: { fam: "condicao", nome: "Dias da semana", desc: "Separa por dia da semana", grupo: "Decidir o caminho" },
+      horario: { fam: "condicao", nome: "Horário", desc: "Separa por janela de horas", grupo: "Decidir o caminho" },
+      etiqueta: { fam: "condicao", nome: "Tem etiqueta", desc: "Separa por etiqueta do contato", grupo: "Decidir o caminho" },
+      espera: { fam: "espera", nome: "Aguardar intervalo", desc: "Pausa antes de continuar", grupo: "Tempo" },
+      etiquetar: { fam: "contato", nome: "Editar etiquetas", desc: "Organiza o contato", grupo: "Mudar o contato" },
+      status: { fam: "contato", nome: "Status esperando", desc: "Marca a conversa na fila", grupo: "Mudar o contato" },
+      transferir: { fam: "saida", nome: "Transferir conversa", desc: "Entrega para a IA ou alguém", grupo: "Encerrar" }
+    };
+  }
+
+  etiquetasDisponiveis() {
+    return [
+      { id: "cliente", nome: "Cliente" },
+      { id: "lead-quente", nome: "Lead quente" },
+      { id: "sem-resposta", nome: "Sem resposta" },
+      { id: "vip", nome: "VIP" },
+      { id: "orcamento", nome: "Orçamento enviado" }
+    ];
+  }
+
+  diasDaSemana() {
+    return [
+      { id: "seg", curto: "Seg" }, { id: "ter", curto: "Ter" }, { id: "qua", curto: "Qua" },
+      { id: "qui", curto: "Qui" }, { id: "sex", curto: "Sex" }, { id: "sab", curto: "Sáb" }, { id: "dom", curto: "Dom" }
+    ];
+  }
+
+  padraoDe(tipo) {
+    if (tipo === "mensagem") return { texto: "Escreva aqui o que o contato vai receber." };
+    if (tipo === "escolher") return { texto: "O que você prefere?", opcoes: [{ id: "o" + (this.seq++), rotulo: "Primeira opção" }, { id: "o" + (this.seq++), rotulo: "Segunda opção" }] };
+    if (tipo === "digitar") return { texto: "Qual é o seu nome completo?", variavel: "nome_completo", formato: "texto" };
+    if (tipo === "diasemana") return { dias: ["seg", "ter", "qua", "qui", "sex"] };
+    if (tipo === "horario") return { de: "08:00", ate: "18:00" };
+    if (tipo === "etiqueta") return { etiquetas: ["cliente"] };
+    if (tipo === "espera") return { valor: 30, unidade: "min" };
+    if (tipo === "etiquetar") return { etiquetas: ["lead-quente"] };
+    if (tipo === "status") return { situacao: "esperando" };
+    if (tipo === "transferir") return { destino: "pessoa" };
+    return {};
+  }
+
+  /* ---------------- geometria ---------------- */
+
+  saidasDe(no) {
+    if (no.tipo === "transferir") return [];
+    if (no.tipo === "escolher") return (no.cfg.opcoes || []).map((o) => ({ id: o.id, rotulo: o.rotulo || "Opção sem nome" }));
+    if (no.tipo === "diasemana" || no.tipo === "horario" || no.tipo === "etiqueta") {
+      return [{ id: "sim", rotulo: "Sim" }, { id: "nao", rotulo: "Não" }];
+    }
+    return [{ id: "padrao", rotulo: "" }];
+  }
+
+  alturaDe(no) {
+    const s = this.saidasDe(no);
+    if (s.length <= 1) return 112;
+    return 120 + s.length * 36 - 6;
+  }
+
+  ySaida(no, i) {
+    const s = this.saidasDe(no);
+    if (s.length <= 1) return 77;
+    return 121 + i * 36;
+  }
+
+  curva(x1, y1, x2, y2) {
+    if (x2 >= x1 + 60) {
+      const d = Math.max(46, (x2 - x1) * 0.42);
+      return "M " + x1 + " " + y1 + " C " + (x1 + d) + " " + y1 + ", " + (x2 - d) + " " + y2 + ", " + x2 + " " + y2;
+    }
+    const meio = (y1 + y2) / 2 + 110;
+    return "M " + x1 + " " + y1 + " C " + (x1 + 120) + " " + y1 + ", " + (x1 + 120) + " " + meio + ", " + ((x1 + x2) / 2) + " " + meio +
+           " C " + (x2 - 120) + " " + meio + ", " + (x2 - 120) + " " + y2 + ", " + x2 + " " + y2;
+  }
+
+  meioDaCurva(x1, y1, x2, y2) {
+    if (x2 >= x1 + 60) return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+    return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 + 110 };
+  }
+
+  retanguloDoMapa() {
+    const el = document.getElementById("mapa");
+    return el ? el.getBoundingClientRect() : { left: 0, top: 0, width: 890, height: 832 };
+  }
+
+  pontoNoMapa(e) {
+    const r = this.retanguloDoMapa();
+    const sx = e.clientX - r.left;
+    const sy = e.clientY - r.top;
+    return { x: (sx - this.state.pan.x) / this.state.zoom, y: (sy - this.state.pan.y) / this.state.zoom, sx: sx, sy: sy, r: r };
+  }
+
+  noEm(x, y) {
+    const nos = this.state.nos;
+    for (let i = nos.length - 1; i >= 0; i -= 1) {
+      const n = nos[i];
+      if (x >= n.x && x <= n.x + 276 && y >= n.y && y <= n.y + this.alturaDe(n)) return n;
+    }
+    return null;
+  }
+
+  /* ---------------- ações ---------------- */
+
+  criarNo(tipo, x, y, de, porta) {
+    const id = "n" + (this.seq++);
+    const no = { id: id, tipo: tipo, x: Math.round(x), y: Math.round(y), cfg: this.padraoDe(tipo) };
+    let fios = this.state.fios;
+    if (de) {
+      fios = fios.filter((f) => !(f.de === de && f.porta === porta));
+      fios = fios.concat([{ id: "f" + (this.seq++), de: de, porta: porta, para: id }]);
+    }
+    this.setState({ nos: this.state.nos.concat([no]), fios: fios, sel: id, seletor: null, arrasto: null });
+  }
+
+  conectar(de, porta, para) {
+    if (de === para) return;
+    const alvo = this.state.nos.filter((n) => n.id === para)[0];
+    if (!alvo || alvo.tipo === "gatilho") return;
+    const fios = this.state.fios
+      .filter((f) => !(f.de === de && f.porta === porta))
+      .concat([{ id: "f" + (this.seq++), de: de, porta: porta, para: para }]);
+    this.setState({ fios: fios, arrasto: null, seletor: null });
+  }
+
+  removerFio(id) {
+    this.setState({ fios: this.state.fios.filter((f) => f.id !== id), hover: null });
+  }
+
+  removerNo(id) {
+    this.setState({
+      nos: this.state.nos.filter((n) => n.id !== id),
+      fios: this.state.fios.filter((f) => f.de !== id && f.para !== id),
+      sel: null
+    });
+  }
+
+  editar(id, patch) {
+    this.setState({ nos: this.state.nos.map((n) => (n.id === id ? { id: n.id, tipo: n.tipo, x: n.x, y: n.y, cfg: Object.assign({}, n.cfg, patch) } : n)) });
+  }
+
+  ajustarMapa() {
+    const nos = this.state.nos;
+    if (!nos.length) return;
+    const r = this.retanguloDoMapa();
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    nos.forEach((n) => {
+      x1 = Math.min(x1, n.x); y1 = Math.min(y1, n.y);
+      x2 = Math.max(x2, n.x + 276); y2 = Math.max(y2, n.y + this.alturaDe(n));
+    });
+    const pad = 56;
+    const z = Math.min(1, Math.max(0.4, Math.min((r.width - pad * 2) / (x2 - x1), (r.height - pad * 2) / (y2 - y1))));
+    this.setState({ zoom: z, pan: { x: (r.width - (x2 - x1) * z) / 2 - x1 * z, y: (r.height - (y2 - y1) * z) / 2 - y1 * z } });
+  }
+
+  aplicarZoom(fator) {
+    const r = this.retanguloDoMapa();
+    const z0 = this.state.zoom;
+    const z = Math.min(1.4, Math.max(0.4, z0 * fator));
+    const cx = r.width / 2, cy = r.height / 2;
+    this.setState({ zoom: z, pan: { x: cx - (cx - this.state.pan.x) * (z / z0), y: cy - (cy - this.state.pan.y) * (z / z0) } });
+  }
+
+  /* ---------------- arraste ---------------- */
+
+  aoMover(e) {
+    const a = this.state.arrasto;
+    if (!a) return;
+    if (a.tipo === "mapa") {
+      this.setState({ pan: { x: a.px + (e.clientX - a.cx), y: a.py + (e.clientY - a.cy) } });
+      return;
+    }
+    const p = this.pontoNoMapa(e);
+    if (a.tipo === "no") {
+      this.setState({ nos: this.state.nos.map((n) => (n.id === a.id ? { id: n.id, tipo: n.tipo, x: p.x - a.dx, y: p.y - a.dy, cfg: n.cfg } : n)) });
+    } else if (a.tipo === "fio") {
+      this.setState({ arrasto: Object.assign({}, a, { x: p.x, y: p.y }) });
+    } else if (a.tipo === "paleta") {
+      const andou = Math.abs(e.clientX - a.ox) + Math.abs(e.clientY - a.oy) > 4;
+      this.setState({ arrasto: Object.assign({}, a, { cx: e.clientX, cy: e.clientY, andou: a.andou || andou }) });
+    }
+  }
+
+  aoSoltar(e) {
+    const a = this.state.arrasto;
+    if (!a) return;
+    if (a.tipo === "fio") {
+      const p = this.pontoNoMapa(e);
+      const alvo = this.noEm(p.x, p.y);
+      if (alvo && alvo.id !== a.de && alvo.tipo !== "gatilho") { this.conectar(a.de, a.porta, alvo.id); return; }
+      this.setState({ arrasto: null, seletor: { de: a.de, porta: a.porta, x: p.x, y: p.y, sx: p.sx, sy: p.sy, fio: null } });
+      return;
+    }
+    if (a.tipo === "paleta") {
+      const r = this.retanguloDoMapa();
+      const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (a.andou && dentro) {
+        const p = this.pontoNoMapa(e);
+        this.criarNo(a.bloco, p.x - 138, p.y - 56, null, null);
+        return;
+      }
+      if (!a.andou) {
+        const centro = { x: (r.width / 2 - this.state.pan.x) / this.state.zoom, y: (r.height / 2 - this.state.pan.y) / this.state.zoom };
+        this.criarNo(a.bloco, centro.x - 138, centro.y - 56, null, null);
+        return;
+      }
+    }
+    this.setState({ arrasto: null });
+  }
+
+  /* ---------------- render ---------------- */
+
+  renderVals() {
+    const st = this.state;
+    const FAM = this.familias();
+    const ICO = this.icones();
+    const TIPOS = this.tipos();
+    const self = this;
+
+    const porId = {};
+    st.nos.forEach((n) => { porId[n.id] = n; });
+    const ligadas = {};
+    st.fios.forEach((f) => { ligadas[f.de + "|" + f.porta] = f.id; });
+
+    const pontaSaida = (no, portaId) => {
+      const s = self.saidasDe(no);
+      let i = 0;
+      s.forEach((p, k) => { if (p.id === portaId) i = k; });
+      return { x: no.x + 276, y: no.y + self.ySaida(no, i) };
+    };
+    const pontaEntrada = (no) => ({ x: no.x, y: no.y + 22 });
+
+    /* --- fios --- */
+    const fios = st.fios.map((f) => {
+      const a = porId[f.de], b = porId[f.para];
+      if (!a || !b) return null;
+      const p1 = pontaSaida(a, f.porta), p2 = pontaEntrada(b);
+      const aceso = st.hover === f.id || st.sel === f.de || st.sel === f.para;
+      return {
+        id: f.id,
+        d: self.curva(p1.x, p1.y, p2.x, p2.y),
+        estilo: aceso ? "stroke: #4f3cfc; stroke-width: 2.6;" : "stroke: #c3cad4; stroke-width: 2;",
+        entrar: () => self.setState({ hover: f.id }),
+        sair: () => self.setState({ hover: null })
+      };
+    }).filter((f) => f !== null);
+
+    /* --- barra da conexão sob o cursor --- */
+    let barra = { visivel: false, estilo: "", entrar: () => {}, sair: () => {}, inserir: () => {}, remover: () => {} };
+    if (st.hover) {
+      const f = st.fios.filter((x) => x.id === st.hover)[0];
+      const a = f ? porId[f.de] : null;
+      const b = f ? porId[f.para] : null;
+      if (a && b) {
+        const p1 = pontaSaida(a, f.porta), p2 = pontaEntrada(b);
+        const m = self.meioDaCurva(p1.x, p1.y, p2.x, p2.y);
+        barra = {
+          visivel: true,
+          estilo: "left: " + (m.x * st.zoom + st.pan.x) + "px; top: " + (m.y * st.zoom + st.pan.y) + "px;",
+          entrar: () => self.setState({ hover: f.id }),
+          sair: () => self.setState({ hover: null }),
+          inserir: () => self.setState({ seletor: { de: f.de, porta: f.porta, fio: f.id, x: m.x, y: m.y, sx: m.x * st.zoom + st.pan.x, sy: m.y * st.zoom + st.pan.y } }),
+          remover: () => self.removerFio(f.id)
+        };
+      }
+    }
+
+    /* --- nós --- */
+    const nos = st.nos.map((n, indice) => {
+      const t = TIPOS[n.tipo], fam = FAM[t.fam];
+      const saidas = self.saidasDe(n);
+      const selecionado = st.sel === n.id;
+      const alvoPossivel = st.arrasto && st.arrasto.tipo === "fio" && n.tipo !== "gatilho" && n.id !== st.arrasto.de;
+      return {
+        id: n.id,
+        icone: ICO[n.tipo],
+        familia: fam.nome,
+        titulo: t.nome,
+        resumo: self.resumoDe(n),
+        indice: String(indice + 1).padStart(2, "0"),
+        temEntrada: n.tipo !== "gatilho",
+        terminal: n.tipo === "transferir",
+        temRotulos: saidas.length > 1,
+        estilo: "left: " + n.x + "px; top: " + n.y + "px; height: " + self.alturaDe(n) + "px;" +
+          (selecionado ? " border-color: #4f3cfc; box-shadow: 0 0 0 3px rgba(79,60,252,.15), 0 14px 34px rgba(79,60,252,.14);" : ""),
+        estiloIcone: "color: " + fam.cor + "; background: " + fam.fundo + ";",
+        estiloFamilia: "color: " + fam.cor + ";",
+        estiloEntrada: alvoPossivel ? "background: #4f3cfc; box-shadow: 0 0 0 1px #4f3cfc, 0 0 0 6px rgba(79,60,252,.16);" : "",
+        rotulos: saidas.map((s, i) => ({
+          ordem: String(i + 1),
+          rotulo: s.rotulo,
+          estilo: ligadas[n.id + "|" + s.id] ? "border-color: " + fam.cor + "33; background: " + fam.fundo + "; color: " + fam.cor + ";" : ""
+        })),
+        portas: saidas.map((s, i) => {
+          const conectada = ligadas[n.id + "|" + s.id];
+          const y = self.ySaida(n, i);
+          return {
+            estilo: "left: 269px; top: " + (y - 8) + "px;",
+            estiloPonto: conectada
+              ? "background: " + fam.cor + "; box-shadow: 0 0 0 1px " + fam.cor + ";"
+              : "background: #c3cad4; box-shadow: 0 0 0 1px #c3cad4;",
+            parar: (e) => { e.stopPropagation(); },
+            puxar: (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              self.setState({ sel: n.id, seletor: null, arrasto: { tipo: "fio", de: n.id, porta: s.id, x: n.x + 276, y: n.y + y } });
+            },
+            abrir: (e) => {
+              e.stopPropagation();
+              const px = n.x + 276 + 34, py = n.y + y;
+              self.setState({ seletor: { de: n.id, porta: s.id, fio: null, x: px, y: py, sx: px * st.zoom + st.pan.x, sy: py * st.zoom + st.pan.y - 40 } });
+            }
+          };
+        }),
+        pegar: (e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          const p = self.pontoNoMapa(e);
+          self.setState({ sel: n.id, seletor: null, arrasto: { tipo: "no", id: n.id, dx: p.x - n.x, dy: p.y - n.y } });
+        }
+      };
+    });
+
+    /* --- fio sendo puxado --- */
+    const puxando = !!(st.arrasto && st.arrasto.tipo === "fio");
+    let fioNovo = "";
+    if (puxando) {
+      const a = porId[st.arrasto.de];
+      const p1 = pontaSaida(a, st.arrasto.porta);
+      fioNovo = self.curva(p1.x, p1.y, st.arrasto.x, st.arrasto.y);
+    }
+
+    /* --- paleta --- */
+    const filtro = st.busca.trim().toLowerCase();
+    const cartaoDe = (chave) => {
+      const t = TIPOS[chave], fam = FAM[t.fam];
+      return {
+        chave: chave, nome: t.nome, desc: t.desc, icone: ICO[chave],
+        estiloIcone: "color: " + fam.cor + "; background: " + fam.fundo + ";"
+      };
+    };
+    const chaves = Object.keys(TIPOS).filter((k) => TIPOS[k].grupo !== null)
+      .filter((k) => !filtro || (TIPOS[k].nome + " " + TIPOS[k].desc).toLowerCase().indexOf(filtro) >= 0);
+    const ordemGrupos = ["Falar com o contato", "Decidir o caminho", "Tempo", "Mudar o contato", "Encerrar"];
+    const grupos = ordemGrupos.map((nome) => ({
+      nome: nome,
+      itens: chaves.filter((k) => TIPOS[k].grupo === nome).map((k) => {
+        const c = cartaoDe(k);
+        c.pegar = (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          self.setState({ arrasto: { tipo: "paleta", bloco: k, cx: e.clientX, cy: e.clientY, ox: e.clientX, oy: e.clientY, andou: false } });
+        };
+        return c;
+      })
+    })).filter((g) => g.itens.length > 0);
+
+    /* --- seletor flutuante --- */
+    let seletor = { visivel: false, estilo: "", titulo: "", ajuda: "", itens: [] };
+    if (st.seletor) {
+      const s = st.seletor;
+      const r = self.retanguloDoMapa();
+      const esq = Math.max(12, Math.min(s.sx, r.width - 250));
+      const topo = Math.max(12, Math.min(s.sy, r.height - 356));
+      seletor = {
+        visivel: true,
+        estilo: "left: " + esq + "px; top: " + topo + "px;",
+        titulo: s.fio ? "Inserir no meio" : "Ligar a um bloco novo",
+        ajuda: s.fio ? "O bloco entra entre os dois, e a conexão se refaz sozinha." : "O bloco nasce já conectado a esta saída.",
+        itens: Object.keys(TIPOS).filter((k) => TIPOS[k].grupo !== null).map((k) => {
+          const c = cartaoDe(k);
+          c.escolher = () => {
+            const id = "n" + (self.seq++);
+            const no = { id: id, tipo: k, x: Math.round(s.x + 34), y: Math.round(s.y - 56), cfg: self.padraoDe(k) };
+            let fios = st.fios.filter((f) => !(f.de === s.de && f.porta === s.porta));
+            fios = fios.concat([{ id: "f" + (self.seq++), de: s.de, porta: s.porta, para: id }]);
+            if (s.fio) {
+              const antigo = st.fios.filter((f) => f.id === s.fio)[0];
+              const saidasNovas = self.saidasDe(no);
+              if (antigo && saidasNovas.length) {
+                fios = fios.concat([{ id: "f" + (self.seq++), de: id, porta: saidasNovas[0].id, para: antigo.para }]);
+              }
+            }
+            self.setState({ nos: st.nos.concat([no]), fios: fios, sel: id, seletor: null });
+          };
+          return c;
+        })
+      };
+    }
+
+    /* --- saúde do fluxo --- */
+    let soltas = 0;
+    st.nos.forEach((n) => { self.saidasDe(n).forEach((s) => { if (!ligadas[n.id + "|" + s.id]) soltas += 1; }); });
+    const saude = soltas > 0
+      ? { texto: soltas === 1 ? "1 saída sem destino" : soltas + " saídas sem destino", estilo: "background: rgba(180,83,9,.1); color: #b45309;", pontoEstilo: "width: 6px; height: 6px; border-radius: 50%; background: #b45309;" }
+      : { texto: st.nos.length + " blocos conectados", estilo: "background: #dcfce7; color: #16a34a;", pontoEstilo: "width: 6px; height: 6px; border-radius: 50%; background: #16a34a;" };
+
+    /* --- fantasma da paleta --- */
+    const arrastandoPaleta = st.arrasto && st.arrasto.tipo === "paleta" && st.arrasto.andou;
+    let fantasma = { visivel: false, estilo: "", icone: "", nome: "", estiloIcone: "" };
+    if (arrastandoPaleta) {
+      const c = cartaoDe(st.arrasto.bloco);
+      fantasma = { visivel: true, estilo: "left: " + (st.arrasto.cx + 14) + "px; top: " + (st.arrasto.cy - 20) + "px;", icone: c.icone, nome: c.nome, estiloIcone: c.estiloIcone };
+    }
+
+    return Object.assign({
+      nos: nos,
+      fios: fios,
+      barra: barra,
+      seletor: seletor,
+      grupos: grupos,
+      saude: saude,
+      fantasma: fantasma,
+      puxando: puxando,
+      fioNovo: fioNovo,
+      busca: st.busca,
+      zoomTexto: Math.round(st.zoom * 100) + "%",
+      transformDoMapa: "transform: translate(" + st.pan.x + "px, " + st.pan.y + "px) scale(" + st.zoom + ");",
+      cursorDoMapa: st.arrasto && st.arrasto.tipo === "mapa" ? "cursor: grabbing;" : "",
+      dica: puxando ? "Solte sobre um bloco para ligar, ou no vazio para criar um já conectado" : "Arraste um bloco da lista, ou puxe uma saída para conectar",
+      aoBuscar: (e) => self.setState({ busca: e.target.value }),
+      organizar: () => self.organizarMapa(),
+      ajustar: () => self.ajustarMapa(),
+      mais: () => self.aplicarZoom(1.2),
+      menos: () => self.aplicarZoom(1 / 1.2),
+      pegarMapa: (e) => {
+        if (e.button !== 0) return;
+        self.setState({ sel: null, seletor: null, arrasto: { tipo: "mapa", cx: e.clientX, cy: e.clientY, px: st.pan.x, py: st.pan.y } });
+      }
+    }, { ins: this.inspetor() });
+  }
+
+  resumoDe(no) {
+    const c = no.cfg;
+    if (no.tipo === "gatilho") return "Contato conhecido escreve no WhatsApp";
+    if (no.tipo === "mensagem") return c.texto || "Sem texto";
+    if (no.tipo === "escolher") return c.texto || "Sem pergunta";
+    if (no.tipo === "digitar") return "Guarda a resposta em " + (c.variavel || "—");
+    if (no.tipo === "diasemana") return this.nomesDias(c.dias || []);
+    if (no.tipo === "horario") return "Das " + c.de + " às " + c.ate;
+    if (no.tipo === "etiqueta") return this.nomesEtiquetas(c.etiquetas || []);
+    if (no.tipo === "espera") return this.fraseEspera(c.valor, c.unidade);
+    if (no.tipo === "etiquetar") return "Coloca " + this.nomesEtiquetas(c.etiquetas || []);
+    if (no.tipo === "status") return "Fica como " + this.nomeSituacao(c.situacao);
+    if (no.tipo === "transferir") return this.nomeDestino(c.destino);
+    return "";
+  }
+
+  nomesDias(ids) {
+    if (!ids.length) return "Nenhum dia marcado";
+    if (ids.length === 7) return "Todos os dias";
+    const mapa = {};
+    this.diasDaSemana().forEach((d) => { mapa[d.id] = d.curto; });
+    return this.diasDaSemana().filter((d) => ids.indexOf(d.id) >= 0).map((d) => mapa[d.id]).join(", ");
+  }
+
+  nomesEtiquetas(ids) {
+    if (!ids.length) return "Nenhuma etiqueta escolhida";
+    const todas = this.etiquetasDisponiveis();
+    return todas.filter((e) => ids.indexOf(e.id) >= 0).map((e) => e.nome).join(", ");
+  }
+
+  fraseEspera(valor, unidade) {
+    const n = Number(valor) || 0;
+    const um = n === 1;
+    if (unidade === "h") return n + (um ? " hora" : " horas");
+    if (unidade === "d") return n + (um ? " dia" : " dias");
+    return n + (um ? " minuto" : " minutos");
+  }
+
+  nomeSituacao(id) {
+    if (id === "atendendo") return "Em atendimento";
+    if (id === "resolvida") return "Resolvida";
+    return "Esperando";
+  }
+
+  nomeDestino(id) {
+    if (id === "recepcao") return "IA de recepção";
+    if (id === "fila") return "Fila geral da equipe";
+    return "Uma pessoa da equipe";
+  }
+
+  organizarMapa() {
+    const col = {};
+    const visitado = {};
+    const raiz = this.state.nos.filter((n) => n.tipo === "gatilho")[0] || this.state.nos[0];
+    if (!raiz) return;
+    const fila = [{ id: raiz.id, nivel: 0 }];
+    while (fila.length) {
+      const at = fila.shift();
+      if (visitado[at.id]) continue;
+      visitado[at.id] = true;
+      col[at.id] = at.nivel;
+      this.state.fios.filter((f) => f.de === at.id).forEach((f) => fila.push({ id: f.para, nivel: at.nivel + 1 }));
+    }
+    const porColuna = {};
+    const nos = this.state.nos.map((n) => {
+      const c = col[n.id] === undefined ? 0 : col[n.id];
+      porColuna[c] = porColuna[c] || 0;
+      const linha = porColuna[c];
+      porColuna[c] += 1;
+      return { id: n.id, tipo: n.tipo, cfg: n.cfg, x: 40 + c * 330, y: 40 + linha * 250 };
+    });
+    this.setState({ nos: nos }, () => this.ajustarMapa());
+  }
+
+  inspetor() {
+    const self = this;
+    const st = this.state;
+    const FAM = this.familias();
+    const ICO = this.icones();
+    const TIPOS = this.tipos();
+    const vazioBase = {
+      vazio: true, gatilho: false, mensagem: false, escolher: false, digitar: false, diasemana: false,
+      horario: false, etiqueta: false, espera: false, etiquetar: false, status: false, transferir: false,
+      podeApagar: false, familia: "Propriedades", titulo: "Nenhum bloco escolhido", icone: ICO.gatilho,
+      estiloIcone: "color: #98a2b3; background: #eef0f3;", ed: {}, opcoes: [], dias: [], etiquetas: [],
+      unidades: [], formatos: [], situacoes: [], destinos: [], texto: "", nome: "", variavel: "",
+      exemploVariavel: "", de: "", ate: "", valor: 0, resumoDias: "", resumoHorario: "", resumoEspera: ""
+    };
+    const no = st.nos.filter((n) => n.id === st.sel)[0];
+    if (!no) return vazioBase;
+
+    const t = TIPOS[no.tipo], fam = FAM[t.fam], c = no.cfg;
+    const base = Object.assign({}, vazioBase, {
+      vazio: false,
+      familia: fam.nome,
+      titulo: t.nome,
+      icone: ICO[no.tipo],
+      estiloIcone: "color: " + fam.cor + "; background: " + fam.fundo + ";",
+      podeApagar: no.tipo !== "gatilho",
+      apagar: () => self.removerNo(no.id),
+      texto: c.texto || ""
+    });
+    base[no.tipo] = true;
+    const mudarTexto = (e) => self.editar(no.id, { texto: e.target.value });
+
+    if (no.tipo === "gatilho") {
+      base.nome = st.nome;
+      base.ed = { nome: (e) => self.setState({ nome: e.target.value }) };
+    }
+    if (no.tipo === "mensagem") base.ed = { texto: mudarTexto };
+    if (no.tipo === "escolher") {
+      base.ed = {
+        texto: mudarTexto,
+        novaOpcao: () => self.editar(no.id, { opcoes: (c.opcoes || []).concat([{ id: "o" + (self.seq++), rotulo: "Nova opção" }]) })
+      };
+      base.opcoes = (c.opcoes || []).map((op, i) => ({
+        ordem: String(i + 1),
+        rotulo: op.rotulo,
+        estiloOrdem: "background: " + fam.fundo + "; color: " + fam.cor + ";",
+        mudar: (e) => self.editar(no.id, { opcoes: (c.opcoes || []).map((x) => (x.id === op.id ? { id: x.id, rotulo: e.target.value } : x)) }),
+        remover: () => {
+          self.setState({ fios: st.fios.filter((f) => !(f.de === no.id && f.porta === op.id)) });
+          self.editar(no.id, { opcoes: (c.opcoes || []).filter((x) => x.id !== op.id) });
+        }
+      }));
+    }
+    if (no.tipo === "digitar") {
+      base.variavel = c.variavel || "";
+      base.exemploVariavel = "{" + (c.variavel || "resposta") + "}";
+      base.ed = { texto: mudarTexto, variavel: (e) => self.editar(no.id, { variavel: e.target.value }) };
+      base.formatos = [
+        { id: "texto", rotulo: "Texto livre" }, { id: "numero", rotulo: "Número" },
+        { id: "email", rotulo: "E-mail" }, { id: "telefone", rotulo: "Telefone" }
+      ].map((f) => ({
+        rotulo: f.rotulo,
+        estilo: c.formato === f.id ? "border-color: #4f3cfc; background: #eeebff; color: #3d29db;" : "",
+        escolher: () => self.editar(no.id, { formato: f.id })
+      }));
+    }
+    if (no.tipo === "diasemana") {
+      const marcados = c.dias || [];
+      base.dias = this.diasDaSemana().map((d) => {
+        const on = marcados.indexOf(d.id) >= 0;
+        return {
+          curto: d.curto,
+          estilo: on ? "border-color: #b45309; background: #f6eae2; color: #b45309;" : "",
+          estiloPonto: "width: 5px; height: 5px; border-radius: 50%; background: " + (on ? "#b45309" : "#d3d8de") + ";",
+          alternar: () => self.editar(no.id, { dias: on ? marcados.filter((x) => x !== d.id) : marcados.concat([d.id]) })
+        };
+      });
+      base.resumoDias = this.nomesDias(marcados);
+    }
+    if (no.tipo === "horario") {
+      base.de = c.de; base.ate = c.ate;
+      base.ed = { de: (e) => self.editar(no.id, { de: e.target.value }), ate: (e) => self.editar(no.id, { ate: e.target.value }) };
+      base.resumoHorario = "Quem escrever entre " + c.de + " e " + c.ate + " sai pelo Sim. Fora disso, pelo Não.";
+    }
+    if (no.tipo === "etiqueta" || no.tipo === "etiquetar") {
+      const marcadas = c.etiquetas || [];
+      base.etiquetas = this.etiquetasDisponiveis().map((e) => {
+        const on = marcadas.indexOf(e.id) >= 0;
+        const cor = no.tipo === "etiqueta" ? "#b45309" : "#16a34a";
+        const fundo = no.tipo === "etiqueta" ? "#f6eae2" : "#dcfce7";
+        return {
+          nome: e.nome,
+          estilo: on ? "border-color: " + cor + "; background: " + fundo + "; color: " + cor + ";" : "",
+          estiloPonto: "width: 6px; height: 6px; border-radius: 50%; background: " + (on ? cor : "#d3d8de") + ";",
+          alternar: () => self.editar(no.id, { etiquetas: on ? marcadas.filter((x) => x !== e.id) : marcadas.concat([e.id]) })
+        };
+      });
+    }
+    if (no.tipo === "espera") {
+      base.valor = c.valor;
+      base.ed = { valor: (e) => self.editar(no.id, { valor: Number(e.target.value) || 1 }) };
+      base.unidades = [{ id: "min", rotulo: "Minutos" }, { id: "h", rotulo: "Horas" }, { id: "d", rotulo: "Dias" }].map((u) => ({
+        rotulo: u.rotulo,
+        estilo: c.unidade === u.id ? "background: #fff; color: #121730; box-shadow: 0 1px 3px rgba(18,23,48,.12);" : "",
+        escolher: () => self.editar(no.id, { unidade: u.id })
+      }));
+      base.resumoEspera = "O fluxo para aqui por " + this.fraseEspera(c.valor, c.unidade) + " e depois segue sozinho.";
+    }
+    if (no.tipo === "status") {
+      base.situacoes = [{ id: "esperando", rotulo: "Esperando" }, { id: "atendendo", rotulo: "Em atendimento" }, { id: "resolvida", rotulo: "Resolvida" }].map((s) => ({
+        rotulo: s.rotulo,
+        estilo: c.situacao === s.id ? "border-color: #16a34a; background: #dcfce7; color: #16a34a;" : "",
+        escolher: () => self.editar(no.id, { situacao: s.id })
+      }));
+    }
+    if (no.tipo === "transferir") {
+      base.destinos = [{ id: "pessoa", rotulo: "Uma pessoa da equipe" }, { id: "fila", rotulo: "Fila geral" }, { id: "recepcao", rotulo: "IA de recepção" }].map((d) => ({
+        rotulo: d.rotulo,
+        estilo: c.destino === d.id ? "border-color: #3d29db; background: #eeebff; color: #3d29db;" : "",
+        escolher: () => self.editar(no.id, { destino: d.id })
+      }));
+    }
+    return base;
+  }
+}
+</script>
+</body>
+</html>
