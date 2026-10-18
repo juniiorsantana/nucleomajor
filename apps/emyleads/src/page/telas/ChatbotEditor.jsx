@@ -58,7 +58,7 @@ import {
 } from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
 import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
-import { bloqueioDoFluxo, funcaoDaRegra, funcaoDoBloco, motivoDoCadeado } from "../../domain/funcoesDosBlocos";
+import { bloqueioDoFluxo, FUNCOES_DOS_BLOCOS, funcaoDaRegra, funcaoDoBloco, iaNoMenuLiberada, motivoDoCadeado } from "../../domain/funcoesDosBlocos";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
 import { tiposDeNo } from "./ChatbotFlowNodes";
@@ -345,8 +345,14 @@ function GatilhoEditor({ gatilho, ramificado, tags, estagios, campanhas, aoMudar
 }
 
 /** "Pedir para escolher": a pergunta, as opções e o que fazer quando não entender. */
-function PerguntaEditor({ passo, aoMudar }) {
+export function PerguntaEditor({ passo, aoMudar, recursos = null }) {
   const opcoes = passo.opcoes || [];
+  // Etapa 9: a caixa só aparece para quem tem IA. Uma pergunta que já veio
+  // marcada de quando a empresa tinha IA mostra a caixa com o motivo, para dar
+  // para desmarcar (o banco recusa salvar marcada sem a função).
+  const iaLiberada = iaNoMenuLiberada(recursos);
+  const mostrarIa = iaLiberada || passo.iaQuandoNaoEntende === true;
+  const cadeadoDaIa = iaLiberada ? null : motivoDoCadeado(FUNCOES_DOS_BLOCOS.ajustes["perguntar:iaQuandoNaoEntende"], recursos);
   const mudarOpcao = (id, patch) => aoMudar({ ...passo, opcoes: opcoes.map((opcao) => (opcao.id === id ? { ...opcao, ...patch } : opcao)) });
   return (
     <div className="grid gap-4">
@@ -404,6 +410,24 @@ function PerguntaEditor({ passo, aoMudar }) {
       <CampoFormulario rotulo="Quando não entender (opcional)">
         <input value={passo.textoErro || ""} onChange={(event) => aoMudar({ ...passo, textoErro: event.target.value })} maxLength={1000} placeholder="Não entendi. Responda com o número de uma das opções:" className={entrada} />
       </CampoFormulario>
+      {mostrarIa && (
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-ctl border border-line bg-surface p-3">
+          <input
+            type="checkbox"
+            checked={passo.iaQuandoNaoEntende === true}
+            disabled={!iaLiberada && passo.iaQuandoNaoEntende !== true}
+            onChange={(event) => aoMudar({ ...passo, iaQuandoNaoEntende: event.target.checked })}
+            className="mt-0.5 accent-ia"
+          />
+          <span className="min-w-0">
+            <strong className="block text-[11.5px] text-fg">Usar IA quando não entender</strong>
+            <span className="mt-0.5 block text-[10.5px] leading-relaxed text-sub">
+              Se a resposta não bater com nenhuma opção, a IA tenta descobrir qual o contato quis dizer. Só decide quando tem certeza; senão, segue como abaixo.
+            </span>
+            {cadeadoDaIa && <span className="mt-1 block text-[10.5px] leading-relaxed text-danger">{cadeadoDaIa} Desmarque para salvar.</span>}
+          </span>
+        </label>
+      )}
       <div className="rounded-ctl border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
         A resposta vale pelo número, pelo nome da opção, por uma palavra dela ou por um dos sinônimos. Sem entender depois das tentativas, ou sem resposta dentro da espera, a conversa segue por <strong>Não entendeu</strong>.
       </div>
@@ -919,7 +943,7 @@ function Inspetor({ ramificado, recursos = null, selecionado, form, setForm, pas
                 </p>
               </CampoFormulario>
             ) : passo.tipo === TIPOS_PASSO.perguntar ? (
-              <PerguntaEditor passo={passo} aoMudar={atualizarPasso} />
+              <PerguntaEditor passo={passo} aoMudar={atualizarPasso} recursos={recursos} />
             ) : passo.tipo === TIPOS_PASSO.coletar ? (
               <ColetaEditor passo={passo} aoMudar={atualizarPasso} />
             ) : passo.tipo === TIPOS_PASSO.aguardar ? (
