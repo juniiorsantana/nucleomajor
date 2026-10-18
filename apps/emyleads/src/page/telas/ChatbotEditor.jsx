@@ -72,6 +72,7 @@ import {
   VERSAO_CANVAS_RAMIFICADO,
 } from "../../domain/chatbotGrafo";
 import { conexaoPermitida, criarGrafoInicial, posicoesEmColunas, serializarCanvas } from "./chatbotFlow";
+import { semDestinosEscondidos } from "../../domain/conversaoV3";
 import "./chatbot-flow.css";
 
 const entrada = "w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
@@ -1050,8 +1051,6 @@ function Inspetor({ ramificado, recursos = null, selecionado, form, setForm, pas
 }
 
 /** Para o formato com caminhos: tira os campos que o canvas substituiu. */
-const semDestinosEscondidos = (passo) =>
-  passo.tipo === TIPOS_PASSO.transferir ? { ...passo, retornoPassoId: null, falhaPassoId: null } : passo;
 
 /**
  * O construtor de fluxo.
