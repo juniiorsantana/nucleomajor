@@ -57,7 +57,7 @@ import {
   textoDaEspera,
 } from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
-import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
+import { PRAZO_DA_EXECUCAO, problemaParaOServidor } from "../../domain/fluxoNoServidor";
 import { bloqueioDoFluxo, funcaoDaRegra, funcaoDoBloco, motivoDoCadeado } from "../../domain/funcoesDosBlocos";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
@@ -264,6 +264,16 @@ function condicoesParaGravar(form) {
 function gatilhoParaGravar(gatilho) {
   if (gatilho?.tipo !== TIPOS_GATILHO.palavra) return gatilho;
   return { ...gatilho, palavras: (gatilho.palavras || []).map((item) => item.trim()).filter(Boolean) };
+}
+
+/**
+ * O prazo da execução parada (20261018150000). Vazio não vai para o banco:
+ * vale o da empresa. O que não for número inteiro vai como está, para a
+ * conferência recusar com o motivo.
+ */
+function prazoParaGravar(form) {
+  const texto = String(form.prazoExecucaoHoras ?? "").trim();
+  return texto === "" ? {} : { prazoExecucaoHoras: Number(texto) };
 }
 
 /** O gatilho nasce completo ao trocar de tipo. */
@@ -865,6 +875,29 @@ function Inspetor({ ramificado, recursos = null, selecionado, form, setForm, pas
               campanhas={(inteligencia.campaigns || []).filter((campaign) => campaign.status !== "archived")}
               aoMudar={(gatilho) => setForm((atual) => ({ ...atual, gatilho }))}
             />
+            {ramificado && (
+              <CampoFormulario rotulo="Se o fluxo parar, fecha sozinho depois de">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={PRAZO_DA_EXECUCAO.minimo}
+                    max={PRAZO_DA_EXECUCAO.maximo}
+                    step={1}
+                    value={form.prazoExecucaoHoras}
+                    placeholder={String(PRAZO_DA_EXECUCAO.padrao)}
+                    aria-label="Horas até o fluxo parado fechar sozinho"
+                    onChange={(event) => setForm((atual) => ({ ...atual, prazoExecucaoHoras: event.target.value }))}
+                    className={`${entrada} w-24`}
+                  />
+                  <span className="text-[11.5px] text-sub">horas</span>
+                </div>
+                <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">
+                  Um envio que ninguém confirmou ou um passo que não andou não prendem o contato para sempre: depois
+                  desse prazo o fluxo fecha e ele pode entrar em outro. Vazio, vale o prazo da empresa ({PRAZO_DA_EXECUCAO.padrao} horas, se ninguém mudou). As esperas de “Aguardar” e das perguntas têm prazo próprio.
+                </p>
+              </CampoFormulario>
+            )}
             {!GATILHOS_SEM_MENSAGEM.has(form.gatilho?.tipo) && (
               <div>
                 <p className="text-[11px] font-semibold text-fg">Condições</p>
@@ -1091,6 +1124,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         ativo: chatbot?.ativo ?? true,
         condicoes: chatbot?.condicoes?.map((condicao) => ({ ...condicao })) || [{ tipo: TIPOS_CONDICAO.primeiraConversa }],
         gatilho: { ...gatilhoDo(chatbot) },
+        prazoExecucaoHoras: chatbot?.prazoExecucaoHoras == null ? "" : String(chatbot.prazoExecucaoHoras),
       },
       passos,
       grafo: criarGrafoInicial(passos, chatbot?.canvas, { ramificado }),
@@ -1119,6 +1153,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
     return problemaParaOServidor({
       condicoes: condicoesParaGravar(form),
       gatilho: gatilhoParaGravar(form.gatilho),
+      ...prazoParaGravar(form),
       passos: passos.map(semDestinosEscondidos),
       canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
     });
@@ -1418,15 +1453,16 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       if (ramificado) {
         // A mesma conferência que o servidor faz quando a conversa começa:
         // recusar agora, com o motivo, em vez de falhar na frente do cliente.
-        const problema = problemaParaOServidor({ condicoes, gatilho, passos: passosGravados, canvas });
+        const problema = problemaParaOServidor({ condicoes, gatilho, ...prazoParaGravar(form), passos: passosGravados, canvas });
         if (problema) throw new Error(problema);
         // Etapa 10: como o banco, só recusa quando o desenho muda ou o fluxo
         // volta a ficar ativo; renomear ou desligar um fluxo antigo passa.
         const desenho = (dados) => JSON.stringify(dados);
-        const mudouDesenho = novo || desenho({ condicoes, gatilho, passos: passosGravados, canvas })
+        const mudouDesenho = novo || desenho({ condicoes, gatilho, ...prazoParaGravar(form), passos: passosGravados, canvas })
           !== desenho({
             condicoes: condicoesParaGravar(iniciais.form),
             gatilho: gatilhoParaGravar(iniciais.form.gatilho),
+            ...prazoParaGravar(iniciais.form),
             passos: iniciais.passos.map(semDestinosEscondidos),
             canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao),
           });
@@ -1441,6 +1477,9 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         gatilho,
         passos: validacao.passos,
         canvas,
+        // Só com caminhos. `undefined` apaga o prazo antigo ao atualizar (o
+        // patch é mesclado e o JSON não leva a chave).
+        ...(ramificado ? { prazoExecucaoHoras: undefined, ...prazoParaGravar(form) } : {}),
       };
       if (novo) await api.chatbots.criar(dados);
       else await api.chatbots.atualizar({ id: chatbot.id, patch: dados });
