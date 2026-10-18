@@ -440,6 +440,23 @@
   font-size: 10.5px;
 }
 
+/* Etapa 10: bloco que a função do plano não libera. */
+.flow-seletor__item[aria-disabled="true"] { cursor: not-allowed; opacity: .6; }
+.flow-seletor__item[aria-disabled="true"]:hover { background: transparent; }
+
+.flow-node__cadeado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 9px;
+  border-radius: 2px;
+  padding: 3px 7px;
+  color: var(--el-warning);
+  background: color-mix(in srgb, var(--el-warning) 10%, transparent);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flow-port-mais,
   .chatbot-flow .flow-fio { transition: none; }

@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft,
+  Bot,
   CalendarDays,
   CircleHelp,
   CircleStop,
@@ -23,6 +24,7 @@ import {
   Info,
   LayoutDashboard,
   ListChecks,
+  Lock,
   Maximize2,
   MessageSquareText,
   Minus,
@@ -56,6 +58,7 @@ import {
 } from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
 import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
+import { bloqueioDoFluxo, funcaoDaRegra, funcaoDoBloco, motivoDoCadeado } from "../../domain/funcoesDosBlocos";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
 import { tiposDeNo } from "./ChatbotFlowNodes";
@@ -130,6 +133,10 @@ const BLOCOS = [
   { id: TIPOS_PASSO.aguardar, tipo: TIPOS_PASSO.aguardar, grupo: "Tempo", titulo: "Aguardar", descricao: "Espera e segue sozinho (follow-up)", icone: Hourglass, classe: COR_NEUTRA, ramificado: true },
   { id: TIPOS_PASSO.editarEtiquetas, tipo: TIPOS_PASSO.editarEtiquetas, grupo: "Mudar o contato", titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
   { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, grupo: "Encerrar", titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
+  // Etapa 10: a IA como bloco próprio na paleta, porque é ela que tem cadeado
+  // (`transferir:ia` exige "IA atendendo clientes"). O "Transferir conversa"
+  // continua oferecendo os dois destinos no painel.
+  { id: "atalho_ia", tipo: TIPOS_PASSO.transferir, destino: DESTINOS_TRANSFERENCIA.ia, grupo: "Encerrar", titulo: "Passar para a IA", descricao: "A IA atende e o fluxo segue por Sucesso ou Falha", icone: Bot, classe: "text-accent-forte bg-accent-soft", ramificado: true },
   { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, grupo: "Encerrar", titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: COR_NEUTRA, ramificado: true },
 ];
 
@@ -147,12 +154,28 @@ export function blocosAgrupados(blocos, busca = "") {
     .filter((item) => item.blocos.length);
 }
 
-function passoVazio(tipo, regra = null) {
+/**
+ * Por que este bloco da paleta está trancado para a empresa, ou `null`.
+ * `recursos` nulo (o plano não foi lido) não tranca nada: a trava de verdade
+ * é a do banco, e esconder por dúvida tiraria de quem pagou.
+ */
+export function cadeadoDoBloco(bloco, recursos) {
+  if (!recursos || !bloco) return null;
+  const funcoes = [funcaoDoBloco({ tipo: bloco.tipo, destino: bloco.destino })];
+  if (bloco.regra) funcoes.push(funcaoDaRegra(bloco.regra().tipo));
+  for (const funcao of funcoes) {
+    const motivo = motivoDoCadeado(funcao, recursos);
+    if (motivo) return motivo;
+  }
+  return null;
+}
+
+function passoVazio(tipo, regra = null, destino = null) {
   if (tipo === TIPOS_PASSO.enviarMensagem) return { id: novoId(), tipo, texto: "" };
   // Padrão humano de propósito: transferir para uma pessoa é sempre seguro.
-  // Passar para a IA é que precisa ser uma escolha.
+  // Passar para a IA é que precisa ser uma escolha (o bloco "Passar para a IA").
   if (tipo === TIPOS_PASSO.transferir)
-    return { id: novoId(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
+    return { id: novoId(), tipo, destino: destino || DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
   // A pergunta mais comum de uma condição é "tem esta etiqueta?".
   if (tipo === TIPOS_PASSO.condicao)
     return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra() : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
@@ -659,7 +682,7 @@ function ExpressaoEditor({ expressao, tags, estagios, aoMudar }) {
   );
 }
 
-function Paleta({ blocos, ramificado, aoAdicionar }) {
+function Paleta({ blocos, ramificado, cadeados = {}, aoAdicionar }) {
   const [busca, setBusca] = useState("");
   const grupos = blocosAgrupados(blocos, busca);
   return (
@@ -684,27 +707,49 @@ function Paleta({ blocos, ramificado, aoAdicionar }) {
             <section key={grupo} aria-label={grupo}>
               <h3 className="px-1.5 text-[9.5px] font-bold uppercase tracking-[.12em] text-faint">{grupo}</h3>
               <div className="mt-1.5 flex flex-col gap-1">
-                {doGrupo.map(({ id, titulo, descricao, icone: Icone, classe }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData("application/emyleads-flow", id);
-                      event.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => aoAdicionar(id)}
-                    title={`${titulo}: arraste para o mapa ou clique para adicionar`}
-                    className="group flex w-full cursor-grab items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-line hover:bg-surface active:cursor-grabbing"
-                  >
-                    <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
-                    <span className="min-w-0 flex-1">
-                      <strong className="block text-[11.5px] font-semibold text-fg">{titulo}</strong>
-                      <small className="mt-px block text-[10px] leading-[1.35] text-sub">{descricao}</small>
-                    </span>
-                    <Plus size={13} className="flex-none text-transparent group-hover:text-accent" />
-                  </button>
-                ))}
+                {doGrupo.map(({ id, titulo, descricao, icone: Icone, classe }) => {
+                  const cadeado = cadeados[id];
+                  // Etapa 10: o bloco trancado aparece, com o motivo, mas não
+                  // arrasta nem entra no mapa.
+                  if (cadeado)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-disabled="true"
+                        title={cadeado}
+                        className="flex w-full cursor-not-allowed items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left"
+                      >
+                        <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl opacity-50 ${classe}`}><Icone size={15} /></span>
+                        <span className="min-w-0 flex-1">
+                          <strong className="block text-[11.5px] font-semibold text-sub">{titulo}</strong>
+                          <small className="mt-px block text-[10px] leading-[1.35] text-faint">{cadeado}</small>
+                        </span>
+                        <Lock size={13} className="flex-none text-faint" aria-label="Bloco com cadeado" />
+                      </button>
+                    );
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("application/emyleads-flow", id);
+                        event.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onClick={() => aoAdicionar(id)}
+                      title={`${titulo}: arraste para o mapa ou clique para adicionar`}
+                      className="group flex w-full cursor-grab items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-line hover:bg-surface active:cursor-grabbing"
+                    >
+                      <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block text-[11.5px] font-semibold text-fg">{titulo}</strong>
+                        <small className="mt-px block text-[10px] leading-[1.35] text-sub">{descricao}</small>
+                      </span>
+                      <Plus size={13} className="flex-none text-transparent group-hover:text-accent" />
+                    </button>
+                  );
+                })}
               </div>
             </section>
           ))}
@@ -744,7 +789,7 @@ export function BarraDeZoom() {
 }
 
 /** O menu que aparece no `+`, na linha ou ao soltar uma conexão no vazio. */
-function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
+function SeletorDeBloco({ seletor, blocos, cadeados = {}, aoEscolher, aoFechar }) {
   const lista = seletor.fio
     // No meio de uma ligação só cabe bloco que continua: um bloco final ali
     // deixaria o resto do caminho solto.
@@ -757,21 +802,34 @@ function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
         <button type="button" onClick={aoFechar} aria-label="Fechar" className="cursor-pointer rounded-ctl p-1 text-sub hover:bg-surface-hover hover:text-fg"><X size={13} /></button>
       </div>
       <div className="flow-seletor__lista">
-        {lista.map(({ id, titulo, descricao, icone: Icone, classe }) => (
-          <button key={id} type="button" role="menuitem" onClick={() => aoEscolher(id)} className="flow-seletor__item">
-            <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
-            <span className="min-w-0">
-              <strong>{titulo}</strong>
-              <small>{descricao}</small>
-            </span>
-          </button>
-        ))}
+        {lista.map(({ id, titulo, descricao, icone: Icone, classe }) => {
+          const cadeado = cadeados[id];
+          return (
+            <button
+              key={id}
+              type="button"
+              role="menuitem"
+              aria-disabled={cadeado ? "true" : undefined}
+              title={cadeado || undefined}
+              onClick={() => !cadeado && aoEscolher(id)}
+              className="flow-seletor__item"
+            >
+              <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
+              <span className="min-w-0 flex-1">
+                <strong>{titulo}</strong>
+                <small>{cadeado || descricao}</small>
+              </span>
+              {cadeado && <Lock size={13} className="flex-none text-faint" aria-label="Bloco com cadeado" />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPasso, tags, estagios, inteligencia, aoRemover }) {
+function Inspetor({ ramificado, recursos = null, selecionado, form, setForm, passos, atualizarPasso, tags, estagios, inteligencia, aoRemover }) {
+  const cadeadoDaIa = recursos ? motivoDoCadeado(funcaoDoBloco({ tipo: TIPOS_PASSO.transferir, destino: DESTINOS_TRANSFERENCIA.ia }), recursos) : null;
   const passo = passos.find((item) => item.id === selecionado);
   const tiposDisponiveis = BLOCOS.filter((bloco) => bloco.id === bloco.tipo && (ramificado || !bloco.ramificado));
 
@@ -881,8 +939,20 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
                     className={entrada}
                   >
                     <option value={DESTINOS_TRANSFERENCIA.humano}>Um atendente humano</option>
-                    <option value={DESTINOS_TRANSFERENCIA.ia}>O agente de IA</option>
+                    <option value={DESTINOS_TRANSFERENCIA.ia} disabled={Boolean(cadeadoDaIa) && passo.destino !== DESTINOS_TRANSFERENCIA.ia}>
+                      {cadeadoDaIa ? "O agente de IA (com cadeado)" : "O agente de IA"}
+                    </option>
                   </select>
+                  {cadeadoDaIa && (
+                    <p className="mt-1.5 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-warning">
+                      <Lock size={12} className="mt-px flex-none" aria-hidden="true" />
+                      <span>
+                        {passo.destino === DESTINOS_TRANSFERENCIA.ia
+                          ? `Este bloco está com cadeado. ${cadeadoDaIa} Ao rodar, a conversa segue pela saída “Falha”; para salvar, entregue a uma pessoa.`
+                          : cadeadoDaIa}
+                      </span>
+                    </p>
+                  )}
                 </CampoFormulario>
                 <CampoFormulario rotulo="Motivo (opcional)">
                   <input
@@ -988,9 +1058,15 @@ const semDestinosEscondidos = (passo) =>
  * Um fluxo que já é v3 abre como v3 mesmo sem a função — regravá-lo como v2
  * apagaria os caminhos.
  */
-export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false }) {
+export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false, recursos = null }) {
   const ramificado = liberado || chatbot?.canvas?.versao === VERSAO_CANVAS_RAMIFICADO;
   const blocos = useMemo(() => BLOCOS.filter((bloco) => ramificado || !bloco.ramificado), [ramificado]);
+  // Etapa 10: o motivo do cadeado de cada bloco da paleta, pela lista única
+  // (`funcoesDosBlocos.js`). Vazio quando o plano libera tudo.
+  const cadeados = useMemo(
+    () => Object.fromEntries(blocos.map((bloco) => [bloco.id, cadeadoDoBloco(bloco, recursos)]).filter(([, motivo]) => motivo)),
+    [blocos, recursos]
+  );
   const [inteligencia, setInteligencia] = useState({ skills: [], campaigns: [] });
   useEffect(() => {
     // Sem Inteligência (plano Base) a carga dela falha, e o gatilho "Lead da
@@ -1047,6 +1123,17 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
     });
   }, [ramificado, caminho.erro, form, passos, conexoes]);
+  // Etapa 10: o fluxo usa bloco que o plano não libera. É o mesmo motivo que
+  // o banco dá ao salvar (`chatbot_definitions_plan_guard`).
+  const cadeadoDoFluxo = useMemo(
+    () => (ramificado && recursos ? bloqueioDoFluxo({
+      condicoes: condicoesParaGravar(form),
+      gatilho: gatilhoParaGravar(form.gatilho),
+      passos,
+      canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
+    }, recursos) : null),
+    [ramificado, recursos, form, passos, conexoes]
+  );
   const assinaturaInicial = useMemo(
     () => JSON.stringify({ form: iniciais.form, passos: iniciais.passos, canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao) }),
     [iniciais, versao]
@@ -1116,12 +1203,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
           // só existem quando há quem as execute.
           saidas: !ramificado && passo?.tipo === TIPOS_PASSO.transferir ? [] : saidas,
           rotulos: passo ? Object.fromEntries(saidas.map((saida) => [saida, rotuloDaSaida(passo, saida)])) : {},
+          cadeado: passo && recursos ? motivoDoCadeado(funcaoDoBloco(passo), recursos) : null,
           livres: saidasLivres(no.id, saidas),
           aoPedirBloco: (saida, evento) => abrirSeletor(evento, { origem: { source: no.id, saida } }),
         },
       };
     }),
-    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado, inteligencia]
+    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado, inteligencia, recursos]
   );
 
   const focarFio = (id) => {
@@ -1201,8 +1289,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const criarBloco = (idDoBloco, { posicao = null, origem = null, fio = null } = {}) => {
     const bloco = BLOCOS.find((item) => item.id === idDoBloco);
     if (!bloco) return;
+    // Arrastar e soltar também passa por aqui: bloco com cadeado não entra.
+    if (cadeados[bloco.id]) {
+      setErro(cadeados[bloco.id]);
+      return;
+    }
     const { tipo } = bloco;
-    const passo = passoVazio(tipo, bloco.regra);
+    const passo = passoVazio(tipo, bloco.regra, bloco.destino);
     const saidasDoNovo = !ramificado && tipo === TIPOS_PASSO.transferir ? [] : saidasDoPasso(passo);
     const ligacoes = [];
     let removerId = null;
@@ -1327,6 +1420,17 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         // recusar agora, com o motivo, em vez de falhar na frente do cliente.
         const problema = problemaParaOServidor({ condicoes, gatilho, passos: passosGravados, canvas });
         if (problema) throw new Error(problema);
+        // Etapa 10: como o banco, só recusa quando o desenho muda ou o fluxo
+        // volta a ficar ativo; renomear ou desligar um fluxo antigo passa.
+        const desenho = (dados) => JSON.stringify(dados);
+        const mudouDesenho = novo || desenho({ condicoes, gatilho, passos: passosGravados, canvas })
+          !== desenho({
+            condicoes: condicoesParaGravar(iniciais.form),
+            gatilho: gatilhoParaGravar(iniciais.form.gatilho),
+            passos: iniciais.passos.map(semDestinosEscondidos),
+            canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao),
+          });
+        if (cadeadoDoFluxo && (mudouDesenho || (form.ativo && !iniciais.form.ativo))) throw new Error(cadeadoDoFluxo);
       }
       const validacao = validarGrafo(passosGravados, conexoes, { versao });
       if (validacao.erro) throw new Error(validacao.erro);
@@ -1363,13 +1467,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span
-            title={pendencia || undefined}
-            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${saidasSoltas || pendencia || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
+            title={pendencia || cadeadoDoFluxo || undefined}
+            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${saidasSoltas || pendencia || cadeadoDoFluxo || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
           >
             <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
             {saidasSoltas
               ? `${saidasSoltas} ${saidasSoltas === 1 ? "saída sem destino" : "saídas sem destino"}`
-              : pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
+              : pendencia ? "Fluxo incompleto" : cadeadoDoFluxo ? "Bloco com cadeado" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
           </span>
           <button type="button" onClick={organizar} className="flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg">
             <LayoutDashboard size={14} /> Organizar
@@ -1379,7 +1483,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <Paleta blocos={blocos} ramificado={ramificado} aoAdicionar={(idDoBloco) => criarBloco(idDoBloco)} />
+        <Paleta blocos={blocos} ramificado={ramificado} cadeados={cadeados} aoAdicionar={(idDoBloco) => criarBloco(idDoBloco)} />
         <main ref={area} className="chatbot-flow relative min-w-0 flex-1 bg-surface">
           {erro && (
             <div role="alert" className="absolute left-1/2 top-4 z-20 flex max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-ctl border border-danger/25 bg-bg px-4 py-2.5 text-[11.5px] font-medium text-danger ">
@@ -1387,7 +1491,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             </div>
           )}
           {seletor && (
-            <SeletorDeBloco seletor={seletor} blocos={blocos} aoEscolher={escolherNoSeletor} aoFechar={() => setSeletor(null)} />
+            <SeletorDeBloco seletor={seletor} blocos={blocos} cadeados={cadeados} aoEscolher={escolherNoSeletor} aoFechar={() => setSeletor(null)} />
           )}
           <ReactFlow
             nodes={nosExibidos}
@@ -1458,6 +1562,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         </main>
         <Inspetor
           ramificado={ramificado}
+          recursos={recursos}
           selecionado={selecionado}
           form={form}
           setForm={setForm}

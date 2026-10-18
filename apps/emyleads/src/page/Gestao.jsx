@@ -869,6 +869,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               // da VPS, e liberar por dúvida gravaria um fluxo que a conexão
               // da empresa não sabe executar.
               ramificado={recursos?.fluxos_ramificados === true}
+              // Etapa 10: cada bloco depende da função do plano (cadeado).
+              recursos={recursos}
             />
           </Suspense>
         ) : tela === "contatos" ? (
