@@ -48,7 +48,9 @@
 -- (start) com as trocas marcadas por comentário "Etapa 10"; a trava abaixo
 -- confere que é essa a versão em produção.
 --
--- Aplicar pelo SQL Editor, depois de 20261017100000. Prova:
+-- Aplicar pelo SQL Editor. Depende só do motor de 20260926160000 (a guarda
+-- confere); não depende de 20261017100000, porque as permissões das funções
+-- novas são retiradas aqui mesmo, nominalmente. Prova:
 -- scripts/sql/prova-cada-bloco-depende-do-plano.mjs. Desfazer:
 -- scripts/sql/rollback-20261018100000-cada-bloco-depende-do-plano.sql.
 
