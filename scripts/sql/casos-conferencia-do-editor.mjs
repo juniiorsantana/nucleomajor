@@ -11,6 +11,7 @@
  */
 
 import { problemaParaOServidor } from "../../apps/emyleads/src/domain/fluxoNoServidor.js";
+import { bloqueioDoFluxo } from "../../apps/emyleads/src/domain/funcoesDosBlocos.js";
 
 const VIP = "11111111-1111-4111-8111-111111111111";
 const LEAD = "22222222-2222-4222-8222-222222222222";
@@ -282,9 +283,48 @@ const mutacoes = {
   "recusa: espera com saida padrao": (d) => { comEspera(d); d.canvas.conexoes.push({ source: "espera", saida: "padrao", target: "fim" }); },
 };
 
-for (const [caso, mudar] of Object.entries(mutacoes)) {
+// Etapa 10 (20261018100000): o mesmo fluxo, conferido contra o PLANO de uma
+// empresa. `plano` é o perfil que a conferência cria no banco:
+//   * `so_chatbot`: plano Base (chatbots, sem IA);
+//   * `com_ia`: plano full (chatbots e IA);
+//   * `sem_nada`: plano Base com `chatbots` desligado pelo painel.
+// O editor confere a estrutura e depois `bloqueioDoFluxo`; o banco,
+// `private.flow_validate(spec, organizacao)`.
+const RECURSOS_DO_PLANO = {
+  so_chatbot: { chatbots: true },
+  com_ia: { chatbots: true, ai_customer: true },
+  sem_nada: {},
+};
+const semIa = (d) => {
+  passo(d, "ia").destino = "humano";
+  d.canvas.conexoes = d.canvas.conexoes.filter((c) => c.source !== "ia");
+  d.passos = d.passos.filter((p) => p.id !== "fim" && p.id !== "gente");
+};
+const porPlano = {
+  "recusa: IA no plano só com chatbot": ["so_chatbot", () => {}],
+  "valido: IA no plano com IA": ["com_ia", () => {}],
+  "valido: sem IA no plano só com chatbot": ["so_chatbot", semIa],
+  "valido: transferir para pessoa no plano só com chatbot": ["so_chatbot", comEspera],
+  "valido: pergunta e coleta no plano só com chatbot": ["so_chatbot", comPergunta],
+  "valido: horario e gatilho no plano só com chatbot": ["so_chatbot", (d) => {
+    semIa(d);
+    d.gatilho = { tipo: "etiqueta", etiquetaId: VIP };
+    d.condicoes = [{ tipo: "janela_de_horario", inicio: "08:00", fim: "18:00", fuso: "America/Sao_Paulo" }];
+  }],
+  "recusa: IA com habilidade no plano só com chatbot": ["so_chatbot", (d) => Object.assign(passo(d, "ia"), { alvoIa: "skill", skillId: SKILL })],
+  "recusa: fluxo sem IA na empresa sem chatbots": ["sem_nada", semIa],
+  "recusa: só mensagem na empresa sem chatbots": ["sem_nada", mutacoes["valido: linear só com mensagem"]],
+  // A estrutura vem antes do plano: o defeito de desenho é o motivo, nos dois.
+  "recusa: estrutura ruim no plano com IA": ["com_ia", mutacoes["recusa: ciclo"]],
+};
+
+const casos = [
+  ...Object.entries(mutacoes).map(([caso, mudar]) => ({ caso, mudar, plano: null })),
+  ...Object.entries(porPlano).map(([caso, [plano, mudar]]) => ({ caso, mudar, plano })),
+];
+for (const { caso, mudar, plano } of casos) {
   const definicao = base();
   mudar(definicao);
-  const problema = problemaParaOServidor(definicao);
-  process.stdout.write(`${JSON.stringify({ caso, editorAceita: problema === null, problema, definicao })}\n`);
+  const problema = problemaParaOServidor(definicao) ?? (plano ? bloqueioDoFluxo(definicao, RECURSOS_DO_PLANO[plano]) : null);
+  process.stdout.write(`${JSON.stringify({ caso, plano, editorAceita: problema === null, problema, definicao })}\n`);
 }
