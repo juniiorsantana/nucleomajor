@@ -316,6 +316,11 @@ const porPlano = {
   "recusa: só mensagem na empresa sem chatbots": ["sem_nada", mutacoes["valido: linear só com mensagem"]],
   // A estrutura vem antes do plano: o defeito de desenho é o motivo, nos dois.
   "recusa: estrutura ruim no plano com IA": ["com_ia", mutacoes["recusa: ciclo"]],
+  // Etapa 9 (20261018110000): "Usar IA quando não entender" na pergunta.
+  "valido: IA na pergunta no plano com IA": ["com_ia", (d) => { comPergunta(d); passo(d, "menu").iaQuandoNaoEntende = true; }],
+  "recusa: IA na pergunta no plano só com chatbot": ["so_chatbot", (d) => { comPergunta(d); passo(d, "menu").iaQuandoNaoEntende = true; }],
+  "valido: IA desmarcada na pergunta no plano só com chatbot": ["so_chatbot", (d) => { comPergunta(d); passo(d, "menu").iaQuandoNaoEntende = false; }],
+  "recusa: IA na pergunta como texto": ["com_ia", (d) => { comPergunta(d); passo(d, "menu").iaQuandoNaoEntende = "sim"; }],
 };
 
 const casos = [

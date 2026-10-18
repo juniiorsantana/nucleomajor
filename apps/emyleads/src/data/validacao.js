@@ -247,6 +247,8 @@ export function validarPasso(passo, nome = "Passo") {
       if (opcao.sinonimos !== undefined && !Array.isArray(opcao.sinonimos))
         throw erro(`${nome}.opcoes[${indice}].sinonimos inválido.`, `${nome}.opcoes[${indice}].sinonimos`);
     });
+    if (passo.iaQuandoNaoEntende !== undefined && typeof passo.iaQuandoNaoEntende !== "boolean")
+      throw erro(`${nome}.iaQuandoNaoEntende inválido.`, `${nome}.iaQuandoNaoEntende`);
   } else if (passo.tipo === TIPOS_PASSO.coletar) {
     texto(passo.texto, `${nome}.texto`, { vazio: true });
     texto(passo.variavel, `${nome}.variavel`, { vazio: true });

@@ -5,7 +5,8 @@
  *
  *   * o editor: bloco não liberado aparece com cadeado e o motivo, e não entra
  *     no mapa;
- *   * o banco (`private.flow_block_requirements`, migration 20261018100000):
+ *   * o banco (`private.flow_block_requirements`, migrations 20261018100000 e
+ *     20261018110000, que trouxe os `ajustes`):
  *     salvar um fluxo v3 que usa bloco não liberado é recusado, e a execução
  *     de uma empresa que perdeu a função sai pela Falha;
  *   * o runtime da VPS, que lê do banco o que cada passo exige (`requer` no
@@ -54,7 +55,27 @@ export const FUNCOES_DOS_BLOCOS = Object.freeze({
     etapa: "chatbots",
     campanha: "chatbots",
   }),
+  // Etapa 9: uma opção de um bloco que depende do plano ("<tipo>:<campo>",
+  // vale quando o campo é true). Tranca ao salvar, nunca ao rodar: a pergunta
+  // de uma empresa que perdeu a IA segue com a escada de sempre.
+  ajustes: Object.freeze({
+    "perguntar:iaQuandoNaoEntende": "ai_customer",
+  }),
 });
+
+/** As funções das opções ligadas no passo (o grupo `ajustes`). */
+export function funcoesDosAjustes(passo) {
+  return Object.entries(FUNCOES_DOS_BLOCOS.ajustes)
+    .filter(([chave]) => {
+      const [tipo, campo] = chave.split(":");
+      return passo?.tipo === tipo && passo?.[campo] === true;
+    })
+    .map(([, funcao]) => funcao);
+}
+
+/** A pergunta pode usar a IA quando não entender? */
+export const iaNoMenuLiberada = (recursos) =>
+  funcaoLiberada(FUNCOES_DOS_BLOCOS.ajustes["perguntar:iaQuandoNaoEntende"], recursos);
 
 /** Como cada função aparece no motivo do cadeado (o nome do catálogo). */
 export const NOMES_DAS_FUNCOES = Object.freeze({
@@ -107,6 +128,7 @@ export function funcoesDoFluxo(definicao) {
   for (const tipo of regrasDaExpressao(definicao?.condicoes)) funcoes.push(funcaoDaRegra(tipo));
   for (const passo of Array.isArray(definicao?.passos) ? definicao.passos : []) {
     funcoes.push(funcaoDoBloco(passo));
+    funcoes.push(...funcoesDosAjustes(passo));
     if (passo?.tipo === TIPOS_PASSO.condicao)
       for (const tipo of regrasDaExpressao(passo.expressao)) funcoes.push(funcaoDaRegra(tipo));
   }
@@ -124,6 +146,9 @@ export function bloqueioDoFluxo(definicao, recursos) {
     const funcao = funcaoDoBloco(passo);
     if (funcao && !funcaoLiberada(funcao, recursos))
       return `Este fluxo usa um bloco com cadeado. ${motivoDoCadeado(funcao, recursos)} Troque ou remova o bloco para salvar.`;
+    const ajuste = funcoesDosAjustes(passo).find((item) => !funcaoLiberada(item, recursos));
+    if (ajuste)
+      return `Uma pergunta deste fluxo usa “Usar IA quando não entender”. ${motivoDoCadeado(ajuste, recursos)} Desmarque a opção para salvar.`;
   }
   const trancada = funcoesDoFluxo(definicao).find((funcao) => !funcaoLiberada(funcao, recursos));
   return trancada ? `Este fluxo usa uma regra com cadeado. ${motivoDoCadeado(trancada, recursos)}` : null;

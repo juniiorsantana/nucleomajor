@@ -7,12 +7,14 @@ import {
   funcaoDoBloco,
   funcoesDoFluxo,
   FUNCOES_DOS_BLOCOS,
+  funcoesDosAjustes,
+  iaNoMenuLiberada,
   motivoDoCadeado,
   NOMES_DAS_FUNCOES,
 } from "./funcoesDosBlocos.js";
 import { TIPOS_CONDICAO } from "./regras.js";
 
-const MIGRATION = new URL("../../../../supabase/migrations/20261018100000_cada_bloco_depende_do_plano.sql", import.meta.url);
+const MIGRATION = new URL("../../../../supabase/migrations/20261018110000_o_jev_escolhe_a_opcao_do_menu.sql", import.meta.url);
 
 const SO_CHATBOT = { chatbots: true };
 const COM_IA = { chatbots: true, ai_customer: true };
@@ -104,5 +106,37 @@ describe("o que o banco diria ao salvar", () => {
   it("o formato sem caminhos (v2) não é conferido aqui: segue no executor antigo", () => {
     const v2 = { ...fluxo([{ id: "ia", tipo: "transferir", destino: "ia" }]), canvas: { versao: 2, nos: [], conexoes: [] } };
     expect(bloqueioDoFluxo(v2, SO_CHATBOT)).toBeNull();
+  });
+});
+
+describe("a IA na pergunta (Etapa 9)", () => {
+  const menu = (extra = {}) => ({ id: "m", tipo: "perguntar", texto: "Oi", opcoes: [{ id: "a", rotulo: "A" }], ...extra });
+
+  it("é um ajuste que exige IA, só quando ligado", () => {
+    expect(FUNCOES_DOS_BLOCOS.ajustes["perguntar:iaQuandoNaoEntende"]).toBe("ai_customer");
+    expect(funcoesDosAjustes(menu({ iaQuandoNaoEntende: true }))).toEqual(["ai_customer"]);
+    expect(funcoesDosAjustes(menu({ iaQuandoNaoEntende: false }))).toEqual([]);
+    expect(funcoesDosAjustes(menu())).toEqual([]);
+    // Só `true` liga, como no banco (booleano).
+    expect(funcoesDosAjustes(menu({ iaQuandoNaoEntende: "true" }))).toEqual([]);
+    expect(funcoesDosAjustes({ tipo: "coletar", iaQuandoNaoEntende: true })).toEqual([]);
+  });
+
+  it("a pergunta continua só chatbots: o ajuste não tranca o bloco", () => {
+    expect(funcaoDoBloco(menu({ iaQuandoNaoEntende: true }))).toBe("chatbots");
+  });
+
+  it("ao salvar, recusa a opção ligada sem IA e aceita com IA", () => {
+    const definicao = fluxo([menu({ iaQuandoNaoEntende: true })]);
+    expect(bloqueioDoFluxo(definicao, SO_CHATBOT)).toMatch(/Usar IA quando não entender.*IA atendendo clientes/);
+    expect(bloqueioDoFluxo(definicao, COM_IA)).toBeNull();
+    expect(bloqueioDoFluxo(fluxo([menu({ iaQuandoNaoEntende: false })]), SO_CHATBOT)).toBeNull();
+    expect(funcoesDoFluxo(definicao)).toEqual(["chatbots", "ai_customer"]);
+  });
+
+  it("a caixa só aparece com a IA liberada", () => {
+    expect(iaNoMenuLiberada(COM_IA)).toBe(true);
+    expect(iaNoMenuLiberada(SO_CHATBOT)).toBe(false);
+    expect(iaNoMenuLiberada(null)).toBe(false);
   });
 });
