@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -100,8 +100,11 @@ const DESTINOS = {
   [DESTINOS_TRANSFERENCIA.ia]: "O agente de IA",
 };
 
-const regraDeDias = () => ({ tipo: TIPOS_CONDICAO.diaDaSemana, dias: [1, 2, 3, 4, 5], fuso: FUSO_PADRAO });
-const regraDeHorario = () => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "08:00", fim: "18:00", fuso: FUSO_PADRAO });
+// O fuso da empresa (`organizations.timezone`) é só o padrão de regra NOVA:
+// a regra gravada guarda o próprio `fuso`, e é ele que o banco e a VPS leem.
+const FusoDaEmpresa = createContext(FUSO_PADRAO);
+const regraDeDias = (fuso = FUSO_PADRAO) => ({ tipo: TIPOS_CONDICAO.diaDaSemana, dias: [1, 2, 3, 4, 5], fuso });
+const regraDeHorario = (fuso = FUSO_PADRAO) => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "08:00", fim: "18:00", fuso });
 
 /**
  * Os blocos que se pode criar. `ramificado` marca os que só existem no
@@ -170,7 +173,7 @@ export function cadeadoDoBloco(bloco, recursos) {
   return null;
 }
 
-function passoVazio(tipo, regra = null, destino = null) {
+function passoVazio(tipo, regra = null, destino = null, fuso = FUSO_PADRAO) {
   if (tipo === TIPOS_PASSO.enviarMensagem) return { id: novoId(), tipo, texto: "" };
   // Padrão humano de propósito: transferir para uma pessoa é sempre seguro.
   // Passar para a IA é que precisa ser uma escolha (o bloco "Passar para a IA").
@@ -178,7 +181,7 @@ function passoVazio(tipo, regra = null, destino = null) {
     return { id: novoId(), tipo, destino: destino || DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
   // A pergunta mais comum de uma condição é "tem esta etiqueta?".
   if (tipo === TIPOS_PASSO.condicao)
-    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra() : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
+    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra(fuso) : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
   if (tipo === TIPOS_PASSO.encerrar) return { id: novoId(), tipo };
   if (tipo === TIPOS_PASSO.perguntar)
     return {
@@ -525,21 +528,22 @@ function resumoPasso(passo, tags, estagios) {
 }
 
 /** Ao trocar o tipo, a regra nasce completa — o servidor recusa regra pela metade. */
-function regraNova(tipo) {
+function regraNova(tipo, fuso = FUSO_PADRAO) {
   if (tipo === TIPOS_CONDICAO.semInteracaoHa) return { tipo, dias: 0 };
-  if (tipo === TIPOS_CONDICAO.diaDaSemana) return regraDeDias();
-  if (tipo === TIPOS_CONDICAO.janelaDeHorario) return regraDeHorario();
+  if (tipo === TIPOS_CONDICAO.diaDaSemana) return regraDeDias(fuso);
+  if (tipo === TIPOS_CONDICAO.janelaDeHorario) return regraDeHorario(fuso);
   return { tipo };
 }
 
 function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover, ramificado = false }) {
   const tipo = condicao.tipo;
+  const fusoDaEmpresa = useContext(FusoDaEmpresa);
   return (
     <div className="rounded-ctl border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <select
           value={tipo}
-          onChange={(event) => aoMudar(regraNova(event.target.value))}
+          onChange={(event) => aoMudar(regraNova(event.target.value, fusoDaEmpresa))}
           className={`${entrada} min-w-0 flex-1 bg-bg`}
         >
           <option value={TIPOS_CONDICAO.primeiraConversa}>Sem atividade no CRM</option>
@@ -610,7 +614,7 @@ function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover, ramifica
       {(tipo === TIPOS_CONDICAO.diaDaSemana || tipo === TIPOS_CONDICAO.janelaDeHorario) && (
         <label className="mt-2 block">
           <span className="mb-1 block text-[11px] font-medium text-sub">Fuso do horário</span>
-          <select value={condicao.fuso || FUSO_PADRAO} onChange={(event) => aoMudar({ ...condicao, fuso: event.target.value })} className={`${entrada} bg-bg`}>
+          <select value={condicao.fuso || fusoDaEmpresa} onChange={(event) => aoMudar({ ...condicao, fuso: event.target.value })} className={`${entrada} bg-bg`}>
             {FUSOS_DO_BRASIL.map((fuso) => <option key={fuso} value={fuso}>{fuso.replace("America/", "").replace("_", " ")}</option>)}
           </select>
           <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
@@ -1058,7 +1062,7 @@ const semDestinosEscondidos = (passo) =>
  * Um fluxo que já é v3 abre como v3 mesmo sem a função — regravá-lo como v2
  * apagaria os caminhos.
  */
-export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false, recursos = null }) {
+export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false, recursos = null, fuso = FUSO_PADRAO }) {
   const ramificado = liberado || chatbot?.canvas?.versao === VERSAO_CANVAS_RAMIFICADO;
   const blocos = useMemo(() => BLOCOS.filter((bloco) => ramificado || !bloco.ramificado), [ramificado]);
   // Etapa 10: o motivo do cadeado de cada bloco da paleta, pela lista única
@@ -1295,7 +1299,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       return;
     }
     const { tipo } = bloco;
-    const passo = passoVazio(tipo, bloco.regra, bloco.destino);
+    const passo = passoVazio(tipo, bloco.regra, bloco.destino, fuso);
     const saidasDoNovo = !ramificado && tipo === TIPOS_PASSO.transferir ? [] : saidasDoPasso(passo);
     const ligacoes = [];
     let removerId = null;
@@ -1454,6 +1458,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   };
 
   return (
+    <FusoDaEmpresa.Provider value={fuso}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
       <header className="z-20 flex h-[68px] flex-none items-center gap-3 border-b border-line bg-bg px-5">
         <button type="button" onClick={aoFechar} title="Voltar para chatbots" className="cursor-pointer rounded-ctl p-2 text-sub hover:bg-surface-hover hover:text-fg"><ArrowLeft size={18} /></button>
@@ -1575,5 +1580,6 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         />
       </div>
     </div>
+    </FusoDaEmpresa.Provider>
   );
 }

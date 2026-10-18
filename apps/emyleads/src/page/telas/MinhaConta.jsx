@@ -9,6 +9,7 @@ import {
   nomeCurto as nomeCurtoDe,
 } from "../../ui/perfil";
 import { podeGerenciarEquipe, textoDoPapel } from "../../ui/papeis";
+import { FUSOS_DO_BRASIL, fusoDaOrganizacao } from "../../domain/regras";
 import { CabecalhoTela, Iniciais } from "../ui";
 
 /**
@@ -315,7 +316,7 @@ function BlocoNestaEmpresa({ organizacao, membro, gerencia, aoSalvarResponsabili
 
 /* ------------------------------------------------------------------ */
 
-function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe, ocupado }) {
+function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoSalvarFuso, aoAbrirEquipe, ocupado }) {
   const organizacao = sessao?.organizacaoAtual;
   const [nome, setNome] = useState("");
   useEffect(() => setNome(organizacao?.name || ""), [organizacao?.name]);
@@ -374,6 +375,8 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
           </div>
         )}
       </Bloco>
+
+      <BlocoFuso organizacao={organizacao} gerencia={gerencia} aoSalvar={aoSalvarFuso} ocupado={ocupado} />
 
       <Bloco
         titulo="Dono"
@@ -442,6 +445,60 @@ function AbaOrganizacao({ sessao, membros, gerencia, aoSalvarNome, aoAbrirEquipe
   );
 }
 
+/**
+ * O fuso da empresa. Só decide em que fuso nasce uma regra NOVA de "Dias da
+ * semana" ou "Horário" no construtor de fluxos: cada regra já gravada guarda o
+ * próprio fuso e não muda quando este muda.
+ */
+function BlocoFuso({ organizacao, gerencia, aoSalvar, ocupado }) {
+  const atual = fusoDaOrganizacao(organizacao);
+  const [fuso, setFuso] = useState(atual);
+  useEffect(() => setFuso(atual), [atual]);
+
+  return (
+    <Bloco
+      titulo="Fuso horário"
+      descricao="O relógio da empresa. Regras novas de dia e horário nos fluxos já nascem com ele."
+    >
+      <div className="px-5 py-5">
+        <label className="block max-w-[320px]">
+          <Rotulo>Fuso da empresa</Rotulo>
+          <select
+            value={fuso}
+            disabled={!gerencia || ocupado}
+            onChange={(e) => setFuso(e.target.value)}
+            className={entrada}
+          >
+            {FUSOS_DO_BRASIL.map((item) => (
+              <option key={item} value={item}>
+                {item.replace("America/", "").replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+          <Dica>
+            {gerencia
+              ? "Os fluxos já salvos não mudam: cada regra guarda o próprio fuso, que você troca no bloco."
+              : "Só o dono ou um administrador muda o fuso da empresa."}
+          </Dica>
+        </label>
+      </div>
+      {gerencia && (
+        <div className="flex items-center gap-3 border-t border-line px-5 py-3">
+          <button
+            type="button"
+            disabled={fuso === atual || ocupado}
+            onClick={() => aoSalvar(fuso)}
+            className="flex cursor-pointer items-center gap-2 rounded-ctl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-all hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+          >
+            {ocupado && <LoaderCircle size={14} className="animate-spin" />}
+            Salvar fuso
+          </button>
+        </div>
+      )}
+    </Bloco>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export default function MinhaConta({ sessao, atualizarSessao, aoAbrirTela }) {
@@ -501,6 +558,13 @@ export default function MinhaConta({ sessao, atualizarSessao, aoAbrirTela }) {
       await api.organizacoes.atualizar({ nome });
       if (atualizarSessao) await atualizarSessao();
     }, "Nome da empresa salvo.");
+
+  const salvarFusoDaEmpresa = (fuso) =>
+    executar(async () => {
+      await api.organizacoes.definirFuso({ fuso });
+      // O editor de fluxos lê o fuso da sessão.
+      if (atualizarSessao) await atualizarSessao();
+    }, "Fuso da empresa salvo.");
 
   const salvarResponsabilidade = (responsabilidade) =>
     executar(async () => {
@@ -572,6 +636,7 @@ export default function MinhaConta({ sessao, atualizarSessao, aoAbrirTela }) {
               membros={membros}
               gerencia={gerencia}
               aoSalvarNome={salvarNomeDaEmpresa}
+              aoSalvarFuso={salvarFusoDaEmpresa}
               aoAbrirEquipe={() => aoAbrirTela?.("equipe")}
               ocupado={ocupado}
             />
