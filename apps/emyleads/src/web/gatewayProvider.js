@@ -266,6 +266,13 @@ export function criarOperacoesGateway() {
     const camposBase = "connection_id,instance_id,runtime_kind,host_label,runtime_version,bridge_status,whatsapp_status,assistant_status,mcp_status,agenda_status,agenda_read,agenda_write,chatbot_status,automation_enabled,default_owner,open_bot,open_ai,open_human,contract_version,started_at,heartbeat_at";
     const camposH4 = `${camposBase},external_approval_status,notification_worker_status,last_notification_at,skill_slug,skill_version,skill_hash`;
     const camposH5 = `${camposH4},model_status,last_model_success_at,last_model_error_code`;
+    // Etapa 11 (20261018140000): a conexão diz se roda fluxo.
+    const camposFluxo = `${camposH5},flow_runtime_status`;
+    const consultaFluxo = await supabase.from("connection_runtime_status")
+      .select(camposFluxo)
+      .eq("organization_id", organizationId);
+    if (!consultaFluxo.error) return consultaFluxo.data || [];
+
     const consultaH5 = await supabase.from("connection_runtime_status")
       .select(camposH5)
       .eq("organization_id", organizationId);
@@ -378,6 +385,9 @@ export function criarOperacoesGateway() {
           skillVersion: control.skill_version || null,
           skillHash: control.skill_hash || "",
           chatbot: heartbeatFresh ? control.chatbot_status : "not_configured",
+          // `null`: o runtime ou o banco ainda não informam (antes da Etapa
+          // 11), ou o heartbeat está velho. Não é o mesmo que "não roda".
+          flowRuntime: heartbeatFresh ? control.flow_runtime_status ?? null : null,
           checkedAt: control.heartbeat_at,
           contractVersion: control.contract_version,
         } : null,
