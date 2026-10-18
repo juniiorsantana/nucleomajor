@@ -18,7 +18,8 @@
 --   * AO SALVAR: `private.flow_validate(spec, organizacao)` recusa o fluxo v3
 --     que usa bloco não liberado, e o gatilho
 --     `chatbot_definitions_plan_guard` aplica a mesma recusa a quem grava ou
---     reativa um fluxo v3 (`flow feature unavailable: <funcao>`). A conferência
+--     reativa um fluxo v3 (`flow feature unavailable: <funcao>`, SQLSTATE
+--     `PF010`: o runtime não guarda a mensagem do erro, só o código). A conferência
 --     de estrutura continua só no início da conversa, como sempre: o gatilho
 --     não passa a recusar rascunhos;
 --   * AO RODAR: a empresa que perdeu a função depois de salvar não trava a
@@ -214,7 +215,7 @@ declare locked text;
 begin
   perform private.flow_validate(spec);
   locked := private.flow_locked_feature(target_organization, spec);
-  if locked is not null then raise exception 'flow feature unavailable: %', locked; end if;
+  if locked is not null then raise exception 'flow feature unavailable: %', locked using errcode = 'PF010'; end if;
 end;
 $$;
 
@@ -237,7 +238,7 @@ begin
   end if;
   locked := private.flow_locked_feature(new.organization_id, new.definition);
   if locked is not null then
-    raise exception 'flow feature unavailable: %', locked using errcode = 'check_violation';
+    raise exception 'flow feature unavailable: %', locked using errcode = 'PF010';
   end if;
   return new;
 end;
@@ -357,7 +358,7 @@ begin
   -- passos trancados não impedem o começo: o claim os desvia pela Falha.
   foreach feature in array private.flow_start_features(bot.definition) loop
     if not private.org_has_feature(org, feature) then
-      raise exception 'flow feature unavailable: %', feature;
+      raise exception 'flow feature unavailable: %', feature using errcode = 'PF010';
     end if;
   end loop;
   -- Acha pelo telefone exato ou pelas duas formas do nono dígito; se não houver,

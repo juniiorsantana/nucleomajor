@@ -286,6 +286,15 @@ confere("a execução cancelada não prende a conversa (cabe outra)",
 const semComeco = await erroDe(async () => rpc(roboBase, "select public.nucleo_flow_start($1,'esp-2',$2,$3,$4,0) r",
   ["5565900000006", fluxoEspera, await versaoDe(fluxoEspera), randomUUID()]));
 confere("sem chatbots, nucleo_flow_start recusa com o motivo", /flow feature unavailable: chatbots/.test(semComeco), semComeco);
+// O runtime não guarda a mensagem do erro, só o código: é por ele que sabe o motivo.
+let codigoDaRecusa = "";
+try {
+  await rpc(roboBase, "select public.nucleo_flow_start($1,'esp-2b',$2,$3,$4,0) r",
+    ["5565900000007", fluxoEspera, await versaoDe(fluxoEspera), randomUUID()]);
+} catch (e) {
+  codigoDaRecusa = e.code;
+}
+confere("a recusa por plano tem o código PF010", codigoDaRecusa === "PF010", codigoDaRecusa);
 confere("e não cria execução nem contato", Number((await um(
   "select count(*)::int n from public.contacts where organization_id=$1 and phone='5565900000006'", [orgBase])).n) === 0);
 await ajusta(orgBase, "chatbots", true);
