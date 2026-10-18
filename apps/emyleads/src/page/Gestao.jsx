@@ -765,8 +765,14 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const fluxosManuais = (dados?.chatbots || []).filter(
     (chatbot) => chatbot.ativo && chatbot.canvas?.versao === 3 && gatilhoDo(chatbot).tipo === TIPOS_GATILHO.manual,
   );
-  const iniciarFluxo = ({ contato, chatbotId }) =>
-    api.conversas.iniciarFluxo({ contatoId: contato.remoteId || contato.id, chatbotId });
+  // A ficha acompanha o desfecho pelo `desfecho` que volta junto.
+  const iniciarFluxo = async ({ contato, chatbotId }) => {
+    const resultado = await api.conversas.iniciarFluxo({ contatoId: contato.remoteId || contato.id, chatbotId });
+    return {
+      ...resultado,
+      desfecho: resultado?.comandoId ? () => api.conversas.desfechoDoFluxo({ comandoId: resultado.comandoId }) : null,
+    };
+  };
 
   return (
     <div className="portal-shell flex h-dvh bg-surface text-fg">
