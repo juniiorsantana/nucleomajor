@@ -174,6 +174,21 @@ export function problemaDoGatilho(gatilho) {
   return null;
 }
 
+/** Quanto uma execução pode ficar parada antes de fechar sozinha (20261018150000). */
+export const PRAZO_DA_EXECUCAO = { minimo: 1, maximo: 720, padrao: 24 };
+
+/**
+ * `flow_validate`: o prazo da execução parada, se o fluxo disser um. Sem o
+ * campo, vale o da empresa (24 h por padrão).
+ */
+export function problemaDoPrazoDaExecucao(definicao) {
+  if (!definicao || !Object.prototype.hasOwnProperty.call(definicao, "prazoExecucaoHoras")) return null;
+  const horas = definicao.prazoExecucaoHoras;
+  if (!Number.isInteger(horas) || horas < PRAZO_DA_EXECUCAO.minimo || horas > PRAZO_DA_EXECUCAO.maximo)
+    return `O fluxo parado fecha sozinho entre ${PRAZO_DA_EXECUCAO.minimo} e ${PRAZO_DA_EXECUCAO.maximo} horas.`;
+  return null;
+}
+
 /** `flow_validate_wait`: quanto o bloco "Aguardar" espera. */
 function problemaDaEspera(passo, nome) {
   const unidade = UNIDADES_DE_ESPERA[passo.unidade];
@@ -239,6 +254,8 @@ export function problemaParaOServidor(definicao) {
   if (!Array.isArray(conexoes)) return "O fluxo está sem conexões.";
   if (conexoes.length > LIMITES_DO_SERVIDOR.conexoes) return "O fluxo tem conexões demais.";
   if (JSON.stringify(definicao).length > LIMITES_DO_SERVIDOR.tamanho) return "O fluxo ficou grande demais.";
+  const prazo = problemaDoPrazoDaExecucao(definicao);
+  if (prazo) return prazo;
 
   const problemaDaEntrada = problemaDaExpressao(definicao.condicoes, "O bloco “Condições”");
   if (problemaDaEntrada) return problemaDaEntrada;
