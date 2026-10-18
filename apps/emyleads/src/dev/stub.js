@@ -169,7 +169,7 @@ let operadoresDev = [
     verified_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
-let organizacaoDev = { id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada" };
+let organizacaoDev = { id: "dev-org", name: "EmyLeads — bancada", slug: "emyleads-bancada", timezone: "America/Sao_Paulo" };
 
 const customerProfileId = "dev-assistente-clientes";
 let intelligenceDev = {
@@ -376,6 +376,10 @@ const operacoesBancada = {
       throw new Error("O nome da empresa precisa ter entre 2 e 120 caracteres.");
     }
     organizacaoDev = { ...organizacaoDev, name: limpo };
+    return organizacaoDev;
+  },
+  "organizacoes.definirFuso": async ({ fuso }) => {
+    organizacaoDev = { ...organizacaoDev, timezone: fuso };
     return organizacaoDev;
   },
   "organizacoes.listar": async () => (await operacoesBancada["auth.estado"]()).organizacoes,

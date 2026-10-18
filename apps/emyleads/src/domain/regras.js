@@ -46,6 +46,18 @@ export const FUSOS_DO_BRASIL = [
 ];
 export const FUSO_PADRAO = "America/Sao_Paulo";
 
+/**
+ * O fuso com que uma regra NOVA de dia ou horário nasce no editor: o da
+ * empresa (`organizations.timezone`, 20261018130000). Só o padrão — a regra
+ * gravada guarda o próprio `fuso` e nunca passa a depender deste valor.
+ * Empresa sem a coluna (banco antigo) ou com valor fora da lista cai no
+ * padrão de sempre.
+ */
+export function fusoDaOrganizacao(organizacao) {
+  const fuso = organizacao?.timezone;
+  return FUSOS_DO_BRASIL.includes(fuso) ? fuso : FUSO_PADRAO;
+}
+
 /** Domingo = 0, como `Date#getDay`. O mesmo número vale no Python e no banco. */
 export const DIAS_DA_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
