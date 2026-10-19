@@ -377,6 +377,36 @@ conhecimento. O lado interno continua sem skill de fallback.
 
 ## Banco aplicado
 
+- **Construtor de fluxos (PR #63), 18/10/2026, pelo SQL Editor**, nesta ordem, cada
+  uma com ensaio (`commit;` trocado por `rollback;`: "Success") e conferida por
+  consulta depois:
+  - `20261018100000_cada_bloco_depende_do_plano.sql` (Etapa 10). Antes: 0 fluxos
+    v3 ativos com IA em empresa sem IA. Conferido: validação com plano, gatilho
+    ao salvar, claim desvia, start recusa (PF010), `transferir:ia` exige
+    `ai_customer`, `flow_validate` fechada para `authenticated`.
+  - `20261018110000_o_jev_escolhe_a_opcao_do_menu.sql` (Etapa 9). Conferido:
+    `nucleo_flow_answer` de 6 argumentos (com `decided_by`), a de 5 saiu,
+    `ai_usage_events` existe, `iaQuandoNaoEntende` exige `ai_customer`, sem
+    `anon` no registro de uso, portal não grava na tabela. Jev desligado no
+    runtime (`NUCLEO_FLOW_JEV=0`).
+  - `20261018130000_fuso_da_organizacao.sql`. Conferido: padrão
+    `America/Sao_Paulo`, `not null`, 0 empresas sem fuso, check dos fusos do Brasil.
+  - `20261018140000_a_conexao_diz_se_roda_fluxo.sql`. Conferido: coluna
+    `flow_runtime_status`, heartbeat lê `flowRuntime`, visão
+    `private.flow_execution_overview`, `anon` não executa o heartbeat (o runtime
+    usa o token do usuário-robô).
+  - `20261018150000_o_fluxo_nao_trava.sql` (robustez). Antes: **49 execuções
+    `needs_review` paradas há mais de 24 h, todas da Adriani Ademicon, fluxo
+    "Formulário Meta · primeira mensagem", motivo `delivery_unknown`, de 29/09 a
+    17/10** — o runtime dela pega o envio e o prazo do claim vence sem confirmação.
+    A robustez as fecha como `cancelled/review_expired` (com `flow.expired`), sem
+    mensagem ao contato. Conferido: `organization_flow_settings`, current devolve
+    `running`, pending fecha o parado, uma `nucleo_flow_answer` com a robustez,
+    o manual devolve ao robô, `flow_expire_stale` fechada.
+  - Falta: release do runtime (`feat/fluxos-construtor`) na VPS, Major e depois
+    Adriani; merge do PR #63. Investigar se os 49 leads da Adriani receberam a
+    primeira mensagem.
+
 - `20261014100000_canal_oficial_do_whatsapp.sql` aplicada em 11/10/2026
   pelo SQL Editor (ADR-0008, fundação; PR #58), na mesma transação do
   `insert` do sha256 do `WHATSAPP_CLOUD_INTAKE_TOKEN` em
