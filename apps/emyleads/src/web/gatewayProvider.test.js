@@ -24,12 +24,18 @@ const mocks = vi.hoisted(() => {
     from: vi.fn((table) => {
       const query = {
         table,
-        select: vi.fn(() => query),
+        campos: "",
+        select: vi.fn((campos = "") => { query.campos = campos; return query; }),
         update: vi.fn(() => query),
         eq: vi.fn(() => query),
         neq: vi.fn(() => query),
         order: vi.fn(() => query),
-        then(resolve) { return Promise.resolve(resolve({ data: rows[table] || [], error: null })); },
+        then(resolve) {
+          // Banco sem uma coluna: o PostgREST recusa o select inteiro.
+          if (rows.colunaAusente && query.campos.includes(rows.colunaAusente))
+            return Promise.resolve(resolve({ data: null, error: { message: `column ${rows.colunaAusente} does not exist` } }));
+          return Promise.resolve(resolve({ data: rows[table] || [], error: null }));
+        },
       };
       consultas.push(query);
       return query;
@@ -54,6 +60,38 @@ describe("WebGatewayProvider Realtime", () => {
     mocks.supabase.from.mockClear();
     mocks.rows.whatsapp_connections = [];
     mocks.rows.connection_runtime_status = [];
+    mocks.rows.colunaAusente = null;
+  });
+
+  const umaConexaoComHeartbeat = (extra = {}) => {
+    const connectionId = "8ee1e6d0-a9d0-4041-b6ea-878716a34a71";
+    mocks.rows.whatsapp_connections = [{ id: connectionId, name: "Recepção", status: "connected", automation_status: "active" }];
+    mocks.rows.connection_runtime_status = [{
+      connection_id: connectionId, bridge_status: "online", whatsapp_status: "connected", assistant_status: "online",
+      chatbot_status: "online", heartbeat_at: new Date().toISOString(), ...extra,
+    }];
+  };
+
+  it("Etapa 11: a conexão diz se roda fluxo", async () => {
+    umaConexaoComHeartbeat({ flow_runtime_status: "not_configured" });
+    const result = await criarOperacoesGateway()["gateway.conexoes"]({ organizationId: "338e44ca-36ab-437c-b8ac-aa7c60fee64a" });
+    expect(result.conexoes[0].readiness.flowRuntime).toBe("not_configured");
+  });
+
+  it("Etapa 11: banco sem a coluna nova cai na leitura de antes, com o fluxo em “não sei”", async () => {
+    umaConexaoComHeartbeat({ flow_runtime_status: "online" });
+    mocks.rows.colunaAusente = "flow_runtime_status";
+    const result = await criarOperacoesGateway()["gateway.conexoes"]({ organizationId: "338e44ca-36ab-437c-b8ac-aa7c60fee64a" });
+    expect(result.conexoes[0].runtime).toBe("online");
+    // O mock devolve a mesma linha; o que importa é que a tela não quebrou e
+    // que a primeira leitura pediu a coluna nova.
+    expect(mocks.consultas.some((consulta) => consulta.campos.endsWith(",flow_runtime_status"))).toBe(true);
+  });
+
+  it("Etapa 11: heartbeat velho não afirma nada sobre o fluxo", async () => {
+    umaConexaoComHeartbeat({ flow_runtime_status: "not_configured", heartbeat_at: "2026-01-01T00:00:00Z" });
+    const result = await criarOperacoesGateway()["gateway.conexoes"]({ organizationId: "338e44ca-36ab-437c-b8ac-aa7c60fee64a" });
+    expect(result.conexoes[0].readiness.flowRuntime).toBeNull();
   });
 
   it("mantém um único canal por organização e troca o filtro sem misturar empresas", async () => {

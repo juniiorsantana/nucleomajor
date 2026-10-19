@@ -19,6 +19,7 @@ import {
   VERSAO_CANVAS,
   VERSAO_CANVAS_RAMIFICADO,
 } from "../../domain/chatbotGrafo";
+import { ligacoesDosDestinosEscondidos } from "../../domain/conversaoV3";
 
 export { NO_ENTRADA, NO_CONDICOES, VERSAO_CANVAS, VERSAO_CANVAS_RAMIFICADO, idConexao };
 
@@ -69,16 +70,8 @@ export function criarGrafoInicial(passos = [], canvas = null, { ramificado = fal
   // eram IDs escondidos no bloco (`retornoPassoId`, `falhaPassoId`). Aqui eles
   // viram as ligações das saídas "Sucesso" e "Falha", visíveis no mapa — o
   // canvas passa a ser a única fonte de para onde a conversa vai (ADR-0006).
-  if (ramificado) {
-    for (const passo of passos) {
-      for (const [saida, campo] of [["sucesso", "retornoPassoId"], ["falha", "falhaPassoId"]]) {
-        const alvo = passo[campo];
-        const ocupada = conexoes.some((c) => c.source === passo.id && (c.saida || SAIDA_PADRAO) === saida);
-        if (alvo && ids.has(alvo) && alvo !== passo.id && !ocupada)
-          conexoes.push({ source: passo.id, saida, target: alvo });
-      }
-    }
-  }
+  // A mesma regra que a conversão em lote da Etapa 11 usa (`domain/conversaoV3.js`).
+  if (ramificado) conexoes.push(...ligacoesDosDestinosEscondidos(passos, conexoes, ids));
 
   return {
     nos,

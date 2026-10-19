@@ -4,6 +4,7 @@ import { api } from "../data/client";
 import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
 import { NOMES_DOS_PLANOS_COM_IA, planoLibera } from "./plano";
+import { fusoDaOrganizacao } from "../domain/regras";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
 import { paraSlug } from "../lib/texto";
 import Contatos from "./telas/Contatos";
@@ -877,6 +878,8 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               ramificado={recursos?.fluxos_ramificados === true}
               // Etapa 10: cada bloco depende da função do plano (cadeado).
               recursos={recursos}
+              // Etapa 4: regra nova de dia/horário nasce no fuso da empresa.
+              fuso={fusoDaOrganizacao(sessao?.organizacaoAtual)}
             />
           </Suspense>
         ) : tela === "contatos" ? (
