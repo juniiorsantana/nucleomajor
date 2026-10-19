@@ -121,9 +121,13 @@ const robo = { sub: ROBO, role: "authenticated", app_metadata: { is_robot: "true
 
 const sincronizar = (payload) => como(robo, "select public.nucleo_conversation_sync($1::jsonb) r", [JSON.stringify(payload)]);
 // O lote e o número de updates que ele causou nas conversas, na MESMA
-// transação (pg_stat_xact conta só a transação corrente).
+// transação. No PGlite (modo de usuário único) `pg_stat_xact` não zera entre
+// transações, então a conta é a diferença entre antes e depois do lote.
+const updatesDasConversas = async (tx) =>
+  (await tx.query("select coalesce(n_tup_upd, 0)::int upd from pg_stat_xact_user_tables where relid = 'public.whatsapp_conversations'::regclass")).rows[0]?.upd ?? 0;
 const sincronizarContando = (payload) =>
   db.transaction(async (tx) => {
+    const antes = await updatesDasConversas(tx);
     await tx.query(
       "select set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', $2, true)",
       [ROBO, JSON.stringify(robo)],
@@ -131,8 +135,7 @@ const sincronizarContando = (payload) =>
     await tx.exec("set local role authenticated");
     const r = (await tx.query("select public.nucleo_conversation_sync($1::jsonb) r", [JSON.stringify(payload)])).rows[0].r;
     await tx.exec("reset role");
-    const s = (await tx.query("select coalesce(n_tup_upd, 0)::int upd from pg_stat_xact_user_tables where relid = 'public.whatsapp_conversations'::regclass")).rows[0];
-    return { r, updates: s?.upd ?? 0 };
+    return { r, updates: (await updatesDasConversas(tx)) - antes };
   });
 
 const agora = Date.now();
@@ -364,7 +367,12 @@ const listar = (quem, desde = null, teto = 1000, alvo = org) =>
   confere("2. sem contato a conversa aparece", porTel[CENA[6].conv] && porTel[CENA[6].conv].contact_id === null);
   confere("2. ordem sem cursor: última mensagem primeiro", lista.every((l, i) => i === 0 || +lista[i - 1].last_message_at >= +l.last_message_at || l.last_message_at === null));
 
-  confere("2. RLS: a outra empresa não vê nada desta", (await listar(OUTRO)).length === 0);
+  const outra = await erroDe(() => listar(OUTRO));
+  confere("2. quem não é da empresa é recusado", /organization membership required/.test(outra), outra);
+  // O mesmo número da Ana existe nas duas empresas: cada uma casa só o seu contato.
+  const daOutra = await listar(OUTRO, null, 1000, orgOutra);
+  confere("2. a outra empresa casa só o contato dela", daOutra.every((l) => !l.contact_id || l.crm_name === "Ana da outra"),
+    JSON.stringify(daOutra.map((l) => l.crm_name)));
   const anon = await erroDe(() => como(null, "select * from public.nucleo_conversation_list($1)", [org]));
   confere("2. anon não chama a lista", /permission denied/.test(anon), anon);
 
@@ -400,7 +408,10 @@ const listar = (quem, desde = null, teto = 1000, alvo = org) =>
   confere("120000 ensaio: não deixa nada", (await assinaturaDoBanco()) === antes);
   await db.exec(ler(`supabase/migrations/${MIGRATIONS[2]}`));
 
-  confere("3. os nove gatilhos continuam os mesmos", JSON.stringify(await gatilhosDeRealtime()) === JSON.stringify(gatilhosAntes));
+  // Só tabela, nome e argumento: `gatilhosAntes` ganhou `sombra` e `colunas` para o roteiro.
+  const retrato = (lista) => JSON.stringify(lista.map(({ tabela, tgname, args }) => ({ tabela, tgname, args })));
+  const gatilhosDepois = retrato(await gatilhosDeRealtime());
+  confere("3. os nove gatilhos continuam os mesmos", gatilhosDepois === retrato(gatilhosAntes), `${retrato(gatilhosAntes)} => ${gatilhosDepois}`);
   const realtimeDepois = await roteiroDeRealtime();
   confere("3. os nove geram os mesmos eventos (tópico, entity_id, silêncio no update sem mudança)",
     JSON.stringify(semEntityKey(realtimeDepois)) === JSON.stringify(semEntityKey(realtimeAntes)));
@@ -496,7 +507,8 @@ const listar = (quem, desde = null, teto = 1000, alvo = org) =>
   confere("rollback 110000: a lista sai", (await fn("public.nucleo_conversation_list(uuid, timestamptz, integer)")) === null);
   await db.exec(ler(ROLLBACKS[0]));
   confere("rollback 100000: as colunas saem",
-    !(await um("select 1 x from information_schema.columns where table_schema = 'public' and column_name = 'changed_at'")));
+    // Só as três tabelas desta leva: `deal_stage_history` já tinha `changed_at` (20260926170000).
+    !(await um("select 1 x from information_schema.columns where table_schema = 'public' and column_name = 'changed_at' and table_name in ('whatsapp_conversations', 'whatsapp_messages', 'contacts')")));
   const depois = await erroDe(() => sincronizar(lote()));
   confere("rollback: a sincronia continua funcionando", depois === "", depois);
 
@@ -568,12 +580,10 @@ const corpoRpc = (() => {
   const semCursor = blocos[0].replace(/target_organization/g, "$1::uuid").replace(/\bteto\b/g, "$2::int");
   return { semCursor, comCursor: trocar(blocos[1]) };
 })();
+// Como a dona da função: a lista é `security definer`, então as consultas
+// dela rodam sem a RLS (a conferência de membro fica na entrada).
 const explicar = async (sql, params) => {
-  const plano = (await db.transaction(async (tx) => {
-    await tx.query("select set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', $2, true)", [DONO_M, JSON.stringify(usuario(DONO_M))]);
-    await tx.exec("set local role authenticated");
-    return tx.query(`explain (analyze, buffers, format json) ${sql}`, params);
-  })).rows[0]["QUERY PLAN"][0];
+  const plano = (await db.query(`explain (analyze, buffers, format json) ${sql}`, params)).rows[0]["QUERY PLAN"][0];
   const nos = [];
   const andar = (n) => { nos.push(n); (n.Plans || []).forEach(andar); };
   andar(plano.Plan);
@@ -596,11 +606,12 @@ const medir = async (rotulo, n, contatos, mensagens) => {
   );
   const sync = await sincronizarM(loteM(n));
   const upd = await db.transaction(async (tx) => {
+    const antes = await updatesDasConversas(tx);
     await tx.query("select set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', $2, true)", [ROBO_M, JSON.stringify(roboM)]);
     await tx.exec("set local role authenticated");
     for (let i = 0; i < n; i += 450) await tx.query("select public.nucleo_conversation_sync($1::jsonb)", [JSON.stringify({ conversations: loteM(n).conversations.slice(i, i + 450), messages: [] })]);
     await tx.exec("reset role");
-    return (await tx.query("select coalesce(n_tup_upd,0)::int u from pg_stat_xact_user_tables where relid = 'public.whatsapp_conversations'::regclass")).rows[0].u;
+    return (await updatesDasConversas(tx)) - antes;
   });
   medidas.push(
     `${rotulo} (${total} conversas, ${contatos} contatos, ${mensagens} mensagens):\n` +
@@ -613,8 +624,10 @@ const medir = async (rotulo, n, contatos, mensagens) => {
 };
 const adriani = await medir("tamanho da Adriani", 461, 102, 3225);
 confere("5. Adriani: lista com cursor devolve só as 5", adriani.comCursor.linhas === 5, String(adriani.comCursor.linhas));
-confere("5. Adriani: lista com cursor sem seq scan nas tabelas grandes",
-  !adriani.comCursor.seq.some((r) => ["whatsapp_conversations", "contacts"].includes(r)), adriani.comCursor.seq.join(","));
+// Com 102 contatos a tabela cabe em 2 blocos e o planejador lê inteira, com
+// razão; o que importa no tamanho da Adriani é ler pouco. "Sem seq scan" é
+// conferido no tamanho de 10 mil, onde ele faria diferença.
+confere("5. Adriani: lista com cursor lê menos de 100 blocos", adriani.comCursor.buffers < 100, String(adriani.comCursor.buffers));
 confere("5. Adriani: lote sem mudança, zero updates", adriani.upd === 0, String(adriani.upd));
 const grande = await medir("10 mil conversas", 10000, 20000, 50000);
 confere("5. 10 mil: lista com cursor usa o índice de changed_at", grande.comCursor.idx.includes("whatsapp_conversations_changed_idx"), grande.comCursor.idx.join(","));

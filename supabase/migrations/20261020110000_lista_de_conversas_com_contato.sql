@@ -20,10 +20,19 @@
 --      SQL (`supabase/provas/prova-escala-banco.mjs`, contra esta função).
 --      Índices de expressão em `contacts` e em `whatsapp_conversations`.
 --   3. `public.nucleo_conversation_list(target_organization, changed_since,
---      max_rows)`: `security invoker` (a RLS de hoje decide), devolve as
---      colunas que o portal lê da conversa, `changed_at` e o contato casado
---      (`contact_id`, `crm_name`, `crm_company`, `crm_job_title`,
---      `crm_avatar_path`). Grupo não casa contato.
+--      max_rows)`: devolve as colunas que o portal lê da conversa,
+--      `changed_at` e o contato casado (`contact_id`, `crm_name`,
+--      `crm_company`, `crm_job_title`, `crm_avatar_path`). Grupo não casa
+--      contato.
+--
+-- Quem pode ler: `security definer` com `private.is_org_member` conferido
+-- uma vez na entrada, como as outras RPCs das conversas. É a mesma regra das
+-- políticas de leitura de `whatsapp_conversations` e de `contacts`
+-- (`is_org_member(organization_id)`, conferidas em produção em 19/10/2026),
+-- e a função só lê a empresa pedida. Com `security invoker` a RLS de
+-- `contacts` impedia o índice da chave de telefone de ser usado antes da
+-- política: a prova mediu 45 s para a lista da Adriani como usuário logado,
+-- contra 0,12 s com o índice.
 --
 -- Com `changed_since`, volta a conversa que mudou OU cujo contato mudou
 -- (`contacts.changed_at`, de 20261020100000; `contacts.updated_at` não anda
@@ -112,7 +121,10 @@ comment on function private.br_phone_normalize(text) is
 comment on function private.br_phone_key(text) is
   'Mesma chave se e só se variantesBR dos dois telefones se cruzam (nono dígito). Prova: supabase/provas/casos-telefone-br.json. Ver 20261020110000.';
 
--- A RPC é `security invoker`: quem chama precisa executar as duas.
+-- `authenticated` precisa executar as duas: `br_phone_key` é a expressão dos
+-- índices de `contacts` e `whatsapp_conversations`, e quem grava nessas tabelas
+-- calcula o índice. Sem o grant, editar um contato pelo portal falha com
+-- "permission denied" (a prova pega isso).
 revoke all on function private.br_phone_normalize(text) from public, anon;
 revoke all on function private.br_phone_key(text) from public, anon;
 grant execute on function private.br_phone_normalize(text) to authenticated, service_role;
@@ -152,7 +164,7 @@ returns table (
 )
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
@@ -160,6 +172,9 @@ declare
 begin
   if target_organization is null then
     return;
+  end if;
+  if auth.uid() is null or not private.is_org_member(target_organization) then
+    raise exception 'organization membership required';
   end if;
 
   if changed_since is null then
@@ -173,11 +188,18 @@ begin
     from public.whatsapp_conversations c
     left join lateral (
       select k.id, k.name, k.company, k.job_title, k.avatar_path
-      from public.contacts k
-      where c.chat_kind <> 'grupo'
-        and k.organization_id = c.organization_id
-        and private.br_phone_key(k.phone) = private.br_phone_key(c.contact_phone)
-        and k.deleted_at is null
+      from (
+        -- `offset 0` separa a busca pela chave (índice contacts_phone_key_idx)
+        -- da ordem: sem ele o planejador percorre os contatos por created_at e
+        -- calcula a chave de cada um (40 s na prova com o tamanho da Adriani).
+        select k.id, k.name, k.company, k.job_title, k.avatar_path, k.phone, k.created_at
+        from public.contacts k
+        where c.chat_kind <> 'grupo'
+          and k.organization_id = c.organization_id
+          and private.br_phone_key(k.phone) = private.br_phone_key(c.contact_phone)
+          and k.deleted_at is null
+        offset 0
+      ) k
       order by (private.br_phone_normalize(k.phone) = private.br_phone_normalize(c.contact_phone)) desc,
         k.created_at, k.id
       limit 1
@@ -202,12 +224,18 @@ begin
     where c.organization_id = target_organization
       and c.changed_at > changed_since
     union
+    -- Os poucos contatos que mudaram procuram as conversas pela chave
+    -- (whatsapp_conversations_phone_key_idx), em vez de um join que calcula a
+    -- chave de todas as conversas da empresa.
     select c.connection_id, c.contact_phone
     from public.contacts k
-    join public.whatsapp_conversations c
-      on c.organization_id = k.organization_id
-     and private.br_phone_key(c.contact_phone) = private.br_phone_key(k.phone)
-     and c.chat_kind <> 'grupo'
+    cross join lateral (
+      select c.connection_id, c.contact_phone
+      from public.whatsapp_conversations c
+      where c.organization_id = k.organization_id
+        and private.br_phone_key(c.contact_phone) = private.br_phone_key(k.phone)
+        and c.chat_kind <> 'grupo'
+    ) c
     where k.organization_id = target_organization
       and k.changed_at > changed_since
   )
@@ -223,11 +251,18 @@ begin
    and c.contact_phone = mudadas.contact_phone
   left join lateral (
     select k.id, k.name, k.company, k.job_title, k.avatar_path
-    from public.contacts k
-    where c.chat_kind <> 'grupo'
-      and k.organization_id = c.organization_id
-      and private.br_phone_key(k.phone) = private.br_phone_key(c.contact_phone)
-      and k.deleted_at is null
+    from (
+      -- `offset 0` separa a busca pela chave (índice contacts_phone_key_idx)
+      -- da ordem: sem ele o planejador percorre os contatos por created_at e
+      -- calcula a chave de cada um (40 s na prova com o tamanho da Adriani).
+      select k.id, k.name, k.company, k.job_title, k.avatar_path, k.phone, k.created_at
+      from public.contacts k
+      where c.chat_kind <> 'grupo'
+        and k.organization_id = c.organization_id
+        and private.br_phone_key(k.phone) = private.br_phone_key(c.contact_phone)
+        and k.deleted_at is null
+      offset 0
+    ) k
     order by (private.br_phone_normalize(k.phone) = private.br_phone_normalize(c.contact_phone)) desc,
       k.created_at, k.id
     limit 1
@@ -246,7 +281,7 @@ end;
 $$;
 
 comment on function public.nucleo_conversation_list(uuid, timestamptz, integer) is
-  'Lista de conversas com o contato do CRM casado por private.br_phone_key; com changed_since, só o que mudou (conversa ou contato). security invoker: vale a RLS. Ver 20261020110000.';
+  'Lista de conversas com o contato do CRM casado por private.br_phone_key; com changed_since, só o que mudou (conversa ou contato). security definer com private.is_org_member na entrada (a regra das políticas de leitura). Ver 20261020110000.';
 
 revoke all on function public.nucleo_conversation_list(uuid, timestamptz, integer) from public, anon;
 grant execute on function public.nucleo_conversation_list(uuid, timestamptz, integer) to authenticated, service_role;

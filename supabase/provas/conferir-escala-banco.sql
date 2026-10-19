@@ -14,6 +14,7 @@ select
     and to_regclass('public.contacts_phone_key_idx') is not null
     and to_regclass('public.whatsapp_conversations_phone_key_idx') is not null as indices,
   to_regprocedure('public.nucleo_conversation_list(uuid, timestamptz, integer)') is not null as rpc_da_lista,
+  (select prosecdef from pg_proc where oid = to_regprocedure('public.nucleo_conversation_list(uuid, timestamptz, integer)')) as lista_definer,
   not has_function_privilege('anon', 'public.nucleo_conversation_list(uuid, timestamptz, integer)', 'execute') as anon_sem_lista,
   has_function_privilege('authenticated', 'public.nucleo_conversation_list(uuid, timestamptz, integer)', 'execute') as autenticado_com_lista,
   exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'portal_realtime_events' and column_name = 'entity_key') as aviso_com_chave,
