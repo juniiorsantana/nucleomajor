@@ -60,6 +60,21 @@ import { useRolagemConversa } from "./conversas/useRolagemConversa";
 const maiuscula = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
 /**
+ * Os rascunhos com o de `chave` trocado. `valor` é o texto novo ou uma função
+ * do texto atual, como no setState. Rascunho vazio sai do mapa, para ele não
+ * crescer com toda conversa que já foi aberta.
+ */
+export function comRascunho(rascunhos, chave, valor) {
+  const atual = rascunhos[chave] || "";
+  const texto = typeof valor === "function" ? valor(atual) : valor;
+  if (atual === (texto || "")) return rascunhos;
+  const depois = { ...rascunhos };
+  if (texto) depois[chave] = texto;
+  else delete depois[chave];
+  return depois;
+}
+
+/**
  * Os filtros: os três donos, o não lido, e os grupos.
  *
  * "Grupos" não é conveniência — em produção grupo é mais da metade da caixa de
@@ -175,7 +190,10 @@ export default function Conversas({
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("tudo");
   const [tipoLista, setTipoLista] = useState("contatos");
-  const [rascunho, setRascunho] = useState("");
+  // Um rascunho por conversa, na chave empresa:conversa. Com um só, o texto
+  // escrito para A seguia para B ao trocar de conversa e saía para o lead
+  // errado no Enter seguinte.
+  const [rascunhos, setRascunhos] = useState({});
   const [aba, setAba] = useState(null);
   const [atalho, setAtalho] = useState(null);
   const [fichaAberta, setFichaAberta] = useState(true);
@@ -232,6 +250,13 @@ export default function Conversas({
     );
   }, [conversas]);
   const conversa = (conversas || []).find((c) => c.id === atual) || null;
+
+  const chaveAtual = atual ? `${organizationId}:${atual}` : "";
+  const rascunho = rascunhos[chaveAtual] || "";
+  const escreverRascunho = (chave, valor) => {
+    if (chave) setRascunhos((antes) => comRascunho(antes, chave, valor));
+  };
+  const setRascunho = (valor) => escreverRascunho(chaveAtual, valor);
 
   /**
    * "Abrir conversa" vindo da lista de Leads ou da ficha.
@@ -314,9 +339,12 @@ export default function Conversas({
   };
 
   const mandar = async (texto, arquivo = null) => {
+    // A chave é a da conversa de onde saiu o envio: se a pessoa trocar de
+    // conversa antes de o servidor responder, o texto volta para a certa.
+    const chave = chaveAtual;
     // A caixa esvazia na hora, antes de o servidor responder: com o texto
     // ainda nela, um segundo Enter mandaria a mesma mensagem outra vez.
-    setRascunho("");
+    escreverRascunho(chave, "");
     setAba(null);
     try {
       await enviar(texto, null, arquivo);
@@ -324,7 +352,7 @@ export default function Conversas({
       // O texto volta para a caixa: quem escreveu não deve perder o que
       // escreveu porque o envio falhou. O motivo aparece abaixo dela. Se a
       // pessoa já começou outra mensagem, ela não é atropelada.
-      setRascunho((agora) => agora || texto);
+      escreverRascunho(chave, (agora) => agora || texto);
     }
   };
 
@@ -332,8 +360,9 @@ export default function Conversas({
   // espera a promessa para saber se solta o arquivo ou o mantém para a nova
   // tentativa.
   const mandarArquivo = async (arquivo, legenda) => {
+    const chave = chaveAtual;
     await enviar(legenda, null, arquivo);
-    setRascunho("");
+    escreverRascunho(chave, "");
     setAba(null);
   };
 
@@ -637,7 +666,11 @@ export default function Conversas({
             />
 
             <Lightbox midia={midiaAberta} aoFechar={() => setMidiaAberta(null)} />
+            {/* A chave remonta a caixa a cada conversa (e empresa): anexo e
+                gravação ficam com a conversa onde nasceram, em vez de sair
+                para a que estiver aberta no clique de enviar. */}
             <Composer
+              key={chaveAtual}
               rascunho={rascunho}
               aoMudar={setRascunho}
               aoEnviar={() => mandar(rascunho)}

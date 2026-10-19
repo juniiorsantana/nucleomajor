@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { ordenarPorMensagemMaisRecente, passaFiltro } from "./Conversas";
+import { comRascunho, ordenarPorMensagemMaisRecente, passaFiltro } from "./Conversas";
+
+describe("rascunho por conversa", () => {
+  it("o texto escrito para uma conversa não aparece na outra", () => {
+    const rascunhos = comRascunho({}, "org:A", "oi, A");
+    expect(rascunhos["org:A"]).toBe("oi, A");
+    expect(rascunhos["org:B"]).toBeUndefined();
+    // a mesma conversa noutra empresa também é outra caixa
+    expect(rascunhos["outra:A"]).toBeUndefined();
+  });
+
+  it("o envio que falha devolve o texto à conversa de origem sem atropelar o novo", () => {
+    let rascunhos = comRascunho({}, "org:B", "já escrevendo para B");
+    rascunhos = comRascunho(rascunhos, "org:A", (agora) => agora || "o que falhou");
+    rascunhos = comRascunho(rascunhos, "org:B", (agora) => agora || "o que falhou");
+    expect(rascunhos).toEqual({ "org:A": "o que falhou", "org:B": "já escrevendo para B" });
+  });
+
+  it("rascunho vazio sai do mapa e não muda o que não mudou", () => {
+    const rascunhos = { "org:A": "oi" };
+    expect(comRascunho(rascunhos, "org:A", "")).toEqual({});
+    expect(comRascunho(rascunhos, "org:A", "oi")).toBe(rascunhos);
+    expect(comRascunho({}, "org:A", "")).toEqual({});
+  });
+});
 
 describe("lista de conversas", () => {
   it("coloca no topo a conversa que recebeu a mensagem mais recente", () => {

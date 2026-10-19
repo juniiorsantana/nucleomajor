@@ -224,17 +224,26 @@ async function requisitar(caminho, { method = "GET", body, token = "", base = GA
 export function criarOperacoesGateway() {
   let canalRealtime = null;
   let organizacaoRealtime = "";
-  let temporizadorRealtime = null;
+  // Um temporizador por tópico. Com um só, o aviso `connections`, que a VPS
+  // manda a cada dez segundos, apagava o de `conversas` que tivesse chegado
+  // até 80 ms antes, e a mensagem nova só aparecia na recarga seguinte. Em aba
+  // de fundo o navegador estica os temporizadores e a perda ficava comum.
+  const temporizadoresRealtime = new Map();
 
   const emitirMudancaRealtime = (organizationId, topic) => {
     if (typeof window === "undefined") return;
-    clearTimeout(temporizadorRealtime);
-    temporizadorRealtime = setTimeout(() => {
+    clearTimeout(temporizadoresRealtime.get(topic));
+    temporizadoresRealtime.set(topic, setTimeout(() => {
+      temporizadoresRealtime.delete(topic);
       window.dispatchEvent(new CustomEvent("emyleads:connections-changed", {
         detail: { organizationId, topic },
       }));
-    }, 80);
+    }, 80));
   };
+
+  // Os tópicos que alguma tela escuta. Ao religar o canal, todos recarregam:
+  // o que mudou enquanto ele esteve fora não volta a ser avisado.
+  const TOPICOS_REALTIME = ["connections", "conversas", "operators"];
 
   const ativarRealtime = async (organizationId) => {
     const organizacao = exigirOrganizacao(organizationId);
@@ -256,8 +265,18 @@ export function criarOperacoesGateway() {
           filter: `organization_id=eq.${organizacao}`,
         },
         ({ new: evento }) => emitirMudancaRealtime(organizacao, evento?.topic || "connections"),
-      )
-      .subscribe();
+      );
+    const canal = canalRealtime;
+    let conectouAntes = false;
+    // O supabase-js religa sozinho depois de queda de rede, suspensão do
+    // computador ou token renovado. Religar não repete os avisos perdidos.
+    canal.subscribe((estado) => {
+      if (estado !== "SUBSCRIBED" || canal !== canalRealtime) return;
+      if (conectouAntes) {
+        TOPICOS_REALTIME.forEach((topico) => emitirMudancaRealtime(organizacao, topico));
+      }
+      conectouAntes = true;
+    });
     return { ativo: true, organizationId: organizacao };
   };
 

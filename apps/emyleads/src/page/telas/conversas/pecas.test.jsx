@@ -294,6 +294,29 @@ describe("o anexo na caixa de escrita", () => {
     expect(container.textContent).toContain("passa de 10 MB");
   });
 
+  it("o anexo de uma conversa não vai junto para a outra", async () => {
+    const enviados = [];
+    const props = {
+      rascunho: "",
+      aoMudar: () => {},
+      aoEnviar: () => {},
+      aoEnviarArquivo: async (arquivo) => enviados.push(arquivo.name),
+      aba: null,
+      aoAlternarAba: () => {},
+      aviso: null,
+    };
+    // Como na tela: a chave é a conversa aberta.
+    renderizar(<Composer key="org:A" {...props} />);
+    escolher(new File(["x"], "para-A.jpg", { type: "image/jpeg" }));
+    expect(container.querySelector('[data-testid="anexo"]')).not.toBeNull();
+
+    renderizar(<Composer key="org:B" {...props} rascunho="oi, B" />);
+    expect(container.querySelector('[data-testid="anexo"]')).toBeNull();
+    const enviar = [...container.querySelectorAll("button")].find((b) => b.title === "Enviar");
+    await act(async () => enviar.click());
+    expect(enviados).toEqual([]);
+  });
+
   it("o anexo pode ser removido antes de sair", () => {
     caixa();
     escolher(new File(["x"], "foto.png", { type: "image/png" }));

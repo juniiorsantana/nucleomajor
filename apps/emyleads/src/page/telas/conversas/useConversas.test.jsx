@@ -310,6 +310,23 @@ describe("atualização e desmontagem", () => {
     expect(conversasApi.mensagens).toHaveBeenCalledWith({ id: "org-a:5511" });
   });
 
+  it("voltar para a aba traz a conversa nova sem esperar o timer", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+
+    conversasApi.listar.mockResolvedValue([
+      conversa("org-a:5511"),
+      conversa("org-a:5533"),
+    ]);
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await drenar();
+
+    expect(estado.conversas).toHaveLength(2);
+  });
+
   it("não consulta desfecho depois que a tela é desmontada", async () => {
     vi.useFakeTimers();
     conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);

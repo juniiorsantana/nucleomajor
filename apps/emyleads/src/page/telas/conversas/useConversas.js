@@ -320,7 +320,19 @@ export function useConversas(organizacaoId) {
       carregarLista().catch(() => {});
       carregarMensagens(atualRef.current).catch(() => {});
     }, RECARGA_MS);
-    return () => window.clearInterval(timer);
+    // Voltar para a aba recarrega na hora. Em aba de fundo a recarga acima
+    // pula, e o navegador atrasa avisos e temporizadores; sem isto a lista
+    // ficava velha até a volta seguinte do timer, e parecia pedir F5.
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible") return;
+      carregarLista().catch(() => {});
+      carregarMensagens(atualRef.current).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
   }, [carregarLista, carregarMensagens]);
 
   /**
