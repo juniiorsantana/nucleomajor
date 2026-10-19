@@ -229,16 +229,56 @@ export function criarOperacoesGateway() {
   // até 80 ms antes, e a mensagem nova só aparecia na recarga seguinte. Em aba
   // de fundo o navegador estica os temporizadores e a perda ficava comum.
   const temporizadoresRealtime = new Map();
+  /*
+   * O que a espera de cada tópico juntou (20261020120000): o aviso de
+   * `conversas` passou a trazer a conversa (`entity_key`, o telefone) além da
+   * conexão (`entity_id`). A espera acumula as chaves em vez de ficar só com o
+   * último aviso: duas conversas mudando no mesmo instante são duas conversas
+   * para recarregar.
+   *
+   * `entityKeys` nulo quer dizer "não sei qual": algum aviso da espera veio sem
+   * chave (banco antes da migration, outro tópico, o canal que religou), e
+   * quem escuta recarrega tudo, como antes.
+   */
+  const acumuladosRealtime = new Map();
 
-  const emitirMudancaRealtime = (organizationId, topic) => {
+  const emitirMudancaRealtime = (organizationId, topic, evento = null) => {
     if (typeof window === "undefined") return;
+    const acumulado = acumuladosRealtime.get(topic) || { ids: new Set(), chaves: new Set(), semChave: false };
+    acumulado.ids.add(evento?.entity_id ? String(evento.entity_id) : "");
+    if (evento?.entity_key) acumulado.chaves.add(String(evento.entity_key));
+    else acumulado.semChave = true;
+    acumuladosRealtime.set(topic, acumulado);
+
     clearTimeout(temporizadoresRealtime.get(topic));
     temporizadoresRealtime.set(topic, setTimeout(() => {
       temporizadoresRealtime.delete(topic);
+      acumuladosRealtime.delete(topic);
+      const ids = [...acumulado.ids];
       window.dispatchEvent(new CustomEvent("emyleads:connections-changed", {
-        detail: { organizationId, topic },
+        detail: {
+          organizationId,
+          topic,
+          // A conexão, quando todos os avisos da espera vieram da mesma.
+          entityId: ids.length === 1 && ids[0] ? ids[0] : null,
+          entityKeys: acumulado.semChave ? null : [...acumulado.chaves],
+        },
       }));
     }, 80));
+  };
+
+  /*
+   * Se o canal está inscrito agora. A tela de Conversas usa isto para decidir
+   * a recarga de segurança: com o realtime de pé, o timer só cobre o que ele
+   * perdeu; caído, o timer volta a ser o que traz a mensagem nova.
+   */
+  let realtimeInscrito = false;
+  const avisarEstadoRealtime = (organizationId, inscrito) => {
+    realtimeInscrito = inscrito;
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("emyleads:realtime-status", {
+      detail: { organizationId, inscrito },
+    }));
   };
 
   // Os tópicos que alguma tela escuta. Ao religar o canal, todos recarregam:
@@ -248,12 +288,13 @@ export function criarOperacoesGateway() {
   const ativarRealtime = async (organizationId) => {
     const organizacao = exigirOrganizacao(organizationId);
     if (canalRealtime && organizacaoRealtime === organizacao) {
-      return { ativo: true, organizationId: organizacao };
+      return { ativo: true, organizationId: organizacao, inscrito: realtimeInscrito };
     }
 
     const supabase = obterSupabaseWeb();
     if (canalRealtime) await supabase.removeChannel(canalRealtime);
     organizacaoRealtime = organizacao;
+    realtimeInscrito = false;
     canalRealtime = supabase
       .channel(`portal-connections:${organizacao}`)
       .on(
@@ -264,20 +305,25 @@ export function criarOperacoesGateway() {
           table: "portal_realtime_events",
           filter: `organization_id=eq.${organizacao}`,
         },
-        ({ new: evento }) => emitirMudancaRealtime(organizacao, evento?.topic || "connections"),
+        ({ new: evento }) => emitirMudancaRealtime(organizacao, evento?.topic || "connections", evento),
       );
     const canal = canalRealtime;
     let conectouAntes = false;
     // O supabase-js religa sozinho depois de queda de rede, suspensão do
     // computador ou token renovado. Religar não repete os avisos perdidos.
     canal.subscribe((estado) => {
-      if (estado !== "SUBSCRIBED" || canal !== canalRealtime) return;
+      if (canal !== canalRealtime) return;
+      if (estado !== "SUBSCRIBED") {
+        if (realtimeInscrito) avisarEstadoRealtime(organizacao, false);
+        return;
+      }
+      if (!realtimeInscrito) avisarEstadoRealtime(organizacao, true);
       if (conectouAntes) {
         TOPICOS_REALTIME.forEach((topico) => emitirMudancaRealtime(organizacao, topico));
       }
       conectouAntes = true;
     });
-    return { ativo: true, organizationId: organizacao };
+    return { ativo: true, organizationId: organizacao, inscrito: realtimeInscrito };
   };
 
   const runtimeRemoto = async (organizationId) => {

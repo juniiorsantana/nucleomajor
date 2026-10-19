@@ -549,3 +549,161 @@ describe("verificação de número", () => {
     expect(resposta.situacao).toBe("indefinido");
   });
 });
+
+describe("sincronia por delta (escala das Conversas)", () => {
+  const avisar = (detail) =>
+    act(async () => {
+      window.dispatchEvent(new CustomEvent("emyleads:connections-changed", {
+        detail: { organizationId: "org-a", topic: "conversas", ...detail },
+      }));
+    });
+  const estadoDoCanal = (inscrito) =>
+    act(async () => {
+      window.dispatchEvent(new CustomEvent("emyleads:realtime-status", {
+        detail: { organizationId: "org-a", inscrito },
+      }));
+    });
+
+  it("aviso com a chave de OUTRA conversa recarrega a lista e não a conversa aberta", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511"), conversa("org-a:5533")]);
+    await renderizar("org-a");
+    await drenar();
+    const listas = conversasApi.listar.mock.calls.length;
+    const mensagens = conversasApi.mensagens.mock.calls.length;
+
+    await avisar({ entityId: "org-a", entityKeys: ["5533"] });
+    await drenar();
+
+    expect(conversasApi.listar.mock.calls.length).toBe(listas + 1);
+    // A lista pede pelo provider, que traz só o delta: nada de releitura completa.
+    expect(conversasApi.listar.mock.calls.at(-1)).toEqual([]);
+    expect(conversasApi.mensagens.mock.calls.length).toBe(mensagens);
+  });
+
+  it("aviso com a chave da conversa aberta recarrega as mensagens dela", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+    conversasApi.mensagens.mockClear();
+
+    await avisar({ entityId: "org-a", entityKeys: ["5533", "5511"] });
+    await drenar();
+    expect(conversasApi.mensagens).toHaveBeenCalledWith({ id: "org-a:5511" });
+  });
+
+  it("aviso sem chave (banco de antes) recarrega a conversa aberta, como hoje", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+    conversasApi.mensagens.mockClear();
+
+    await avisar({ entityKeys: null });
+    await drenar();
+    expect(conversasApi.mensagens).toHaveBeenCalledWith({ id: "org-a:5511" });
+  });
+
+  it("com o realtime inscrito o timer passa a 60 s; caído, volta a 20 s", async () => {
+    vi.useFakeTimers();
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+    await estadoDoCanal(true);
+    conversasApi.listar.mockClear();
+
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(conversasApi.listar).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(40_000));
+    expect(conversasApi.listar).toHaveBeenCalledTimes(1);
+
+    await estadoDoCanal(false);
+    conversasApi.listar.mockClear();
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(conversasApi.listar).toHaveBeenCalledTimes(1);
+  });
+
+  it("o canal já de pé (aberto por outra tela) também vale: a resposta do ativar diz", async () => {
+    vi.useFakeTimers();
+    gatewayApi.ativarRealtime.mockResolvedValue({ ativo: true, inscrito: true });
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+    conversasApi.listar.mockClear();
+
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(conversasApi.listar).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(40_000));
+    expect(conversasApi.listar).toHaveBeenCalledTimes(1);
+  });
+
+  it("trocar de conversa no meio do pedido não mistura as mensagens", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511"), conversa("org-a:5533")]);
+    const pedidoA = adiada();
+    conversasApi.mensagens.mockImplementation(({ id }) =>
+      id === "org-a:5511" ? pedidoA.promise : Promise.resolve([mensagem("b1", "da B")])
+    );
+    await renderizar("org-a");
+    await drenar();
+    expect(estado.atual).toBe("org-a:5511");
+
+    await act(async () => estado.setAtual("org-a:5533"));
+    await drenar();
+    expect(estado.mensagens.map((m) => m.messageId)).toEqual(["b1"]);
+
+    // A resposta de A chega depois: não pode tomar o lugar das de B.
+    await act(async () => pedidoA.resolve([mensagem("a1", "da A")]));
+    await drenar();
+    expect(estado.atual).toBe("org-a:5533");
+    expect(estado.mensagens.map((m) => m.messageId)).toEqual(["b1"]);
+  });
+
+  it("a conversa aberta não troca quando o delta reordena a lista", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511"), conversa("org-a:5533")]);
+    await renderizar("org-a");
+    await drenar();
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5533"), conversa("org-a:5511")]);
+    await avisar({ entityKeys: ["5533"] });
+    await drenar();
+    expect(estado.conversas[0].id).toBe("org-a:5533");
+    expect(estado.atual).toBe("org-a:5511");
+  });
+
+  it("recarregarLista (a ficha salvou contato) pede a releitura completa", async () => {
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    await renderizar("org-a");
+    await drenar();
+    await act(async () => estado.recarregarLista());
+    expect(conversasApi.listar).toHaveBeenLastCalledWith({ completa: true });
+  });
+
+  it("a cópia local aparece enquanto o banco responde, e nunca passa por cima dele", async () => {
+    const carga = adiada();
+    conversasApi.listaGuardada = vi.fn(async () => [conversa("org-a:guardada")]);
+    conversasApi.listar.mockImplementation(() => carga.promise);
+    try {
+      await renderizar("org-a");
+      await drenar();
+      expect(estado.conversas.map((c) => c.id)).toEqual(["org-a:guardada"]);
+
+      await act(async () => carga.resolve([conversa("org-a:5511")]));
+      await drenar();
+      expect(estado.conversas.map((c) => c.id)).toEqual(["org-a:5511"]);
+    } finally {
+      delete conversasApi.listaGuardada;
+    }
+  });
+
+  it("a cópia local que chega depois do banco é ignorada", async () => {
+    const guardada = adiada();
+    conversasApi.listaGuardada = vi.fn(() => guardada.promise);
+    conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+    try {
+      await renderizar("org-a");
+      await drenar();
+      await act(async () => guardada.resolve([conversa("org-a:velha")]));
+      await drenar();
+      expect(estado.conversas.map((c) => c.id)).toEqual(["org-a:5511"]);
+    } finally {
+      delete conversasApi.listaGuardada;
+    }
+  });
+});

@@ -23,6 +23,7 @@ function criarConsulta(tabela, resultado, chamadas) {
     eq: vi.fn((coluna, valor) => (alvo.filtros.push([coluna, valor]), alvo)),
     is: vi.fn((coluna, valor) => (alvo.filtros.push([coluna, valor]), alvo)),
     in: vi.fn((coluna, valores) => (alvo.filtros.push([coluna, valores]), alvo)),
+    gt: vi.fn((coluna, valor) => (alvo.filtros.push([`${coluna}>`, valor]), alvo)),
     order: vi.fn((coluna, opcoes) => ((alvo.ordem = [coluna, opcoes]), alvo)),
     limit: vi.fn((quantas) => ((alvo.limite = quantas), alvo)),
     then: (resolver) => resolver(resultado),
@@ -169,6 +170,11 @@ function bancada({
     },
     rpc: vi.fn(async (nome, argumentos) => {
       rpcs.push([nome, argumentos]);
+      // A bancada é o banco de antes da migration 20261020110000: a lista cai
+      // no caminho antigo, e todas as provas abaixo valem para ele.
+      if (nome === "nucleo_conversation_list") {
+        return { data: null, error: { code: "PGRST202", message: "Could not find the function" } };
+      }
       return rpc
         ? rpc(nome, argumentos)
         : { data: { commandId: "cmd-1", status: "pending" }, error: null };
@@ -871,9 +877,10 @@ describe("mídia com arquivo", () => {
 
     expect(uploads.bucketAssinado).toBe("whatsapp-media");
     expect(criarUrlsAssinadas).toHaveBeenCalledTimes(1);
-    expect(criarUrlsAssinadas.mock.calls[0][0]).toEqual([
-      `${ORGANIZATION_ID}/${CONNECTION_ID}/outbox/abc.webm`,
+    // Em ordem de tela, da mais velha para a mais nova; a ordem não importa ao Storage.
+    expect([...criarUrlsAssinadas.mock.calls[0][0]].sort()).toEqual([
       `${ORGANIZATION_ID}/${CONNECTION_ID}/5511987654321/wa-4.jpg`,
+      `${ORGANIZATION_ID}/${CONNECTION_ID}/outbox/abc.webm`,
     ]);
     expect(criarUrlsAssinadas.mock.calls[0][1]).toBe(3600);
 
