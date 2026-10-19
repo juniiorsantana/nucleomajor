@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft,
+  Bot,
   CalendarDays,
   CircleHelp,
   CircleStop,
@@ -23,6 +24,7 @@ import {
   Info,
   LayoutDashboard,
   ListChecks,
+  Lock,
   Maximize2,
   MessageSquareText,
   Minus,
@@ -55,7 +57,8 @@ import {
   textoDaEspera,
 } from "../../domain/chatbots";
 import { DIAS_DA_SEMANA, FUSO_PADRAO, FUSOS_DO_BRASIL, OPERADORES_LOGICOS, TIPOS_CONDICAO } from "../../domain/regras";
-import { problemaParaOServidor } from "../../domain/fluxoNoServidor";
+import { PRAZO_DA_EXECUCAO, problemaParaOServidor } from "../../domain/fluxoNoServidor";
+import { bloqueioDoFluxo, FUNCOES_DOS_BLOCOS, funcaoDaRegra, funcaoDoBloco, iaNoMenuLiberada, motivoDoCadeado } from "../../domain/funcoesDosBlocos";
 import { BotaoPrimario } from "../ui";
 import { CampoFormulario, SeletorEtiquetas } from "./gestaoCompartilhados";
 import { tiposDeNo } from "./ChatbotFlowNodes";
@@ -69,6 +72,7 @@ import {
   VERSAO_CANVAS_RAMIFICADO,
 } from "../../domain/chatbotGrafo";
 import { conexaoPermitida, criarGrafoInicial, posicoesEmColunas, serializarCanvas } from "./chatbotFlow";
+import { semDestinosEscondidos } from "../../domain/conversaoV3";
 import "./chatbot-flow.css";
 
 const entrada = "w-full rounded-ctl border border-line bg-bg px-3 py-2 text-[13px] text-fg outline-none transition-colors focus:border-accent";
@@ -97,8 +101,11 @@ const DESTINOS = {
   [DESTINOS_TRANSFERENCIA.ia]: "O agente de IA",
 };
 
-const regraDeDias = () => ({ tipo: TIPOS_CONDICAO.diaDaSemana, dias: [1, 2, 3, 4, 5], fuso: FUSO_PADRAO });
-const regraDeHorario = () => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "08:00", fim: "18:00", fuso: FUSO_PADRAO });
+// O fuso da empresa (`organizations.timezone`) é só o padrão de regra NOVA:
+// a regra gravada guarda o próprio `fuso`, e é ele que o banco e a VPS leem.
+const FusoDaEmpresa = createContext(FUSO_PADRAO);
+const regraDeDias = (fuso = FUSO_PADRAO) => ({ tipo: TIPOS_CONDICAO.diaDaSemana, dias: [1, 2, 3, 4, 5], fuso });
+const regraDeHorario = (fuso = FUSO_PADRAO) => ({ tipo: TIPOS_CONDICAO.janelaDeHorario, inicio: "08:00", fim: "18:00", fuso });
 
 /**
  * Os blocos que se pode criar. `ramificado` marca os que só existem no
@@ -130,6 +137,10 @@ const BLOCOS = [
   { id: TIPOS_PASSO.aguardar, tipo: TIPOS_PASSO.aguardar, grupo: "Tempo", titulo: "Aguardar", descricao: "Espera e segue sozinho (follow-up)", icone: Hourglass, classe: COR_NEUTRA, ramificado: true },
   { id: TIPOS_PASSO.editarEtiquetas, tipo: TIPOS_PASSO.editarEtiquetas, grupo: "Mudar o contato", titulo: "Editar etiquetas", descricao: "Organiza o contato", icone: Tags, classe: "text-success bg-success-soft" },
   { id: TIPOS_PASSO.transferir, tipo: TIPOS_PASSO.transferir, grupo: "Encerrar", titulo: "Transferir conversa", descricao: "Entrega para a IA ou para alguém", icone: Share2, classe: "text-accent-forte bg-accent-soft" },
+  // Etapa 10: a IA como bloco próprio na paleta, porque é ela que tem cadeado
+  // (`transferir:ia` exige "IA atendendo clientes"). O "Transferir conversa"
+  // continua oferecendo os dois destinos no painel.
+  { id: "atalho_ia", tipo: TIPOS_PASSO.transferir, destino: DESTINOS_TRANSFERENCIA.ia, grupo: "Encerrar", titulo: "Passar para a IA", descricao: "A IA atende e o fluxo segue por Sucesso ou Falha", icone: Bot, classe: "text-accent-forte bg-accent-soft", ramificado: true },
   { id: TIPOS_PASSO.encerrar, tipo: TIPOS_PASSO.encerrar, grupo: "Encerrar", titulo: "Encerrar", descricao: "Termina o fluxo aqui", icone: CircleStop, classe: COR_NEUTRA, ramificado: true },
 ];
 
@@ -147,15 +158,31 @@ export function blocosAgrupados(blocos, busca = "") {
     .filter((item) => item.blocos.length);
 }
 
-function passoVazio(tipo, regra = null) {
+/**
+ * Por que este bloco da paleta está trancado para a empresa, ou `null`.
+ * `recursos` nulo (o plano não foi lido) não tranca nada: a trava de verdade
+ * é a do banco, e esconder por dúvida tiraria de quem pagou.
+ */
+export function cadeadoDoBloco(bloco, recursos) {
+  if (!recursos || !bloco) return null;
+  const funcoes = [funcaoDoBloco({ tipo: bloco.tipo, destino: bloco.destino })];
+  if (bloco.regra) funcoes.push(funcaoDaRegra(bloco.regra().tipo));
+  for (const funcao of funcoes) {
+    const motivo = motivoDoCadeado(funcao, recursos);
+    if (motivo) return motivo;
+  }
+  return null;
+}
+
+function passoVazio(tipo, regra = null, destino = null, fuso = FUSO_PADRAO) {
   if (tipo === TIPOS_PASSO.enviarMensagem) return { id: novoId(), tipo, texto: "" };
   // Padrão humano de propósito: transferir para uma pessoa é sempre seguro.
-  // Passar para a IA é que precisa ser uma escolha.
+  // Passar para a IA é que precisa ser uma escolha (o bloco "Passar para a IA").
   if (tipo === TIPOS_PASSO.transferir)
-    return { id: novoId(), tipo, destino: DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
+    return { id: novoId(), tipo, destino: destino || DESTINOS_TRANSFERENCIA.humano, motivo: "", alvoIa: ALVOS_IA.recepcao, skillId: null, campanhaId: null, objetivoIa: "", retornoPassoId: null, falhaPassoId: null };
   // A pergunta mais comum de uma condição é "tem esta etiqueta?".
   if (tipo === TIPOS_PASSO.condicao)
-    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra() : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
+    return { id: novoId(), tipo, expressao: { operador: OPERADORES_LOGICOS.e, itens: [regra ? regra(fuso) : { tipo: TIPOS_CONDICAO.temEtiqueta, etiquetaId: "" }] } };
   if (tipo === TIPOS_PASSO.encerrar) return { id: novoId(), tipo };
   if (tipo === TIPOS_PASSO.perguntar)
     return {
@@ -243,6 +270,16 @@ function gatilhoParaGravar(gatilho) {
   return { ...gatilho, palavras: (gatilho.palavras || []).map((item) => item.trim()).filter(Boolean) };
 }
 
+/**
+ * O prazo da execução parada (20261018150000). Vazio não vai para o banco:
+ * vale o da empresa. O que não for número inteiro vai como está, para a
+ * conferência recusar com o motivo.
+ */
+function prazoParaGravar(form) {
+  const texto = String(form.prazoExecucaoHoras ?? "").trim();
+  return texto === "" ? {} : { prazoExecucaoHoras: Number(texto) };
+}
+
 /** O gatilho nasce completo ao trocar de tipo. */
 function gatilhoNovo(tipo) {
   if (tipo === TIPOS_GATILHO.palavra) return { tipo, palavras: [""] };
@@ -322,8 +359,14 @@ function GatilhoEditor({ gatilho, ramificado, tags, estagios, campanhas, aoMudar
 }
 
 /** "Pedir para escolher": a pergunta, as opções e o que fazer quando não entender. */
-function PerguntaEditor({ passo, aoMudar }) {
+export function PerguntaEditor({ passo, aoMudar, recursos = null }) {
   const opcoes = passo.opcoes || [];
+  // Etapa 9: a caixa só aparece para quem tem IA. Uma pergunta que já veio
+  // marcada de quando a empresa tinha IA mostra a caixa com o motivo, para dar
+  // para desmarcar (o banco recusa salvar marcada sem a função).
+  const iaLiberada = iaNoMenuLiberada(recursos);
+  const mostrarIa = iaLiberada || passo.iaQuandoNaoEntende === true;
+  const cadeadoDaIa = iaLiberada ? null : motivoDoCadeado(FUNCOES_DOS_BLOCOS.ajustes["perguntar:iaQuandoNaoEntende"], recursos);
   const mudarOpcao = (id, patch) => aoMudar({ ...passo, opcoes: opcoes.map((opcao) => (opcao.id === id ? { ...opcao, ...patch } : opcao)) });
   return (
     <div className="grid gap-4">
@@ -381,6 +424,24 @@ function PerguntaEditor({ passo, aoMudar }) {
       <CampoFormulario rotulo="Quando não entender (opcional)">
         <input value={passo.textoErro || ""} onChange={(event) => aoMudar({ ...passo, textoErro: event.target.value })} maxLength={1000} placeholder="Não entendi. Responda com o número de uma das opções:" className={entrada} />
       </CampoFormulario>
+      {mostrarIa && (
+        <label className="flex cursor-pointer items-start gap-2.5 rounded-ctl border border-line bg-surface p-3">
+          <input
+            type="checkbox"
+            checked={passo.iaQuandoNaoEntende === true}
+            disabled={!iaLiberada && passo.iaQuandoNaoEntende !== true}
+            onChange={(event) => aoMudar({ ...passo, iaQuandoNaoEntende: event.target.checked })}
+            className="mt-0.5 accent-ia"
+          />
+          <span className="min-w-0">
+            <strong className="block text-[11.5px] text-fg">Usar IA quando não entender</strong>
+            <span className="mt-0.5 block text-[10.5px] leading-relaxed text-sub">
+              Se a resposta não bater com nenhuma opção, a IA tenta descobrir qual o contato quis dizer. Só decide quando tem certeza; senão, segue como abaixo.
+            </span>
+            {cadeadoDaIa && <span className="mt-1 block text-[10.5px] leading-relaxed text-danger">{cadeadoDaIa} Desmarque para salvar.</span>}
+          </span>
+        </label>
+      )}
       <div className="rounded-ctl border border-accent/20 bg-accent-soft p-3 text-[11px] leading-relaxed text-accent-forte">
         A resposta vale pelo número, pelo nome da opção, por uma palavra dela ou por um dos sinônimos. Sem entender depois das tentativas, ou sem resposta dentro da espera, a conversa segue por <strong>Não entendeu</strong>.
       </div>
@@ -502,21 +563,22 @@ function resumoPasso(passo, tags, estagios) {
 }
 
 /** Ao trocar o tipo, a regra nasce completa — o servidor recusa regra pela metade. */
-function regraNova(tipo) {
+function regraNova(tipo, fuso = FUSO_PADRAO) {
   if (tipo === TIPOS_CONDICAO.semInteracaoHa) return { tipo, dias: 0 };
-  if (tipo === TIPOS_CONDICAO.diaDaSemana) return regraDeDias();
-  if (tipo === TIPOS_CONDICAO.janelaDeHorario) return regraDeHorario();
+  if (tipo === TIPOS_CONDICAO.diaDaSemana) return regraDeDias(fuso);
+  if (tipo === TIPOS_CONDICAO.janelaDeHorario) return regraDeHorario(fuso);
   return { tipo };
 }
 
 function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover, ramificado = false }) {
   const tipo = condicao.tipo;
+  const fusoDaEmpresa = useContext(FusoDaEmpresa);
   return (
     <div className="rounded-ctl border border-line bg-surface p-3">
       <div className="flex items-center gap-2">
         <select
           value={tipo}
-          onChange={(event) => aoMudar(regraNova(event.target.value))}
+          onChange={(event) => aoMudar(regraNova(event.target.value, fusoDaEmpresa))}
           className={`${entrada} min-w-0 flex-1 bg-bg`}
         >
           <option value={TIPOS_CONDICAO.primeiraConversa}>Sem atividade no CRM</option>
@@ -587,7 +649,7 @@ function CondicaoEditor({ condicao, tags, estagios, aoMudar, aoRemover, ramifica
       {(tipo === TIPOS_CONDICAO.diaDaSemana || tipo === TIPOS_CONDICAO.janelaDeHorario) && (
         <label className="mt-2 block">
           <span className="mb-1 block text-[11px] font-medium text-sub">Fuso do horário</span>
-          <select value={condicao.fuso || FUSO_PADRAO} onChange={(event) => aoMudar({ ...condicao, fuso: event.target.value })} className={`${entrada} bg-bg`}>
+          <select value={condicao.fuso || fusoDaEmpresa} onChange={(event) => aoMudar({ ...condicao, fuso: event.target.value })} className={`${entrada} bg-bg`}>
             {FUSOS_DO_BRASIL.map((fuso) => <option key={fuso} value={fuso}>{fuso.replace("America/", "").replace("_", " ")}</option>)}
           </select>
           <span className="mt-1 block text-[10.5px] leading-relaxed text-faint">
@@ -659,7 +721,7 @@ function ExpressaoEditor({ expressao, tags, estagios, aoMudar }) {
   );
 }
 
-function Paleta({ blocos, ramificado, aoAdicionar }) {
+function Paleta({ blocos, ramificado, cadeados = {}, aoAdicionar }) {
   const [busca, setBusca] = useState("");
   const grupos = blocosAgrupados(blocos, busca);
   return (
@@ -684,27 +746,49 @@ function Paleta({ blocos, ramificado, aoAdicionar }) {
             <section key={grupo} aria-label={grupo}>
               <h3 className="px-1.5 text-[9.5px] font-bold uppercase tracking-[.12em] text-faint">{grupo}</h3>
               <div className="mt-1.5 flex flex-col gap-1">
-                {doGrupo.map(({ id, titulo, descricao, icone: Icone, classe }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData("application/emyleads-flow", id);
-                      event.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => aoAdicionar(id)}
-                    title={`${titulo}: arraste para o mapa ou clique para adicionar`}
-                    className="group flex w-full cursor-grab items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-line hover:bg-surface active:cursor-grabbing"
-                  >
-                    <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
-                    <span className="min-w-0 flex-1">
-                      <strong className="block text-[11.5px] font-semibold text-fg">{titulo}</strong>
-                      <small className="mt-px block text-[10px] leading-[1.35] text-sub">{descricao}</small>
-                    </span>
-                    <Plus size={13} className="flex-none text-transparent group-hover:text-accent" />
-                  </button>
-                ))}
+                {doGrupo.map(({ id, titulo, descricao, icone: Icone, classe }) => {
+                  const cadeado = cadeados[id];
+                  // Etapa 10: o bloco trancado aparece, com o motivo, mas não
+                  // arrasta nem entra no mapa.
+                  if (cadeado)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-disabled="true"
+                        title={cadeado}
+                        className="flex w-full cursor-not-allowed items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left"
+                      >
+                        <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl opacity-50 ${classe}`}><Icone size={15} /></span>
+                        <span className="min-w-0 flex-1">
+                          <strong className="block text-[11.5px] font-semibold text-sub">{titulo}</strong>
+                          <small className="mt-px block text-[10px] leading-[1.35] text-faint">{cadeado}</small>
+                        </span>
+                        <Lock size={13} className="flex-none text-faint" aria-label="Bloco com cadeado" />
+                      </button>
+                    );
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("application/emyleads-flow", id);
+                        event.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onClick={() => aoAdicionar(id)}
+                      title={`${titulo}: arraste para o mapa ou clique para adicionar`}
+                      className="group flex w-full cursor-grab items-center gap-2.5 rounded-ctl border border-transparent px-2 py-1.5 text-left transition-colors hover:border-line hover:bg-surface active:cursor-grabbing"
+                    >
+                      <span className={`flex h-[30px] w-[30px] flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block text-[11.5px] font-semibold text-fg">{titulo}</strong>
+                        <small className="mt-px block text-[10px] leading-[1.35] text-sub">{descricao}</small>
+                      </span>
+                      <Plus size={13} className="flex-none text-transparent group-hover:text-accent" />
+                    </button>
+                  );
+                })}
               </div>
             </section>
           ))}
@@ -744,7 +828,7 @@ export function BarraDeZoom() {
 }
 
 /** O menu que aparece no `+`, na linha ou ao soltar uma conexão no vazio. */
-function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
+function SeletorDeBloco({ seletor, blocos, cadeados = {}, aoEscolher, aoFechar }) {
   const lista = seletor.fio
     // No meio de uma ligação só cabe bloco que continua: um bloco final ali
     // deixaria o resto do caminho solto.
@@ -757,21 +841,34 @@ function SeletorDeBloco({ seletor, blocos, aoEscolher, aoFechar }) {
         <button type="button" onClick={aoFechar} aria-label="Fechar" className="cursor-pointer rounded-ctl p-1 text-sub hover:bg-surface-hover hover:text-fg"><X size={13} /></button>
       </div>
       <div className="flow-seletor__lista">
-        {lista.map(({ id, titulo, descricao, icone: Icone, classe }) => (
-          <button key={id} type="button" role="menuitem" onClick={() => aoEscolher(id)} className="flow-seletor__item">
-            <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
-            <span className="min-w-0">
-              <strong>{titulo}</strong>
-              <small>{descricao}</small>
-            </span>
-          </button>
-        ))}
+        {lista.map(({ id, titulo, descricao, icone: Icone, classe }) => {
+          const cadeado = cadeados[id];
+          return (
+            <button
+              key={id}
+              type="button"
+              role="menuitem"
+              aria-disabled={cadeado ? "true" : undefined}
+              title={cadeado || undefined}
+              onClick={() => !cadeado && aoEscolher(id)}
+              className="flow-seletor__item"
+            >
+              <span className={`flex h-8 w-8 flex-none items-center justify-center rounded-ctl ${classe}`}><Icone size={15} /></span>
+              <span className="min-w-0 flex-1">
+                <strong>{titulo}</strong>
+                <small>{cadeado || descricao}</small>
+              </span>
+              {cadeado && <Lock size={13} className="flex-none text-faint" aria-label="Bloco com cadeado" />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPasso, tags, estagios, inteligencia, aoRemover }) {
+function Inspetor({ ramificado, recursos = null, selecionado, form, setForm, passos, atualizarPasso, tags, estagios, inteligencia, aoRemover }) {
+  const cadeadoDaIa = recursos ? motivoDoCadeado(funcaoDoBloco({ tipo: TIPOS_PASSO.transferir, destino: DESTINOS_TRANSFERENCIA.ia }), recursos) : null;
   const passo = passos.find((item) => item.id === selecionado);
   const tiposDisponiveis = BLOCOS.filter((bloco) => bloco.id === bloco.tipo && (ramificado || !bloco.ramificado));
 
@@ -807,6 +904,29 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
               campanhas={(inteligencia.campaigns || []).filter((campaign) => campaign.status !== "archived")}
               aoMudar={(gatilho) => setForm((atual) => ({ ...atual, gatilho }))}
             />
+            {ramificado && (
+              <CampoFormulario rotulo="Se o fluxo parar, fecha sozinho depois de">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={PRAZO_DA_EXECUCAO.minimo}
+                    max={PRAZO_DA_EXECUCAO.maximo}
+                    step={1}
+                    value={form.prazoExecucaoHoras}
+                    placeholder={String(PRAZO_DA_EXECUCAO.padrao)}
+                    aria-label="Horas até o fluxo parado fechar sozinho"
+                    onChange={(event) => setForm((atual) => ({ ...atual, prazoExecucaoHoras: event.target.value }))}
+                    className={`${entrada} w-24`}
+                  />
+                  <span className="text-[11.5px] text-sub">horas</span>
+                </div>
+                <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">
+                  Um envio que ninguém confirmou ou um passo que não andou não prendem o contato para sempre: depois
+                  desse prazo o fluxo fecha e ele pode entrar em outro. Vazio, vale o prazo da empresa ({PRAZO_DA_EXECUCAO.padrao} horas, se ninguém mudou). As esperas de “Aguardar” e das perguntas têm prazo próprio.
+                </p>
+              </CampoFormulario>
+            )}
             {!GATILHOS_SEM_MENSAGEM.has(form.gatilho?.tipo) && (
               <div>
                 <p className="text-[11px] font-semibold text-fg">Condições</p>
@@ -861,7 +981,7 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
                 </p>
               </CampoFormulario>
             ) : passo.tipo === TIPOS_PASSO.perguntar ? (
-              <PerguntaEditor passo={passo} aoMudar={atualizarPasso} />
+              <PerguntaEditor passo={passo} aoMudar={atualizarPasso} recursos={recursos} />
             ) : passo.tipo === TIPOS_PASSO.coletar ? (
               <ColetaEditor passo={passo} aoMudar={atualizarPasso} />
             ) : passo.tipo === TIPOS_PASSO.aguardar ? (
@@ -881,8 +1001,20 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
                     className={entrada}
                   >
                     <option value={DESTINOS_TRANSFERENCIA.humano}>Um atendente humano</option>
-                    <option value={DESTINOS_TRANSFERENCIA.ia}>O agente de IA</option>
+                    <option value={DESTINOS_TRANSFERENCIA.ia} disabled={Boolean(cadeadoDaIa) && passo.destino !== DESTINOS_TRANSFERENCIA.ia}>
+                      {cadeadoDaIa ? "O agente de IA (com cadeado)" : "O agente de IA"}
+                    </option>
                   </select>
+                  {cadeadoDaIa && (
+                    <p className="mt-1.5 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-warning">
+                      <Lock size={12} className="mt-px flex-none" aria-hidden="true" />
+                      <span>
+                        {passo.destino === DESTINOS_TRANSFERENCIA.ia
+                          ? `Este bloco está com cadeado. ${cadeadoDaIa} Ao rodar, a conversa segue pela saída “Falha”; para salvar, entregue a uma pessoa.`
+                          : cadeadoDaIa}
+                      </span>
+                    </p>
+                  )}
                 </CampoFormulario>
                 <CampoFormulario rotulo="Motivo (opcional)">
                   <input
@@ -976,8 +1108,6 @@ function Inspetor({ ramificado, selecionado, form, setForm, passos, atualizarPas
 }
 
 /** Para o formato com caminhos: tira os campos que o canvas substituiu. */
-const semDestinosEscondidos = (passo) =>
-  passo.tipo === TIPOS_PASSO.transferir ? { ...passo, retornoPassoId: null, falhaPassoId: null } : passo;
 
 /**
  * O construtor de fluxo.
@@ -988,9 +1118,15 @@ const semDestinosEscondidos = (passo) =>
  * Um fluxo que já é v3 abre como v3 mesmo sem a função — regravá-lo como v2
  * apagaria os caminhos.
  */
-export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false }) {
+export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recarregar, aoFechar, ramificado: liberado = false, recursos = null, fuso = FUSO_PADRAO }) {
   const ramificado = liberado || chatbot?.canvas?.versao === VERSAO_CANVAS_RAMIFICADO;
   const blocos = useMemo(() => BLOCOS.filter((bloco) => ramificado || !bloco.ramificado), [ramificado]);
+  // Etapa 10: o motivo do cadeado de cada bloco da paleta, pela lista única
+  // (`funcoesDosBlocos.js`). Vazio quando o plano libera tudo.
+  const cadeados = useMemo(
+    () => Object.fromEntries(blocos.map((bloco) => [bloco.id, cadeadoDoBloco(bloco, recursos)]).filter(([, motivo]) => motivo)),
+    [blocos, recursos]
+  );
   const [inteligencia, setInteligencia] = useState({ skills: [], campaigns: [] });
   useEffect(() => {
     // Sem Inteligência (plano Base) a carga dela falha, e o gatilho "Lead da
@@ -1015,6 +1151,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         ativo: chatbot?.ativo ?? true,
         condicoes: chatbot?.condicoes?.map((condicao) => ({ ...condicao })) || [{ tipo: TIPOS_CONDICAO.primeiraConversa }],
         gatilho: { ...gatilhoDo(chatbot) },
+        prazoExecucaoHoras: chatbot?.prazoExecucaoHoras == null ? "" : String(chatbot.prazoExecucaoHoras),
       },
       passos,
       grafo: criarGrafoInicial(passos, chatbot?.canvas, { ramificado }),
@@ -1043,10 +1180,22 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
     return problemaParaOServidor({
       condicoes: condicoesParaGravar(form),
       gatilho: gatilhoParaGravar(form.gatilho),
+      ...prazoParaGravar(form),
       passos: passos.map(semDestinosEscondidos),
       canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
     });
   }, [ramificado, caminho.erro, form, passos, conexoes]);
+  // Etapa 10: o fluxo usa bloco que o plano não libera. É o mesmo motivo que
+  // o banco dá ao salvar (`chatbot_definitions_plan_guard`).
+  const cadeadoDoFluxo = useMemo(
+    () => (ramificado && recursos ? bloqueioDoFluxo({
+      condicoes: condicoesParaGravar(form),
+      gatilho: gatilhoParaGravar(form.gatilho),
+      passos,
+      canvas: serializarCanvas([], conexoes, VERSAO_CANVAS_RAMIFICADO),
+    }, recursos) : null),
+    [ramificado, recursos, form, passos, conexoes]
+  );
   const assinaturaInicial = useMemo(
     () => JSON.stringify({ form: iniciais.form, passos: iniciais.passos, canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao) }),
     [iniciais, versao]
@@ -1116,12 +1265,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
           // só existem quando há quem as execute.
           saidas: !ramificado && passo?.tipo === TIPOS_PASSO.transferir ? [] : saidas,
           rotulos: passo ? Object.fromEntries(saidas.map((saida) => [saida, rotuloDaSaida(passo, saida)])) : {},
+          cadeado: passo && recursos ? motivoDoCadeado(funcaoDoBloco(passo), recursos) : null,
           livres: saidasLivres(no.id, saidas),
           aoPedirBloco: (saida, evento) => abrirSeletor(evento, { origem: { source: no.id, saida } }),
         },
       };
     }),
-    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado, inteligencia]
+    [nos, form, passos, tags, estagios, ordemVisual, indicePrimeiraMensagem, conexoes, ramificado, inteligencia, recursos]
   );
 
   const focarFio = (id) => {
@@ -1201,8 +1351,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   const criarBloco = (idDoBloco, { posicao = null, origem = null, fio = null } = {}) => {
     const bloco = BLOCOS.find((item) => item.id === idDoBloco);
     if (!bloco) return;
+    // Arrastar e soltar também passa por aqui: bloco com cadeado não entra.
+    if (cadeados[bloco.id]) {
+      setErro(cadeados[bloco.id]);
+      return;
+    }
     const { tipo } = bloco;
-    const passo = passoVazio(tipo, bloco.regra);
+    const passo = passoVazio(tipo, bloco.regra, bloco.destino, fuso);
     const saidasDoNovo = !ramificado && tipo === TIPOS_PASSO.transferir ? [] : saidasDoPasso(passo);
     const ligacoes = [];
     let removerId = null;
@@ -1325,8 +1480,20 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       if (ramificado) {
         // A mesma conferência que o servidor faz quando a conversa começa:
         // recusar agora, com o motivo, em vez de falhar na frente do cliente.
-        const problema = problemaParaOServidor({ condicoes, gatilho, passos: passosGravados, canvas });
+        const problema = problemaParaOServidor({ condicoes, gatilho, ...prazoParaGravar(form), passos: passosGravados, canvas });
         if (problema) throw new Error(problema);
+        // Etapa 10: como o banco, só recusa quando o desenho muda ou o fluxo
+        // volta a ficar ativo; renomear ou desligar um fluxo antigo passa.
+        const desenho = (dados) => JSON.stringify(dados);
+        const mudouDesenho = novo || desenho({ condicoes, gatilho, ...prazoParaGravar(form), passos: passosGravados, canvas })
+          !== desenho({
+            condicoes: condicoesParaGravar(iniciais.form),
+            gatilho: gatilhoParaGravar(iniciais.form.gatilho),
+            ...prazoParaGravar(iniciais.form),
+            passos: iniciais.passos.map(semDestinosEscondidos),
+            canvas: serializarCanvas(iniciais.grafo.nos, iniciais.grafo.conexoes, versao),
+          });
+        if (cadeadoDoFluxo && (mudouDesenho || (form.ativo && !iniciais.form.ativo))) throw new Error(cadeadoDoFluxo);
       }
       const validacao = validarGrafo(passosGravados, conexoes, { versao });
       if (validacao.erro) throw new Error(validacao.erro);
@@ -1337,6 +1504,9 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         gatilho,
         passos: validacao.passos,
         canvas,
+        // Só com caminhos. `undefined` apaga o prazo antigo ao atualizar (o
+        // patch é mesclado e o JSON não leva a chave).
+        ...(ramificado ? { prazoExecucaoHoras: undefined, ...prazoParaGravar(form) } : {}),
       };
       if (novo) await api.chatbots.criar(dados);
       else await api.chatbots.atualizar({ id: chatbot.id, patch: dados });
@@ -1350,6 +1520,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
   };
 
   return (
+    <FusoDaEmpresa.Provider value={fuso}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
       <header className="z-20 flex h-[68px] flex-none items-center gap-3 border-b border-line bg-bg px-5">
         <button type="button" onClick={aoFechar} title="Voltar para chatbots" className="cursor-pointer rounded-ctl p-2 text-sub hover:bg-surface-hover hover:text-fg"><ArrowLeft size={18} /></button>
@@ -1363,13 +1534,13 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span
-            title={pendencia || undefined}
-            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${saidasSoltas || pendencia || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
+            title={pendencia || cadeadoDoFluxo || undefined}
+            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold lg:inline-flex ${saidasSoltas || pendencia || cadeadoDoFluxo || alterado ? "bg-warning/10 text-warning" : "bg-success-soft text-success"}`}
           >
             <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
             {saidasSoltas
               ? `${saidasSoltas} ${saidasSoltas === 1 ? "saída sem destino" : "saídas sem destino"}`
-              : pendencia ? "Fluxo incompleto" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
+              : pendencia ? "Fluxo incompleto" : cadeadoDoFluxo ? "Bloco com cadeado" : alterado ? "Alterações não salvas" : `${passos.length + 1} blocos conectados`}
           </span>
           <button type="button" onClick={organizar} className="flex cursor-pointer items-center gap-1.5 rounded-ctl border border-line px-3 py-2 text-[11.5px] font-semibold text-sub hover:border-line-strong hover:text-fg">
             <LayoutDashboard size={14} /> Organizar
@@ -1379,7 +1550,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <Paleta blocos={blocos} ramificado={ramificado} aoAdicionar={(idDoBloco) => criarBloco(idDoBloco)} />
+        <Paleta blocos={blocos} ramificado={ramificado} cadeados={cadeados} aoAdicionar={(idDoBloco) => criarBloco(idDoBloco)} />
         <main ref={area} className="chatbot-flow relative min-w-0 flex-1 bg-surface">
           {erro && (
             <div role="alert" className="absolute left-1/2 top-4 z-20 flex max-w-[520px] -translate-x-1/2 items-center gap-2 rounded-ctl border border-danger/25 bg-bg px-4 py-2.5 text-[11.5px] font-medium text-danger ">
@@ -1387,7 +1558,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
             </div>
           )}
           {seletor && (
-            <SeletorDeBloco seletor={seletor} blocos={blocos} aoEscolher={escolherNoSeletor} aoFechar={() => setSeletor(null)} />
+            <SeletorDeBloco seletor={seletor} blocos={blocos} cadeados={cadeados} aoEscolher={escolherNoSeletor} aoFechar={() => setSeletor(null)} />
           )}
           <ReactFlow
             nodes={nosExibidos}
@@ -1458,6 +1629,7 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         </main>
         <Inspetor
           ramificado={ramificado}
+          recursos={recursos}
           selecionado={selecionado}
           form={form}
           setForm={setForm}
@@ -1470,5 +1642,6 @@ export default function ChatbotEditor({ chatbot, tags = [], estagios = [], recar
         />
       </div>
     </div>
+    </FusoDaEmpresa.Provider>
   );
 }

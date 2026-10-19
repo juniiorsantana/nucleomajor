@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Bot, BotOff, Check, ChevronDown, ChevronRight, Copy, Headphones, Inbox, Pause, Pencil, Play, Plus, Power, RotateCcw, Trash2 } from "lucide-react";
 import { api } from "../../data/client";
+import { conexoesSemFluxo, textoDoAvisoSemFluxo } from "../../domain/conexaoDoFluxo";
 import { handoffGroup, maskPhone } from "../../domain/customerAssistant";
 import { fmtDataHora, fmtRelativo } from "../../lib/formato";
 import { useAutomacao } from "../../ui/useAutomacao";
@@ -61,6 +62,36 @@ function AvisoAutomacao() {
         {pausada ? <Play size={13} /> : <Pause size={13} />}
         {pausada ? "Retomar" : "Pausar tudo"}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Etapa 11: a conexão que diz, pelo heartbeat, que não roda fluxo. Sem este
+ * aviso o fluxo aparece Ativo e ninguém recebe resposta.
+ */
+function AvisoConexaoSemFluxo({ organizationId, temFluxoAtivo }) {
+  const [semFluxo, setSemFluxo] = useState([]);
+  useEffect(() => {
+    if (!organizationId || !temFluxoAtivo) return undefined;
+    let vivo = true;
+    api.gateway
+      .conexoes({ organizationId })
+      .then((estado) => vivo && setSemFluxo(conexoesSemFluxo(estado?.conexoes)))
+      // Sem a leitura das conexões não há o que afirmar: nada de aviso.
+      .catch(() => vivo && setSemFluxo([]));
+    return () => {
+      vivo = false;
+    };
+  }, [organizationId, temFluxoAtivo]);
+  if (!temFluxoAtivo || !semFluxo.length) return null;
+  return (
+    <div role="status" className="mb-4 flex items-center gap-3 rounded-ctl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">
+      <AlertTriangle size={16} className="flex-none" />
+      <span className="flex-1">
+        <strong className="font-semibold">{textoDoAvisoSemFluxo(semFluxo)}</strong>{" "}
+        Peça à Núcleo Major para ligar o executor de fluxos nesta conexão.
+      </span>
     </div>
   );
 }
@@ -240,6 +271,7 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar, sessao }
         <nav className="mb-4 flex w-fit rounded-ctl border border-line bg-bg p-1" aria-label="Áreas de chatbots"><button onClick={() => { setErro(""); setView("flows"); }} className={`rounded-ctl px-3 py-2 text-[11px] font-semibold ${view === "flows" ? "bg-accent text-white" : "text-sub"}`}>Fluxos</button><button onClick={() => { setErro(""); setView("handoffs"); }} className={`inline-flex items-center gap-1.5 rounded-ctl px-3 py-2 text-[11px] font-semibold ${view === "handoffs" ? "bg-accent text-white" : "text-sub"}`}><Headphones size={13} />Atendimentos</button></nav>
         <div className={view === "flows" ? "" : "hidden"}>
         <AvisoAutomacao />
+        <AvisoConexaoSemFluxo organizationId={sessao?.organizacaoAtual?.id} temFluxoAtivo={chatbots.some((bot) => bot.ativo)} />
         {erro && <div className="mb-4 rounded-ctl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">{erro}</div>}
         {filtrados.length === 0 ? (
           <EstadoVazio titulo={busca ? "Nenhum fluxo encontrado" : "Nenhum fluxo criado"} descricao={busca ? "Tente outro termo de busca." : "Crie o primeiro fluxo de resposta automática."} />

@@ -1,5 +1,6 @@
 import { obterSupabaseWeb } from "./supabaseClient.js";
 import { webArea } from "./storage.js";
+import { FUSOS_DO_BRASIL } from "../domain/regras.js";
 
 const CHAVE_WORKSPACE = "emyleads.workspace.atual";
 const CHAVE_MIGRACAO_CONTROLE = "emyleads.migracao.controle";
@@ -123,13 +124,21 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
   const listarOrganizacoes = async (userId) => {
     const { data, error } = await supabase
       .from("organization_members")
-      .select("role,status,organization:organizations(id,name,slug)")
+      // `*` e não a lista de colunas: `timezone` (20261018130000) pode ainda
+      // não existir no banco, e pedir uma coluna ausente derrubaria o login.
+      .select("role,status,organization:organizations(*)")
       .eq("user_id", userId)
       .eq("status", "active");
     if (error) throw erroDaResposta(error, "organizacoes-lista-falhou");
 
     return (data || [])
-      .map((item) => ({ ...item.organization, papel: item.role }))
+      .map(({ organization: org, role }) => ({
+        id: org?.id,
+        name: org?.name,
+        slug: org?.slug,
+        timezone: org?.timezone ?? null,
+        papel: role,
+      }))
       .filter((item) => item.id)
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   };
@@ -694,6 +703,39 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       if (error) throw erroDaResposta(error, "organizacao-atualizar-falhou");
       if (!data) {
         const erro = new Error("Só o dono ou um administrador renomeia a empresa.");
+        erro.codigo = "organizacao-sem-permissao";
+        throw erro;
+      }
+      return data;
+    },
+
+    /**
+     * O fuso da empresa: só o padrão das regras novas de dia e horário no
+     * construtor de fluxos (as gravadas guardam o próprio). Mesma policy do
+     * nome (`can_manage_org`), e o check do banco recusa fuso fora da lista.
+     */
+    "organizacoes.definirFuso": async ({ fuso } = {}) => {
+      const atual = await estado();
+      const organizacao = atual?.organizacaoAtual;
+      if (!organizacao) {
+        const erro = new Error("Nenhuma empresa selecionada.");
+        erro.codigo = "workspace-ausente";
+        throw erro;
+      }
+      if (!FUSOS_DO_BRASIL.includes(fuso)) {
+        const erro = new Error("Escolha um dos fusos do Brasil.");
+        erro.codigo = "organizacao-fuso-invalido";
+        throw erro;
+      }
+      const { data, error } = await supabase
+        .from("organizations")
+        .update({ timezone: fuso })
+        .eq("id", organizacao.id)
+        .select("id,name,slug,timezone")
+        .maybeSingle();
+      if (error) throw erroDaResposta(error, "organizacao-fuso-falhou");
+      if (!data) {
+        const erro = new Error("Só o dono ou um administrador muda o fuso da empresa.");
         erro.codigo = "organizacao-sem-permissao";
         throw erro;
       }

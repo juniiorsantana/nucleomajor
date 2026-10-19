@@ -1,0 +1,135 @@
+[
+  {
+    "nome": "linear sem conexões (registro antigo)",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "marca", "tipo": "editar_etiquetas", "adicionar": ["11111111-1111-4111-8111-111111111111"], "remover": [] },
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "Oi {nome}, já te respondo." },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano", "motivo": "" }
+      ]
+    },
+    "esperado": "convertido"
+  },
+  {
+    "nome": "como o “Teste do construtor (só etiqueta TESTE-FLUXO)”, ainda no v2",
+    "definicao": {
+      "condicoes": [{ "tipo": "tem_etiqueta", "etiquetaId": "22222222-2222-4222-8222-222222222222" }],
+      "gatilho": { "tipo": "mensagem" },
+      "passos": [
+        { "id": "teste", "tipo": "enviar_mensagem", "texto": "Teste do fluxo: recebido." },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano", "motivo": "teste" }
+      ],
+      "canvas": {
+        "versao": 2,
+        "nos": [{ "id": "entrada", "x": 72, "y": 176 }, { "id": "condicoes", "x": 452, "y": 244 }, { "id": "teste", "x": 832, "y": 176 }, { "id": "equipe", "x": 1212, "y": 244 }],
+        "conexoes": [
+          { "source": "entrada", "saida": "padrao", "target": "condicoes" },
+          { "source": "condicoes", "saida": "padrao", "target": "teste" },
+          { "source": "teste", "saida": "padrao", "target": "equipe" }
+        ]
+      }
+    },
+    "esperado": "convertido"
+  },
+  {
+    "nome": "o “Teste do construtor” já em v3 fica como está",
+    "definicao": {
+      "condicoes": [{ "tipo": "tem_etiqueta", "etiquetaId": "22222222-2222-4222-8222-222222222222" }],
+      "gatilho": { "tipo": "mensagem" },
+      "passos": [
+        { "id": "teste", "tipo": "enviar_mensagem", "texto": "Teste do fluxo: recebido." },
+        { "id": "fim", "tipo": "encerrar" }
+      ],
+      "canvas": {
+        "versao": 3,
+        "nos": [],
+        "conexoes": [
+          { "source": "entrada", "saida": "padrao", "target": "condicoes" },
+          { "source": "condicoes", "saida": "padrao", "target": "teste" },
+          { "source": "teste", "saida": "padrao", "target": "fim" }
+        ]
+      }
+    },
+    "esperado": "ja_v3"
+  },
+  {
+    "nome": "fim solto ganha um Encerrar",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [{ "id": "oi", "tipo": "enviar_mensagem", "texto": "Bem-vindo!" }],
+      "canvas": {
+        "versao": 2,
+        "nos": [{ "id": "oi", "x": 832, "y": 176 }],
+        "conexoes": [
+          { "source": "entrada", "saida": "padrao", "target": "condicoes" },
+          { "source": "condicoes", "saida": "padrao", "target": "oi" }
+        ]
+      }
+    },
+    "esperado": "convertido"
+  },
+  {
+    "nome": "duas mensagens: o linear manda uma, o v3 mandaria duas",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "Oi" },
+        { "id": "menu", "tipo": "enviar_mensagem", "texto": "Escolha uma opção" },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano" }
+      ]
+    },
+    "esperado": "recusado",
+    "motivo": "comportamento_muda"
+  },
+  {
+    "nome": "etiqueta depois da mensagem: o linear ignora, o v3 aplicaria",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "Oi" },
+        { "id": "marca", "tipo": "editar_etiquetas", "adicionar": ["11111111-1111-4111-8111-111111111111"], "remover": [] },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano" }
+      ]
+    },
+    "esperado": "recusado",
+    "motivo": "comportamento_muda"
+  },
+  {
+    "nome": "transferir para a IA não tem equivalente",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "Oi" },
+        { "id": "ia", "tipo": "transferir", "destino": "ia", "retornoPassoId": null, "falhaPassoId": null }
+      ]
+    },
+    "esperado": "recusado",
+    "motivo": "transferir_para_ia"
+  },
+  {
+    "nome": "mensagem vazia: o banco recusaria",
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "" },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano" }
+      ]
+    },
+    "esperado": "recusado",
+    "motivo": "servidor_recusaria"
+  },
+  {
+    "nome": "empresa sem a função chatbots: o plano não libera",
+    "recursos": { "chatbots": false },
+    "definicao": {
+      "condicoes": [{ "tipo": "primeira_conversa" }],
+      "passos": [
+        { "id": "oi", "tipo": "enviar_mensagem", "texto": "Oi" },
+        { "id": "equipe", "tipo": "transferir", "destino": "humano" }
+      ]
+    },
+    "esperado": "recusado",
+    "motivo": "plano_nao_libera"
+  }
+]

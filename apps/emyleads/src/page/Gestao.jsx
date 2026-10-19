@@ -4,6 +4,7 @@ import { api } from "../data/client";
 import { TIPOS_GATILHO, gatilhoDo } from "../domain/chatbots";
 import { PAPEIS } from "../ui/papeis";
 import { NOMES_DOS_PLANOS_COM_IA, planoLibera } from "./plano";
+import { fusoDaOrganizacao } from "../domain/regras";
 import { corDaPessoa, nomeCurto } from "../ui/perfil";
 import { paraSlug } from "../lib/texto";
 import Contatos from "./telas/Contatos";
@@ -765,8 +766,14 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
   const fluxosManuais = (dados?.chatbots || []).filter(
     (chatbot) => chatbot.ativo && chatbot.canvas?.versao === 3 && gatilhoDo(chatbot).tipo === TIPOS_GATILHO.manual,
   );
-  const iniciarFluxo = ({ contato, chatbotId }) =>
-    api.conversas.iniciarFluxo({ contatoId: contato.remoteId || contato.id, chatbotId });
+  // A ficha acompanha o desfecho pelo `desfecho` que volta junto.
+  const iniciarFluxo = async ({ contato, chatbotId }) => {
+    const resultado = await api.conversas.iniciarFluxo({ contatoId: contato.remoteId || contato.id, chatbotId });
+    return {
+      ...resultado,
+      desfecho: resultado?.comandoId ? () => api.conversas.desfechoDoFluxo({ comandoId: resultado.comandoId }) : null,
+    };
+  };
 
   return (
     <div className="portal-shell flex h-dvh bg-surface text-fg">
@@ -869,6 +876,10 @@ export default function Gestao({ sessao = null, atualizarSessao = null, migracao
               // da VPS, e liberar por dúvida gravaria um fluxo que a conexão
               // da empresa não sabe executar.
               ramificado={recursos?.fluxos_ramificados === true}
+              // Etapa 10: cada bloco depende da função do plano (cadeado).
+              recursos={recursos}
+              // Etapa 4: regra nova de dia/horário nasce no fuso da empresa.
+              fuso={fusoDaOrganizacao(sessao?.organizacaoAtual)}
             />
           </Suspense>
         ) : tela === "contatos" ? (

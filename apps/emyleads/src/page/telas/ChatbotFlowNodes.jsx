@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import { CircleStop, Hourglass, ListChecks, MessageSquareText, Plus, Radio, Share2, Split, Tags, TextCursorInput } from "lucide-react";
+import { CircleStop, Hourglass, ListChecks, Lock, MessageSquareText, Plus, Radio, Share2, Split, Tags, TextCursorInput } from "lucide-react";
 import { ROTULOS_SAIDA } from "../../domain/chatbots";
 
 /**
@@ -173,6 +173,13 @@ export function NoAcao({ data, selected }) {
         {/* Só no v2: lá o executor para na primeira mensagem. No v3 cada
             bloco roda na sua vez, e o aviso mentiria. */}
         {data.alerta && <span className="flow-node__warning">Não executado após a 1ª mensagem</span>}
+        {/* Etapa 10: a empresa não tem a função deste bloco. Ao rodar, ele
+            sai pela Falha (ou o fluxo termina); salvar exige trocá-lo. */}
+        {data.cadeado && (
+          <span className="flow-node__cadeado" title={data.cadeado}>
+            <Lock size={11} aria-hidden="true" /> Bloco com cadeado
+          </span>
+        )}
         {saidas.length > 1 && (
           <SaidasNomeadas
             saidas={saidas.map((nome) => ({ nome, livre: livres.has(nome) }))}

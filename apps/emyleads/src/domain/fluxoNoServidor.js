@@ -124,6 +124,10 @@ function problemaDaPergunta(passo, nome) {
   if (tamanho > LIMITES_DO_SERVIDOR.texto) return `A pergunta do bloco ${nome} passa de ${LIMITES_DO_SERVIDOR.texto} caracteres.`;
   if (Object.hasOwn(passo, "prazoHoras") && !inteiroEntre(passo.prazoHoras, 1, 168))
     return `O prazo do bloco ${nome} precisa ficar entre 1 e 168 horas.`;
+  // Etapa 9: "Usar IA quando não entender", só no escolher e só sim/não.
+  if (Object.hasOwn(passo, "iaQuandoNaoEntende")
+    && (passo.tipo !== TIPOS_PASSO.perguntar || typeof passo.iaQuandoNaoEntende !== "boolean"))
+    return `A opção "Usar IA quando não entender" do bloco ${nome} é inválida.`;
   if (passo.tipo === TIPOS_PASSO.coletar) {
     if (!VARIAVEL.test(String(passo.variavel || "")))
       return `O nome da variável do bloco ${nome} usa só letras minúsculas, números e _, e começa com letra.`;
@@ -171,6 +175,21 @@ export function problemaDoGatilho(gatilho) {
     return "Escolha a etapa do funil que começa o fluxo.";
   if (gatilho.tipo === TIPOS_GATILHO.campanha && !UUID.test(String(gatilho.campanhaId || "")))
     return "Escolha a campanha que começa o fluxo.";
+  return null;
+}
+
+/** Quanto uma execução pode ficar parada antes de fechar sozinha (20261018150000). */
+export const PRAZO_DA_EXECUCAO = { minimo: 1, maximo: 720, padrao: 24 };
+
+/**
+ * `flow_validate`: o prazo da execução parada, se o fluxo disser um. Sem o
+ * campo, vale o da empresa (24 h por padrão).
+ */
+export function problemaDoPrazoDaExecucao(definicao) {
+  if (!definicao || !Object.prototype.hasOwnProperty.call(definicao, "prazoExecucaoHoras")) return null;
+  const horas = definicao.prazoExecucaoHoras;
+  if (!Number.isInteger(horas) || horas < PRAZO_DA_EXECUCAO.minimo || horas > PRAZO_DA_EXECUCAO.maximo)
+    return `O fluxo parado fecha sozinho entre ${PRAZO_DA_EXECUCAO.minimo} e ${PRAZO_DA_EXECUCAO.maximo} horas.`;
   return null;
 }
 
@@ -239,6 +258,8 @@ export function problemaParaOServidor(definicao) {
   if (!Array.isArray(conexoes)) return "O fluxo está sem conexões.";
   if (conexoes.length > LIMITES_DO_SERVIDOR.conexoes) return "O fluxo tem conexões demais.";
   if (JSON.stringify(definicao).length > LIMITES_DO_SERVIDOR.tamanho) return "O fluxo ficou grande demais.";
+  const prazo = problemaDoPrazoDaExecucao(definicao);
+  if (prazo) return prazo;
 
   const problemaDaEntrada = problemaDaExpressao(definicao.condicoes, "O bloco “Condições”");
   if (problemaDaEntrada) return problemaDaEntrada;

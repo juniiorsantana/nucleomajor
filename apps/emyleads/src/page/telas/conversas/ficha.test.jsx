@@ -4,7 +4,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FichaLateral } from "./ficha";
+import { FichaLateral, textoDoDesfechoDoFluxo } from "./ficha";
 
 let container;
 let root;
@@ -203,6 +203,47 @@ describe("iniciar fluxo pela ficha", () => {
     expect(container.querySelector('[role="status"]').textContent).toContain("“Reativar” vai começar");
   });
 
+  it("diz que a conversa assumida voltou para o robô", async () => {
+    const iniciar = vi.fn(async () => ({ enfileirado: true, devolvidoAoBot: true, desfecho: null }));
+    renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={fluxos} aoIniciarFluxo={iniciar} />);
+    const botao = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "Iniciar");
+    await act(async () => {
+      botao.click();
+    });
+    expect(container.querySelector('[role="status"]').textContent).toContain("voltou para o robô");
+  });
+
+  it("acompanha o comando e mostra o desfecho real", async () => {
+    vi.useFakeTimers();
+    try {
+      const respostas = [
+        { situacao: "pending", comecou: null, motivo: "" },
+        { situacao: "completed", comecou: false, motivo: "human_attending" },
+      ];
+      const desfecho = vi.fn(async () => respostas.shift());
+      const iniciar = vi.fn(async () => ({ enfileirado: true, devolvidoAoBot: false, desfecho }));
+      renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={fluxos} aoIniciarFluxo={iniciar} />);
+      const botao = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "Iniciar");
+      await act(async () => {
+        botao.click();
+      });
+      expect(container.querySelector('[role="status"]').textContent).toContain("vai começar em instantes");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(container.querySelector('[role="status"]').textContent).toContain("vai começar em instantes");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      const status = container.querySelector('[role="status"]');
+      expect(status.textContent).toBe("“Follow-up 24h” não começou: alguém da equipe está atendendo esta conversa.");
+      expect(status.className).toContain("text-danger");
+      expect(desfecho).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("mostra a recusa do banco", async () => {
     const iniciar = vi.fn(async () => { throw new Error("Esse fluxo não está mais ativo."); });
     renderizar(<FichaLateral {...base} contato={contato} fluxosManuais={fluxos} aoIniciarFluxo={iniciar} />);
@@ -211,6 +252,23 @@ describe("iniciar fluxo pela ficha", () => {
       botao.click();
     });
     expect(container.querySelector('[role="status"]').textContent).toBe("Esse fluxo não está mais ativo.");
+  });
+});
+
+describe("o desfecho do disparo manual em texto", () => {
+  it("espera enquanto o WhatsApp não pegou o pedido", () => {
+    expect(textoDoDesfechoDoFluxo(null, "F")).toBeNull();
+    expect(textoDoDesfechoDoFluxo({ situacao: "pending" }, "F")).toBeNull();
+    expect(textoDoDesfechoDoFluxo({ situacao: "claimed" }, "F")).toBeNull();
+  });
+
+  it("diz quando começou e por que não começou", () => {
+    expect(textoDoDesfechoDoFluxo({ situacao: "completed", comecou: true }, "F")).toEqual({ tipo: "ok", texto: "“F” começou." });
+    expect(textoDoDesfechoDoFluxo({ situacao: "failed", motivo: "plan_feature_missing" }, "F").texto)
+      .toBe("“F” não começou: o plano da empresa não tem uma função que o fluxo usa.");
+    expect(textoDoDesfechoDoFluxo({ situacao: "expired" }, "F").texto).toContain("não pegou o pedido em 1 hora");
+    expect(textoDoDesfechoDoFluxo({ situacao: "failed", motivo: "outra_coisa" }, "F").texto)
+      .toBe("“F” não começou: o WhatsApp recusou o pedido.");
   });
 });
 

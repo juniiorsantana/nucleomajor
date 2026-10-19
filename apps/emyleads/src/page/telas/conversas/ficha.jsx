@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -142,27 +142,77 @@ function AtendimentoPelaIA({ conversa, contato, etiquetas, aoConsultar, aoDefini
  * manual. O pedido vai para a fila da VPS, que roda o fluxo como robô — mesmo
  * que o contato tenha a etiqueta "Não atender IA", porque foi alguém da equipe
  * que escolheu. Um contato por vez, de propósito: isto não é disparo em massa.
+ * Numa conversa que a equipe assumiu, iniciar devolve a conversa ao robô
+ * (decisão do dono, 18/10/2026), e a ficha diz isso e o desfecho real.
  */
+// Por que o fluxo não começou, nas palavras de quem atende. As chaves são os
+// motivos que o runtime grava no comando (`runtime_commands._disparar_fluxo`).
+const MOTIVOS_DO_FLUXO = {
+  human_attending: "alguém da equipe está atendendo esta conversa",
+  automation_paused: "a automação deste WhatsApp está pausada",
+  flow_start_failed: "o contato já está num fluxo, ou o fluxo foi editado ou desligado",
+  plan_feature_missing: "o plano da empresa não tem uma função que o fluxo usa",
+  flow_runtime_unavailable: "este WhatsApp ainda não roda fluxos",
+  invalid_payload: "o pedido chegou incompleto ao WhatsApp",
+};
+
+/** O desfecho do disparo, em texto; `null` enquanto o WhatsApp não pegou o pedido. */
+export function textoDoDesfechoDoFluxo(desfecho, nome) {
+  if (!desfecho || desfecho.situacao === "pending" || desfecho.situacao === "claimed") return null;
+  if (desfecho.situacao === "completed" && desfecho.comecou !== false)
+    return { tipo: "ok", texto: `“${nome}” começou.` };
+  if (desfecho.situacao === "expired")
+    return { tipo: "erro", texto: `“${nome}” não começou: o WhatsApp não pegou o pedido em 1 hora. Confira a conexão.` };
+  const motivo = MOTIVOS_DO_FLUXO[desfecho.motivo] || "o WhatsApp recusou o pedido";
+  return { tipo: "erro", texto: `“${nome}” não começou: ${motivo}.` };
+}
+
+const ESPERA_DO_DESFECHO = { intervalo: 2000, vezes: 15 };
+
 function IniciarFluxo({ contato, fluxos, aoIniciar }) {
   const [escolhido, setEscolhido] = useState("");
   const [estado, setEstado] = useState({ tipo: "parado", texto: "" });
+  // Cada disparo ganha uma vez; trocar de contato ou disparar de novo para de
+  // acompanhar o anterior.
+  const vez = useRef(0);
 
   // A lista é recriada a cada render; o que importa é quais fluxos existem.
   const ids = fluxos.map((fluxo) => fluxo.id).join(",");
   useEffect(() => {
+    vez.current += 1;
     setEscolhido(ids.split(",")[0] || "");
     setEstado({ tipo: "parado", texto: "" });
   }, [contato?.id, ids]);
+  useEffect(() => () => { vez.current += 1; }, []);
 
   if (!contato || !fluxos.length || !aoIniciar) return null;
+
+  // O banco só enfileira; quem começa (ou não) é o WhatsApp, alguns segundos
+  // depois. A ficha pergunta até ter a resposta, e diz o desfecho real.
+  const acompanhar = async (desfecho, nome, minha) => {
+    for (let tentativa = 0; tentativa < ESPERA_DO_DESFECHO.vezes; tentativa += 1) {
+      await new Promise((pronto) => setTimeout(pronto, ESPERA_DO_DESFECHO.intervalo));
+      if (vez.current !== minha) return;
+      const texto = textoDoDesfechoDoFluxo(await desfecho().catch(() => null), nome);
+      if (vez.current !== minha) return;
+      if (texto) {
+        setEstado(texto);
+        return;
+      }
+    }
+  };
 
   const iniciar = async () => {
     const fluxo = fluxos.find((item) => item.id === escolhido);
     if (!fluxo) return;
+    vez.current += 1;
+    const minha = vez.current;
     setEstado({ tipo: "enviando", texto: "" });
     try {
-      await aoIniciar({ contato, chatbotId: fluxo.remoteId || fluxo.id });
-      setEstado({ tipo: "ok", texto: `“${fluxo.nome}” vai começar em instantes.` });
+      const resultado = await aoIniciar({ contato, chatbotId: fluxo.remoteId || fluxo.id });
+      const voltou = resultado?.devolvidoAoBot ? " A conversa saiu da equipe e voltou para o robô." : "";
+      setEstado({ tipo: "ok", texto: `“${fluxo.nome}” vai começar em instantes.${voltou}` });
+      if (typeof resultado?.desfecho === "function") acompanhar(resultado.desfecho, fluxo.nome, minha);
     } catch (erro) {
       setEstado({ tipo: "erro", texto: erro?.message || "Não foi possível iniciar o fluxo." });
     }

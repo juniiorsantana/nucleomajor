@@ -108,4 +108,12 @@ describe("o que o servidor exige de um fluxo v3", () => {
     expect(com((d) => { d.canvas.conexoes.push({ source: "vip", saida: "padrao", target: "condicoes" }); }))
       .toMatch(/conexão inválida/);
   });
+
+  it("aceita o prazo da execução parada de 1 a 720 horas, inteiro, e a falta dele", () => {
+    expect(com((d) => { d.prazoExecucaoHoras = 1; })).toBeNull();
+    expect(com((d) => { d.prazoExecucaoHoras = 720; })).toBeNull();
+    for (const ruim of [0, 721, 1.5, "12", null, -3, Number.NaN]) {
+      expect(com((d) => { d.prazoExecucaoHoras = ruim; })).toMatch(/entre 1 e 720 horas/);
+    }
+  });
 });
