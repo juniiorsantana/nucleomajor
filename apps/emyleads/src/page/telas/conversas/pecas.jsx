@@ -663,10 +663,24 @@ export function Composer({
     });
   };
 
-  // A gravação não sobrevive à caixa: sair da conversa no meio dela solta o
-  // microfone, senão o ícone do navegador fica aceso numa tela que já mudou.
+  // O anexo não sobrevive à caixa: ela é remontada a cada conversa, e a
+  // prévia do arquivo que ficou para trás é solta junto.
+  const anexoRef = useRef(null);
+  anexoRef.current = anexo;
+
+  // A gravação também não: sair da conversa no meio dela solta o microfone,
+  // senão o ícone do navegador fica aceso numa tela que já mudou. A gravação
+  // descartada não vira anexo de ninguém.
   useEffect(
     () => () => {
+      const url = anexoRef.current?.url;
+      if (url) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Sem URL para revogar fora do navegador.
+        }
+      }
       const gravador = gravadorRef.current;
       if (gravador && gravador.state !== "inactive") {
         gravador.descartar = true;
