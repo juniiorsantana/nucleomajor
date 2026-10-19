@@ -5,6 +5,29 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Escala da tela de Conversas (19/10/2026)
+
+A tela de Conversas para de reler tudo a cada 20 s e a cada aviso: pede ao banco
+só o que mudou, o aviso de realtime diz qual conversa foi, as fotos não são
+reassinadas a cada recarga e a lista desenha só as linhas visíveis. Plano e
+entregas dos três majores em `D:\MajorHub\16 - Trabalho em Conjunto\nucleomajor\`
+(`04 - Entregas/2026-10-19_plano-escala-conversas_coronel.md`).
+
+- **Banco (a aplicar, nesta ordem):** `20261020100000_conversas_mudaram_em.sql`
+  (`changed_at` em conversas, mensagens e contatos, por gatilho),
+  `20261020110000_lista_de_conversas_com_contato.sql` (`nucleo_conversation_list`,
+  `security definer` com `is_org_member`, contato casado por
+  `private.br_phone_key`), `20261020120000_aviso_de_realtime_com_a_conversa.sql`
+  (`entity_key` no aviso) e `20261020130000_a_sincronia_nao_regrava_sem_mudanca.sql`
+  (a sincronia da VPS não regrava conversa sem mudança; **a VPS não muda**).
+  Prova em PGlite: 100 conferências, 0 falhas; a lista da Adriani em 0,12 s,
+  o delta em 1,7 ms.
+- **Portal:** funciona antes e depois das migrations (sem a RPC, cai no
+  caminho de antes e para de tentar até recarregar a página).
+- **Cache local em IndexedDB pronto e desligado** (`CACHE_LOCAL_LIGADO` em
+  `apps/emyleads/src/web/cacheLocal.js`): ligar grava conversa de cliente no
+  disco de quem atende (LGPD); decisão do dono.
+
 ## Troca voluntária de número do WhatsApp (10/10/2026)
 
 O dono ou o administrador desconecta o WhatsApp de uma conexão por escolha, ou

@@ -2,6 +2,16 @@ import { MODELOS } from "../data/modelosPadrao.js";
 import { fmtDiaDaConversa, fmtHoraDaLista } from "../lib/formato.js";
 import { normalizePhone, variantesBR } from "../lib/phone.js";
 import { WORKSPACE_KEY } from "./storage.js";
+import {
+  criarCacheDeUrls,
+  criarFila,
+  faltaColuna,
+  faltaRpc,
+  juntarConversas,
+  juntarMensagens,
+  precisaReleituraCompleta,
+  proximoCursor,
+} from "./sincronia.js";
 
 /**
  * Conversas do WhatsApp, lidas do espelho que a VPS publica.
@@ -46,6 +56,28 @@ const CAMPOS_MENSAGEM =
  * banco disser que a coluna não existe, refaz sem ela e as próximas já vão sem.
  */
 const CAMPO_TRANSCRICAO = "transcribed_at";
+
+/**
+ * A marca de alteração da mensagem, da migration 20261020100000. Mesmo
+ * tratamento da transcrição: sem a coluna, a conversa aberta volta a ser relida
+ * inteira a cada recarga, como antes, e as próximas consultas já vão sem ela.
+ */
+const CAMPO_ALTERACAO = "changed_at";
+
+/** O teto da conversa aberta: as mensagens mais novas, na primeira abertura e depois. */
+const TETO_DE_MENSAGENS = 300;
+
+/**
+ * Quantas conversas a RPC da lista devolve. Na leitura completa é o mesmo teto
+ * que o PostgREST já punha na consulta de antes. No delta, bater o teto quer
+ * dizer que mudou coisa demais de uma vez (a sincronia voltou de uma queda), e
+ * o portal relê tudo em vez de confiar num delta cortado.
+ */
+const LIMITE_DA_LISTA = 1000;
+const LIMITE_DO_DELTA = 500;
+
+/** Quantas conversas abertas guardam as mensagens na memória para o delta. */
+const CONVERSAS_NA_MEMORIA = 30;
 // O que a lista de análises traz (a conversa, a ficha e Relatórios). O
 // relatório completo vem depois, pela consulta de andamento.
 const COLUNAS_DA_ANALISE = "id,kind,status,error_code,result,requested_at,completed_at,saved_at,service_score,scores";
@@ -239,13 +271,6 @@ async function assinarCaminhos(supabase, bucket, caminhos, validade) {
   }
 }
 
-const assinarAvatares = (supabase, contatos) =>
-  assinarCaminhos(
-    supabase,
-    BUCKET_AVATARES,
-    contatos.map((contato) => contato.avatar_path),
-    VALIDADE_AVATAR_SEGUNDOS
-  );
 
 /**
  * O id de uma conversa na tela: conexão e o identificador do chat.
@@ -348,7 +373,67 @@ function midiaDaMensagem(linha, urls) {
   };
 }
 
-export function criarOperacoesConversasWeb({ supabase, area }) {
+/**
+ * Uma conversa como a tela a mostra, a partir da linha do espelho e do contato
+ * casado. A foto entra depois, em `aplicarFotos`, porque é a única parte que
+ * vence sozinha.
+ */
+function conversaDaTela(linha, contato) {
+  const grupo = linha.chat_kind === "grupo";
+  const nomeEspelhado = String(linha.contact_name || "").trim();
+  return {
+    id: idDaConversa(linha.connection_id, linha.contact_phone),
+    grupo,
+    // Sem contato no CRM a conversa continua aparecendo: quem chegou agora
+    // ainda não foi cadastrado, e é justamente essa a pessoa que não pode
+    // sumir da caixa de entrada.
+    contactId: contato?.id || null,
+    nome: grupo
+      ? nomeEspelhado || "Grupo sem nome"
+      : contato?.name || nomeEspelhado || linha.contact_phone,
+    empresa: contato?.company || "",
+    cargo: contato?.job_title || "",
+    fotoUrl: linha.contact_photo_url || null,
+    // O grupo não tem telefone para mostrar. Formatar o id dele como se
+    // fosse um daria à tela um número de dezoito dígitos com DDD inventado.
+    telefone: grupo ? "" : linha.contact_phone,
+    dono: linha.owner,
+    atendenteId: linha.attendant_id || null,
+    atendenteNome: linha.attendant_name || "",
+    hora: fmtHoraDaLista(linha.last_message_at),
+    ultimaMensagemEm: linha.last_message_at ? new Date(linha.last_message_at).getTime() : 0,
+    naoLidas: linha.unread_count || 0,
+    previa: linha.last_message_preview || "",
+    saiu: linha.last_message_from_me === true,
+    // Confirmação de leitura ainda não vem do bridge; um tique é o que
+    // sabemos, e dois seriam invenção.
+    lido: false,
+    fixado: false,
+  };
+}
+
+/**
+ * A linha da RPC `nucleo_conversation_list` já vem com o contato casado pelo
+ * banco (`private.br_phone_key`, o mesmo nono dígito de `variantesBR`). Grupo
+ * nunca casa contato, lá e aqui.
+ */
+function contatoDaRpc(linha) {
+  if (linha.chat_kind === "grupo" || !linha.contact_id) return null;
+  return {
+    id: linha.contact_id,
+    name: linha.crm_name,
+    company: linha.crm_company,
+    job_title: linha.crm_job_title,
+    avatar_path: linha.crm_avatar_path,
+  };
+}
+
+/**
+ * `cache` é a cópia local opcional (IndexedDB, `web/cacheLocal.js`), com
+ * `ler(chave)`, `gravar(chave, valor)` e `apagarTudo()`. Nulo desliga, e é o
+ * padrão (decisão do dono, 19/10/2026). `agora` existe para os testes.
+ */
+export function criarOperacoesConversasWeb({ supabase, area, cache = null, agora = () => Date.now() }) {
   // O baralho das variações de mensagem padrão. Vive em memória porque é
   // preferência de sessão, não dado da organização: sortear diferente depois de
   // recarregar a página não incomoda ninguém.
@@ -369,8 +454,133 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
   // Sabe-se só depois da primeira consulta; ver `faltaColunaDeTranscricao`.
   let temColunaDeTranscricao = true;
 
-  const listar = async () => {
-    const organizationId = await organizacao();
+  // A RPC da lista (20261020110000). Sem ela o portal fica no caminho de antes
+  // até a página ser recarregada.
+  let temRpcDaLista = true;
+  // Sem a coluna de alteração das mensagens, a conversa aberta é relida
+  // inteira, como antes.
+  let temColunaDeAlteracao = true;
+
+  const urlsAssinadas = criarCacheDeUrls({ agora });
+  const assinar = (bucket, caminhos, validade) =>
+    urlsAssinadas.assinar(bucket, caminhos, validade, (faltam) =>
+      assinarCaminhos(supabase, bucket, faltam, validade)
+    );
+
+  /**
+   * A cópia local, quando ligada. Falhar nela nunca derruba a tela: é atalho
+   * para abrir mais depressa, e o banco continua sendo a resposta.
+   */
+  const guardarNoCache = async (chave, valor) => {
+    if (!cache) return;
+    try {
+      await cache.gravar(chave, valor);
+    } catch {
+      // Sem cópia local desta vez.
+    }
+  };
+  const lerDoCache = async (chave) => {
+    if (!cache) return null;
+    try {
+      return (await cache.ler(chave)) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  /* -------------------------------------------------------------- */
+  /* A lista                                                        */
+  /* -------------------------------------------------------------- */
+
+  /**
+   * O que a lista já sabe, por empresa. Trocar de empresa começa do zero, e é
+   * isso que faz a releitura completa ao trocar.
+   *
+   * `fotos` guarda, por conversa, o caminho do avatar no CRM e a foto do
+   * WhatsApp: a conversa que não muda não volta no delta, mas a URL assinada
+   * dela vence, e é por aqui que ela é renovada.
+   */
+  const estadoVazio = (organizationId) => ({
+    organizationId,
+    itens: [],
+    fotos: new Map(),
+    cursor: null,
+    completaEm: NaN,
+  });
+  let estadoDaLista = estadoVazio(null);
+
+  /**
+   * A foto de cada conversa: a URL assinada do avatar do CRM, ou a do
+   * WhatsApp. Só vai ao Storage o que ainda não tem URL ou está para vencer, e
+   * só troca o objeto da conversa cuja foto mudou.
+   */
+  const aplicarFotos = async (estado) => {
+    const caminhos = [...estado.fotos.values()].map((foto) => foto.caminho).filter(Boolean);
+    const urls = await assinar(BUCKET_AVATARES, caminhos, VALIDADE_AVATAR_SEGUNDOS);
+    estado.itens = estado.itens.map((conversa) => {
+      const foto = estado.fotos.get(conversa.id);
+      const fotoUrl = (foto?.caminho && urls.get(foto.caminho)) || foto?.reserva || null;
+      return conversa.fotoUrl === fotoUrl ? conversa : { ...conversa, fotoUrl };
+    });
+  };
+
+  const lembrarFoto = (estado, linha, contato) => {
+    estado.fotos.set(idDaConversa(linha.connection_id, linha.contact_phone), {
+      caminho: String(contato?.avatar_path || "").trim(),
+      reserva: linha.contact_photo_url || null,
+    });
+  };
+
+  /**
+   * Pela RPC: com cursor, só as conversas que mudaram (ou cujo contato mudou);
+   * sem cursor, todas. Devolve `null` quando a RPC não serve, e quem chama cai
+   * no caminho de antes.
+   */
+  const lerPelaRpc = async (organizationId, desde) => {
+    const { data, error } = await supabase.rpc("nucleo_conversation_list", {
+      target_organization: organizationId,
+      changed_since: desde,
+      max_rows: desde ? LIMITE_DO_DELTA : LIMITE_DA_LISTA,
+    });
+    if (error) {
+      // A migration ainda não chegou: para de tentar até a página recarregar.
+      if (faltaRpc(error) || faltaColuna(error, CAMPO_ALTERACAO)) temRpcDaLista = false;
+      // Qualquer outra falha cai no caminho de antes só desta vez.
+      return null;
+    }
+    return Array.isArray(data) ? data : null;
+  };
+
+  const listarPelaRpc = async (estado, completa) => {
+    const desde = completa ? null : estado.cursor;
+    const inicio = agora();
+    const linhas = await lerPelaRpc(estado.organizationId, desde);
+    if (!linhas) return false;
+    // Mudou coisa demais de uma vez: o delta pode ter sido cortado.
+    if (desde && linhas.length >= LIMITE_DO_DELTA) return listarPelaRpc(estado, true);
+
+    const chegaram = linhas.map((linha) => {
+      const contato = contatoDaRpc(linha);
+      lembrarFoto(estado, linha, contato);
+      return conversaDaTela(linha, contato);
+    });
+    if (desde) {
+      estado.itens = juntarConversas(estado.itens, chegaram);
+      estado.cursor = proximoCursor(linhas, estado.cursor);
+    } else {
+      // A releitura completa é a que apaga: o que não veio deixou de existir.
+      const presentes = new Set(chegaram.map((conversa) => conversa.id));
+      for (const id of [...estado.fotos.keys()]) if (!presentes.has(id)) estado.fotos.delete(id);
+      estado.itens = chegaram;
+      estado.cursor = proximoCursor(linhas, null);
+      estado.completaEm = inicio;
+    }
+    return true;
+  };
+
+  /** O caminho de antes da RPC: conversas e contatos inteiros, casados aqui. */
+  const listarComoAntes = async (estado) => {
+    const { organizationId } = estado;
     // As duas consultas em paralelo: a lista não depende dos contatos para
     // existir, só para ganhar nome de CRM, ficha e avatar.
     const [conversas, contatos] = await Promise.all([
@@ -393,58 +603,97 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     ]);
 
     const indice = indicePorTelefone(contatos);
-    const avatares = await assinarAvatares(supabase, contatos);
-    return conversas.map((linha) => {
-      const grupo = linha.chat_kind === "grupo";
+    estado.fotos = new Map();
+    estado.itens = conversas.map((linha) => {
       // Grupo não procura contato: o identificador dele não é telefone de
       // ninguém, e deixá-lo cair no índice acharia um contato por coincidência
       // de dígitos e penduraria a ficha da pessoa errada ao lado da conversa.
-      const contato = grupo ? null : acharContato(indice, linha.contact_phone);
-      const nomeEspelhado = String(linha.contact_name || "").trim();
-      return {
-        id: idDaConversa(linha.connection_id, linha.contact_phone),
-        grupo,
-        // Sem contato no CRM a conversa continua aparecendo: quem chegou agora
-        // ainda não foi cadastrado, e é justamente essa a pessoa que não pode
-        // sumir da caixa de entrada.
-        contactId: contato?.id || null,
-        nome: grupo
-          ? nomeEspelhado || "Grupo sem nome"
-          : contato?.name || nomeEspelhado || linha.contact_phone,
-        empresa: contato?.company || "",
-        cargo: contato?.job_title || "",
-        fotoUrl: avatares.get(contato?.avatar_path) || linha.contact_photo_url || null,
-        // O grupo não tem telefone para mostrar. Formatar o id dele como se
-        // fosse um daria à tela um número de dezoito dígitos com DDD inventado.
-        telefone: grupo ? "" : linha.contact_phone,
-        dono: linha.owner,
-        atendenteId: linha.attendant_id || null,
-        atendenteNome: linha.attendant_name || "",
-        hora: fmtHoraDaLista(linha.last_message_at),
-        ultimaMensagemEm: linha.last_message_at ? new Date(linha.last_message_at).getTime() : 0,
-        naoLidas: linha.unread_count || 0,
-        previa: linha.last_message_preview || "",
-        saiu: linha.last_message_from_me === true,
-        // Confirmação de leitura ainda não vem do bridge; um tique é o que
-        // sabemos, e dois seriam invenção.
-        lido: false,
-        fixado: false,
-      };
+      const contato = linha.chat_kind === "grupo" ? null : acharContato(indice, linha.contact_phone);
+      lembrarFoto(estado, linha, contato);
+      return conversaDaTela(linha, contato);
     });
+    // Sem cursor: o caminho de antes relê tudo sempre.
+    estado.cursor = null;
+    estado.completaEm = NaN;
   };
 
-  const mensagens = async ({ id }) => {
-    const alvo = separarId(id);
-    if (!alvo) return [];
+  const listarAgora = async ({ completa = false } = {}) => {
     const organizationId = await organizacao();
-    const consultar = (campos) =>
-      supabase
+    if (estadoDaLista.organizationId !== organizationId) estadoDaLista = estadoVazio(organizationId);
+    // Preso à empresa do começo do pedido: se ela mudar no meio, o que voltar
+    // fica num estado que ninguém mais lê, e a tela descarta a resposta.
+    const estado = estadoDaLista;
+    const releitura =
+      completa ||
+      precisaReleituraCompleta({ cursor: estado.cursor, completaEm: estado.completaEm, agora: agora() });
+    const pelaRpc = temRpcDaLista && (await listarPelaRpc(estado, releitura));
+    if (!pelaRpc) await listarComoAntes(estado);
+    await aplicarFotos(estado);
+    const itens = estado.itens;
+    await guardarNoCache(`conversas:${organizationId}`, itens);
+    return itens;
+  };
+
+  /**
+   * A lista inteira, como sempre foi — quem chama não sabe que por baixo veio
+   * só o delta. `completa: true` força a releitura de tudo (a ficha salvou um
+   * contato, e o que mudou ali pode não aparecer no delta, como um contato
+   * apagado).
+   */
+  const listar = criarFila(listarAgora, (a, b) => ({
+    completa: Boolean(a?.completa || b?.completa),
+  }));
+
+  /* -------------------------------------------------------------- */
+  /* A conversa aberta                                              */
+  /* -------------------------------------------------------------- */
+
+  /**
+   * As linhas de cada conversa aberta, para o delta. Por empresa e conversa:
+   * trocar de conversa não mistura nada, porque cada uma tem o seu cursor e as
+   * suas linhas. As menos usadas saem da memória e, se reabertas, são relidas.
+   */
+  const conversasAbertas = new Map();
+  const filasDeMensagens = new Map();
+
+  const lembrarConversa = (chave, estado) => {
+    conversasAbertas.delete(chave);
+    conversasAbertas.set(chave, estado);
+    while (conversasAbertas.size > CONVERSAS_NA_MEMORIA) {
+      conversasAbertas.delete(conversasAbertas.keys().next().value);
+    }
+  };
+
+  /**
+   * Lê as mensagens: com `desde`, as que mudaram depois do cursor; sem, as
+   * `TETO_DE_MENSAGENS` mais novas. Pede as colunas novas enquanto o banco as
+   * tiver e, quando uma faltar, refaz sem ela e as próximas já vão sem.
+   *
+   * Devolve `{ linhas, delta }`, as linhas em ordem de tela (da mais velha para
+   * a mais nova). `delta` falso quer dizer que a leitura foi completa, mesmo que
+   * quem chamou tenha pedido o delta: a coluna de alteração sumiu no meio.
+   */
+  const lerMensagens = async (organizationId, alvo, desde) => {
+    for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+      const delta = Boolean(desde) && temColunaDeAlteracao;
+      const campos = [
+        CAMPOS_MENSAGEM,
+        ...(temColunaDeTranscricao ? [CAMPO_TRANSCRICAO] : []),
+        ...(temColunaDeAlteracao ? [CAMPO_ALTERACAO] : []),
+      ].join(",");
+      let consulta = supabase
         .from("whatsapp_messages")
         .select(campos)
         .eq("organization_id", organizationId)
         .eq("connection_id", alvo.connectionId)
-        .eq("contact_phone", alvo.chat)
-        // Da mais nova para a mais velha, e a lista é invertida depois.
+        .eq("contact_phone", alvo.chat);
+      consulta = delta
+        ? consulta
+            .gt(CAMPO_ALTERACAO, desde)
+            .order(CAMPO_ALTERACAO, { ascending: true })
+            .limit(TETO_DE_MENSAGENS)
+        : consulta
+            // Da mais nova para a mais velha, e a lista é invertida depois.
         //
         // O teto e a ordem são uma decisão só, e ler a ordem sem o teto é o
         // que estragou esta consulta: com `ascending: true`, o `limit` corta
@@ -454,23 +703,93 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         // outra tabela, e só a conversa aberta ficava no passado.
         //
         // Descendente também é a ordem do índice `whatsapp_messages_thread_idx`.
-        .order("sent_at", { ascending: false })
-        // Teto por conversa: a tela rola até o fim, e trazer anos de histórico
-        // de uma vez travaria o navegador em quem conversa todo dia.
-        .limit(300);
-    let resposta = await consultar(
-      temColunaDeTranscricao ? `${CAMPOS_MENSAGEM},${CAMPO_TRANSCRICAO}` : CAMPOS_MENSAGEM
-    );
-    if (temColunaDeTranscricao && faltaColunaDeTranscricao(resposta.error)) {
-      temColunaDeTranscricao = false;
-      resposta = await consultar(CAMPOS_MENSAGEM);
+            .order("sent_at", { ascending: false })
+            // Teto por conversa: a tela rola até o fim, e trazer anos de histórico
+            // de uma vez travaria o navegador em quem conversa todo dia.
+            .limit(TETO_DE_MENSAGENS);
+      const resposta = await consulta;
+      if (temColunaDeTranscricao && faltaColunaDeTranscricao(resposta.error)) {
+        temColunaDeTranscricao = false;
+        continue;
+      }
+      if (temColunaDeAlteracao && faltaColuna(resposta.error, CAMPO_ALTERACAO)) {
+        temColunaDeAlteracao = false;
+        continue;
+      }
+      const linhas = await executar(Promise.resolve(resposta), "conversas-mensagens-falharam");
+      // O delta veio na ordem do cursor; a leitura completa, da mais nova para
+      // a mais velha. A tela lê de cima para baixo.
+      return { linhas: delta ? linhas : [...linhas].reverse(), delta };
     }
-    const linhas = await executar(Promise.resolve(resposta), "conversas-mensagens-falharam");
+    throw erroConversas("Não foi possível carregar as mensagens.", "conversas-mensagens-falharam");
+  };
 
+  const mensagensAgora = async ({ id, chave, alvo, organizationId }) => {
+    const guardada = conversasAbertas.get(chave);
+    const inicio = agora();
+    const podeDelta =
+      temColunaDeAlteracao &&
+      guardada &&
+      !precisaReleituraCompleta({ cursor: guardada.cursor, completaEm: guardada.completaEm, agora: inicio });
+
+    let linhas = null;
+    if (podeDelta) {
+      const lidas = await lerMensagens(organizationId, alvo, guardada.cursor);
+      // Delta que bate o teto pode ter sido cortado: relê a conversa.
+      if (lidas.delta && lidas.linhas.length < TETO_DE_MENSAGENS) {
+        linhas = juntarMensagens(guardada.linhas, lidas.linhas, TETO_DE_MENSAGENS);
+        lembrarConversa(chave, {
+          linhas,
+          cursor: proximoCursor(lidas.linhas, guardada.cursor),
+          completaEm: guardada.completaEm,
+        });
+      } else if (!lidas.delta) {
+        linhas = lidas.linhas;
+        conversasAbertas.delete(chave);
+      }
+    }
+    if (!linhas) {
+      const lidas = await lerMensagens(organizationId, alvo, null);
+      linhas = lidas.linhas;
+      const cursor = temColunaDeAlteracao ? proximoCursor(linhas, null) : null;
+      // Sem cursor não há delta para fazer: a próxima também relê tudo.
+      if (cursor) lembrarConversa(chave, { linhas, cursor, completaEm: inicio });
+      else conversasAbertas.delete(chave);
+    }
+
+    const saida = await mensagensDaTela(linhas);
+    await guardarNoCache(`mensagens:${organizationId}:${id}`, saida);
+    return saida;
+  };
+
+  /**
+   * As mensagens da conversa, em ordem de tela. A primeira abertura lê as
+   * `TETO_DE_MENSAGENS` mais novas; as recargas seguintes, só o que mudou
+   * depois do cursor, juntado ao que já está na memória.
+   *
+   * Uma fila por conversa: o timer e o aviso de realtime pedindo a mesma
+   * conversa juntos viram um pedido, e dois deltas nunca se cruzam.
+   */
+  const mensagens = async ({ id }) => {
+    const alvo = separarId(id);
+    if (!alvo) return [];
+    const organizationId = await organizacao();
+    const chave = `${organizationId}|${id}`;
+    let fila = filasDeMensagens.get(chave);
+    if (!fila) {
+      fila = criarFila(mensagensAgora, (_a, b) => b);
+      filasDeMensagens.set(chave, fila);
+      while (filasDeMensagens.size > CONVERSAS_NA_MEMORIA) {
+        filasDeMensagens.delete(filasDeMensagens.keys().next().value);
+      }
+    }
+    return fila({ id, chave, alvo, organizationId });
+  };
+
+  const mensagensDaTela = async (linhas) => {
     // As URLs dos arquivos, assinadas de uma vez para a conversa inteira: uma
-    // chamada, e não uma por bolha.
-    const urls = await assinarCaminhos(
-      supabase,
+    // chamada, e não uma por bolha. A que ainda vale não é reassinada.
+    const urls = await assinar(
       BUCKET_MIDIA,
       linhas.map((linha) => linha.media_path),
       VALIDADE_MIDIA_SEGUNDOS
@@ -480,8 +799,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     // não numa coluna que precisaria ser mantida em dia.
     const saida = [];
     let diaAnterior = null;
-    // A tela lê de cima para baixo; o banco entregou ao contrário.
-    for (const linha of [...linhas].reverse()) {
+    for (const linha of linhas) {
       const dia = new Date(linha.sent_at).toDateString();
       if (dia !== diaAnterior) {
         saida.push({ tipo: "data", texto: fmtDiaDaConversa(linha.sent_at) });
@@ -573,6 +891,22 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
   return {
     "conversas.listar": listar,
     "conversas.mensagens": mensagens,
+
+    /**
+     * O que a cópia local guardou da última vez, para a tela abrir na hora
+     * enquanto o banco responde. Nulo quando o cache está desligado (o padrão)
+     * ou vazio; quem manda continua sendo `listar` e `mensagens`.
+     */
+    "conversas.listaGuardada": async () => {
+      if (!cache) return null;
+      const lista = await lerDoCache(`conversas:${await organizacao()}`);
+      return Array.isArray(lista) ? lista : null;
+    },
+    "conversas.mensagensGuardadas": async ({ id }) => {
+      if (!cache || !separarId(id)) return null;
+      const lista = await lerDoCache(`mensagens:${await organizacao()}:${id}`);
+      return Array.isArray(lista) ? lista : null;
+    },
 
     "conversas.modelos": async () =>
       MODELOS.map((modelo) => ({ ...modelo, baralho: baralhos.get(modelo.id) || [] })),

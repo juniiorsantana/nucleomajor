@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../data/client";
 import { textoDoMotivoDeEnvio } from "../../../ui/atendimento";
+import { avisoTocaConversa } from "../../../web/sincronia";
 import {
   conciliarPendentes,
   conexaoDaLista,
@@ -11,8 +12,14 @@ import {
 const PLATAFORMA_WEB =
   typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
-/** A lista se atualiza sozinha pelo realtime; isto é o que segura se ele cair. */
-const RECARGA_MS = 20000;
+/**
+ * A recarga de segurança. Com o realtime inscrito, a mensagem nova chega pelo
+ * aviso em segundos, e o timer só cobre o aviso que se perdeu: um minuto
+ * basta. Caído o canal, o timer volta a ser o que traz a mensagem, e volta aos
+ * 20 segundos de antes. Cada recarga pede só o delta (ver `web/sincronia.js`).
+ */
+const RECARGA_COM_REALTIME_MS = 60000;
+const RECARGA_SEM_REALTIME_MS = 20000;
 
 /**
  * A leitura automática (coordenador da VPS com o Jev) muda no máximo a cada
@@ -99,6 +106,8 @@ export function useConversas(organizacaoId) {
   // A leitura automática em vigor de cada conversa, por id. Vazia quando a
   // empresa não tem a função ou o banco ainda não tem a tabela.
   const [leituras, setLeituras] = useState({});
+  // O canal de realtime está inscrito? Decide o passo da recarga de segurança.
+  const [realtimeInscrito, setRealtimeInscrito] = useState(false);
 
   const organizacaoRef = useRef(organizacaoId);
   organizacaoRef.current = organizacaoId;
@@ -124,9 +133,24 @@ export function useConversas(organizacaoId) {
   const atualRef = useRef(atual);
   atualRef.current = atual;
 
-  const carregarLista = useCallback(async (organizacaoEsperada = organizacaoRef.current) => {
-    const lista = await api.conversas.listar();
+  // De qual conversa são as mensagens de verdade que estão na tela. A cópia
+  // local (quando ligada) só preenche enquanto elas não chegaram.
+  const mensagensDeRef = useRef(null);
+  // De qual empresa já chegou a lista de verdade. Idem.
+  const listaDeVerdadeRef = useRef(null);
+
+  /**
+   * A lista inteira, como a tela sempre recebeu. Por baixo o provider pede só o
+   * que mudou desde a última vez e relê tudo a cada dez minutos; `completa`
+   * força a releitura agora.
+   */
+  const carregarLista = useCallback(async (
+    organizacaoEsperada = organizacaoRef.current,
+    { completa = false } = {}
+  ) => {
+    const lista = await (completa ? api.conversas.listar({ completa: true }) : api.conversas.listar());
     if (organizacaoEsperada !== organizacaoRef.current || !montadoRef.current) return null;
+    listaDeVerdadeRef.current = organizacaoEsperada;
     setConversas(lista);
     setOrganizacaoDoEstado(organizacaoEsperada || null);
     setErro("");
@@ -135,6 +159,11 @@ export function useConversas(organizacaoId) {
     setAtual((anterior) => anterior || lista[0]?.id || null);
     return lista;
   }, []);
+
+  const recarregarLista = useCallback(
+    () => carregarLista(organizacaoRef.current, { completa: true }),
+    [carregarLista]
+  );
 
   useEffect(() => {
     let vivo = true;
@@ -149,9 +178,25 @@ export function useConversas(organizacaoId) {
     setPendentes([]);
     setEventos([]);
     setOrganizacaoDoEstado(null);
+    listaDeVerdadeRef.current = null;
+    mensagensDeRef.current = null;
     if (!organizacaoEsperada) return () => {
       vivo = false;
     };
+    // A cópia local, quando ligada, mostra a última lista enquanto o banco
+    // responde. Só enquanto a de verdade não chegou: ela nunca passa por cima.
+    // Dentro do `then`, como as leituras: provider sem a operação não derruba.
+    Promise.resolve()
+      .then(() => api.conversas.listaGuardada())
+      .then((guardada) => {
+        if (!vivo || organizacaoEsperada !== organizacaoRef.current || !montadoRef.current) return;
+        if (listaDeVerdadeRef.current === organizacaoEsperada) return;
+        if (!Array.isArray(guardada) || guardada.length === 0) return;
+        setConversas(guardada);
+        setOrganizacaoDoEstado(organizacaoEsperada);
+        setAtual((anterior) => anterior || guardada[0]?.id || null);
+      })
+      .catch(() => {});
     (async () => {
       try {
         const [, padroes] = await Promise.all([
@@ -257,7 +302,11 @@ export function useConversas(organizacaoId) {
       organizacaoEsperada !== organizacaoRef.current ||
       !montadoRef.current
     ) return;
-    setMensagens((antes) => (mesmaConversa(antes, lista) ? antes : lista));
+    // A conversa da tela era outra (a cópia local de outra, ou a anterior):
+    // a comparação só vale entre duas leituras da MESMA conversa.
+    const mesmaDeAntes = mensagensDeRef.current === id;
+    mensagensDeRef.current = id;
+    setMensagens((antes) => (mesmaDeAntes && mesmaConversa(antes, lista) ? antes : lista));
   }, []);
 
   useEffect(() => {
@@ -267,6 +316,16 @@ export function useConversas(organizacaoId) {
     }
     let vivo = true;
     const organizacaoEsperada = organizacaoId;
+    // A cópia local da conversa, quando ligada, enquanto as de verdade não chegam.
+    Promise.resolve()
+      .then(() => api.conversas.mensagensGuardadas({ id: atual }))
+      .then((guardadas) => {
+        if (!vivo || !montadoRef.current || organizacaoEsperada !== organizacaoRef.current) return;
+        if (atualRef.current !== atual || mensagensDeRef.current === atual) return;
+        if (!Array.isArray(guardadas) || guardadas.length === 0) return;
+        setMensagens(guardadas);
+      })
+      .catch(() => {});
     (async () => {
       try {
         await carregarMensagens(atual, organizacaoEsperada);
@@ -299,19 +358,47 @@ export function useConversas(organizacaoId) {
    * conversa aberta. É por isso que o tique e a faixa agora aparecem sozinhos,
    * em vez de esperarem alguém sair da conversa e voltar.
    */
+  //
+  // Desde 20261020120000 o aviso diz QUAL conversa mudou (`entityKeys`, os
+  // telefones juntados na espera de 80 ms). A lista recarrega pelo delta — só
+  // as conversas que mudaram vêm do banco — e a conversa aberta só recarrega
+  // quando é ela que mudou. Aviso sem chave (banco de antes, canal que
+  // religou) recarrega a conversa aberta também, como antes.
   useEffect(() => {
+    setRealtimeInscrito(false);
     if (!PLATAFORMA_WEB || !organizacaoId) return undefined;
+    let vivo = true;
+    let soubeDoCanal = false;
     const aoMudar = (evento) => {
       if (evento.detail?.organizationId === organizacaoId && evento.detail?.topic === "conversas") {
         carregarLista().catch(() => {});
-        carregarMensagens(atualRef.current).catch(() => {});
+        if (avisoTocaConversa(evento.detail, atualRef.current)) {
+          carregarMensagens(atualRef.current).catch(() => {});
+        }
       }
     };
+    const aoMudarOCanal = (evento) => {
+      if (evento.detail?.organizationId !== organizacaoId) return;
+      soubeDoCanal = true;
+      setRealtimeInscrito(evento.detail?.inscrito === true);
+    };
     window.addEventListener("emyleads:connections-changed", aoMudar);
-    api.gateway.ativarRealtime({ organizationId: organizacaoId }).catch(() => {
-      // A recarga periódica permanece como fallback.
-    });
-    return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
+    window.addEventListener("emyleads:realtime-status", aoMudarOCanal);
+    api.gateway
+      .ativarRealtime({ organizationId: organizacaoId })
+      .then((estado) => {
+        // O canal pode já estar de pé (outra tela o abriu): a resposta diz. Um
+        // aviso de estado que chegou antes dela é mais novo, e vale ele.
+        if (vivo && !soubeDoCanal) setRealtimeInscrito(estado?.inscrito === true);
+      })
+      .catch(() => {
+        // A recarga periódica permanece como fallback.
+      });
+    return () => {
+      vivo = false;
+      window.removeEventListener("emyleads:connections-changed", aoMudar);
+      window.removeEventListener("emyleads:realtime-status", aoMudarOCanal);
+    };
   }, [organizacaoId, carregarLista, carregarMensagens]);
 
   useEffect(() => {
@@ -319,7 +406,7 @@ export function useConversas(organizacaoId) {
       if (document.visibilityState !== "visible") return;
       carregarLista().catch(() => {});
       carregarMensagens(atualRef.current).catch(() => {});
-    }, RECARGA_MS);
+    }, realtimeInscrito ? RECARGA_COM_REALTIME_MS : RECARGA_SEM_REALTIME_MS);
     // Voltar para a aba recarrega na hora. Em aba de fundo a recarga acima
     // pula, e o navegador atrasa avisos e temporizadores; sem isto a lista
     // ficava velha até a volta seguinte do timer, e parecia pedir F5.
@@ -333,7 +420,7 @@ export function useConversas(organizacaoId) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", aoVoltar);
     };
-  }, [carregarLista, carregarMensagens]);
+  }, [carregarLista, carregarMensagens, realtimeInscrito]);
 
   /**
    * Acompanha um comando até ele terminar.
@@ -726,7 +813,9 @@ export function useConversas(organizacaoId) {
     // quem sabe de uma mudança que aqueles dois não veem: salvar um contato
     // muda o NOME e a ficha das conversas dele, e o gatilho de realtime mora em
     // `whatsapp_conversations`, que salvar contato não toca.
-    recarregarLista: carregarLista,
+    // Relê tudo, e não só o delta: um contato apagado, por exemplo, não traz a
+    // conversa dele de volta pelo cursor.
+    recarregarLista,
     enviar,
     reenviar,
     verificarNumero,
