@@ -124,6 +124,10 @@ function problemaDaPergunta(passo, nome) {
   if (tamanho > LIMITES_DO_SERVIDOR.texto) return `A pergunta do bloco ${nome} passa de ${LIMITES_DO_SERVIDOR.texto} caracteres.`;
   if (Object.hasOwn(passo, "prazoHoras") && !inteiroEntre(passo.prazoHoras, 1, 168))
     return `O prazo do bloco ${nome} precisa ficar entre 1 e 168 horas.`;
+  // Etapa 9: "Usar IA quando não entender", só no escolher e só sim/não.
+  if (Object.hasOwn(passo, "iaQuandoNaoEntende")
+    && (passo.tipo !== TIPOS_PASSO.perguntar || typeof passo.iaQuandoNaoEntende !== "boolean"))
+    return `A opção "Usar IA quando não entender" do bloco ${nome} é inválida.`;
   if (passo.tipo === TIPOS_PASSO.coletar) {
     if (!VARIAVEL.test(String(passo.variavel || "")))
       return `O nome da variável do bloco ${nome} usa só letras minúsculas, números e _, e começa com letra.`;
