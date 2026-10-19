@@ -281,6 +281,16 @@ const mutacoes = {
   "recusa: espera sem destino quando responde": (d) => { comEspera(d); semSaida(d, "espera", "respondeu"); },
   "recusa: espera sem destino quando nao responde": (d) => { comEspera(d); semSaida(d, "espera", "sem_resposta"); },
   "recusa: espera com saida padrao": (d) => { comEspera(d); d.canvas.conexoes.push({ source: "espera", saida: "padrao", target: "fim" }); },
+  // O prazo da execução parada (20261018150000): de 1 a 720 horas, inteiro.
+  "valido: prazo da execucao de 6 horas": (d) => { d.prazoExecucaoHoras = 6; },
+  "valido: prazo da execucao de 720 horas": (d) => { d.prazoExecucaoHoras = 720; },
+  "valido: prazo da execucao de 1 hora": (d) => { d.prazoExecucaoHoras = 1; },
+  "recusa: prazo da execucao zero": (d) => { d.prazoExecucaoHoras = 0; },
+  "recusa: prazo da execucao acima de 720": (d) => { d.prazoExecucaoHoras = 721; },
+  "recusa: prazo da execucao fracionado": (d) => { d.prazoExecucaoHoras = 1.5; },
+  "recusa: prazo da execucao como texto": (d) => { d.prazoExecucaoHoras = "12"; },
+  "recusa: prazo da execucao nulo": (d) => { d.prazoExecucaoHoras = null; },
+  "recusa: prazo da execucao negativo": (d) => { d.prazoExecucaoHoras = -3; },
 };
 
 // Etapa 10 (20261018100000): o mesmo fluxo, conferido contra o PLANO de uma

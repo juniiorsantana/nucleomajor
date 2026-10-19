@@ -503,8 +503,9 @@ export function criarOperacoesConversas({ listarContatos }) {
       };
     },
 
-    /** Bancada: o disparo manual sempre entra na fila. */
-    "conversas.iniciarFluxo": async () => ({ enfileirado: true }),
+    /** Bancada: o disparo manual sempre entra na fila e começa. */
+    "conversas.iniciarFluxo": async () => ({ enfileirado: true, comandoId: "bancada-fluxo", devolvidoAoBot: false }),
+    "conversas.desfechoDoFluxo": async () => ({ situacao: "completed", comecou: true, motivo: "" }),
 
     "conversas.creditosDeAnalise": async () => ({ ...creditos }),
 

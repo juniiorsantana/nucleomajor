@@ -191,6 +191,9 @@ const RECUSAS = [
     "flow trigger unavailable",
     "O fluxo não pôde começar: confira se o plano tem chatbots e se o WhatsApp está conectado.",
   ],
+  // 20261018150000: os motivos que o banco agora dá antes de enfileirar.
+  ["flow already running for contact", "Este contato já está num fluxo. Espere ele terminar para iniciar outro."],
+  ["flow connection unavailable", "Nenhum WhatsApp conectado pode rodar o fluxo agora. Confira a conexão."],
   [
     "media type is not allowed",
     "Esse tipo de arquivo não pode ser enviado. Use JPG, PNG, WebP ou o áudio gravado aqui.",
@@ -732,8 +735,9 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
 
     /**
      * Alguém da equipe inicia um fluxo de gatilho manual (follow-up) para o
-     * contato. O banco enfileira o disparo e a VPS roda o fluxo; a tela só
-     * sabe que ficou na fila.
+     * contato. O banco enfileira o disparo e a VPS roda o fluxo. Se a equipe
+     * tinha assumido a conversa, ela volta para o robô (decisão do dono,
+     * 18/10/2026). O desfecho de verdade vem depois, por `desfechoDoFluxo`.
      */
     "conversas.iniciarFluxo": async ({ contatoId, chatbotId }) => {
       const { data, error } = await supabase.rpc("nucleo_flow_trigger_manual", {
@@ -741,7 +745,29 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
         target_chatbot: chatbotId,
       });
       if (error) throw erroConversas(traduzir(error.message), "conversas-fluxo-falhou");
-      return { enfileirado: Number(data?.queued || 0) > 0 };
+      return {
+        enfileirado: Number(data?.queued || 0) > 0,
+        comandoId: data?.commandId || null,
+        devolvidoAoBot: data?.returnedToBot === true,
+      };
+    },
+
+    /**
+     * O que a VPS fez com o disparo manual: `pending`/`claimed` (ainda não
+     * pegou), `completed` com `comecou` verdadeiro ou falso e o motivo,
+     * `failed` (o banco recusou ao começar) ou `expired` (ninguém pegou em 1 h).
+     * Banco antes da migration 20261018150000: `null`, e a tela fica com
+     * "vai começar em instantes".
+     */
+    "conversas.desfechoDoFluxo": async ({ comandoId }) => {
+      if (!comandoId) return null;
+      const { data, error } = await supabase.rpc("nucleo_flow_trigger_status", { target_command: comandoId });
+      if (error) return null;
+      return {
+        situacao: data?.status || "pending",
+        comecou: data?.started === true ? true : data?.started === false ? false : null,
+        motivo: data?.reason || data?.errorCode || "",
+      };
     },
 
     /** O desfecho de um comando, para a tela parar de dizer "enviando". */
