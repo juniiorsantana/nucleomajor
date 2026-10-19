@@ -749,12 +749,18 @@ export function Composer({
   };
 
   const mandar = async () => {
-    if (gravacao) return;
+    if (gravacao || enviando) return;
     if (!anexo) {
-      aoEnviar();
+      // A mesma trava do anexo: cada envio ganha uma identidade nova, e dois
+      // Enters antes de o primeiro voltar mandariam o texto duas vezes ao lead.
+      setEnviando(true);
+      try {
+        await aoEnviar();
+      } finally {
+        setEnviando(false);
+      }
       return;
     }
-    if (enviando) return;
     setEnviando(true);
     setErroLocal("");
     try {
