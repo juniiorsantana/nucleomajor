@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, MailOpen, PanelRight, Plus, Search, UserRound, Users } from "lucide-react";
 import { CATEGORIAS_DE_MODELO } from "../../data/modelosPadrao";
 import { leituraDaConversa } from "../../domain/leituraDaConversa";
@@ -23,6 +23,7 @@ import {
   PilulaSistema,
 } from "./conversas/pecas";
 import { conversaDoTelefone, inicioDeGrupo } from "./conversas/conversasUtils";
+import { janelaDaLista } from "./conversas/janelaDaLista";
 import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
 import { usePareamento } from "./conversas/usePareamento";
@@ -147,6 +148,71 @@ export function mostrarMensagem(container, messageId) {
   bolha.classList.add("outline", "outline-2", "outline-signal");
   setTimeout(() => bolha.classList.remove("outline", "outline-2", "outline-signal"), 2500);
   return true;
+}
+
+/** A altura de uma linha antes de medir a primeira (avatar de 46 px e duas linhas de texto). */
+const ALTURA_DA_LINHA = 67;
+
+/**
+ * A coluna da lista, desenhando só as conversas que cabem nela.
+ *
+ * A conta de quais linhas entram está em `janelaDaLista`. Aqui fica o que
+ * depende do navegador: a altura da caixa (que muda com a janela), a altura de
+ * uma linha (medida na primeira desenhada, porque a fonte decide) e a rolagem.
+ * O estado guarda a linha do topo, e não os pixels: rolar dentro da mesma linha
+ * não redesenha nada.
+ *
+ * A busca, os filtros e a ordem continuam fora daqui, em `visiveis`: a janela
+ * só corta o que já foi decidido.
+ */
+export function ListaDeConversas({ conversas, atual, aoAbrir }) {
+  const caixa = useRef(null);
+  const amostra = useRef(null);
+  const [alturaLinha, setAlturaLinha] = useState(ALTURA_DA_LINHA);
+  const [alturaVisivel, setAlturaVisivel] = useState(0);
+  const [primeiraVisivel, setPrimeiraVisivel] = useState(0);
+
+  useLayoutEffect(() => {
+    const elemento = caixa.current;
+    if (!elemento) return undefined;
+    const medir = () => setAlturaVisivel(elemento.clientHeight);
+    medir();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", medir);
+      return () => window.removeEventListener("resize", medir);
+    }
+    const observador = new ResizeObserver(medir);
+    observador.observe(elemento);
+    return () => observador.disconnect();
+  }, []);
+
+  // Sem dependências de propósito: a altura só é conhecida depois do desenho,
+  // e o `setState` com o mesmo valor não redesenha.
+  useLayoutEffect(() => {
+    const medida = amostra.current?.offsetHeight;
+    if (medida) setAlturaLinha(medida);
+  });
+
+  const aoRolar = (evento) => setPrimeiraVisivel(Math.floor(evento.currentTarget.scrollTop / alturaLinha));
+
+  const { inicio, fim, antes, depois } = janelaDaLista({
+    total: conversas.length,
+    alturaLinha,
+    primeiraVisivel,
+    alturaVisivel,
+  });
+
+  return (
+    <div ref={caixa} onScroll={aoRolar} className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
+      <div style={{ height: antes }} aria-hidden="true" />
+      {conversas.slice(inicio, fim).map((c, i) => (
+        <div key={c.id} ref={i === 0 ? amostra : undefined}>
+          <LinhaConversa conversa={c} ativa={c.id === atual} aoAbrir={() => aoAbrir(c)} />
+        </div>
+      ))}
+      <div style={{ height: depois }} aria-hidden="true" />
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -476,33 +542,32 @@ export default function Conversas({
           <FaixaConexao resumo={resumoConexao} podeGerenciar={podeGerenciar} aoConectar={abrirConexao} />
         )}
 
-        <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
-          {conversas === null ? (
-            <div className="px-3.5 py-6 text-[12.5px] text-sub">Carregando…</div>
-          ) : visiveis.length === 0 ? (
-            <div className="px-3.5 py-6 text-[12.5px] text-sub">
-              {conversas.length === 0
-                ? resumoConexao?.fase === FASES.CONECTADO
-                  ? "Nenhuma conversa ainda. Comece uma pelo + aqui em cima."
-                  : "Nenhuma conversa ainda."
-                : "Nada aqui com esse filtro."}
-            </div>
-          ) : (
-            visiveis.map((c) => (
-              <LinhaConversa
-                key={c.id}
-                conversa={c}
-                ativa={c.id === atual}
-                aoAbrir={() => {
-                  setAtual(c.id);
-                  setAba(null);
-                  setAtalho(null);
-                  aoAbrirConversa?.();
-                }}
-              />
-            ))
-          )}
-        </div>
+        {conversas === null || visiveis.length === 0 ? (
+          <div className="scrollbar-fina min-h-0 flex-1 overflow-y-auto">
+            {conversas === null ? (
+              <div className="px-3.5 py-6 text-[12.5px] text-sub">Carregando…</div>
+            ) : (
+              <div className="px-3.5 py-6 text-[12.5px] text-sub">
+                {conversas.length === 0
+                  ? resumoConexao?.fase === FASES.CONECTADO
+                    ? "Nenhuma conversa ainda. Comece uma pelo + aqui em cima."
+                    : "Nenhuma conversa ainda."
+                  : "Nada aqui com esse filtro."}
+              </div>
+            )}
+          </div>
+        ) : (
+          <ListaDeConversas
+            conversas={visiveis}
+            atual={atual}
+            aoAbrir={(c) => {
+              setAtual(c.id);
+              setAba(null);
+              setAtalho(null);
+              aoAbrirConversa?.();
+            }}
+          />
+        )}
       </div>
 
       {/* Coluna 2 — a conversa */}
