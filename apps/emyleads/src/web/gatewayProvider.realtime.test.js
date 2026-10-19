@@ -70,6 +70,62 @@ describe("avisos do realtime", () => {
     expect(recebidos).toEqual(["conversas"]);
   });
 
+  it("repassa a conexão e a conversa, e a espera acumula as chaves", async () => {
+    const detalhes = [];
+    const guardar = (evento) => detalhes.push(evento.detail);
+    window.addEventListener("emyleads:connections-changed", guardar);
+    await criarOperacoesGateway()["gateway.ativarRealtime"]({ organizationId });
+    const canal = mocks.channels[0];
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-1", entity_key: "5511900000001" } });
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-1", entity_key: "5511900000002" } });
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-1", entity_key: "5511900000001" } });
+    vi.advanceTimersByTime(100);
+    window.removeEventListener("emyleads:connections-changed", guardar);
+    expect(detalhes).toEqual([
+      {
+        organizationId,
+        topic: "conversas",
+        entityId: "conexao-1",
+        entityKeys: ["5511900000001", "5511900000002"],
+      },
+    ]);
+  });
+
+  it("um aviso sem chave na espera vira 'não sei qual', e conexões diferentes não dão entityId", async () => {
+    const detalhes = [];
+    const guardar = (evento) => detalhes.push(evento.detail);
+    window.addEventListener("emyleads:connections-changed", guardar);
+    await criarOperacoesGateway()["gateway.ativarRealtime"]({ organizationId });
+    const canal = mocks.channels[0];
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-1", entity_key: "5511900000001" } });
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-2" } });
+    vi.advanceTimersByTime(100);
+    // A espera seguinte começa do zero.
+    canal.aoEvento({ new: { topic: "conversas", entity_id: "conexao-1", entity_key: "5511900000003" } });
+    vi.advanceTimersByTime(100);
+    window.removeEventListener("emyleads:connections-changed", guardar);
+    expect(detalhes[0]).toMatchObject({ entityId: null, entityKeys: null });
+    expect(detalhes[1]).toMatchObject({ entityId: "conexao-1", entityKeys: ["5511900000003"] });
+  });
+
+  it("avisa quando o canal fica inscrito e quando cai, e diz o estado a quem chega depois", async () => {
+    const estados = [];
+    const guardar = (evento) => estados.push(evento.detail);
+    window.addEventListener("emyleads:realtime-status", guardar);
+    const gateway = criarOperacoesGateway();
+    const primeira = await gateway["gateway.ativarRealtime"]({ organizationId });
+    expect(primeira.inscrito).toBe(false);
+    const canal = mocks.channels[0];
+    canal.aoEstado("SUBSCRIBED");
+    expect((await gateway["gateway.ativarRealtime"]({ organizationId })).inscrito).toBe(true);
+    canal.aoEstado("CHANNEL_ERROR");
+    canal.aoEstado("TIMED_OUT");
+    canal.aoEstado("SUBSCRIBED");
+    window.removeEventListener("emyleads:realtime-status", guardar);
+    expect(estados.map((e) => e.inscrito)).toEqual([true, false, true]);
+    expect(estados.every((e) => e.organizationId === organizationId)).toBe(true);
+  });
+
   it("religar o canal manda as telas recarregarem o que perderam", async () => {
     await criarOperacoesGateway()["gateway.ativarRealtime"]({ organizationId });
     const canal = mocks.channels[0];
