@@ -1,5 +1,6 @@
 import { obterSupabaseWeb } from "./supabaseClient.js";
 import { webArea } from "./storage.js";
+import { apagarCacheLocal } from "./cacheLocal.js";
 import { FUSOS_DO_BRASIL } from "../domain/regras.js";
 
 const CHAVE_WORKSPACE = "emyleads.workspace.atual";
@@ -315,6 +316,9 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
         password: senha,
       });
       if (error) throw erroDaResposta(error, "login-falhou");
+      // Quem entra sem que o anterior tenha saído (sessão que venceu) não
+      // herda a cópia local das Conversas dele.
+      await apagarCacheLocal();
       return estado();
     },
 
@@ -322,6 +326,9 @@ export function criarOperacoesAuth({ supabase = obterSupabaseWeb(), area = webAr
       const { error } = await supabase.auth.signOut();
       if (error) throw erroDaResposta(error, "logout-falhou");
       await area.remove(CHAVE_WORKSPACE);
+      // A cópia local das Conversas sai com a sessão: o próximo a usar este
+      // navegador não pode abrir conversa de cliente de outra pessoa.
+      await apagarCacheLocal();
       return { ok: true };
     },
 
