@@ -231,6 +231,32 @@ describe("o anexo na caixa de escrita", () => {
     act(() => entrada.dispatchEvent(new Event("change", { bubbles: true })));
   };
 
+  it("dois Enters antes de o primeiro envio voltar mandam o texto uma vez só", async () => {
+    let soltar;
+    const envios = [];
+    caixa({
+      rascunho: "oi",
+      aoEnviar: () => {
+        envios.push(1);
+        return new Promise((pronto) => {
+          soltar = pronto;
+        });
+      },
+    });
+    const caixaDeTexto = container.querySelector("textarea");
+    const enter = () =>
+      act(() => {
+        caixaDeTexto.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      });
+    enter();
+    enter();
+    expect(envios).toHaveLength(1);
+
+    await act(async () => soltar());
+    enter();
+    expect(envios).toHaveLength(2);
+  });
+
   it("sem quem receba o arquivo, o clipe e o microfone ficam desligados", () => {
     caixa({ aoEnviarArquivo: undefined });
     const botoes = [...container.querySelectorAll("button")];

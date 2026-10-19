@@ -314,13 +314,17 @@ export default function Conversas({
   };
 
   const mandar = async (texto, arquivo = null) => {
+    // A caixa esvazia na hora, antes de o servidor responder: com o texto
+    // ainda nela, um segundo Enter mandaria a mesma mensagem outra vez.
+    setRascunho("");
+    setAba(null);
     try {
       await enviar(texto, null, arquivo);
-      setRascunho("");
-      setAba(null);
     } catch {
-      // O texto fica na caixa de propósito: quem escreveu não deve perder o que
-      // escreveu porque o envio falhou. O motivo aparece abaixo dela.
+      // O texto volta para a caixa: quem escreveu não deve perder o que
+      // escreveu porque o envio falhou. O motivo aparece abaixo dela. Se a
+      // pessoa já começou outra mensagem, ela não é atropelada.
+      setRascunho((agora) => agora || texto);
     }
   };
 
