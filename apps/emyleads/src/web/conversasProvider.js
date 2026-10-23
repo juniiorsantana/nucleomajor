@@ -1,6 +1,7 @@
 import { MODELOS } from "../data/modelosPadrao.js";
 import { fmtDiaDaConversa, fmtHoraDaLista } from "../lib/formato.js";
 import { normalizePhone, variantesBR } from "../lib/phone.js";
+import { criarCacheDeUrlsAssinadas } from "../lib/urlsAssinadas.js";
 import { WORKSPACE_KEY } from "./storage.js";
 
 /**
@@ -220,27 +221,16 @@ function traduzir(mensagem) {
  * Uma falha do Storage não pode derrubar a caixa de entrada: avatar e arquivo
  * de mídia são enriquecimento visual, e o que fica sem URL cai no fallback
  * completo — as iniciais para o avatar, o rótulo "🎤 Áudio" para a bolha.
+ *
+ * A URL vem do cache (`lib/urlsAssinadas.js`): a recarga de 20 segundos
+ * devolve a mesma, e o navegador não baixa o arquivo de novo.
  */
-async function assinarCaminhos(supabase, bucket, caminhos, validade) {
-  const unicos = [...new Set(caminhos.map((c) => String(c || "").trim()).filter(Boolean))];
-  if (unicos.length === 0) return new Map();
+const assinarCaminhos = (urlsAssinadas, supabase, bucket, caminhos, validade) =>
+  urlsAssinadas.assinarVarios(supabase, bucket, caminhos, validade);
 
-  try {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(unicos, validade);
-    if (error) return new Map();
-
-    return new Map(
-      (data || [])
-        .filter((arquivo) => arquivo?.path && arquivo?.signedUrl && !arquivo?.error)
-        .map((arquivo) => [arquivo.path, arquivo.signedUrl])
-    );
-  } catch {
-    return new Map();
-  }
-}
-
-const assinarAvatares = (supabase, contatos) =>
+const assinarAvatares = (urlsAssinadas, supabase, contatos) =>
   assinarCaminhos(
+    urlsAssinadas,
     supabase,
     BUCKET_AVATARES,
     contatos.map((contato) => contato.avatar_path),
@@ -348,7 +338,11 @@ function midiaDaMensagem(linha, urls) {
   };
 }
 
-export function criarOperacoesConversasWeb({ supabase, area }) {
+export function criarOperacoesConversasWeb({
+  supabase,
+  area,
+  urlsAssinadas = criarCacheDeUrlsAssinadas(),
+}) {
   // O baralho das variações de mensagem padrão. Vive em memória porque é
   // preferência de sessão, não dado da organização: sortear diferente depois de
   // recarregar a página não incomoda ninguém.
@@ -393,7 +387,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     ]);
 
     const indice = indicePorTelefone(contatos);
-    const avatares = await assinarAvatares(supabase, contatos);
+    const avatares = await assinarAvatares(urlsAssinadas, supabase, contatos);
     return conversas.map((linha) => {
       const grupo = linha.chat_kind === "grupo";
       // Grupo não procura contato: o identificador dele não é telefone de
@@ -470,6 +464,7 @@ export function criarOperacoesConversasWeb({ supabase, area }) {
     // As URLs dos arquivos, assinadas de uma vez para a conversa inteira: uma
     // chamada, e não uma por bolha.
     const urls = await assinarCaminhos(
+      urlsAssinadas,
       supabase,
       BUCKET_MIDIA,
       linhas.map((linha) => linha.media_path),

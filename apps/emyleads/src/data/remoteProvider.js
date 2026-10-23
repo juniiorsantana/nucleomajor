@@ -2,6 +2,10 @@ import * as db from "./db.js";
 import { ESTAGIOS_PADRAO, TAGS_PADRAO } from "../domain/types.js";
 import { planejarMigracao } from "./migrationMapper.js";
 import { obterSupabase } from "./supabaseClient.js";
+import { criarCacheDeUrlsAssinadas } from "../lib/urlsAssinadas.js";
+
+const BUCKET_AVATARES = "contact-avatars";
+const VALIDADE_AVATAR_SEGUNDOS = 60 * 60;
 
 const WORKSPACE_KEY = "emyleads.workspace.atual";
 const SNAPSHOT_CHAVE = "migracao-snapshot";
@@ -280,7 +284,16 @@ function obterAtualizavel(item, existente) {
   return existente?.find((r) => r.remoteId === item.id || r.id === item.legacy_id) || null;
 }
 
-export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local } = {}) {
+export function criarOperacoesSincronizacao({
+  supabase = obterSupabase(),
+  local,
+  urlsAssinadas = criarCacheDeUrlsAssinadas(),
+} = {}) {
+  // A mesma URL a cada sincronia, enquanto ela servir: com uma nova a cada
+  // volta, `fotoUrl` mudava sempre e a tela baixava a foto outra vez.
+  const assinarAvatar = (caminho) =>
+    urlsAssinadas.assinarUm(supabase, BUCKET_AVATARES, caminho, VALIDADE_AVATAR_SEGUNDOS);
+
   if (!local) throw new Error("O provider remoto precisa do LocalProvider.");
 
   const lerWorkspace = async () => {
@@ -565,8 +578,8 @@ export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local 
     const contatosComFoto = (await db.todos(db.LOJAS.contatos)).filter((item) => item.avatarPath && !item.fotoUrl?.startsWith("data:"));
     for (const contato of contatosComFoto) {
       try {
-        const { data, error } = await supabase.storage.from("contact-avatars").createSignedUrl(contato.avatarPath, 3600);
-        if (!error && data?.signedUrl) await db.gravar(db.LOJAS.contatos, { ...contato, fotoUrl: data.signedUrl });
+        const url = await assinarAvatar(contato.avatarPath);
+        if (url !== contato.fotoUrl) await db.gravar(db.LOJAS.contatos, { ...contato, fotoUrl: url });
       } catch {
         // Avatar é enriquecimento; falha de URL não interrompe o sync.
       }
@@ -672,10 +685,8 @@ export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local 
     for (const contato of contatos) {
       if (!contato.avatarPath) continue;
       try {
-        const { data, error } = await supabase.storage.from("contact-avatars").createSignedUrl(contato.avatarPath, 3600);
-        if (!error && data?.signedUrl && data.signedUrl !== contato.fotoUrl) {
-          await db.gravar(db.LOJAS.contatos, { ...contato, fotoUrl: data.signedUrl });
-        }
+        const url = await assinarAvatar(contato.avatarPath);
+        if (url !== contato.fotoUrl) await db.gravar(db.LOJAS.contatos, { ...contato, fotoUrl: url });
       } catch {
         // A foto é enriquecimento visual; falha na URL não interrompe o sync.
       }
@@ -929,9 +940,11 @@ export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local 
     // URLs assinadas são apenas cache de visualização. Se o caminho já existe,
     // não tentamos reutilizar uma URL que pode ter expirado.
     if (caminhoExistente && !/^data:/i.test(fonte || "")) {
-      const { data: signed, error: signedError } = await supabase.storage.from("contact-avatars").createSignedUrl(caminhoExistente, 60);
-      if (signedError || !signed?.signedUrl) return { ok: false, caminho: caminhoExistente, motivo: signedError?.message || "foto sem URL privada" };
-      return { ok: true, caminho: caminhoExistente, url: signed.signedUrl };
+      try {
+        return { ok: true, caminho: caminhoExistente, url: await assinarAvatar(caminhoExistente) };
+      } catch (error) {
+        return { ok: false, caminho: caminhoExistente, motivo: error?.message || "foto sem URL privada" };
+      }
     }
     if (!fonte || !/^data:|^https?:/i.test(fonte)) return { ok: false, motivo: "fonte-indisponivel" };
     try {
@@ -943,9 +956,10 @@ export function criarOperacoesSincronizacao({ supabase = obterSupabase(), local 
       if (error) throw error;
       const { error: updateError } = await supabase.from("contacts").update({ avatar_path: caminho }).eq("id", remoteContactId).eq("organization_id", organizationId);
       if (updateError) throw updateError;
-      const { data: signed, error: signedError } = await supabase.storage.from("contact-avatars").createSignedUrl(caminho, 60);
-      if (signedError || !signed?.signedUrl) throw signedError || new Error("foto sem URL privada");
-      return { ok: true, caminho, url: signed.signedUrl };
+      // A foto foi trocada por cima do mesmo caminho: a URL guardada mostraria
+      // a velha do cache do navegador.
+      urlsAssinadas.esquecer(BUCKET_AVATARES, caminho);
+      return { ok: true, caminho, url: await assinarAvatar(caminho) };
     } catch (error) {
       return { ok: false, motivo: error?.message || String(error) };
     }

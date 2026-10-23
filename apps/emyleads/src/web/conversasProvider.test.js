@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { criarCacheDeUrlsAssinadas } from "../lib/urlsAssinadas.js";
 import { criarOperacoesConversasWeb } from "./conversasProvider.js";
 import { WORKSPACE_KEY } from "./storage.js";
 
@@ -132,8 +133,12 @@ function bancada({
   mensagens = MENSAGENS,
   assinatura = null,
   upload = { error: null },
+  urlsAssinadas,
+  // Como o Storage de verdade: cada assinatura sai com um token novo.
+  tokenNovo = false,
 } = {}) {
   const chamadas = [];
+  let tokens = 0;
   const respostas = {
     whatsapp_conversations: conversas,
     contacts: contatos,
@@ -146,7 +151,12 @@ function bancada({
     return {
       data:
         assinatura?.data ||
-        caminhos.map((path) => ({ path, signedUrl: `https://storage.test/${path}` })),
+        caminhos.map((path) => ({
+          path,
+          signedUrl: tokenNovo
+            ? `https://storage.test/${path}?token=${++tokens}`
+            : `https://storage.test/${path}`,
+        })),
       error: null,
     };
   });
@@ -176,7 +186,7 @@ function bancada({
   };
   const area = { get: vi.fn(async () => (workspace ? { [WORKSPACE_KEY]: workspace } : {})) };
   return {
-    operacoes: criarOperacoesConversasWeb({ supabase, area }),
+    operacoes: criarOperacoesConversasWeb({ supabase, area, urlsAssinadas }),
     chamadas,
     criarUrlsAssinadas,
     supabase,
@@ -264,6 +274,16 @@ describe("conversas.listar", () => {
     expect(criarUrlsAssinadas).toHaveBeenCalledOnce();
     expect(criarUrlsAssinadas).toHaveBeenCalledWith([AVATAR_PATH], 3600);
     expect(primeira.fotoUrl).toBe(`https://storage.test/${AVATAR_PATH}`);
+  });
+
+  it("a recarga da lista não assina os avatares de novo", async () => {
+    const { operacoes, criarUrlsAssinadas } = bancada({ tokenNovo: true });
+
+    const [primeira] = await operacoes["conversas.listar"]();
+    const [segunda] = await operacoes["conversas.listar"]();
+
+    expect(criarUrlsAssinadas).toHaveBeenCalledOnce();
+    expect(segunda.fotoUrl).toBe(primeira.fotoUrl);
   });
 
   it("mantém a lista com iniciais quando a assinatura do avatar falha", async () => {
@@ -890,6 +910,45 @@ describe("mídia com arquivo", () => {
       },
     });
     expect(bolhas[2].midia).toMatchObject({ tipo: "audio", mime: "audio/webm" });
+  });
+
+  const urlsDasBolhas = (lista) =>
+    lista.filter((item) => item.tipo === "mensagem" && item.midia).map((item) => item.midia.url);
+
+  it("duas recargas seguidas assinam uma vez só e devolvem as mesmas URLs", async () => {
+    const { operacoes, criarUrlsAssinadas } = bancada({ mensagens: COM_ARQUIVO, tokenNovo: true });
+    const id = `${CONNECTION_ID}:5511987654321`;
+
+    const primeira = await operacoes["conversas.mensagens"]({ id });
+    const segunda = await operacoes["conversas.mensagens"]({ id });
+
+    // URL igual é o que impede o navegador de baixar o arquivo de novo.
+    expect(criarUrlsAssinadas).toHaveBeenCalledTimes(1);
+    expect(urlsDasBolhas(primeira)).toHaveLength(2);
+    expect(urlsDasBolhas(segunda)).toEqual(urlsDasBolhas(primeira));
+  });
+
+  it("perto do vencimento, a recarga pede URL nova", async () => {
+    let agora = Date.parse("2026-10-23T12:00:00.000Z");
+    const { operacoes, criarUrlsAssinadas } = bancada({
+      mensagens: COM_ARQUIVO,
+      tokenNovo: true,
+      urlsAssinadas: criarCacheDeUrlsAssinadas({ agora: () => agora }),
+    });
+    const id = `${CONNECTION_ID}:5511987654321`;
+
+    const primeira = await operacoes["conversas.mensagens"]({ id });
+    // 47 minutos de uma hora: ainda sobram mais de 20%.
+    agora += 47 * 60 * 1000;
+    const antes = await operacoes["conversas.mensagens"]({ id });
+    // 49 minutos: faltam onze, e a URL é trocada antes de vencer.
+    agora += 2 * 60 * 1000;
+    const depois = await operacoes["conversas.mensagens"]({ id });
+
+    expect(urlsDasBolhas(antes)).toEqual(urlsDasBolhas(primeira));
+    expect(criarUrlsAssinadas).toHaveBeenCalledTimes(2);
+    expect(urlsDasBolhas(depois)).not.toEqual(urlsDasBolhas(primeira));
+    expect(urlsDasBolhas(depois)).toHaveLength(2);
   });
 
   it("tira a assinatura do runtime do texto de quem já tem nome na bolha", async () => {
