@@ -27,7 +27,18 @@ const ORG = "org-1";
 const CONEXAO = "8ee1e6d0-0000-0000-0000-000000000001";
 const organizacao = { id: ORG, name: "Núcleo Major", papel: "owner" };
 
-/** Uma conexão da VPS como `api.gateway.conexoes` a devolve. */
+const ATENDIMENTO = {
+  iaAtiva: true,
+  donoPadrao: "ia",
+  abertas: { bot: 0, ia: 0, humano: 0 },
+  conversations: [],
+  remoteSummary: true,
+};
+
+/**
+ * Uma conexão da VPS como `api.gateway.conexoes` a devolve: sem gateway
+ * local, o resumo do atendimento já vem nela (`attendance`).
+ */
 function conexaoRemota(status, extra = {}) {
   return {
     connectionId: CONEXAO,
@@ -38,6 +49,8 @@ function conexaoRemota(status, extra = {}) {
     expectedPhoneMasked: "•••• 8362",
     controlPlane: { heartbeat_at: new Date(Date.now() - 12000).toISOString(), fresh: true },
     connection: { status, phoneMasked: status === "connected" ? "•••• 8362" : null, updatedAt: new Date().toISOString() },
+    attendance: ATENDIMENTO,
+    readiness: null,
     ...extra,
   };
 }
@@ -45,8 +58,8 @@ function conexaoRemota(status, extra = {}) {
 let container;
 let root;
 
-async function montar(conexao) {
-  gatewayApi.conexoes.mockResolvedValue({ organizationId: ORG, vinculado: true, gateway: "cloud", conexoes: [conexao] });
+async function montar(conexao, gateway = "cloud") {
+  gatewayApi.conexoes.mockResolvedValue({ organizationId: ORG, vinculado: true, gateway, conexoes: [conexao] });
   await act(async () => {
     root.render(<Conexoes organizacao={organizacao} usuario={{ id: "u1", nome: "Ana" }} />);
   });
@@ -65,13 +78,7 @@ beforeEach(() => {
   configApi.ler.mockResolvedValue(null);
   organizacoesApi.robos.mockResolvedValue([]);
   gatewayApi.prontidao.mockResolvedValue(null);
-  gatewayApi.resumoAtendimento.mockResolvedValue({
-    iaAtiva: true,
-    donoPadrao: "ia",
-    abertas: { bot: 0, ia: 0, humano: 0 },
-    conversations: [],
-    remoteSummary: true,
-  });
+  gatewayApi.resumoAtendimento.mockResolvedValue(ATENDIMENTO);
   gatewayApi.qr.mockResolvedValue(null);
   gatewayApi.parear.mockResolvedValue({ ok: true });
   // A troca de número fica desligada nestes testes: eles são do cartão.
@@ -157,5 +164,54 @@ describe("cartão da conexão em duas camadas", () => {
 
     expect(botao("Conectar WhatsApp")).toBeNull();
     expect(container.textContent).toContain("permissão de administrador");
+  });
+});
+
+describe("consultas da tela (egress, 23/10/2026)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  });
+
+  it("sem gateway local, prontidão e atendimento saem da lista, sem nova consulta", async () => {
+    await montar(conexaoRemota("connected"));
+    expect(gatewayApi.conexoes).toHaveBeenCalledTimes(1);
+    expect(gatewayApi.resumoAtendimento).not.toHaveBeenCalled();
+    expect(gatewayApi.prontidao).not.toHaveBeenCalled();
+  });
+
+  it("com o gateway local respondendo, pergunta a ele", async () => {
+    await montar(conexaoRemota("connected"), "online");
+    expect(gatewayApi.resumoAtendimento).toHaveBeenCalledTimes(1);
+    expect(gatewayApi.prontidao).toHaveBeenCalledTimes(1);
+  });
+
+  it("conectado, relê de 30 em 30 s e não de 2,5 em 2,5 s", async () => {
+    vi.useFakeTimers();
+    await montar(conexaoRemota("connected"));
+    expect(gatewayApi.conexoes).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(gatewayApi.conexoes).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(gatewayApi.conexoes).toHaveBeenCalledTimes(2);
+  });
+
+  it("pareando, mantém os 2,5 s", async () => {
+    vi.useFakeTimers();
+    await montar(conexaoRemota("awaiting_qr"));
+    const antes = gatewayApi.conexoes.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(gatewayApi.conexoes.mock.calls.length - antes).toBe(2);
+  });
+
+  it("com a aba oculta, não relê", async () => {
+    vi.useFakeTimers();
+    await montar(conexaoRemota("connected"));
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10 * 60_000));
+    expect(gatewayApi.conexoes).toHaveBeenCalledTimes(1);
   });
 });

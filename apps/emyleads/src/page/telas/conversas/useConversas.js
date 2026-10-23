@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../data/client";
+import { abaVisivel, iniciarIntervaloVisivel, useIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
 import { textoDoMotivoDeEnvio } from "../../../ui/atendimento";
 import {
   conciliarPendentes,
@@ -11,8 +12,15 @@ import {
 const PLATAFORMA_WEB =
   typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
 
-/** A lista se atualiza sozinha pelo realtime; isto é o que segura se ele cair. */
-const RECARGA_MS = 20000;
+/**
+ * A lista se atualiza sozinha pelo realtime; isto é o que segura se ele cair.
+ *
+ * Era 20 s. O aviso de `conversas` sai a cada mensagem, e o canal, ao religar,
+ * já manda recarregar tudo (`ativarRealtime`); a recarga de fundo só cobre o
+ * canal que caiu sem avisar. Cada volta relê a lista e a conversa aberta, e
+ * isso pesava no egress do Supabase (23/10/2026).
+ */
+export const RECARGA_MS = 60000;
 
 /**
  * A leitura automática (coordenador da VPS com o Jev) muda no máximo a cada
@@ -192,10 +200,10 @@ export function useConversas(organizacaoId) {
         })
         .catch(() => {});
     buscar();
-    const timer = setInterval(buscar, RECARGA_LEITURAS_MS);
+    const parar = iniciarIntervaloVisivel(buscar, RECARGA_LEITURAS_MS);
     return () => {
       vivo = false;
-      clearInterval(timer);
+      parar();
     };
   }, [organizacaoId]);
 
@@ -302,6 +310,8 @@ export function useConversas(organizacaoId) {
   useEffect(() => {
     if (!PLATAFORMA_WEB || !organizacaoId) return undefined;
     const aoMudar = (evento) => {
+      // Com a aba oculta, a recarga fica para a volta (`sempreAoVoltar` abaixo).
+      if (!abaVisivel()) return;
       if (evento.detail?.organizationId === organizacaoId && evento.detail?.topic === "conversas") {
         carregarLista().catch(() => {});
         carregarMensagens(atualRef.current).catch(() => {});
@@ -314,26 +324,13 @@ export function useConversas(organizacaoId) {
     return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
   }, [organizacaoId, carregarLista, carregarMensagens]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      carregarLista().catch(() => {});
-      carregarMensagens(atualRef.current).catch(() => {});
-    }, RECARGA_MS);
-    // Voltar para a aba recarrega na hora. Em aba de fundo a recarga acima
-    // pula, e o navegador atrasa avisos e temporizadores; sem isto a lista
-    // ficava velha até a volta seguinte do timer, e parecia pedir F5.
-    const aoVoltar = () => {
-      if (document.visibilityState !== "visible") return;
-      carregarLista().catch(() => {});
-      carregarMensagens(atualRef.current).catch(() => {});
-    };
-    document.addEventListener("visibilitychange", aoVoltar);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", aoVoltar);
-    };
-  }, [carregarLista, carregarMensagens]);
+  // Voltar para a aba recarrega na hora (`sempreAoVoltar`). Em aba de fundo a
+  // recarga para, e o navegador atrasa avisos e temporizadores; sem isto a
+  // lista ficava velha até a volta seguinte do timer, e parecia pedir F5.
+  useIntervaloVisivel(() => {
+    carregarLista().catch(() => {});
+    carregarMensagens(atualRef.current).catch(() => {});
+  }, RECARGA_MS, { sempreAoVoltar: true });
 
   /**
    * Acompanha um comando até ele terminar.

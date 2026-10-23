@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, LoaderCircle, Power, QrCode } from "lucide-react";
 import { api } from "../../../data/client";
 import { fmtDataHora } from "../../../lib/formato";
+import { useIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
 import { BotaoPrimario } from "../../ui";
 import {
   FASES_DA_TROCA,
@@ -118,16 +119,12 @@ export function useTrocaDeWhatsApp({ organizationId, conexao, ativa = true, aoMu
     ultimo?.status === "applied" && ultimo.kind === "disconnect" && liberada && statusDoCartao === "connected"
   );
 
-  useEffect(() => {
-    if (!ativa || !emAndamento) return undefined;
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") ler();
-    }, ESPERA_COM_PEDIDO_MS);
-    return () => clearInterval(id);
-  }, [ativa, emAndamento, ler]);
+  // Rápido só enquanto o pedido está vivo, e só com a aba à vista.
+  useIntervaloVisivel(ler, ESPERA_COM_PEDIDO_MS, { ativo: Boolean(ativa && emAndamento) });
 
-  // O cartão relê a conexão a cada 2,5 s. Quando o estado dela muda (o QR foi
-  // lido, a sessão caiu, a VPS desconectou), a troca relê também.
+  // O cartão relê a conexão a cada aviso do Realtime (e de 2,5 s em 2,5 s
+  // durante o pareamento). Quando o estado dela muda (o QR foi lido, a sessão
+  // caiu, a VPS desconectou), a troca relê também.
   const statusVistoRef = useRef(statusDoCartao);
   useEffect(() => {
     if (statusVistoRef.current === statusDoCartao) return;

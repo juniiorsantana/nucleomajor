@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../data/client";
+import { abaVisivel, useIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
+
+/**
+ * De quanto em quanto a lista de operadores é relida.
+ *
+ * Rápido (5 s) só com um código enviado esperando resposta, que é quando a
+ * linha muda sem ninguém clicar. Fora disso, o aviso `operators` do Realtime
+ * traz a mudança, e a releitura lenta é só a rede de segurança. Até
+ * 23/10/2026 eram 5 s sempre, com a aba oculta inclusive.
+ */
+export const OPERADORES_RAPIDO_MS = 5000;
+export const OPERADORES_LENTO_MS = 60000;
+
+export const cadenciaDosOperadores = (aguardando = {}) => (
+  Object.keys(aguardando).length ? OPERADORES_RAPIDO_MS : OPERADORES_LENTO_MS
+);
 
 /**
  * O estado dos operadores do WhatsApp, fora de qualquer tela.
@@ -81,23 +97,24 @@ export function useOperadores({ organizacaoId, ativo }) {
   useEffect(() => { carregarConexoes(); }, [carregarConexoes]);
   useEffect(() => { carregarOperadores(); }, [carregarOperadores]);
 
-  useEffect(() => {
-    if (!conexaoId) return undefined;
-    const timer = window.setInterval(carregarOperadores, 5000);
-    return () => window.clearInterval(timer);
-  }, [carregarOperadores, conexaoId]);
+  useIntervaloVisivel(carregarOperadores, cadenciaDosOperadores(aguardando), {
+    ativo: Boolean(conexaoId),
+    sempreAoVoltar: true,
+  });
 
   useEffect(() => {
     const plataformaWeb = typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
     if (!ativo || !plataformaWeb || !organizacaoId) return undefined;
     const aoMudar = (evento) => {
+      // Com a aba oculta, a releitura fica para a volta.
+      if (!abaVisivel()) return;
       if (evento.detail?.organizationId === organizacaoId && evento.detail?.topic === "operators") {
         carregarOperadores();
       }
     };
     window.addEventListener("emyleads:connections-changed", aoMudar);
     api.gateway.ativarRealtime({ organizationId: organizacaoId }).catch(() => {
-      // A consulta periódica de cinco segundos permanece como fallback.
+      // A releitura periódica (`cadenciaDosOperadores`) permanece como fallback.
     });
     return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
   }, [ativo, organizacaoId, carregarOperadores]);
@@ -106,7 +123,8 @@ export function useOperadores({ organizacaoId, ativo }) {
    * A VPS responde de forma assíncrona, então o envio é uma espera curta.
    *
    * Dez tentativas de 1,2s cobrem o caso normal; passando disso a solicitação
-   * continua valendo e o polling de cinco segundos termina o trabalho.
+   * continua valendo e a releitura rápida, ligada enquanto alguém aguarda,
+   * termina o trabalho.
    */
   const aguardarEnvio = async (comandoId) => {
     for (let tentativa = 0; tentativa < 10; tentativa += 1) {

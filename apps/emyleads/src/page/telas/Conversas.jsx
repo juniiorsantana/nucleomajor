@@ -209,8 +209,10 @@ export default function Conversas({
   const organizationId = sessao?.organizacaoAtual?.id || "";
   const podeGerenciar = ["owner", "admin"].includes(sessao?.organizacaoAtual?.papel);
   const listaVazia = Array.isArray(conversas) && conversas.length === 0;
+  // Rápido só com o QR aberto: a lista vazia de quem já está conectado não
+  // muda por ler a conexão de 6 em 6 segundos (ver `cadenciaDaConexao`).
   const { conexao, resumo: resumoConexao, carregado: conexaoCarregada, recarregar: recarregarConexao } = useConexao(organizationId, {
-    atento: listaVazia || modalConexao,
+    atento: modalConexao,
   });
   const { qr, pedindo, pedir, ler } = usePareamento({ organizationId, conexao, aberto: modalConexao });
   const abrirConexao = () => {

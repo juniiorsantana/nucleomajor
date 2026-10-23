@@ -42,6 +42,7 @@ vi.mock("../../../data/client", () => ({
 }));
 
 const { default: Conexoes } = await import("../Conexoes");
+const { CARTAO_FUNDO_MS } = await import("./cadenciaDaTela");
 
 const ORG = "org-major";
 const CONEXAO = "8ee1e6d0-0000-4000-8000-000000000001";
@@ -389,7 +390,8 @@ describe("desconectar", () => {
 
     // O sinal virou: desconectado, e o caminho de volta é Conectar WhatsApp.
     cartao = conexao("whatsapp_disconnected");
-    await passar(2500);
+    // Sem Realtime na bancada, quem traz o sinal novo é a releitura de fundo.
+    await passar(CARTAO_FUNDO_MS);
     expect(container.textContent).toContain("Desconectado em");
     expect(container.textContent).toContain("•••• 8362 · ainda não conectado");
     expect(botao("Conectar WhatsApp")).not.toBeNull();

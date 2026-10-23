@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../data/client";
+import { useIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
 import { mensagemDoPareamento } from "../conexoes/estadoDaConexao";
 
 /**
@@ -68,17 +69,12 @@ export function usePareamento({ organizationId, conexao, aberto }) {
     }
   }, [organizationId, conexao, ler]);
 
-  useEffect(() => {
-    if (!aberto || !organizationId || !conexao) return undefined;
-    let ativo = true;
-    const id = setInterval(() => {
-      if (ativo && document.visibilityState === "visible") ler();
-    }, ESPERA_DO_QR_MS);
-    return () => {
-      ativo = false;
-      clearInterval(id);
-    };
-  }, [aberto, organizationId, conexao, ler]);
+  // O QR continua no ritmo dele com o modal aberto; só para com a aba oculta.
+  // A tarefa vai por referência: a conexão chega como objeto novo a cada
+  // leitura, e recriar o relógio a cada uma o reiniciaria antes de bater.
+  useIntervaloVisivel(() => ler(), ESPERA_DO_QR_MS, {
+    ativo: Boolean(aberto && organizationId && conexao),
+  });
 
   useEffect(() => {
     if (!aberto) setQr(null);
