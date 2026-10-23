@@ -81,6 +81,6 @@ describe("avisos do realtime", () => {
     canal.aoEstado("CHANNEL_ERROR");
     canal.aoEstado("SUBSCRIBED");
     vi.advanceTimersByTime(100);
-    expect(recebidos.sort()).toEqual(["connections", "conversas", "operators"]);
+    expect(recebidos.sort()).toEqual(["connections", "conversas", "handoffs", "operators"]);
   });
 });
