@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conciliarPendentes, inicioDeGrupo, mesmaConversa, textoDaTransferencia, contatoMarcadoNaoAtenderIA, ehEtiquetaNaoAtenderIA } from "./conversasUtils";
+import { chaveDaLinha, conciliarPendentes, inicioDeGrupo, mesmaConversa, textoDaTransferencia, contatoMarcadoNaoAtenderIA, ehEtiquetaNaoAtenderIA } from "./conversasUtils";
 
 const msg = (texto, extra = {}) => ({
   tipo: "mensagem",
@@ -181,5 +181,20 @@ describe("inicioDeGrupo", () => {
     expect(inicioDeGrupo(m({ direcao: "sai", tom: "ia" }), m({ direcao: "sai", tom: "humano" }))).toBe(true);
     expect(inicioDeGrupo(m({ direcao: "sai", autor: "Ana" }), m({ direcao: "sai", autor: "Lucas" }))).toBe(true);
     expect(inicioDeGrupo(m(), m({ enviadaEm: 1_000_000 + 6 * 60 * 1000 }))).toBe(true);
+  });
+});
+
+describe("chaveDaLinha", () => {
+  it("a bolha leva a chave da mensagem, e não a posição", () => {
+    const linha = msg("oi", { messageId: "wa-9" });
+    // A mesma mensagem em outra posição (a mais velha saiu pelo teto de 300)
+    // continua o mesmo elemento: o src da foto e do áudio não troca.
+    expect(chaveDaLinha(linha, 4)).toBe(chaveDaLinha(linha, 3));
+    expect(chaveDaLinha(linha, 4)).toBe("msg-wa-9");
+  });
+  it("a pendente usa a chave do envio; divisor e aviso ficam na posição", () => {
+    expect(chaveDaLinha(msg("oi", { chave: "c-1" }), 7)).toBe("pendente-c-1");
+    expect(chaveDaLinha({ tipo: "data", texto: "Hoje" }, 2)).toBe("data-2");
+    expect(chaveDaLinha({ tipo: "sistema", texto: "Bia assumiu" }, 5)).toBe("sistema-5");
   });
 });

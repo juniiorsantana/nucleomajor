@@ -211,3 +211,19 @@ export function inicioDeGrupo(anterior, atual) {
   const b = Number(atual.enviadaEm);
   return Number.isFinite(a) && Number.isFinite(b) && b - a > INTERVALO_DO_GRUPO_MS;
 }
+
+/**
+ * A `key` de uma linha da conversa (23/10/2026).
+ *
+ * A bolha é chaveada pela mensagem, e não pela posição. Com a posição, a
+ * conversa que passa do teto de 300 perde a mais velha a cada mensagem nova,
+ * todas as linhas andam uma casa, e cada bolha recebe a foto ou o áudio da
+ * vizinha: o `src` troca na tela inteira e o áudio que tocava para. A bolha
+ * pendente usa a chave do envio; divisor e aviso, que não têm id, ficam na
+ * posição.
+ */
+export function chaveDaLinha(linha, indice) {
+  if (linha?.tipo === "mensagem" && linha.messageId) return `msg-${linha.messageId}`;
+  if (linha?.tipo === "mensagem" && linha.chave) return `pendente-${linha.chave}`;
+  return `${linha?.tipo}-${indice}`;
+}

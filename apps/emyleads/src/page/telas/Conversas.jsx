@@ -22,7 +22,7 @@ import {
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
-import { conversaDoTelefone, inicioDeGrupo } from "./conversas/conversasUtils";
+import { chaveDaLinha, conversaDoTelefone, inicioDeGrupo } from "./conversas/conversasUtils";
 import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
 import { usePareamento } from "./conversas/usePareamento";
@@ -588,7 +588,7 @@ export default function Conversas({
                 className="fundo-conversa scrollbar-fina min-h-0 flex-1 overflow-y-auto px-5 pb-4 pt-3"
               >
                 {mensagens.map((m, i) => {
-                  const chave = `${m.tipo}-${i}`;
+                  const chave = chaveDaLinha(m, i);
                   if (m.tipo === "data") return <DivisorData key={chave} texto={m.texto} />;
                   if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
                   if (m.tipo === "sistema")
