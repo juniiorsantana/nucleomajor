@@ -21,6 +21,7 @@ import {
 } from "../../../domain/analiseDaConversa";
 import { ehAnaliseV2, ehRelatorioV2 } from "../../../domain/vendedorV2";
 import { fmtRelativo } from "../../../lib/formato";
+import { iniciarIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
 import { nomeSemNumero } from "../conexoes/estadoDaConexao";
 import { RelatorioDaAnalise } from "./RelatorioDaAnalise";
 import { RelatorioDoVendedor } from "./RelatorioDoVendedor";
@@ -131,7 +132,8 @@ export function AnaliseDaConversa({
   useEffect(() => {
     if (!idAtual || !emAndamento(situacaoAtual)) return undefined;
     let vivo = true;
-    const timer = setInterval(async () => {
+    // Com a aba oculta, para de perguntar; ao voltar, pergunta na hora.
+    const parar = iniciarIntervaloVisivel(async () => {
       try {
         const nova = analiseDoBanco(await api.conversas.analise({ analiseId: idAtual }));
         if (!vivo) return;
@@ -144,7 +146,7 @@ export function AnaliseDaConversa({
     }, INTERVALO_DO_ANDAMENTO_MS);
     return () => {
       vivo = false;
-      clearInterval(timer);
+      parar();
     };
   }, [idAtual, situacaoAtual, carregar]);
 

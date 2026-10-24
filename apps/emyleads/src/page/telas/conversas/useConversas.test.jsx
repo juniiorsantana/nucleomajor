@@ -29,7 +29,7 @@ vi.mock("../../../data/client", () => ({
   },
 }));
 
-const { useConversas } = await import("./useConversas");
+const { RECARGA_MS, useConversas } = await import("./useConversas");
 
 const conversa = (id) => ({
   id,
@@ -154,7 +154,7 @@ describe("recuperação de leitura", () => {
     await drenar();
     expect(estado.erro).toBe("rede indisponível");
 
-    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    await act(async () => vi.advanceTimersByTimeAsync(RECARGA_MS));
     await drenar();
     expect(estado.erro).toBe("");
     expect(estado.conversas?.[0]?.id).toBe("org-a:5511");
@@ -187,7 +187,7 @@ describe("conciliação de mensagens pendentes", () => {
         lido: false,
       },
     ]);
-    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    await act(async () => vi.advanceTimersByTimeAsync(RECARGA_MS));
     await drenar();
     expect(estado.mensagens.some((item) => item.enviando)).toBe(true);
 
@@ -204,7 +204,7 @@ describe("conciliação de mensagens pendentes", () => {
       },
       mensagem("wa-nova", "ok", Date.now()),
     ]);
-    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    await act(async () => vi.advanceTimersByTimeAsync(RECARGA_MS));
     await drenar();
     expect(estado.mensagens.some((item) => item.enviando)).toBe(false);
   });
@@ -325,6 +325,36 @@ describe("atualização e desmontagem", () => {
     await drenar();
 
     expect(estado.conversas).toHaveLength(2);
+  });
+
+  it("com a aba oculta, nem o timer nem o Realtime releem; a volta relê uma vez", async () => {
+    vi.useFakeTimers();
+    const mudarAba = (valor) => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: valor });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    try {
+      conversasApi.listar.mockResolvedValue([conversa("org-a:5511")]);
+      await renderizar("org-a");
+      await drenar();
+      const antes = conversasApi.listar.mock.calls.length;
+
+      await act(async () => mudarAba("hidden"));
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent("emyleads:connections-changed", {
+          detail: { organizationId: "org-a", topic: "conversas" },
+        }));
+        await vi.advanceTimersByTimeAsync(RECARGA_MS * 5);
+      });
+      await drenar();
+      expect(conversasApi.listar.mock.calls.length).toBe(antes);
+
+      await act(async () => mudarAba("visible"));
+      await drenar();
+      expect(conversasApi.listar.mock.calls.length).toBe(antes + 1);
+    } finally {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    }
   });
 
   it("não consulta desfecho depois que a tela é desmontada", async () => {

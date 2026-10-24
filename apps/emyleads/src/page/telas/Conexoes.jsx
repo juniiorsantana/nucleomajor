@@ -22,8 +22,10 @@ import {
 } from "lucide-react";
 import { api } from "../../data/client";
 import { fmtRelativo } from "../../lib/formato";
+import { abaVisivel, iniciarIntervaloVisivel, useIntervaloVisivel } from "../../lib/useIntervaloVisivel";
 import { EXPLICACAO_DO_DONO, OPCOES_DE_DONO, textoDoAtendimento, textoDoDono } from "../../ui/atendimento";
 import { BotaoPrimario, CabecalhoTela, Seletor } from "../ui";
+import { avisoPedeReleitura, cadenciaDoCartao, precisaPerguntarAoGateway } from "./conexoes/cadenciaDaTela";
 import { ClaudeEChatGPT } from "./conexoes/ClaudeEChatGPT";
 import { FASES, mensagemDoPareamento, nomeSemNumero, resumirConexao } from "./conexoes/estadoDaConexao";
 import { MudarNome } from "./conexoes/MudarNome";
@@ -68,8 +70,9 @@ const SESSAO_CAIDA = ["logged_out", "whatsapp_disconnected", "qr_expired", "erro
  *
  * O código do WhatsApp gira a cada ~20s e a janela toda dura ~2 minutos, então
  * ler a cada 15s mostra sempre um código válido. O laço geral da tela roda a
- * cada 2,5s — certo para o resto do cartão, e catastrófico para isto: numa
- * conexão remota cada leitura é um comando que vai ao Supabase e volta.
+ * cada 2,5s durante o pareamento (ver `cadenciaDaTela.js`) — certo para o
+ * resto do cartão, e catastrófico para isto: numa conexão remota cada leitura
+ * é um comando que vai ao Supabase e volta.
  */
 const ESPERA_DO_QR_MS = 15000;
 // Depois de uma recusa, o laço espera um minuto. Insistir a cada 15s contra
@@ -842,6 +845,8 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
   // Uma leitura de QR por vez nesta aba, e uma pausa depois de recusa.
   const lendoQrRef = useRef(false);
   const pausaDoQrRef = useRef(0);
+  // Quando a tela leu por último, para o aviso do Realtime não reler em cima.
+  const ultimaLeituraRef = useRef(0);
   const alguemPareando = useMemo(
     () => (estado?.conexoes || []).some((c) => EM_PAREAMENTO.includes(c.connection?.status)),
     [estado]
@@ -851,6 +856,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
     async ({ silencioso = false } = {}) => {
       if (!organizationId) return;
       if (!silencioso) setErro("");
+      ultimaLeituraRef.current = Date.now();
       try {
         // Local ao workspace e escrito pelo content script da aba do WhatsApp.
         // Ausente significa "esta máquina ainda não reportou", nunca "outro
@@ -881,11 +887,16 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
         // na mão esperando o código. O QR tem laço próprio, mais lento.
         conexoesRef.current = proximo.conexoes || [];
 
+        // Sem gateway local, prontidão e atendimento já vieram na lista: pedir
+        // de novo relia as mesmas duas tabelas duas vezes por conexão.
+        const perguntar = precisaPerguntarAoGateway(proximo);
+
         // `null` quando a consulta falha, para o cartão dizer "não sei" em vez
         // de "desligado" — a diferença importa justamente quando alguém está
         // conferindo se o atendimento pegou.
         const atendimentos = await Promise.all(
           (proximo.conexoes || []).map(async (c) => {
+            if (!perguntar) return [c.connectionId, c.attendance || null];
             try {
               return [
                 c.connectionId,
@@ -900,6 +911,7 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
 
         const estadosDoAssistente = await Promise.all(
           (proximo.conexoes || []).map(async (c) => {
+            if (!perguntar) return [c.connectionId, c.readiness || null];
             try {
               return [
                 c.connectionId,
@@ -1000,16 +1012,8 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
       setQrs({});
       return undefined;
     }
-    let ativo = true;
-    const rodar = () => {
-      if (ativo && document.visibilityState === "visible") lerQrs();
-    };
-    rodar();
-    const id = setInterval(rodar, ESPERA_DO_QR_MS);
-    return () => {
-      ativo = false;
-      clearInterval(id);
-    };
+    if (abaVisivel()) lerQrs();
+    return iniciarIntervaloVisivel(() => lerQrs(), ESPERA_DO_QR_MS);
   }, [organizationId, alguemPareando, lerQrs]);
 
   // Trocar de workspace descarrega tudo antes de qualquer nova consulta: a
@@ -1021,23 +1025,30 @@ export default function Conexoes({ organizacao, usuario = null, limites = null }
     setRobos({});
     setProntidoes({});
     setErro("");
-    if (!organizationId) return undefined;
-
-    let ativo = true;
-    carregar();
-    const id = setInterval(() => {
-      if (ativo && document.visibilityState === "visible") carregar({ silencioso: true });
-    }, 2500);
-    return () => {
-      ativo = false;
-      clearInterval(id);
-    };
+    if (organizationId) carregar();
   }, [organizationId, carregar]);
+
+  // 2,5 s só durante o pareamento; no resto, 30 s de fundo (`cadenciaDaTela`).
+  // Com a aba oculta, nem o relógio nem o aviso releem; a volta relê na hora.
+  useIntervaloVisivel(() => carregar({ silencioso: true }), cadenciaDoCartao(alguemPareando), {
+    ativo: Boolean(organizationId),
+    sempreAoVoltar: true,
+  });
+
+  const pareandoRef = useRef(alguemPareando);
+  pareandoRef.current = alguemPareando;
 
   useEffect(() => {
     if (!PLATAFORMA_WEB || !organizationId) return undefined;
     const aoMudar = (evento) => {
-      if (evento.detail?.organizationId === organizationId) carregar({ silencioso: true });
+      if (evento.detail?.organizationId !== organizationId) return;
+      if (!abaVisivel()) return;
+      if (!avisoPedeReleitura({
+        topico: evento.detail?.topic,
+        alguemPareando: pareandoRef.current,
+        ultimaLeitura: ultimaLeituraRef.current,
+      })) return;
+      carregar({ silencioso: true });
     };
     window.addEventListener("emyleads:connections-changed", aoMudar);
     api.gateway.ativarRealtime({ organizationId }).catch(() => {

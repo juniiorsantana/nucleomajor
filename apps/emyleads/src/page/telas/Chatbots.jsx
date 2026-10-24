@@ -4,10 +4,23 @@ import { api } from "../../data/client";
 import { conexoesSemFluxo, textoDoAvisoSemFluxo } from "../../domain/conexaoDoFluxo";
 import { handoffGroup, maskPhone } from "../../domain/customerAssistant";
 import { fmtDataHora, fmtRelativo } from "../../lib/formato";
+import { abaVisivel, useIntervaloVisivel } from "../../lib/useIntervaloVisivel";
 import { useAutomacao } from "../../ui/useAutomacao";
 import { textoDoMotivo, useDiario } from "../../ui/useDiario";
 import { BotaoPrimario, CabecalhoTela, CampoBusca } from "../ui";
 import { EstadoVazio } from "./gestaoCompartilhados";
+
+const PLATAFORMA_WEB =
+  typeof __EMYLEADS_PLATFORM__ !== "undefined" && __EMYLEADS_PLATFORM__ === "web";
+
+/**
+ * A fila de atendimento humano. Cada leitura traz até 200 pedidos com o
+ * contato junto; de 8 em 8 s, com a aba oculta inclusive, isso pesou no egress
+ * de 23/10/2026. Com o Realtime ligado, o aviso `handoffs` traz a mudança e a
+ * releitura vira rede de segurança.
+ */
+const FILA_SEM_REALTIME_MS = 8000;
+const FILA_COM_REALTIME_MS = 60000;
 
 const tipoPasso = {
   enviar_mensagem: "Mensagem",
@@ -182,7 +195,7 @@ const HANDOFF_REASON = {
   skill_limit: "Limite da habilidade",
 };
 
-function HandoffQueue({ canManage, onError }) {
+function HandoffQueue({ canManage, onError, organizationId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(null);
@@ -194,9 +207,26 @@ function HandoffQueue({ canManage, onError }) {
   };
   useEffect(() => {
     load();
-    const timer = window.setInterval(load, 8000);
-    return () => window.clearInterval(timer);
   }, [canManage]);
+  const realtime = PLATAFORMA_WEB && Boolean(organizationId) && canManage;
+  useIntervaloVisivel(load, realtime ? FILA_COM_REALTIME_MS : FILA_SEM_REALTIME_MS, {
+    ativo: canManage,
+    sempreAoVoltar: true,
+  });
+  // O gatilho de `customer_handoff_requests` avisa pelo tópico `handoffs`.
+  // Com a aba oculta, a releitura fica para a volta.
+  useEffect(() => {
+    if (!realtime) return undefined;
+    const aoMudar = (evento) => {
+      if (!abaVisivel()) return;
+      if (evento.detail?.organizationId === organizationId && evento.detail?.topic === "handoffs") load();
+    };
+    window.addEventListener("emyleads:connections-changed", aoMudar);
+    api.gateway.ativarRealtime({ organizationId }).catch(() => {
+      // A releitura periódica permanece como fallback.
+    });
+    return () => window.removeEventListener("emyleads:connections-changed", aoMudar);
+  }, [realtime, organizationId]);
   const act = async (requestId, action) => {
     setWorking(`${requestId}:${action}`); onError("");
     try { await api.inteligencia.transicionarAtendimento({ requestId, action }); await load(); }
@@ -334,7 +364,7 @@ export default function Chatbots({ chatbots = [], recarregar, aoEditar, sessao }
         )}
         <DiarioAutomacao diario={diario} entradas={entradas} />
         </div>
-        {view === "handoffs" && <HandoffQueue canManage={canManage} onError={setErro} />}
+        {view === "handoffs" && <HandoffQueue canManage={canManage} onError={setErro} organizationId={sessao?.organizacaoAtual?.id} />}
       </div>
     </>
   );

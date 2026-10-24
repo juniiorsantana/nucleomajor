@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../data/client";
-import { conexaoPrincipal, resumirConexao } from "../conexoes/estadoDaConexao";
+import { useIntervaloVisivel } from "../../../lib/useIntervaloVisivel";
+import { conexaoPrincipal, FASES, resumirConexao } from "../conexoes/estadoDaConexao";
 
 /**
  * O estado da conexão do WhatsApp, visto de dentro de Conversas.
@@ -10,13 +11,23 @@ import { conexaoPrincipal, resumirConexao } from "../conexoes/estadoDaConexao";
  * mesmo `api.gateway.conexoes` que a tela de Conexões lê, e devolve a
  * conexão principal resumida em linguagem de gente.
  *
- * Cadência: rápida (6 s) enquanto há motivo para olhar — lista vazia, modal
- * do QR aberto, sessão fora do ar —, lenta (30 s) quando tudo está bem. É o
+ * Cadência: rápida (6 s) só enquanto alguém pareia — modal do QR aberto ou a
+ * VPS dizendo que está em pareamento —, média (30 s) quando a conexão não está
+ * bem, lenta (60 s) quando está conectada. Cada leitura são duas consultas
+ * (`whatsapp_connections` e `connection_runtime_status`), e até 23/10/2026 a
+ * lista vazia e a empresa sem WhatsApp ficavam nos 6 s para sempre. É o
  * heartbeat da VPS (20 s) que manda; ler mais rápido que isso só repetiria a
- * mesma resposta.
+ * mesma resposta. Com a aba oculta, não lê.
  */
 export const CADENCIA_RAPIDA_MS = 6000;
-export const CADENCIA_LENTA_MS = 30000;
+export const CADENCIA_MEDIA_MS = 30000;
+export const CADENCIA_LENTA_MS = 60000;
+
+export function cadenciaDaConexao({ atento = false, resumo = null } = {}) {
+  if (atento || resumo?.fase === FASES.PAREANDO) return CADENCIA_RAPIDA_MS;
+  if (resumo?.fase === FASES.CONECTADO) return CADENCIA_LENTA_MS;
+  return CADENCIA_MEDIA_MS;
+}
 
 export function useConexao(organizationId, { atento = false } = {}) {
   const [conexao, setConexao] = useState(null);
@@ -38,7 +49,6 @@ export function useConexao(organizationId, { atento = false } = {}) {
   }, [organizationId]);
 
   const resumo = conexao ? resumirConexao(conexao) : null;
-  const precisaOlhar = atento || !conexao || (resumo && resumo.fase !== "conectado");
 
   useEffect(() => {
     ativoRef.current = true;
@@ -51,13 +61,7 @@ export function useConexao(organizationId, { atento = false } = {}) {
     };
   }, [organizationId, ler]);
 
-  useEffect(() => {
-    if (!organizationId) return undefined;
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") ler();
-    }, precisaOlhar ? CADENCIA_RAPIDA_MS : CADENCIA_LENTA_MS);
-    return () => clearInterval(id);
-  }, [organizationId, precisaOlhar, ler]);
+  useIntervaloVisivel(ler, cadenciaDaConexao({ atento, resumo }), { ativo: Boolean(organizationId) });
 
   return { conexao, resumo, carregado, recarregar: ler };
 }

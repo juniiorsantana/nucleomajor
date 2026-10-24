@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "../../data/client";
+import { iniciarIntervaloVisivel } from "../../lib/useIntervaloVisivel";
 import { nomeCurto } from "../../ui/perfil";
 import { BotaoPrimario, CabecalhoTela, CampoBusca, DialogoConfirmar } from "../ui";
 import BarraLateral from "./agenda/BarraLateral";
@@ -362,8 +363,11 @@ export default function Agenda({ dados = {}, sessao, aoAbrirContato = () => {}, 
   useEffect(() => {
     if (!contexto || !["owner", "admin"].includes(contexto.papel)) return undefined;
     const atualizarSolicitacoes = () => api.agenda.solicitacoes({ limite: 100 }).then(setSolicitacoes).catch(() => {});
-    const relogio = window.setInterval(atualizarSolicitacoes, 15000);
-    return () => window.clearInterval(relogio);
+    // Sem aviso de Realtime para os pedidos de agendamento: relê de 30 em 30 s
+    // (eram 15 s, com a aba oculta inclusive), e ao voltar para a aba depois
+    // de perder uma volta.
+    // Cada volta são duas consultas: o cargo em `organization_members` e a RPC.
+    return iniciarIntervaloVisivel(atualizarSolicitacoes, 30000);
   }, [contexto]);
 
   // A equipe no formato do formulário de tarefa (`user_id` + `profile`) só

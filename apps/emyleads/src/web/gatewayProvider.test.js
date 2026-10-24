@@ -168,6 +168,21 @@ describe("WebGatewayProvider Realtime", () => {
       attendance: { iaAtiva: true, donoPadrao: "ia" },
     });
   });
+
+  it("pede ao runtime só as colunas que a tela lê (egress, 23/10/2026)", async () => {
+    mocks.consultas.length = 0;
+    mocks.rows.whatsapp_connections = [];
+    mocks.rows.connection_runtime_status = [];
+
+    await criarOperacoesGateway()["gateway.conexoes"]({ organizationId: "338e44ca-36ab-437c-b8ac-aa7c60fee64a" });
+
+    const runtime =mocks.consultas.find((consulta) => consulta.table === "connection_runtime_status");
+    const campos = runtime.campos.split(",");
+    expect(campos).toEqual(expect.arrayContaining(["connection_id", "heartbeat_at", "bridge_status", "flow_runtime_status"]));
+    for (const sobra of ["instance_id", "runtime_kind", "runtime_version", "agenda_read", "contract_version", "started_at"]) {
+      expect(campos).not.toContain(sobra);
+    }
+  });
 });
 
 describe("Pareamento de uma conexão da VPS", () => {

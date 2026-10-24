@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../data/client";
+import { iniciarIntervaloVisivel } from "../lib/useIntervaloVisivel";
 import { descreverAlertaDoModelo, formatarDataHora } from "./formatos";
 
 const INTERVALO_MS = 60_000;
@@ -32,10 +33,12 @@ export default function FaixaDoClaudio({ aoAbrirEmpresa = () => {} }) {
       }
     };
     carregar();
-    const relogio = setInterval(carregar, INTERVALO_MS);
+    // Com a aba oculta não há quem veja a faixa; ao voltar, relê se passou
+    // do minuto.
+    const parar = iniciarIntervaloVisivel(carregar, INTERVALO_MS);
     return () => {
       vivo = false;
-      clearInterval(relogio);
+      parar();
     };
   }, []);
 
