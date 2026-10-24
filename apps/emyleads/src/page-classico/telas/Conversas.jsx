@@ -22,7 +22,7 @@ import {
   LinhaConversa,
   PilulaSistema,
 } from "./conversas/pecas";
-import { conversaDoTelefone } from "./conversas/conversasUtils";
+import { chaveDaLinha, conversaDoTelefone } from "./conversas/conversasUtils";
 import { useConexao } from "./conversas/useConexao";
 import { useConversas } from "./conversas/useConversas";
 import { usePareamento } from "./conversas/usePareamento";
@@ -526,7 +526,7 @@ export default function Conversas({
               }}
             >
               {mensagens.map((m, i) => {
-                const chave = `${m.tipo}-${i}`;
+                const chave = chaveDaLinha(m, i);
                 if (m.tipo === "data") return <DivisorData key={chave} texto={m.texto} />;
                 if (m.tipo === "naoLidas") return <FaixaNaoLidas key={chave} texto={m.texto} />;
                 if (m.tipo === "sistema")
