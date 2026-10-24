@@ -5,6 +5,33 @@ em Windows/PowerShell; operação Linux via SSH na VPS. Referências `/mnt/d/...
 são legadas e não justificam reativar o WSL. Esta regra também consta em
 [`AGENTS.md`](../AGENTS.md).
 
+## Empresa da Adriani removida, sem cópia (23/10/2026)
+
+A pedido do dono, a empresa "Adriani Ademicon" (`600d6eb8-4ffe-4523-a920-679105c2bc95`)
+saiu por inteiro: acesso e dados, **sem backup**. Não há como restaurar.
+
+- **VPS:** `whatsapp-assistant@` e `whatsapp-bridge@a502a475-f677-4a39-8f4e-da85fd92325d`
+  parados e desabilitados; apagados drop-ins, `.env` (com as cópias
+  `.antes-*`), `~/.local/share/nucleo-major/{whatsapp,vault}/a502…`,
+  `~/.local/state/whatsapp-assistant/a502…`, caches da análise e
+  `~/backups/adriani-chatbot-20260923-214015`. A busca pelo id na home voltou
+  vazia, e o sinal de vida da 8ee1 continuou chegando.
+- **Banco:** um bloco `do` rodado pelo dono no SQL Editor, ensaiado antes com
+  `raise exception`. Apaga, nesta ordem: `chatbot_flow_executions` e o convite
+  em `onboarding_access_grants` (não caem em cascata); as dez tabelas cujo
+  gatilho `private.portal_realtime_notify` gravaria aviso de empresa já
+  apagada; as análises (`conversation_insight_*`, `conversation_analyses`, sem
+  chave para a empresa); a empresa; e o login em `auth.users`. Conferido por
+  consulta: empresa, login, convite, contatos, mensagens, conexão e análises
+  em zero; em nenhuma tabela sobra linha da empresa, exceto as 7 de
+  `platform_audit_log`, que é só de acréscimo e registra apenas ações da Major
+  no painel.
+- **Storage:** as 933 mídias de `whatsapp-media/600d6eb8…` apagadas; contagem
+  em zero.
+- **Fica com o dono:** desfazer na Meta a parceria com a página
+  `1244817988723251` e tirar o app AdsMajor da página (o formulário de Lead Ads
+  já não tem campanha para onde ir).
+
 ## Troca voluntária de número do WhatsApp (10/10/2026)
 
 O dono ou o administrador desconecta o WhatsApp de uma conexão por escolha, ou
