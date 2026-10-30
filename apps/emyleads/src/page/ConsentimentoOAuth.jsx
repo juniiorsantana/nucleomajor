@@ -66,8 +66,11 @@ export function destinoConfiavel(endereco) {
   }
 }
 
-const PODE = ["Conversas e mensagens do WhatsApp", "Leads e contatos", "Tarefas e agenda"];
-const NAO_PODE = ["Enviar mensagens", "Criar, mudar ou apagar qualquer coisa"];
+// Desde 29/10/2026 o MCP também grava (lead, Funil, tarefa, nota, agenda),
+// nas empresas liberadas. A tela diz o máximo que o aplicativo pode fazer:
+// prometer menos do que ele faz seria a mentira que importa.
+const PODE = ["Ver conversas e mensagens do WhatsApp", "Ver e atualizar leads e o Funil", "Ver e criar tarefas, notas e compromissos"];
+const NAO_PODE = ["Enviar mensagens", "Apagar qualquer coisa"];
 
 export default function ConsentimentoOAuth({
   oauth = obterSupabaseWeb().auth.oauth,
@@ -167,7 +170,7 @@ export default function ConsentimentoOAuth({
       <Moldura>
         <h1 className="text-[20px] font-semibold tracking-tight">Este aplicativo não é reconhecido</h1>
         <p className="mt-2 text-[13px] leading-5 text-sub">
-          “{nome}” pediu para ler seus dados e mandaria a resposta para{" "}
+          “{nome}” pediu para acessar seus dados e mandaria a resposta para{" "}
           <span className="font-medium text-fg">{destino || "um endereço desconhecido"}</span>, que não é o Claude nem o
           ChatGPT. Por segurança, o Núcleo Major só libera o acesso para eles.
         </p>
@@ -186,7 +189,7 @@ export default function ConsentimentoOAuth({
 
   return (
     <Moldura>
-      <h1 className="text-[20px] font-semibold tracking-tight">{nome} quer ler seus dados</h1>
+      <h1 className="text-[20px] font-semibold tracking-tight">{nome} quer acessar seus dados</h1>
       <p className="mt-1.5 text-[13px] leading-5 text-sub">
         Conta <span className="font-medium text-fg">{pedido.user?.email}</span>. Vale para as mesmas empresas que você vê no portal.
       </p>

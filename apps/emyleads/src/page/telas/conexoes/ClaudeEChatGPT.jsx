@@ -34,11 +34,11 @@ const APLICATIVOS = {
       "Crie um conector com o nome Núcleo Major, cole o endereço e escolha autenticação OAuth.",
       "Entre com o seu e-mail do Núcleo Major e escolha Permitir.",
     ],
-    nota: "Depende do plano do ChatGPT. Plus e Pro aceitam conectores que só leem, como este.",
+    nota: "Depende do plano do ChatGPT. No Plus e no Pro, ele pode ficar só nas consultas; para atualizar, use o Claude.",
   },
 };
 
-const EXEMPLOS = ["Como está hoje?", "Quem está esperando resposta?", "O que a Maria pediu?", "Como foram os leads da semana?", "Como está a agenda da semana?"];
+const EXEMPLOS = ["Como está hoje?", "Quem está esperando resposta?", "O que a Maria pediu?", "Como estão as vendas do mês?", "Move a Maria para Proposta", "Cria uma tarefa de ligar para o João amanhã"];
 
 /** O endereço público do MCP: o do servidor que serviu o portal. */
 export function enderecoDoMcp(config = globalThis.__NUCLEO_CONFIG__, local = globalThis.location) {
@@ -113,8 +113,8 @@ export function ClaudeEChatGPT({ endereco = enderecoDoMcp() }) {
         <div className="min-w-[220px] flex-1">
           <h2 id="claude-chatgpt-titulo" className="text-[15px] font-semibold text-fg">Claude e ChatGPT</h2>
           <p className="mt-0.5 text-[12.5px] leading-relaxed text-sub">
-            Pergunte pelo Claude ou pelo ChatGPT, também no celular, sobre as conversas, os leads, as tarefas e a
-            agenda. Eles só leem: não enviam mensagem nem mudam nada.
+            Pergunte ou peça pelo Claude ou pelo ChatGPT, também no celular: conversas, leads, Funil, tarefas e
+            agenda. Eles atualizam o que você mandar, mas não enviam mensagem nem apagam nada.
           </p>
         </div>
         {selo}

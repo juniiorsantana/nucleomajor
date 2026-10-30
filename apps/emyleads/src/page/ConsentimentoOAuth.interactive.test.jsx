@@ -53,7 +53,10 @@ describe("ConsentimentoOAuth", () => {
     await montar({ oauth, busca: "?authorization_id=auth-1", irPara });
 
     expect(oauth.getAuthorizationDetails).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Claude quer ler seus dados");
+    expect(container.textContent).toContain("Claude quer acessar seus dados");
+    // Diz que grava, e o que nunca faz.
+    expect(container.textContent).toContain("Ver e atualizar leads e o Funil");
+    expect(container.textContent).toContain("Apagar qualquer coisa");
     expect(container.textContent).toContain("dona@exemplo.com");
     expect(container.textContent).toContain("Enviar mensagens");
     expect(container.textContent).toContain("claude.ai");

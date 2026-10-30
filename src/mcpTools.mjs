@@ -35,7 +35,7 @@ function somarDias(dia, n) {
   return diaEmSaoPaulo(new Date(new Date(`${dia}T12:00:00-03:00`).getTime() + n * DIA_MS));
 }
 
-function validarDia(dia) {
+export function validarDia(dia) {
   const texto = String(dia).trim();
   if (!DIA_VALIDO.test(texto) || Number.isNaN(new Date(`${texto}T00:00:00-03:00`).getTime())) {
     throw new ToolError("Informe o dia no formato AAAA-MM-DD, por exemplo 2026-10-09.");
@@ -93,15 +93,15 @@ export function periodoPedido({ dia, periodo } = {}, agora) {
   throw new ToolError(`Período desconhecido: ${qual}. Use ${PERIODOS.join(", ")}, ou um dia (AAAA-MM-DD).`);
 }
 
-function hora(data) {
+export function hora(data) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" }).format(new Date(data));
 }
 
-function dataCurta(data) {
+export function dataCurta(data) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit" }).format(new Date(data));
 }
 
-function diaDaSemana(data) {
+export function diaDaSemana(data) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "short", day: "2-digit", month: "2-digit" }).format(new Date(data));
 }
 
@@ -121,19 +121,19 @@ export function telefoneMascarado(telefone) {
   return digitos ? `…${digitos.slice(-4)}` : "sem número";
 }
 
-function nomeDoContato(nome, telefone) {
+export function nomeDoContato(nome, telefone) {
   const limpo = String(nome || "").trim();
   return limpo || `Contato ${telefoneMascarado(telefone)}`;
 }
 
-function cortar(texto, limite) {
+export function cortar(texto, limite) {
   const limpo = String(texto || "").replace(/\s+/g, " ").trim();
   return limpo.length > limite ? `${limpo.slice(0, limite - 1)}…` : limpo;
 }
 
 const previa = (texto) => cortar(texto, 80);
 
-function semAcento(texto) {
+export function semAcento(texto) {
   return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
@@ -141,7 +141,7 @@ const QUEM_ATENDE = { ia: "IA", bot: "fluxo", humano: "equipe" };
 
 /* ───────────────────────── empresa ───────────────────────── */
 
-const PAPEIS = { owner: "dono", admin: "administrador", member: "membro" };
+export const PAPEIS = { owner: "dono", admin: "administrador", member: "membro" };
 
 export async function empresasDoUsuario(db, userId) {
   const linhas = await db.select(
@@ -406,7 +406,7 @@ export async function agenda(db, empresa, intervalo, dias = 1) {
 /* ───────────────────────── uma pessoa ───────────────────────── */
 
 /** O que vai para o `ilike` do PostgREST: sem curinga nem pontuação de sintaxe. */
-function termoDeBusca(texto) {
+export function termoDeBusca(texto) {
   return String(texto || "").replace(/[*%,()"'\\:]/g, " ").replace(/\s+/g, " ").trim();
 }
 
@@ -581,7 +581,7 @@ export async function mensagens(db, empresa, candidato, quantidade = 20) {
 
 /* ───────────────────────── texto para o celular ───────────────────────── */
 
-function comparacao(atual, antes, rotulo) {
+export function comparacao(atual, antes, rotulo) {
   return `${rotulo}: ${antes}${atual > antes ? " (subiu)" : atual < antes ? " (caiu)" : ""}`;
 }
 
