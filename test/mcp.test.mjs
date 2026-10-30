@@ -201,7 +201,7 @@ test("o .well-known aponta para o Supabase Auth", async (t) => {
   }
 });
 
-test("initialize, notificação e lista de ferramentas só de leitura", async (t) => {
+test("initialize, notificação e lista de ferramentas, com as que gravam marcadas", async (t) => {
   const { origin, rpc } = await servidor(t);
   const inicio = await rpc("tok-a", "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "teste", version: "1" } });
   assert.equal(inicio.status, 200);
@@ -224,10 +224,17 @@ test("initialize, notificação e lista de ferramentas só de leitura", async (t
   assert.deepEqual(nomes, [
     "minhas_empresas", "resumo_do_dia", "esperando_resposta", "leads_esperando", "ficha_do_contato",
     "conversa_com_contato", "conversas", "leads", "tarefas", "agenda",
+    "relatorio_de_vendas", "qualidade_do_atendimento", "pedir_analise",
+    "criar_contato", "editar_contato", "criar_negocio", "mover_negocio", "criar_tarefa",
+    "concluir_tarefa", "anotar", "marcar_compromisso", "remarcar_compromisso",
   ]);
+  // Gravar é dito ao cliente: o Claude e o ChatGPT tratam diferente o que
+  // não é só leitura. Apagar não existe, então nada é destrutivo de verdade;
+  // só mudar etapa e cancelar compromisso levam o aviso.
+  const gravam = new Set(["pedir_analise", "criar_contato", "editar_contato", "criar_negocio", "mover_negocio", "criar_tarefa", "concluir_tarefa", "anotar", "marcar_compromisso", "remarcar_compromisso"]);
   for (const tool of lista.corpo.result.tools) {
-    assert.equal(tool.annotations.readOnlyHint, true, tool.name);
-    assert.equal(tool.annotations.destructiveHint, false, tool.name);
+    assert.equal(tool.annotations.readOnlyHint, !gravam.has(tool.name), tool.name);
+    assert.equal(tool.annotations.destructiveHint, ["mover_negocio", "remarcar_compromisso"].includes(tool.name), tool.name);
   }
 
   const metodo = await rpc("tok-a", "resources/list", {});

@@ -1,6 +1,8 @@
 /**
  * O MCP do portal: Claude e ChatGPT (inclusive no celular) perguntam ao
- * Núcleo Major em nome de quem entrou. Só leitura.
+ * Núcleo Major em nome de quem entrou e, nas empresas liberadas, também
+ * gravam: lead, Funil, tarefa, nota e agenda (`mcpEscrita.mjs`), além dos
+ * relatórios e da qualidade do atendimento (`mcpRelatorios.mjs`). Nada apaga.
  *
  * Como entra a pessoa: o Supabase Auth é o servidor OAuth 2.1 (descoberta,
  * registro dinâmico e PKCE). O cliente chega aqui sem token, recebe 401 com
@@ -14,7 +16,7 @@
  * oficial traria express, hono e mais quinze pacotes para isso.
  */
 
-import { TOOLS, ToolError, runTool } from "./mcpTools.mjs";
+import { TOOLS, ToolError, runTool } from "./mcpCatalogo.mjs";
 
 const VERSOES = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const LIMITE_CORPO = 64_000;
@@ -23,11 +25,14 @@ const PAGINA = 1000; // o teto de linhas por resposta do PostgREST no Supabase
 const MAX_LINHAS = 10_000;
 
 const INSTRUCOES = [
-  "Dados do Núcleo Major (CRM, WhatsApp, tarefas e agenda) das empresas em que a pessoa participa. Só leitura.",
+  "Dados do Núcleo Major (CRM, WhatsApp, tarefas e agenda) das empresas em que a pessoa participa.",
   "Para perguntas gerais do dia ('como está hoje?', 'tem algo pendente?'), use resumo_do_dia.",
   "Para 'quem está esperando resposta?', use esperando_resposta. Para perguntas sobre uma pessoa, ficha_do_contato; para o que ela disse ou pediu, conversa_com_contato.",
   "Para 'como foi a semana/o mês?', use o parâmetro periodo de conversas e leads. Para 'como está a semana na agenda?', agenda com dias.",
   "Se a ferramenta devolver uma lista para escolher (duas pessoas, duas empresas), pergunte a quem está usando em vez de escolher.",
+  "Para 'como estão as vendas?', relatorio_de_vendas. Para 'como foi o atendimento?', qualidade_do_atendimento.",
+  "Ordem direta ('move a Maria para Proposta', 'cria uma tarefa', 'anota na ficha', 'marca reunião') pode ser feita na hora, sem pedir confirmação; depois diga o que mudou. Nada apaga: não existe ferramenta para isso.",
+  "Análise de conversa gasta crédito: se não houver uma, diga o custo e o saldo e só use pedir_analise depois do sim da pessoa.",
   "Horários e 'hoje' são de Brasília. Responda em português, curto, pensando na leitura no celular.",
 ].join(" ");
 
@@ -88,6 +93,16 @@ export function supabaseDb({ supabaseUrl, publishableKey, token, fetchImpl = fet
       console.error("mcp supabase failed", resposta.status, path.split("?")[0], detalhe.slice(0, 200));
       const erro = new McpHttpError(502, "O banco recusou a consulta.", "supabase-failed");
       erro.upstream = resposta.status;
+      // A dica e a mensagem do Postgres: a escrita traduz as conhecidas
+      // (`lead_tem_negocio`, falta de crédito) em vez do recado genérico.
+      try {
+        const corpo = JSON.parse(detalhe);
+        erro.hint = String(corpo?.hint || "");
+        erro.mensagemDoBanco = String(corpo?.message || "");
+      } catch {
+        erro.hint = "";
+        erro.mensagemDoBanco = "";
+      }
       throw erro;
     }
     return resposta;
@@ -119,6 +134,17 @@ export function supabaseDb({ supabaseUrl, publishableKey, token, fetchImpl = fet
       const resposta = await pedir(`/rest/v1/rpc/${fn}`, { method: "POST", body });
       return resposta.json();
     },
+    /** Grava uma linha e a devolve como ficou (com o id e o que os gatilhos mudaram). */
+    async insert(tabela, linha) {
+      const resposta = await pedir(`/rest/v1/${tabela}`, { method: "POST", body: linha, headers: { Prefer: "return=representation" } });
+      const linhas = await resposta.json();
+      return Array.isArray(linhas) ? linhas[0] : linhas;
+    },
+    /** Muda as linhas que o filtro pega (a RLS decide quais pode) e as devolve como ficaram. */
+    async update(path, patch) {
+      const resposta = await pedir(path, { method: "PATCH", body: patch, headers: { Prefer: "return=representation" } });
+      return resposta.json();
+    },
   };
 }
 
@@ -126,7 +152,7 @@ function erroRpc(id, code, message) {
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message } };
 }
 
-export function createMcp({ publicOrigin, supabaseUrl, publishableKey, fetchImpl = fetch, now = () => new Date() }) {
+export function createMcp({ publicOrigin, supabaseUrl, publishableKey, fetchImpl = fetch, now = () => new Date(), empresasLiberadas }) {
   const origem = String(publicOrigin).replace(/\/$/, "");
   const recurso = `${origem}/mcp`;
   const metadataUrl = `${origem}/.well-known/oauth-protected-resource`;
@@ -168,7 +194,7 @@ export function createMcp({ publicOrigin, supabaseUrl, publishableKey, fetchImpl
         result: {
           protocolVersion: VERSOES.includes(pedida) ? pedida : VERSOES[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "nucleo-major", title: "Núcleo Major", version: "0.2.0" },
+          serverInfo: { name: "nucleo-major", title: "Núcleo Major", version: "0.3.0" },
           instructions: INSTRUCOES,
         },
       };
@@ -179,7 +205,7 @@ export function createMcp({ publicOrigin, supabaseUrl, publishableKey, fetchImpl
       const nome = String(params?.name || "");
       const inicio = Date.now();
       try {
-        const saida = await runTool(nome, params?.arguments, { db: contexto.db, user: contexto.user, agora: now() });
+        const saida = await runTool(nome, params?.arguments, { db: contexto.db, user: contexto.user, agora: now(), liberadas: empresasLiberadas });
         registrar(contexto.user, nome, saida.empresa, inicio, "ok");
         return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: saida.text }], structuredContent: saida.data } };
       } catch (error) {

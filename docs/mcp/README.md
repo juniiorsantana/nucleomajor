@@ -2,7 +2,20 @@
 
 Claude e ChatGPT, no computador e no celular, perguntam ao Núcleo Major em nome
 de quem entrou: *quantas conversas hoje? quantos leads? tem lead esperando? tem
-tarefa? compromisso hoje?* A v1 é **só leitura**.
+tarefa? compromisso hoje?* E, desde 29/10/2026, também fazem o que a pessoa
+manda (*move a Maria para Proposta, cria uma tarefa, anota na ficha, marca
+reunião*), respondem como estão as vendas e a qualidade do atendimento.
+
+| Parte | Para quem | Onde |
+|---|---|---|
+| Consultas (v1) | qualquer empresa da pessoa | `src/mcpTools.mjs` |
+| Relatórios e qualidade (pacote 3) | só empresas liberadas | `src/mcpRelatorios.mjs` |
+| Gravar (pacote 2) | só empresas liberadas | `src/mcpEscrita.mjs` |
+
+"Liberadas" é a lista `EMPRESAS_LIBERADAS` em `src/mcpCatalogo.mjs`: hoje só a
+Núcleo Major, por decisão do dono em 29/10/2026. Abrir para os clientes pede o
+interruptor por empresa no banco (ver "Fora desta versão"), e então a lista sai
+do código.
 
 Não confundir com o MCP do runtime da VPS (`whatsapp-mcp-hardened`), que serve
 os agentes que atendem no WhatsApp e só escuta em loopback. Este fica no portal,
@@ -55,6 +68,8 @@ Claude / ChatGPT
 
 ## Ferramentas
 
+### Consultas
+
 Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 
 | Ferramenta | Responde | Regra |
@@ -74,6 +89,57 @@ Todas têm `readOnlyHint: true`. As regras são as mesmas das telas do portal.
 - **`periodo`** vale em `conversas` e `leads`: `hoje`, `ontem`, `semana` (de segunda até hoje), `7dias`, `mes` (do dia 1 até hoje) ou `30dias`. A resposta compara com o período anterior: semana com o mesmo trecho da semana passada; 7 e 30 dias com os 7 e 30 dias antes.
 - **O que a conversa expõe:** é o dado mais sensível que sai do portal, então só vem de uma pessoa, só quando pedido, até 50 mensagens, cada uma cortada em 400 caracteres. Telefone inteiro continua sem sair, inclusive na ficha (`…1234`).
 - **Busca por nome não ignora acento** (o `ilike` do Postgres diferencia "Joao" de "João"). Se não achar, tente outra parte do nome ou os últimos dígitos.
+
+### Relatórios e qualidade do atendimento
+
+| Ferramenta | Responde | Regra |
+|---|---|---|
+| `relatorio_de_vendas` | leads e contatos novos, negócios abertos, ganhos e perdidos (valor e taxa), motivos de perda, funil da safra e origem, contra o período anterior; padrão: este mês; aceita `periodo`, `dia` ou `de`/`ate` | as mesmas funções da tela Relatórios (`relatorios/metricas.js`), então os números batem |
+| `qualidade_do_atendimento` | com `busca`: a análise mais nova da conversa (nota, gargalo, o que fazer agora), no texto do botão Copiar da ficha; sem: análises do período (padrão 30 dias), nota média, mais baixas e mais altas, e o saldo | `conversation_analyses`; a RLS mostra à equipe só as salvas, e à gestão também os rascunhos |
+| `pedir_analise` | pede uma análise nova (atendimento, lead ou completa) | RPC `conversation_analysis_request`, que gasta o crédito |
+
+**Análise gasta crédito**, então o dono decidiu em 29/10/2026: quando não há
+análise, a resposta diz o custo e o saldo e manda perguntar. `pedir_analise`
+exige `confirmado: true` e recusa sem isso. É o único ponto em que o MCP pede
+confirmação antes de agir.
+
+### Gravar
+
+Decisão do dono em 29/10/2026: **ordem direta grava na hora**, sem perguntar
+"confirma?". O que segura o engano é outra coisa:
+
+- **Nunca chuta.** Duas Marias, duas etapas parecidas, dois negócios abertos,
+  dois compromissos com o mesmo nome: volta a lista e o modelo pergunta. Nada
+  é gravado antes da escolha.
+- **Nada apaga.** Não há ferramenta de apagar. Cancelar compromisso muda o
+  status e concluir tarefa marca a caixinha.
+- **Repetir não duplica.** O cliente refaz a chamada quando a rede cai. Mesma
+  tarefa, nota ou compromisso de novo em 10 minutos devolve o que já existe;
+  contato com o mesmo número (com ou sem o nono dígito) não nasce duas vezes;
+  negócio novo para quem já tem um aberto pede `outro_negocio: true`.
+- **O rastro.** Cada gravação ligada a um contato deixa um `contact_events`
+  com `source = 'mcp'`, e o log do Node registra a ferramenta, como nas
+  consultas.
+- **As gravações são as do portal** (`web/dataProvider.js`,
+  `web/agendaProvider.js`), com o token da pessoa: a RLS decide o que ela pode
+  mudar. Permissão negada volta como "sua conta não tem permissão".
+
+| Ferramenta | Faz | Regra |
+|---|---|---|
+| `criar_contato` | cadastra como lead (padrão) ou contato | número repetido devolve quem já existe |
+| `editar_contato` | muda nome, e-mail, empresa, cargo e origem; `lead` true/false | quem só está no WhatsApp entra no CRM; tirar lead com negócio volta a dica `lead_tem_negocio` traduzida |
+| `criar_negocio` | abre negócio na etapa pedida ou na primeira | o banco promove o contato a lead |
+| `mover_negocio` | etapa, ganho, perdido (motivo), reabrir, valor | escolhe o negócio aberto; com mais de um, pergunta pelo título |
+| `criar_tarefa` | tarefa com prazo e responsável (padrão: quem pediu) | só o dia vale às 9h de Brasília; o responsável é procurado pelo nome inteiro, depois por uma palavra inteira ("Ana" não é "Santana") |
+| `concluir_tarefa` | conclui uma tarefa pendente pelo título | — |
+| `anotar` | nota na ficha, com o nome de quem pediu | — |
+| `marcar_compromisso` | compromisso na agenda de quem pediu; padrão 60 min e só na própria agenda; `para_a_empresa` deixa a equipe ver | a primeira categoria ativa, lembrete de 30 min |
+| `remarcar_compromisso` | muda o horário (mantém a duração) ou cancela | só o que a própria pessoa criou, de ontem até 90 dias |
+
+O ChatGPT Plus e o Pro aceitam só conectores de leitura (ver "Conectar"):
+neles, as ferramentas que gravam podem não ser usadas. No Claude, gravar funciona em qualquer plano. O Claude
+pode perguntar "Permitir?" na primeira vez que usar cada uma; quem marcar
+"sempre permitir" deixa de ver a pergunta.
 
 ## Ligar em produção (uma vez)
 
@@ -155,14 +221,23 @@ a lista é da pessoa, não da empresa.
   - conecte com a conta da Major e compare as respostas com as telas Conversas,
     Leads, Tarefas e Agenda;
   - repita no app do celular;
-  - depois, com a conta da Adriani, confira que só a empresa dela aparece.
+  - peça "como estão as vendas do mês?" e compare com a tela Relatórios;
+  - num contato de teste: crie uma tarefa, anote, mova o negócio de etapa,
+    marque e cancele um compromisso; confira cada um na tela e na linha do
+    tempo do contato;
+  - quando houver uma segunda empresa, confira com a conta dela que só a
+    empresa dela aparece e que gravar é recusado.
 
-## Fora da v1
+## Fora desta versão
 
-- Escritas (tarefa, funil, nota, agenda), pelo padrão `assistant_tool_runs`:
-  proposta, confirmação e idempotência.
-- Interruptor "permitir acesso por MCP" por empresa, antes de abrir para todos
-  os clientes. Exige migration. A lista dos acessos da própria pessoa já existe,
-  em Conexões.
+- Interruptor "permitir acesso por MCP" por empresa, antes de abrir relatórios
+  e gravação para os clientes. Exige migration, e substitui
+  `EMPRESAS_LIBERADAS`. A lista dos acessos da própria pessoa já existe, em
+  Conexões.
+- Apagar (contato, negócio, tarefa, nota, compromisso): fora de propósito.
+- Mexer em compromisso de outra pessoa e escolher etiquetas pelo MCP.
+- O padrão `assistant_tool_runs` (proposta e confirmação) ficou de fora: ele
+  exige uma conversa do assistente do portal (`thread_id`), e o dono preferiu
+  a ordem direta.
 - Tabela de auditoria das chamadas, no lugar do log.
 - Envio de WhatsApp continua fora.
